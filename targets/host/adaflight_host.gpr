@@ -16,6 +16,7 @@ project Adaflight_Host is
       "adaflight-stm32-servos.adb",
       "adaflight-stm32-sound.adb", "adaflight-stm32-spi.adb",
       "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight-stm32-usb.adb",
+      "adaflight-stm32-i2c.adb",
       "adaflight_stm32f4.adb");
 
    package Naming is
@@ -24,6 +25,7 @@ project Adaflight_Host is
       for Spec ("Adaflight.STM32.Flash") use "adaflight-host-flash.ads";
       for Body ("Adaflight.STM32.Flash") use "adaflight-host-flash.adb";
       for Body ("Adaflight.STM32.GPIO") use "adaflight-host-gpio.adb";
+      for Body ("Adaflight.STM32.I2C") use "adaflight-host-i2c.adb";
       for Body ("Adaflight.STM32.Gyro") use "adaflight-host-gyro.adb";
       for Body ("Adaflight.STM32.LED_Strip") use "adaflight-host-led_strip.adb";
       for Body ("Adaflight.STM32.MCU") use "adaflight-host-mcu.adb";

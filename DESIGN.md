@@ -11680,3 +11680,27 @@ buses of the F4 and F7 families with their bases, clock bits and alternate funct
 halving their divisor as before. The board generator writes the six buses' pins with their presence and the gyro's
 bus number beside the OSD chip's, the SD card's and the flash chip's, the devices accept a bus up to the sixth, and
 the flight starts every bus the board has. The Kakute F7's gyro is on SPI4.
+
+## D519. Board barometer (2026-10-29)
+
+The board detects its barometer on the bus the configuration names and reads it in the 40 Hz cycle of the barometer
+task (D124). The I2C buses the board has start with the SPI ones, as masters at 400 kHz; the F7's I2C body drives the
+newer peripheral through its timing register, a register read as a write of the register with the transfer kept open
+and a read of the bytes ended automatically, a register write as one two-byte transfer, and a missing acknowledge or a
+wait past 25 ms failing the transfer and restarting the peripheral. The F4 crate drives no I2C bus yet, so a device on
+one is not found there. `Adaflight.I2C_Timing` contains the timing register's computation from the bus clock, the
+speed and the filter length, the reference's single precision arithmetic with a prescaler search, SPARK for its
+bounded loops; a new oracle family draws clocks, speeds and filters, leaving out the cases whose data hold delay the
+reference computes below zero, and all 6824 lines match.
+
+The barometer's bus comes from the board's configuration through the hardware defaults: SPI when the board names one,
+else I2C when it names one, with the bus's device, the chip select or the address, and the conversion end and reset
+pins, else no bus with the hardware set to none, the stored configuration's values standing for a build without a
+board. The board's barometer unit serves the drivers' bus device over the I2C and SPI buses, a started read or write
+running at once so the bus never reports busy, scans the drivers the board names, the BMP280 alone so far, and runs
+the task's step with the elapsed time of each device call. The altitude feeds the position estimator, the flight log,
+the telemetry, which gains the Ghost link's barometer frame, and the replies, the status names the barometer on its
+bus, and the power-on calibration starts with the flight log. The host image models a BMP280 on its first I2C bus
+answering the datasheet's worked example, which the smoke reads through the status, the sensor flags and the altitude
+reply. The Kakute F7 image grows from 634216 to 637284 bytes of code for the I2C driver and the barometer, the
+CLRacing F4S image from 638992 to 639512 for the hardware defaults, its barometer code dropped by its constants.

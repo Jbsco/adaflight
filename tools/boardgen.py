@@ -68,6 +68,12 @@ def pinio_config(text) -> int:
     return (0x80 if "PINIO_CONFIG_OUT_INVERTED" in text else 0) | (1 if "PINIO_CONFIG_MODE_OUT_PP" in text else 0)
 
 
+def i2c_device(text: str) -> int:
+    """The I2C bus a configuration stores for an instance such as I2CDEV_1: its number, zero for none."""
+    match = re.fullmatch(r"I2CDEV_([1-4])", text.strip())
+    return int(match.group(1)) if match else 0
+
+
 def spi_device(text: str) -> int:
     """The SPI bus a configuration stores for an instance such as SPI3: its number, zero for none."""
     match = re.fullmatch(r"SPI([1-6])", text.strip())
@@ -110,6 +116,7 @@ def generate(config: Path, overrides: dict) -> str:
     defines.update(overrides)
     fixed = [f"UART{n}_{d}_PIN" for n in range(1, 7) for d in ("TX", "RX")] \
         + [f"SPI{n}_{d}_PIN" for n in range(1, 7) for d in ("SCK", "SDI", "SDO")] \
+        + [f"I2C{n}_{d}_PIN" for n in range(1, 5) for d in ("SCL", "SDA")] \
         + ["LED0_PIN", "GYRO_1_CS_PIN", "GYRO_1_EXTI_PIN", "FLASH_CS_PIN", "SDCARD_SPI_CS_PIN", "SDCARD_DETECT_PIN"]
     pins = sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                   if k.endswith("_PIN") and k not in fixed and re.fullmatch(r"P[A-K]\d{1,2}", v))
@@ -121,7 +128,9 @@ def generate(config: Path, overrides: dict) -> str:
     presence = [(f"Has_UART{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"UART{n}_{d}_PIN", "")) for d in ("TX", "RX")))
                 for n in range(1, 7)] \
         + [(f"Has_SPI{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"SPI{n}_{d}_PIN", "")) for d in ("SCK", "SDI", "SDO")))
-           for n in range(1, 7)]
+           for n in range(1, 7)] \
+        + [(f"Has_I2C{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"I2C{n}_{d}_PIN", "")) for d in ("SCL", "SDA")))
+           for n in range(1, 5)]
     pins += sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                    if k.startswith("INVERTER_PIN_") and re.fullmatch(r"P[A-K]\d{1,2}", v))
     timer_map = []
@@ -149,7 +158,7 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
     out.append("   --  card's select and detect, the flash chip's select, the USB cable")
     out.append("   --  detect and the UARTs' inverters, zero for none,")
-    out.append("   --  the gyro's and their SPI buses from 1, zero for none, whether the detect pin reads low")
+    out.append("   --  the gyro's and their SPI buses from 1, the barometer's I2C or SPI bus and chip, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
     out.append("   --  motors' and the LED strip's pins, the host defaults where the board")
@@ -158,7 +167,8 @@ def generate(config: Path, overrides: dict) -> str:
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
             ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN"),
-            ("USB_Detect_Tag", "USB_DETECT_PIN")] \
+            ("USB_Detect_Tag", "USB_DETECT_PIN"), ("Baro_CS_Tag", "BARO_CS_PIN"), ("Baro_EOC_Tag", "BARO_EOC_PIN"),
+            ("Baro_XCLR_Tag", "BARO_XCLR_PIN")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
@@ -170,6 +180,9 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
                 ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
                 ("Gyro_1_SPI_Device", spi_device(defines.get("GYRO_1_SPI_INSTANCE", ""))),
+                ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),
+                ("Baro_SPI_Device", spi_device(defines.get("BARO_SPI_INSTANCE", ""))),
+                ("Baro_BMP280", "True" if "USE_BARO_BMP280" in defines else "False"),
                 ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),
