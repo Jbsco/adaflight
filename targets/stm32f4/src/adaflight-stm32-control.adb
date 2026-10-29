@@ -1,10 +1,15 @@
+with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.DShot;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
+with Adaflight.Modes;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Pilot;
+with Adaflight.STM32.Radio;
+with Adaflight.STM32.Servos;
 package body Adaflight.STM32.Control is
    Ctl          : Adaflight.PID_Controller.State;
    Mix          : Adaflight.Mixer.State;
@@ -19,6 +24,8 @@ package body Adaflight.STM32.Control is
    Step         : Adaflight.Arming.Outputs;
    Step_Changed : Boolean := False;
    Last_Step    : Integer range -1 .. Adaflight.Mixer.Dyn_LPF_Throttle_Steps := -1;
+   Servo_Settings : Adaflight.Servo_Mixer.Settings;
+   Servo_State    : Adaflight.Servo_Mixer.State;
 
    --  The selected profiles, within their four and three.
    function Index_Of (Setting : Interfaces.Unsigned_8; Last : Natural) return Natural is
@@ -45,6 +52,51 @@ package body Adaflight.STM32.Control is
       Last_Step := Mix.Dyn_LPF_Previous_Step;
       Step_Changed := False;
    end Init;
+
+   procedure Set_Servo_Config (Config : Adaflight.Config_Groups.Configuration) is
+      use type Interfaces.Unsigned_8;
+   begin
+      Servo_Settings.Params := Config.Servo_Params;
+      Servo_Settings.Lowpass_Hz := Config.Servo_Config.Servo_Lowpass_Freq;
+      Servo_Settings.Tri_Unarmed := Config.Servo_Config.Tri_Unarmed_Servo /= 0;
+      Servo_Settings.Forward_Start := Natural (Config.Servo_Config.Channel_Forwarding_Start_Channel);
+      Servo_Settings.Mixed_Tilt := Config.Gimbal_Config.Mode = 1;
+      Servo_Settings.Mid_RC :=
+        Interfaces.Unsigned_16'Max (1_200, Interfaces.Unsigned_16'Min (1_700, Config.Rx_Config.Midrc));
+      Servo_Settings.Max_Aux_Channel := Natural (Config.Rx_Config.Max_Aux_Channel);
+   end Set_Servo_Config;
+
+   procedure Init_Servos
+     (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
+      Channel_Count : Natural; Loop_Time_Us : Positive)
+   is
+      use type Interfaces.Unsigned_32;
+      Servo_Tilt         : constant Interfaces.Unsigned_32 := 16#0000_0020#;
+      Channel_Forwarding : constant Interfaces.Unsigned_32 := 16#0010_0000#;
+   begin
+      Servo_Settings.Mode := Adaflight.STM32.Pilot.Mixer_Mode;
+      Servo_Settings.Options := (others => <>);
+      Servo_Settings.Servo_Tilt := (Runtime_Features and Servo_Tilt) /= 0;
+      Servo_Settings.Channel_Forwarding := (Runtime_Features and Channel_Forwarding) /= 0;
+      Servo_Settings.Three_D := (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0;
+      Servo_Settings.Custom_Rules := Config.Custom_Servo_Mixers;
+      Servo_Settings.Channel_Count := Natural'Min (Adaflight.Servo_Mixer.Max_Channels, Channel_Count);
+      Set_Servo_Config (Config);
+      Adaflight.Servo_Mixer.Init (Servo_State, Servo_Settings, Float (Loop_Time_Us) * 1.0E-6);
+      if Servo_State.Uses_Servos then
+         Adaflight.STM32.Servos.Init (Config);
+      end if;
+   end Init_Servos;
+
+   procedure Load_Servo_Rules (Rules : Adaflight.Config_Groups.Servo_Mixer_Record_List_16) is
+   begin
+      Adaflight.Servo_Mixer.Load_Custom_Rules (Servo_State, Rules);
+   end Load_Servo_Rules;
+
+   function Uses_Servos return Boolean is (Servo_State.Uses_Servos);
+
+   function Servo (Index : Adaflight.Servo_Mixer.Servo_Index) return Interfaces.Integer_16 is
+     (Servo_State.Servo (Index));
 
    procedure Set_Stabilisation (Enabled : Boolean; Iterm_Reset : Boolean) is
    begin
@@ -173,6 +225,44 @@ package body Adaflight.STM32.Control is
       Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
    end Write_Motors;
 
+   --  The servo mixer's loop over the arming, the passthrough, the servo
+   --  and camera stabilization boxes, the RC commands and the PID sums, the
+   --  attitude, the first motor and the receiver's channels, then its writes
+   --  to the servo outputs in their order.
+   procedure Write_Servos is
+      Inp   : Adaflight.Servo_Mixer.Inputs;
+      W     : Adaflight.Servo_Mixer.Servo_Writes;
+      Count : Adaflight.Servo_Mixer.Write_Count;
+   begin
+      Inp.Armed := Current.Armed;
+      Inp.Passthru := Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Passthru_Mode);
+      Inp.Servo_Box :=
+        (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Servo_1),
+         Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Servo_2),
+         Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Servo_3));
+      Inp.Camera_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Cam_Stab);
+      for A in Adaflight.Servo_Mixer.Axis loop
+         Inp.RC_Command (A) := Float'Max (-4_000.0, Float'Min (4_000.0, Adaflight.STM32.Pilot.Command (A)));
+         Inp.PID_Sum (A) :=
+           Float'Max (-4_000.0, Float'Min (4_000.0, Ctl.Data (Adaflight.Axes.Axis'Val (A)).Sum));
+      end loop;
+      Inp.Roll := Interfaces.Integer_16
+        (Integer'Max (-32_768, Integer'Min (32_767, Current.Attitude (Adaflight.Axes.Roll))));
+      Inp.Pitch := Interfaces.Integer_16
+        (Integer'Max (-32_768, Integer'Min (32_767, Current.Attitude (Adaflight.Axes.Pitch))));
+      Inp.Motor_Device := Adaflight.STM32.Motors.Count > 0;
+      Inp.External_Motor :=
+        Interfaces.Unsigned_16 (Adaflight.DShot.To_External (Mix.Motors (0), Servo_Settings.Three_D));
+      Inp.Motor := Mix.Motors (0);
+      for Ch in Adaflight.Servo_Mixer.Channel_Index loop
+         Inp.RC_Data (Ch) := Float'Max (-10_000.0, Float'Min (10_000.0, Adaflight.STM32.Radio.Channel (Ch)));
+      end loop;
+      Adaflight.Servo_Mixer.Write_Servos (Servo_State, Servo_Settings, Inp, W, Count);
+      for K in 1 .. Count loop
+         Adaflight.STM32.Servos.Write (W (K).Index, W (K).Value);
+      end loop;
+   end Write_Servos;
+
    package Loop_Pass is new Adaflight.Main_Loop
      (Reset_Yaw       => Adaflight.STM32.Pilot.Reset_Yaw,
       RC_Command      => Adaflight.STM32.Pilot.Process_Commands,
@@ -181,13 +271,13 @@ package body Adaflight.STM32.Control is
       Runaway_Check   => Runaway_Check,
       PID_Audio       => Nothing,
       Mix_Table       => Run_Mixer,
-      Write_Servos    => Nothing,
+      Write_Servos    => Write_Servos,
       Write_Motors    => Write_Motors,
       Blackbox_Update => Adaflight.STM32.Blackbox.Update);
 
    procedure Pass
      (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Resets_Yaw, Uses_Servos, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs) is
+      Resets_Yaw, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs) is
    begin
       Current := I;
       Control.Sensed := Sensed;
@@ -196,8 +286,8 @@ package body Adaflight.STM32.Control is
       Step_Changed := False;
       Loop_Pass.PID_Loop
         ((Wing_Launch => False),
-         (Resets_Yaw => Resets_Yaw, Uses_Servos => Uses_Servos, Log_Device => Log_Device, CLI_Open => CLI_Open,
-          PID_Audio => PID_Audio));
+         (Resets_Yaw => Resets_Yaw, Uses_Servos => Servo_State.Uses_Servos, Log_Device => Log_Device,
+          CLI_Open => CLI_Open, PID_Audio => PID_Audio));
       Asked := Step;
    end Pass;
 

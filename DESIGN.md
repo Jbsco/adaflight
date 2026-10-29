@@ -11481,3 +11481,29 @@ line's port through the same loop, where the board answered that the forwarding 
 The host image counts each connect and disconnect of its USB port's TCP client as a control line request, with DTR set
 while a client is connected. The host smoke checks the forwarding both ways between UART4 and the USB port, and the
 reset when the client disconnects from a passthrough started with a reset on DTR.
+
+## D509. Board servo outputs (2026-10-28)
+
+The board drives the servos. The servo mixer (D478) runs in the PID loop pass after the mix when the mixer drives
+servos, with its settings from the configuration and the build's features, the receiver's channel count and the PID
+loop's period. Its inputs come from the arming, the passthrough flight mode, the servo and camera stabilization boxes,
+the RC commands, the PID sums, the attitude, the first motor through its DShot conversion and the receiver's channels.
+Its writes go to the servo outputs in their order. On each pass the mixer reads the servo parameters, the tricopter's
+unarmed servo, the first channel forwarded, the lowpass cutoff, the mixed tilt and the receiver's middle and aux
+channel count from the live configuration, so the configurator's servo changes take effect at once. An MSP servo rule
+write loads the custom rules as the mixer's rules in any mode. The MSP servo reply and the flight log take the mixer's
+servo values, and the flight log's servo condition follows the mixer's own use of servos, which servo tilt and channel
+forwarding also turn on.
+
+The timer table, the register layout and the clocks move from the motor driver to `Adaflight.STM32.Timers`, which also
+keeps an owner for each entry of the board's timer pin map. A pin takes the timer channel that its first map entry's
+option counts among the pin's entries in the timer table, and a channel another output holds is refused. The motors
+claim their channels first, then each servo with a pin in servo order, and the first servo refused ends the setup. A
+servo's timer counts at 1 MHz over the period of the servo rate, its channel starts in PWM mode 1 with its preload and
+a cleared compare register, and a write rounds the pulse to the nearest microsecond with ties to even.
+
+The host image claims the same channels and logs each servo's setup and each change of its pulse. The host smoke sets
+up a flying wing with two servo pins: the outputs start at 50 Hz, the flaperons rest at their middle, passthrough roll
+moves them apart in the MSP reply and on the outputs, a configurator servo write lowers a flaperon's limit at once,
+and a servo on the motor's pin is refused with the rest of the setup. The image grows from 622752 to 627612 bytes of
+code, most of it the servo mixer, which the board did not link before.

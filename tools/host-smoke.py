@@ -939,7 +939,7 @@ def stop(proc):
 
 def start(image, store, extra=None, port=PORT):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
-               ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", **(extra or {}))
+               ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -1035,6 +1035,21 @@ def dshot_frames(store, wait):
             break
         lines = now
     return lines
+
+
+def servo_lines(store):
+    """The setup and pulse lines of the image's servo log, as lists of their fields."""
+    try:
+        with open(store + ".servo.txt") as log:
+            return [line.split(",") for line in log.read().split()]
+    except OSError:
+        return []
+
+
+def servo_values(sock):
+    """The eight servo values of the MSP servo reply, none without a reply."""
+    reply = msp(sock, 103)
+    return [reply[i] | reply[i + 1] << 8 for i in range(0, 16, 2)] if reply and len(reply) >= 16 else []
 
 
 def cli(sock, line, wait=0.8):
@@ -2577,6 +2592,74 @@ def main():
             check("resource keeps a stored servo pin across a restart", "# resource SERVO 1 B00" in text, text[-120:])
             text = cli(sock, "diff")
             check("diff lists the changed resource", "resource SERVO 1 B00" in text, text[-200:])
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "servos.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "mixer FLYING_WING")
+            check("flying wing mixer set", "Mixer: FLYING_WING" in text, text[-120:])
+            for line in ("resource SERVO 1 B08", "resource SERVO 2 B09"):
+                text = cli(sock, line)
+                check(f"wing {line}", "Resource is set to " + line[-3:] in text, text[-160:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("receiver port assigned for the wing", "rx_uart set to UART3" in text, text[-120:])
+            text = cli(sock, "aux 0 12 0 1700 2100 0 0")
+            check("passthrough mode on AUX1", "aux 0 12 0 1700 2100 0 0" in cli(sock, "aux"), text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            setups = [line for line in servo_lines(store) if line[0] == "setup"]
+            check("the wing's two servo outputs start at 50 Hz with a 1500 us center",
+                  setups == [["setup", "0", "20000", "1500"], ["setup", "1", "20000", "1500"]], repr(setups))
+            ok, values = until(lambda: servo_values(sock), lambda v: len(v) == 8 and v[3] == 1500 and v[4] == 1500)
+            check("the wing's flaperons rest at their middle", ok and values[7] == 1000, repr(values))
+            receiver.channels[4] = 1811
+            receiver.channels[0] = 1811
+            ok, values = until(lambda: servo_values(sock), lambda v: len(v) == 8 and v[3] == 2000 and v[4] == 1000)
+            check("passthrough roll moves the flaperons apart", ok, repr(values))
+            ok, pulses = until(lambda: [line for line in servo_lines(store) if line[0] == "pulse"],
+                               lambda p: ["pulse", "0", "2000"] in p and ["pulse", "1", "1000"] in p, wait=5.0)
+            check("the servo outputs take the flaperons' pulses in output order", ok, repr(pulses[-6:]))
+            msp(sock, 212, bytes([3]) + struct.pack("<HHHBBI", 1000, 1900, 1500, 100, 255, 0))
+            ok, values = until(lambda: servo_values(sock), lambda v: len(v) == 8 and v[3] == 1900)
+            check("a servo's new limit from the configurator holds it at once", ok, repr(values))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "servomotor.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            cli(sock, "mixer FLYING_WING")
+            cli(sock, "resource SERVO 1 B00")
+            cli(sock, "resource SERVO 2 B09")
+            text = cli(sock, "resource SERVO 1")
+            check("a servo on the wing's motor pin is stored", "# resource SERVO 1 B00" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            check("a servo on the motor's pin is refused and ends the servo setup", servo_lines(store) == [],
+                  repr(servo_lines(store)))
         finally:
             stop(proc)
             sock.close()

@@ -33,7 +33,7 @@ Silver with no assume, and pass the gates on `main`.
   with its telemetry and MSP over the link, a Jeti EX Bus or FPORT receiver with its telemetry, or
   an SBUS, IBUS, SUMD, Spektrum or XBUS receiver on a UART, the arming logic and the modes, runs the
   rate controller and the mixer with the motors in DShot from the timers and their DShot commands,
-  measures the battery, drives the beeper, draws the OSD with the custom text a UART sends and runs
+  runs the servo mixer with the servos in PWM from the timers, measures the battery, drives the beeper, draws the OSD with the custom text a UART sends and runs
   the menu system on the MAX7456 chip on SPI3, over the MSP display port on a UART or on a CRSF
   transmitter's screen, reads a GPS module, the ESC sensor and a TF lidar or TOFSense rangefinder on
   UARTs, estimates its altitude and position from the accelerometer and the GPS with its heading
