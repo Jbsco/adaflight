@@ -204,6 +204,7 @@ package body Adaflight.STM32.Flight is
       Motor_Tags       => (Adaflight.Board.MOTOR1_Tag, Adaflight.Board.MOTOR2_Tag, Adaflight.Board.MOTOR3_Tag,
                            Adaflight.Board.MOTOR4_Tag, Adaflight.Board.MOTOR5_Tag, Adaflight.Board.MOTOR6_Tag,
                            Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag),
+      LED_Strip_Tag    => Adaflight.Board.LED_Strip_Tag,
       MSP_First_Port        => Adaflight.MSP_Allocation.USB_VCP_Port,
       MSP_UART              => Adaflight.Board.MSP_UART,
       MSP_Other_UART        => Adaflight.Board.Use_MSP_UART,

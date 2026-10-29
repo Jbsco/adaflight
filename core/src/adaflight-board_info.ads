@@ -41,8 +41,9 @@ package Adaflight.Board_Info with SPARK_Mode is
    --  SPI bus, numbered from 1, the SD card's SPI bus, select and detect
    --  pins with the detect pin's sense, the flash chip's SPI bus and select
    --  pin, the flight log device, the PINIO outputs' pins, configuration
-   --  bytes and boxes by permanent id, and the motors' pins. The values given
-   --  here are the host build's, which has none of this hardware.
+   --  bytes and boxes by permanent id, the motors' pins and the LED strip's
+   --  pin. The values given here are the host build's, which has none of
+   --  this hardware.
    type PINIO_Bytes is array (0 .. 3) of Interfaces.Unsigned_8;
    type Motor_Bytes is array (0 .. 7) of Interfaces.Unsigned_8;
 
@@ -74,6 +75,7 @@ package Adaflight.Board_Info with SPARK_Mode is
       PINIO_Configs    : PINIO_Bytes := (others => 1);
       PINIO_Boxes      : PINIO_Bytes := (others => 255);
       Motor_Tags       : Motor_Bytes := (others => 0);
+      LED_Strip_Tag    : Interfaces.Unsigned_8 := 0;
       --  The ports a fresh configuration's MSP slots name: the board's
       --  first port, the USB one, then the target's MSP UARTs.
       MSP_First_Port        : Serial_Port := 20;
