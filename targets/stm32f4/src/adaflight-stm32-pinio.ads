@@ -12,4 +12,7 @@ package Adaflight.STM32.PINIO is
    function Task_Enabled return Boolean;
    --  The task: each assigned output set from its box.
    procedure Update;
+   --  An output switched on or off: the level its inversion gives, written
+   --  when it changes.
+   procedure Set (Index : Natural; On : Boolean);
 end Adaflight.STM32.PINIO;

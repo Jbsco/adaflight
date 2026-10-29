@@ -251,6 +251,7 @@ package body Adaflight.STM32.Motors is
 
    type Output is record
       Configured : Boolean := False;
+      Where      : Pin := (Port => Port_A, Number => 0);
       Timer      : Timer_Name := TIM1;
       Channel    : Channel_Number := 1;
       Source     : Unsigned_32 := 0;
@@ -336,8 +337,8 @@ package body Adaflight.STM32.Motors is
          Regs.CCMR2 := Mode;
       end if;
       Outputs (Slot) :=
-        (Configured => True, Timer => E.Timer, Channel => E.Channel, Source => Shift_Left (1, 8 + E.Channel),
-         Stream => S);
+        (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel,
+         Source => Shift_Left (1, 8 + E.Channel), Stream => S);
       Sources (E.Timer) := Sources (E.Timer) and not Outputs (Slot).Source;
       Stream.CR := Stream.CR and not EN;
       for Count in 1 .. 100_000 loop
@@ -448,6 +449,16 @@ package body Adaflight.STM32.Motors is
    end Disable;
 
    function Enabled return Boolean is (Is_On);
+
+   procedure Hold_Idle is
+   begin
+      for Index in 0 .. Driven - 1 loop
+         if Outputs (Index).Configured then
+            GPIO.Set_Output (Outputs (Index).Where);
+            GPIO.Set_High (Outputs (Index).Where);
+         end if;
+      end loop;
+   end Hold_Idle;
 
    function Motor_Enabled (Index : Natural) return Boolean is
      (Index < Driven and then Outputs (Index).Configured);

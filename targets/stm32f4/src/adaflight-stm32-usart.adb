@@ -227,6 +227,10 @@ package body Adaflight.STM32.USART is
       end loop;
    end Init_Inverters;
 
+   Started_With : array (Number) of Settings;
+
+   function Current (N : Number) return Settings is (Started_With (N));
+
    procedure Init
      (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
       Even_Parity : Boolean := False; Inverted : Boolean := False)
@@ -235,6 +239,9 @@ package body Adaflight.STM32.USART is
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
    begin
+      Started_With (N) :=
+        (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
+         Inverted => Inverted);
       Set_Inverter (N, Inverted);
       GPIO.Enable_Port (TX (N).Port);
       if Line.On then

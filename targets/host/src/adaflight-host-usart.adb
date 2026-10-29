@@ -124,12 +124,18 @@ package body Adaflight.STM32.USART is
 
    procedure Init_Inverters is null;
 
+   Started_With : array (Number) of Settings;
+
+   function Current (N : Number) return Settings is (Started_With (N));
+
    procedure Init
      (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
       Even_Parity : Boolean := False; Inverted : Boolean := False)
    is
-      pragma Unreferenced (Baud, Two_Stop_Bits, Line, Even_Parity, Inverted);
    begin
+      Started_With (N) :=
+        (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
+         Inverted => Inverted);
       if not Started (N) then
          Started (N) := True;
          Listeners (N).Start (N);
