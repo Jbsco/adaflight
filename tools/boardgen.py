@@ -138,7 +138,8 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  their SPI buses from 1, zero for none, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
-    out.append("   --  motors' pins, the host defaults where the board names none.")
+    out.append("   --  motors' and the LED strip's pins, the host defaults where the board")
+    out.append("   --  names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
@@ -146,7 +147,8 @@ def generate(config: Path, overrides: dict) -> str:
             ("USB_Detect_Tag", "USB_DETECT_PIN")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
-        + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)]
+        + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
+        + [("LED_Strip_Tag", "LED_STRIP_PIN")]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",

@@ -111,6 +111,7 @@ package body Adaflight.Board_Info with SPARK_Mode is
       for I in Motor_Bytes'Range loop
          C.Motor_Config.Dev.Io_Tags (I) := H.Motor_Tags (I);
       end loop;
+      C.Led_Strip_Config.Io_Tag := H.LED_Strip_Tag;
       declare
          Slots : constant Serial_Feature_Map.MSP_Ports :=
            MSP_Allocation.Default_Slots (H.MSP_First_Port, H.MSP_UART, H.MSP_Other_UART, H.MSP_Display_Port_UART);
