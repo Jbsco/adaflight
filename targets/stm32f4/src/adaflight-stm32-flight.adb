@@ -100,6 +100,7 @@ with Adaflight.STM32.MCU;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
+with Adaflight.STM32.Passthrough;
 with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Rangefinder;
@@ -1131,6 +1132,8 @@ package body Adaflight.STM32.Flight is
             when Adaflight.MSP_Port.CLI_Opened | Adaflight.MSP_Port.CLI_Command_Entered =>
                CLI_Line := L;
                Into.Target.Which := Line_Serial (L);
+               Env.CLI_Port := Interfaces.Integer_32 (Line_Id (Line_Serial (L)));
+               Adaflight.STM32.Passthrough.Set_Command_Line_Port (Line_Serial (L));
                Enter_Command_Line (Interactive => Event = Adaflight.MSP_Port.CLI_Opened);
             when Adaflight.MSP_Port.Reset_Requested =>
                Reset;

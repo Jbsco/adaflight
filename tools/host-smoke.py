@@ -1004,6 +1004,15 @@ def until(probe, ok, wait=10.0):
     return ok(value), value
 
 
+def collect(sock, want, wait):
+    """The bytes a socket gives until they hold the wanted text or the wait runs out."""
+    data = b""
+    deadline = time.time() + wait
+    while want not in data and time.time() < deadline:
+        data += read_all(sock, 0.2)
+    return data
+
+
 def rc_values(sock):
     """The first four channels of the MSP RC reply, none without a reply."""
     rc = msp(sock, 105)
@@ -2672,6 +2681,68 @@ def main():
                   repr(screen_row(store, 4)))
         finally:
             gps.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "serpass.bin")
+        proc, sock = start(image, store)
+        vcp = None
+        line = None
+        try:
+            time.sleep(2.5)
+            vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+            vcp.settimeout(0.3)
+            time.sleep(0.2)
+            vcp.sendall(b"#")
+            read_all(vcp, 0.8)
+            text = cli(vcp, "serialpassthrough uart4 9600")
+            check("serialpassthrough opens UART4 for the USB port",
+                  "Port1: UART4" in text and "Port2: VCP" in text and "Port1 opened, baud = 9600." in text
+                  and "Forwarding, power cycle to exit." in text, text[-240:])
+            deadline = time.time() + 5
+            while line is None and time.time() < deadline:
+                try:
+                    line = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                except OSError:
+                    time.sleep(0.1)
+            check("the passthrough's UART4 port opens", line is not None)
+            if line is not None:
+                line.settimeout(0.3)
+                time.sleep(0.2)
+                line.sendall(b"from-the-device")
+                got = collect(vcp, b"from-the-device", 3.0)
+                check("serialpassthrough forwards UART4's bytes to the USB port", b"from-the-device" in got,
+                      repr(got[-60:]))
+                vcp.sendall(b"from-the-host")
+                got = collect(line, b"from-the-host", 3.0)
+                check("serialpassthrough forwards the USB port's bytes to UART4", b"from-the-host" in got,
+                      repr(got[-60:]))
+        finally:
+            for s in (vcp, line):
+                if s is not None:
+                    s.close()
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        vcp = None
+        try:
+            time.sleep(2.5)
+            vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+            vcp.settimeout(0.3)
+            time.sleep(0.2)
+            vcp.sendall(b"#")
+            read_all(vcp, 0.8)
+            text = cli(vcp, "serialpassthrough uart4 9600 rx reset")
+            check("serialpassthrough with a reset on DTR names the DTR drop",
+                  "Forwarding, power cycle or drop DTR to exit." in text, text[-160:])
+            vcp.close()
+            vcp = None
+            deadline = time.time() + 5
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.1)
+            check("dropping the USB port's DTR ends the passthrough with a reset", proc.poll() == 0, repr(proc.poll()))
+        finally:
+            if vcp is not None:
+                vcp.close()
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")

@@ -3,6 +3,7 @@
 --  interrupt, which hands the controller's events to the device and carries
 --  out the endpoint operations each one asks for. The flight software sends
 --  bytes to the host and takes the bytes from it.
+with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 package Adaflight.STM32.USB is
    --  The pins, the clock and the controller in device mode, with the product
@@ -15,4 +16,9 @@ package Adaflight.STM32.USB is
    procedure Send (Data : Byte_Array; Accepted : out Natural);
    --  The bytes from the host, up to Into's length.
    procedure Take (Into : out Byte_Array; Count : out Natural);
+   --  The bit rate of the host's line coding, zero until the host sets one.
+   function Line_Rate return Interfaces.Unsigned_32;
+   --  The control line state the host last set, DTR in its lowest bit, with
+   --  the count of the requests that set it.
+   procedure Control_Line (State : out Interfaces.Unsigned_16; Count : out Interfaces.Unsigned_32);
 end Adaflight.STM32.USB;

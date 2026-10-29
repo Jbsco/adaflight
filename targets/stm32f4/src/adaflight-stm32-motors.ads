@@ -17,6 +17,9 @@ package Adaflight.STM32.Motors is
    --  stop while the command line or MSP sends blocking DShot commands.
    procedure Enable;
    procedure Disable;
+   --  The configured outputs' pins driven high as plain outputs, the level an
+   --  ESC's serial link idles at.
+   procedure Hold_Idle;
    function Enabled return Boolean;
    function Motor_Enabled (Index : Natural) return Boolean;
    --  The DMA stream a motor's frames go out on, numbered from 1 for the

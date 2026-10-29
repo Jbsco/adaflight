@@ -99,8 +99,8 @@ package Adaflight.USB_VCP with SPARK_Mode is
    --  alternate setting, the command waiting for its data, the command
    --  buffer, the transmit state and the frame count, the received packet,
    --  the buffer toward the host with the length of the block being sent and
-   --  the buffer from the host, the line coding and whether the port is
-   --  configured.
+   --  the buffer from the host, the line coding, the last control line state
+   --  with the count of its requests, and whether the port is configured.
    type Device is record
       Status          : Device_Status := Default;
       Old_Status      : Device_Status := Default;
@@ -135,6 +135,8 @@ package Adaflight.USB_VCP with SPARK_Mode is
       From_Host_In    : Ring_Index := 0;
       From_Host_Out   : Ring_Index := 0;
       Line            : Line_Coding;
+      Control_Line    : Unsigned_16 := 0;
+      Control_Count   : Unsigned_32 := 0;
       Port_Configured : Boolean := False;
    end record;
 
