@@ -231,7 +231,7 @@ package Adaflight.STM32.Timers is
    procedure Enable_DMA (S : DMA_Stream);
 
    --  Who holds an entry of the board's timer pin map.
-   type Owner is (Free, Motor, Servo);
+   type Owner is (Free, Motor, Servo, LED_Strip);
 
    --  The timer channel of a pin by its tag, which the owner holds from then
    --  on: the pin's first map entry, whose option counts the pin's entries

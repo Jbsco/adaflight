@@ -12,7 +12,8 @@ project Adaflight_Host is
    for Excluded_Source_Files use
      ("adaflight-stm32-adc.adb", "adaflight-stm32-exti.adb", "adaflight-stm32-flash.ads",
       "adaflight-stm32-flash.adb", "adaflight-stm32-gpio.adb", "adaflight-stm32-gyro.adb",
-      "adaflight-stm32-mcu.adb", "adaflight-stm32-motors.adb", "adaflight-stm32-servos.adb",
+      "adaflight-stm32-led_strip.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-motors.adb",
+      "adaflight-stm32-servos.adb",
       "adaflight-stm32-sound.adb", "adaflight-stm32-spi.adb",
       "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight-stm32-usb.adb",
       "adaflight_stm32f4.adb");
@@ -24,6 +25,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.Flash") use "adaflight-host-flash.adb";
       for Body ("Adaflight.STM32.GPIO") use "adaflight-host-gpio.adb";
       for Body ("Adaflight.STM32.Gyro") use "adaflight-host-gyro.adb";
+      for Body ("Adaflight.STM32.LED_Strip") use "adaflight-host-led_strip.adb";
       for Body ("Adaflight.STM32.MCU") use "adaflight-host-mcu.adb";
       for Body ("Adaflight.STM32.Motors") use "adaflight-host-motors.adb";
       for Body ("Adaflight.STM32.Servos") use "adaflight-host-servos.adb";
