@@ -11567,3 +11567,25 @@ bytes of code, most of it the LED strip unit, which the board did not link befor
 The board keeps a stored configuration only when the stored identifier matches the board's over the name and the zero
 after it, ASCII letters compared in upper case. A stored identifier with a character after the name, such as F4051,
 now resets the configuration. The board compared the name alone before and kept it.
+
+## D513. Build options list (2026-10-29)
+
+`Adaflight.Build_Options` contains the option numbers a configurator reads from the build information reply and the
+options command (D307): the receivers, the telemetry, the features and the motor protocols, in the reference's order.
+`In_Order` lists the numbers of a selection with its length, at most the option count, which the proof bounds against
+the room of 64 the replies keep. The board selects the options its image drives: the CRSF, FPORT, Ghost, iBus, SBUS,
+Spektrum and XBUS receivers, the FrSky hub and SmartPort telemetry, the altitude and position holds, the chirp, the
+GPS, the LED strip, the OSD chip and the display port, PINIO, the servos, the video transmitter, and the brushed, DShot,
+MultiShot, OneShot and PWM protocols, with the Jeti EX Bus and SUMD receivers, the iBus, LTM and MAVLink telemetry and
+the rangefinders as the build's features (D503) select them. The command line and the build information reply read
+the one list, which was empty before, so a configurator that gates its tabs, the compass section of its GPS tab and
+its motor protocol choices on a nonempty list keeps those the image contains and hides the rest.
+
+The list leaves out what the image cannot drive: a compass, the acro trainer, the battery continue feature, the
+dashboard, the ESC serial bootloaders, the flight plan, the optical flow sensor, the HoTT, SRXL and Spektrum
+telemetry, the SRXL2, SUMH, PPM and MAVLink receivers, soft serial, a camera control, the FrSky OSD, the race pro
+features and the wing feature set, each until a board drives it.
+
+The checker derives the command line oracle's list from the table and the oracle build's selection, and every number
+and its position replays against the recorded options lines. The host smoke reads the options command and the build
+information reply for the numbers the image's features imply.
