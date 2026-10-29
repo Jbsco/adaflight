@@ -1,5 +1,6 @@
---  The STM32F405's timers: the timer table and each timer's registers,
---  clock, alternate function and enable bit.
+--  The STM32F405's timers: the timer table, each timer's registers, clock,
+--  alternate function and enable bit, and the owners of the board's timer
+--  pin map entries.
 with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -150,5 +151,15 @@ package Adaflight.STM32.Timers is
    --  The channel's compare register.
    function CCR_Value (T : Timer_Name; C : Channel_Number) return Unsigned_32 is
      (Timer_Base_Value (T) + 16#34# + 4 * Unsigned_32 (C - 1));
+
+   --  Who holds an entry of the board's timer pin map.
+   type Owner is (Free, Motor, Servo);
+
+   --  The timer channel of a pin by its tag, which the owner holds from then
+   --  on: the pin's first map entry, whose option counts the pin's entries
+   --  of the timer table from one. A pin without an entry, an option past
+   --  the pin's entries, or a channel another owner holds gives none.
+   procedure Allocate
+     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean);
 
 end Adaflight.STM32.Timers;
