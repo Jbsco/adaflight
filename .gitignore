@@ -23,3 +23,4 @@ targets/*/gen/
 # The host image's configuration store and OSD screen when run from its directory
 targets/host/adaflight-eeprom.bin
 targets/host/adaflight-osd.txt
+targets/stm32f7/runtime/
