@@ -1,10 +1,11 @@
 with System;
 with System.Machine_Code;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.MCU is
    use type Interfaces.Unsigned_32;
    subtype Word is Interfaces.Unsigned_32;
 
-   Unique : Identifier with Import, Volatile, Address => System'To_Address (16#1FFF_7A10#);
+   Unique : Identifier with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.UID_Address);
 
    --  The key in the high half with the system reset request.
    AIRCR : Word with Import, Volatile, Address => System'To_Address (16#E000_ED0C#);
@@ -28,8 +29,8 @@ package body Adaflight.STM32.MCU is
    ICPR   : Words (0 .. 7) with Import, Volatile, Address => System'To_Address (16#E000_E280#);
 
    --  The bootloader's stack top and reset handler in system memory.
-   Boot_Stack : Word with Import, Volatile, Address => System'To_Address (16#1FFF_0000#);
-   Boot_Entry : Word with Import, Volatile, Address => System'To_Address (16#1FFF_0004#);
+   Boot_Stack : Word with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.Bootloader_Address);
+   Boot_Entry : Word with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.Bootloader_Address + 4);
 
    --  The persistent words: the magic word, then the reset reason at three,
    --  seven words in all.

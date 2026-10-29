@@ -1,5 +1,6 @@
 with System;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Platform;
 package body Adaflight.STM32.Sound is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -30,7 +31,7 @@ package body Adaflight.STM32.Sound is
    TIM3 : Timer_Registers with Import, Address => System'To_Address (16#4000_0400#);
    RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    TIM3_Bit : constant Unsigned_32 := 2 ** 1;
-   Timer_Clock_Hz : constant := 84_000_000;
+   Timer_Clock_Hz : constant := Adaflight.STM32.Platform.APB1_Timer_Hz;
    Tick_Hz        : constant := 1_000_000;
 
    Kind     : Output := None;
