@@ -5,7 +5,19 @@ project Adaflight_Stm32f7 is
    for Runtime ("Ada") use Project'Project_Dir & "runtime";
 
    for Source_Dirs use ("src/", "../stm32f4/src/", "gen/", "config/");
-   for Excluded_Source_Files use ("adaflight_stm32f4.adb");
+   --  The F4 crate's main and the units the F7 replaces: the platform's
+   --  clocks and sections, and the drivers whose register sets differ.
+   for Excluded_Source_Files use
+     ("adaflight_stm32f4.adb", "adaflight-stm32-platform.ads", "adaflight-stm32-usart.adb",
+      "adaflight-stm32-spi.adb", "adaflight-stm32-flash.adb", "adaflight-stm32-usb.adb");
+
+   package Naming is
+      for Spec ("Adaflight.STM32.Platform") use "adaflight-stm32-platform__stm32f7.ads";
+      for Body ("Adaflight.STM32.USART") use "adaflight-stm32-usart__stm32f7.adb";
+      for Body ("Adaflight.STM32.SPI") use "adaflight-stm32-spi__stm32f7.adb";
+      for Body ("Adaflight.STM32.Flash") use "adaflight-stm32-flash__stm32f7.adb";
+      for Body ("Adaflight.STM32.USB") use "adaflight-stm32-usb__stm32f7.adb";
+   end Naming;
    for Object_Dir use "obj/" & Adaflight_Stm32f7_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Exec_Dir use "bin";

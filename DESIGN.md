@@ -11654,3 +11654,21 @@ writes the pins the crate reads by name with a placeholder where a board lacks t
 This slice builds the image; the F7's UART, SPI, flash and USB register sets differ from the F4's, so the drivers of
 those come next, with the caches the F7 start enables. The target workflow builds the Kakute F7 image after the F4
 boards. The Kakute F7 image is 634140 bytes of code with 3836 of initialized data.
+
+## D517. STM32F7 drivers (2026-10-29)
+
+The F7 crate gets the drivers whose register sets differ from the F4's, each an F7 body the crate's project names in
+place of the F4 one: the UART with its control registers first, its status in ISR with a clear register and its data
+split into RDR and TDR, the overrun flag cleared through the clear register before the bytes are read; the SPI with
+its frame size and receive threshold set to eight bits and its data register accessed as one byte, since a word write
+would send two; the flash with the ART accelerator's cache reset after programming in place of the data cache's; and
+the USB device with the VBUS detection left off and the B session forced valid, since the boards do not sense VBUS.
+
+The clocks and the DMA buffers' section come from a platform package each crate provides: the F4's 168 MHz with its
+buses at 42 and 84 MHz and its timers at twice that, the F7's 216 MHz with 54 and 108 MHz, as the generated run-time
+library divides them. The DMA buffers of the motors and the LED strip go to the platform's section: the main RAM on
+the F4, whose core coupled memory the DMA cannot reach, and the data tightly coupled memory on the F7, which the DMA
+reaches and the data cache the F7 start enables does not cover. The configuration sector, the bootloader and the
+unique identifier addresses come from the memory package the layout generator writes beside the memory layout, so
+the flash and MCU bodies serve both families. The Kakute F7 image is 634172 bytes of code; the F4 images are
+unchanged at 638960.

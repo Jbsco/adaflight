@@ -6,6 +6,7 @@ with Adaflight.WS2811;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
+with Adaflight.STM32.Platform;
 package body Adaflight.STM32.LED_Strip is
    use Interfaces;
    package GPIO renames Adaflight.STM32.GPIO;
@@ -17,7 +18,8 @@ package body Adaflight.STM32.LED_Strip is
    Buffer_Size : constant := Adaflight.LED_Strip.Max_Leds * Bits_Max + Tail;
    type Strip_Buffer is array (0 .. Buffer_Size - 1) of Unsigned_32;
    pragma Volatile_Components (Strip_Buffer);
-   Buffer : Strip_Buffer := (others => 0);
+   Buffer : Strip_Buffer := (others => 0)
+     with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
 
    Configured   : Boolean := False;
    Strip_Format : W.Format := W.GRB;
