@@ -11530,6 +11530,10 @@ continuous updates each timer's first motor forces an overflow that starts the p
 clears. Disabling the motors clears the pulses. The MSP motor reply truncates an analog motor value as the reference's
 conversion does.
 
+Before a reboot from the command line, MSP, the menus or MAVLink the motors now shut down: the pulses clear, the
+writes stop, and the board waits 1.5 ms, half a second more for PWM, OneShot and MultiShot so their ESCs disarm. A
+reboot from the menus first writes the disarm output to every motor and waits 50 ms.
+
 The host image claims the same channels and logs each analog motor's setup and pulse changes. The host smoke sets
 OneShot125 and PWM: the motors start at their timers' rates, idle at the minimum command's pulse, report microseconds
 over MSP and follow a motor test. The image grows from 627612 to 628808 bytes of code.
