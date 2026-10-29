@@ -25,7 +25,7 @@ adaflight_core = "validation"
 # so a fresh configuration serves MSP there beside the USB port.
 [[actions]]
 type = "pre-build"
-command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads MSP_UART=SERIAL_PORT_USART1"]
+command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads MSP_UART=SERIAL_PORT_USART1 BARO_I2C_INSTANCE=I2CDEV_1 USE_BARO_BMP280= I2C1_SCL_PIN=PB6 I2C1_SDA_PIN=PB7"]
 
 [[actions]]
 type = "pre-build"

@@ -1100,6 +1100,14 @@ def main():
             options = [int.from_bytes(info[i:i + 2], "little") for i in range(26, len(info) - 1, 2)] if info else []
             check("MSP build info lists the GPS and the DShot protocol", {16412, 8231} <= set(options), repr(options))
             status = msp(sock, 101)
+            check("MSP status with the barometer", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x02 != 0)
+            time.sleep(1.5)
+            altitude = msp(sock, 109)
+            check("MSP altitude near the calibrated ground",
+                  altitude is not None and len(altitude) >= 4
+                  and abs(int.from_bytes(altitude[0:4], "little", signed=True)) < 2000, repr(altitude))
+            status = msp(sock, 101)
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.2)
@@ -1150,6 +1158,8 @@ def main():
                   text.split("Arming disable flags:")[-1].strip()[:80])
             text = cli(sock, "tasks")
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
+            text = cli(sock, "status")
+            check("status names the barometer on its bus", "BARO" in text and "BMP280" in text, text[:200])
             text = cli(sock, "options")
             numbers = {int(w) for w in text.split() if w.isdigit()}
             check("options list the GPS, the OSD chip, the servos and the motor protocols",
@@ -2137,7 +2147,7 @@ def main():
             kinds = sorted({k for k, _ in frames})
             check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
                   repr(sender.received[:60]))
-            check("Ghost telemetry sends the battery pack frame", kinds == [0x23], repr(kinds))
+            check("Ghost telemetry sends the battery pack and the barometer frames", kinds == [0x23, 0x27], repr(kinds))
             chunks = ghst_msp_exchange(sender, bytes([0x30, 0, 1]), 2, 5.0)
             reply = msp_tunnel_reply(chunks)
             check("MSP over Ghost answers the API version in a full chunk and an empty last one",

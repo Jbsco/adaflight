@@ -96,6 +96,14 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Max7456_Config.Cs_Tag := H.OSD_CS_Tag;
       C.Max7456_Config.Spi_Device := H.OSD_SPI_Device;
       C.Sdcard_Config.Device := H.SD_SPI_Device;
+      C.Barometer_Config.Baro_Bus_Type := H.Baro_Bus_Type;
+      C.Barometer_Config.Baro_I2c_Device := H.Baro_I2C_Device;
+      C.Barometer_Config.Baro_I2c_Address := H.Baro_I2C_Address;
+      C.Barometer_Config.Baro_Spi_Device := H.Baro_SPI_Device;
+      C.Barometer_Config.Baro_Spi_Csn := H.Baro_CS_Tag;
+      C.Barometer_Config.Baro_Eoc_Tag := H.Baro_EOC_Tag;
+      C.Barometer_Config.Baro_Xclr_Tag := H.Baro_XCLR_Tag;
+      C.Barometer_Config.Baro_Hardware := H.Baro_Hardware;
       C.Sdcard_Config.Chip_Select_Tag := H.SD_CS_Tag;
       C.Sdcard_Config.Card_Detect_Tag := H.SD_Detect_Tag;
       C.Sdcard_Config.Card_Detect_Inverted := (if H.SD_Detect_Low then 1 else 0);

@@ -80,6 +80,8 @@ with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Servo_Mixer;
 with Adaflight.STM32.ADC;
+with Adaflight.STM32.Baro;
+with Adaflight.STM32.I2C;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
@@ -197,6 +199,16 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
+      Baro_Bus_Type    => (if Adaflight.Board.Baro_SPI_Device /= 0 then 2
+                           elsif Adaflight.Board.Baro_I2C_Device /= 0 then 1 else 0),
+      Baro_I2C_Device  => (if Adaflight.Board.Baro_SPI_Device /= 0 then 0 else Adaflight.Board.Baro_I2C_Device),
+      Baro_I2C_Address => 0,
+      Baro_SPI_Device  => Adaflight.Board.Baro_SPI_Device,
+      Baro_CS_Tag      => (if Adaflight.Board.Baro_SPI_Device /= 0 then Adaflight.Board.Baro_CS_Tag else 0),
+      Baro_EOC_Tag     => Adaflight.Board.Baro_EOC_Tag,
+      Baro_XCLR_Tag    => Adaflight.Board.Baro_XCLR_Tag,
+      Baro_Hardware    => (if Adaflight.Board.Baro_SPI_Device /= 0 or else Adaflight.Board.Baro_I2C_Device /= 0
+                           then 0 else 1),
       Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device,
       PINIO_Tags       => (Adaflight.Board.PINIO1_Tag, Adaflight.Board.PINIO2_Tag, Adaflight.Board.PINIO3_Tag,
                            Adaflight.Board.PINIO4_Tag),
@@ -806,6 +818,18 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.OSD.Preinit (Config);
       Adaflight.STM32.SD.Preinit (Config);
       Adaflight.STM32.Flash_Chip.Preinit (Config);
+      if Adaflight.Board.Has_I2C1 then
+         Adaflight.STM32.I2C.Init (Adaflight.STM32.I2C.I2C1, Adaflight.Board.I2C1_SCL_Pin, Adaflight.Board.I2C1_SDA_Pin);
+      end if;
+      if Adaflight.Board.Has_I2C2 then
+         Adaflight.STM32.I2C.Init (Adaflight.STM32.I2C.I2C2, Adaflight.Board.I2C2_SCL_Pin, Adaflight.Board.I2C2_SDA_Pin);
+      end if;
+      if Adaflight.Board.Has_I2C3 then
+         Adaflight.STM32.I2C.Init (Adaflight.STM32.I2C.I2C3, Adaflight.Board.I2C3_SCL_Pin, Adaflight.Board.I2C3_SDA_Pin);
+      end if;
+      if Adaflight.Board.Has_I2C4 then
+         Adaflight.STM32.I2C.Init (Adaflight.STM32.I2C.I2C4, Adaflight.Board.I2C4_SCL_Pin, Adaflight.Board.I2C4_SDA_Pin);
+      end if;
       if Adaflight.Board.Has_SPI1 then
          Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
                                    Adaflight.Board.SPI1_SDO_Pin);
@@ -956,7 +980,8 @@ package body Adaflight.STM32.Flight is
          GPS => True, GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True,
          VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
-         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, LED_Strip => True, others => False);
+         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, LED_Strip => True,
+         Baro => Adaflight.STM32.Baro.Detected, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1725,7 +1750,7 @@ package body Adaflight.STM32.Flight is
       Battery_Alarms         => Battery_Alarms,
       Acc_Update             => Acc_Update,
       GPS_Rescue_Update      => Run_Rescue,
-      Baro_Update            => No_Step_Period,
+      Baro_Update            => Adaflight.STM32.Baro.Update,
       Pitot_Update           => No_Step_Period,
       Compass_Update         => No_Step_Period,
       Position_Update        => No_Step,
@@ -2171,6 +2196,7 @@ package body Adaflight.STM32.Flight is
       F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
       F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
       F.Surface_Raw := Adaflight.STM32.Rangefinder.Raw_Altitude_Cm;
+      F.Baro_Alt := Integer_32 (Float'Max (-2.0e9, Float'Min (2.0e9, Adaflight.STM32.Baro.Altitude_Cm)));
       F.Conditions.RSSI_Configured := Adaflight.STM32.Radio.RSSI_Configured;
       F.Conditions.Debug_Active := Config.System_Config.Debug_Mode /= 0;
       F.Conditions.Voltage_Meter := Bat_Settings.Voltage_Meter;
@@ -2855,7 +2881,7 @@ package body Adaflight.STM32.Flight is
    begin
       return
         (Acc_Present         => Gyro_Report.Acc_Found,
-         Baro_Present        => False,
+         Baro_Present        => Adaflight.STM32.Baro.Detected,
          Mag_Present         => False,
          Gyro_Present        => Selection.Found,
          Disabled_Kinds      => Config.Telemetry_Config.Disabled_Sensors,
@@ -2913,6 +2939,8 @@ package body Adaflight.STM32.Flight is
          Cos_Lat            => G.Cos_Lat,
          Position_Hold_Mode => M (Adaflight.Arming.Pos_Hold_Mode),
          Rescue_Mode        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         Baro_Present       => Adaflight.STM32.Baro.Detected,
+         Baro_Altitude_Cm   => Adaflight.STM32.Baro.Altitude_Cm,
          others             => <>);
    end Position_Inputs;
 
@@ -3888,6 +3916,14 @@ package body Adaflight.STM32.Flight is
       Start_Buses;
       Start_Gyro;
       Init_Loop_Units;
+      Adaflight.STM32.Baro.Init (Config);
+      Env.Baro :=
+        (Detected => Adaflight.STM32.Baro.Detected, Hardware => Adaflight.STM32.Baro.Hardware,
+         Bus      => (Kind    => (case Adaflight.STM32.Baro.Bus_Type is
+                                    when 1 => CLI.I2C_Bus, when 2 => CLI.SPI_Bus, when others => CLI.No_Bus),
+                      Number  => Natural'Min (15, Adaflight.STM32.Baro.Bus_Number),
+                      Address => Adaflight.STM32.Baro.Bus_Address));
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Baro) := Adaflight.STM32.Baro.Detected;
       Adaflight.STM32.Rangefinder.Init (Config);
       Init_Internal_ADC;
       Boot_Beeps;
@@ -3952,6 +3988,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Adaflight.STM32.Baro.Start_Calibration;
       Open_MSP_Lines;
       Pos_Settings :=
         Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
@@ -3971,7 +4008,7 @@ package body Adaflight.STM32.Flight is
         (Config, Runtime_Features,
          Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
            (Config.Telemetry_Config, Config.Motor_Config,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False),
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False),
             Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
             GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
             Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
@@ -3985,7 +4022,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Radio.Init_Jeti_Telemetry
            (Adaflight.Config_Runtime.Jeti_Settings_Of
               (Config.Battery_Config, Config.System_Config, Runtime_Features,
-               (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+               (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False)),
             Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       end if;
       if Adaflight.Build_Features.MAVLink_Telemetry then
@@ -3994,7 +4031,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init_GHST_Telemetry
         (Adaflight.Config_Runtime.GHST_Settings_Of
            (Config.Telemetry_Config, Config.Battery_Config, Runtime_Features,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False)),
          Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       if Adaflight.Build_Features.IBus_Telemetry then
          Adaflight.STM32.IBus.Init

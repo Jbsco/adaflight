@@ -66,6 +66,7 @@ with Adaflight.SDFT;
 with Adaflight.Bytes;
 with Adaflight.Build_Options;
 with Adaflight.Spektrum_Bind;
+with Adaflight.I2C_Timing;
 with Adaflight.Encoding;
 with Adaflight.Float_Bits;
 with Adaflight.Bit_Arrays;
@@ -37477,6 +37478,14 @@ procedure Vector_Check is
                   (if Bound and then SB.Autoreset (Plug_Present, Autoreset, Soft) then 0 else Integer_64 (Count)));
    end Check_Spektrum_Bind_Line;
 
+   --  The I2C timing register from the bus clock, the speed and the filter.
+   procedure Check_I2C_Timing_Line is
+   begin
+      Record_Result ("i2ctiming.timingr", Bits (7),
+                     Adaflight.I2C_Timing.Timing (Interfaces.Unsigned_32 (Int (4)), Positive (Int (5)),
+                                                  Natural (Int (6))));
+   end Check_I2C_Timing_Line;
+
    procedure Check_WS2811_Line is
       package W renames Adaflight.WS2811;
       Name : constant String := Str (1);
@@ -39478,6 +39487,8 @@ procedure Vector_Check is
                   Check_PWM_Out_Line;
                elsif Kind = "spekbind" then
                   Check_Spektrum_Bind_Line;
+               elsif Kind = "i2ctiming" then
+                  Check_I2C_Timing_Line;
                elsif Kind = "ws2811" then
                   Check_WS2811_Line;
                else
@@ -39837,6 +39848,7 @@ begin
    Run (Dir & "/pwmout.csv", "pwmout");
    Run (Dir & "/ws2811.csv", "ws2811");
    Run (Dir & "/spekbind.csv", "spekbind");
+   Run (Dir & "/i2ctiming.csv", "i2ctiming");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

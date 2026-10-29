@@ -22,6 +22,7 @@ package Adaflight.STM32.Blackbox is
       Amperage        : Interfaces.Integer_32 := 0;
       RSSI            : Interfaces.Unsigned_16 := 0;
       Surface_Raw     : Interfaces.Integer_32 := 0;
+      Baro_Alt        : Interfaces.Integer_32 := 0;
       Gyro_Filtered   : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Gyro_Raw        : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Acc             : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
