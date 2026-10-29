@@ -29736,11 +29736,119 @@ procedure Vector_Check is
                         & CLI_Image (Interfaces.Unsigned_32 (Count)));
    end CLI_Flash_Read;
 
+   --  The serial passthrough's ports as the command line oracle keeps them:
+   --  the ports the "!serialopen" lines leave open, by index in the board's
+   --  port list, with their baud rate, mode, options and callback, which a
+   --  baud rate, a mode or a callback removal changes; whether an open
+   --  succeeds; and the calls in the oracle's "clsp" event format.
+   type CLI_Open_Port is record
+      Open     : Boolean := False;
+      Baud     : Interfaces.Unsigned_32 := 0;
+      Mode     : Interfaces.Unsigned_8 := 0;
+      Options  : Interfaces.Unsigned_32 := 0;
+      Callback : Boolean := False;
+   end record;
+   CLI_Port_Ids   : constant array (0 .. 8) of Interfaces.Integer_32 := (20, 51, 52, 53, 54, 55, 56, 30, 31);
+   CLI_Open_Ports : array (0 .. 8) of CLI_Open_Port;
+   CLI_SP_Open_OK : Boolean := True;
+   CLI_SP_Log     : Ada.Strings.Unbounded.Unbounded_String;
+   CLI_SP_Seen    : Boolean := False;
+
+   function CLI_Int_Image (V : Interfaces.Integer_32) return String is
+     (Ada.Strings.Fixed.Trim (Interfaces.Integer_32'Image (V), Ada.Strings.Left));
+
+   function CLI_Port_Index (Id : Interfaces.Integer_32) return Integer is
+   begin
+      for I in CLI_Port_Ids'Range loop
+         if CLI_Port_Ids (I) = Id then
+            return I;
+         end if;
+      end loop;
+      return -1;
+   end CLI_Port_Index;
+
+   procedure CLI_Port_State
+     (Id : Interfaces.Integer_32; Open : out Boolean; Baud : out Interfaces.Unsigned_32;
+      Mode : out Interfaces.Unsigned_8; Options : out Interfaces.Unsigned_32; Callback : out Boolean)
+   is
+      I : constant Integer := CLI_Port_Index (Id);
+      P : constant CLI_Open_Port := (if I < 0 then (others => <>) else CLI_Open_Ports (I));
+   begin
+      Open := P.Open;
+      Baud := P.Baud;
+      Mode := P.Mode;
+      Options := P.Options;
+      Callback := P.Callback;
+   end CLI_Port_State;
+
+   procedure CLI_Port_Open
+     (Id : Interfaces.Integer_32; Baud : Interfaces.Unsigned_32; Mode : Interfaces.Unsigned_8;
+      Options : Interfaces.Unsigned_32; Opened : out Boolean) is
+   begin
+      Ada.Strings.Unbounded.Append
+        (CLI_SP_Log, ",o:" & CLI_Int_Image (Id) & ":" & CLI_Image (Baud) & ":"
+                     & CLI_Image (Interfaces.Unsigned_32 (Mode)) & ":" & CLI_Image (Options) & ":"
+                     & (if CLI_SP_Open_OK then "1" else "0"));
+      Opened := CLI_SP_Open_OK and then CLI_Port_Index (Id) >= 0;
+   end CLI_Port_Open;
+
+   procedure CLI_Port_Set_Baud (Id : Interfaces.Integer_32; Baud : Interfaces.Unsigned_32) is
+      I : constant Integer := CLI_Port_Index (Id);
+   begin
+      Ada.Strings.Unbounded.Append (CLI_SP_Log, ",b:" & CLI_Int_Image (Id) & ":" & CLI_Image (Baud));
+      if I >= 0 then
+         CLI_Open_Ports (I).Baud := Baud;
+      end if;
+   end CLI_Port_Set_Baud;
+
+   procedure CLI_Port_Set_Mode (Id : Interfaces.Integer_32; Mode : Interfaces.Unsigned_8) is
+      I : constant Integer := CLI_Port_Index (Id);
+   begin
+      Ada.Strings.Unbounded.Append
+        (CLI_SP_Log, ",m:" & CLI_Int_Image (Id) & ":" & CLI_Image (Interfaces.Unsigned_32 (Mode)));
+      if I >= 0 then
+         CLI_Open_Ports (I).Mode := Mode;
+      end if;
+   end CLI_Port_Set_Mode;
+
+   procedure CLI_Port_Remove_Callback (Id : Interfaces.Integer_32) is
+      I : constant Integer := CLI_Port_Index (Id);
+   begin
+      if I >= 0 then
+         CLI_Open_Ports (I).Callback := False;
+      end if;
+   end CLI_Port_Remove_Callback;
+
+   procedure CLI_Port_Baud_From_USB (USB : Interfaces.Integer_32; Target : Interfaces.Integer_32) is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_SP_Log, ",c:" & CLI_Int_Image (USB) & ":" & CLI_Int_Image (Target));
+   end CLI_Port_Baud_From_USB;
+
+   procedure CLI_Port_DTR_Reset (USB : Interfaces.Integer_32) is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_SP_Log, ",r:" & CLI_Int_Image (USB));
+   end CLI_Port_DTR_Reset;
+
+   procedure CLI_Port_DTR_PINIO (USB : Interfaces.Integer_32; PINIO : Natural) is
+   begin
+      Ada.Strings.Unbounded.Append
+        (CLI_SP_Log, ",d:" & CLI_Int_Image (USB) & ":" & CLI_Int_Image (Interfaces.Integer_32 (PINIO)));
+   end CLI_Port_DTR_PINIO;
+
+   procedure CLI_ESC_Sensor_Pins_Idle is null;
+
+   procedure CLI_Port_Forward (Left : Interfaces.Integer_32; Right : Interfaces.Integer_32) is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_SP_Log, ",p:" & CLI_Int_Image (Left) & ":" & CLI_Int_Image (Right));
+   end CLI_Port_Forward;
+
    package CLI is new Adaflight.Command_Line
      (CLI_Sink, CLI_Put, CLI_DShot_Write, CLI_Motors_Disable, CLI_Motors_Enable, CLI_ESC_Read_Start,
       CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough, CLI_Gyro_Read_Register,
       CLI_Flash_Supported_Now, CLI_Flash_Erase_Completely, CLI_Flash_Ready, CLI_Flash_Erase_Async, CLI_Flash_Verify,
-      CLI_Flash_Seek, CLI_Flash_Write, CLI_Flash_Flush, CLI_Flash_Read);
+      CLI_Flash_Seek, CLI_Flash_Write, CLI_Flash_Flush, CLI_Flash_Read, CLI_Port_State, CLI_Port_Open,
+      CLI_Port_Set_Baud, CLI_Port_Set_Mode, CLI_Port_Remove_Callback, CLI_Port_Baud_From_USB, CLI_Port_DTR_Reset,
+      CLI_Port_DTR_PINIO, CLI_ESC_Sensor_Pins_Idle, CLI_Port_Forward);
 
    package CLI_Term is new CLI.Terminal;
 
@@ -29779,6 +29887,7 @@ procedure Vector_Check is
       Option_Count    => 0,
       Soft_Serial     => False,
       Serial_Ports    => <>,
+      CLI_Port        => 20,
       Gyro_Positions  => 1,
       Gyros_Enabled   => 0,
       Gyros           => <>,
@@ -29965,6 +30074,8 @@ procedure Vector_Check is
             CLI_ESC_Read := 0;
             CLI_ESC_Pass_Result := False;
             CLI_GPS_Pass_Result := False;
+            CLI_Open_Ports := (others => (others => <>));
+            CLI_SP_Open_OK := True;
             CLI_Gyro_Registers := (others => (others => 0));
             CLI_Flash_Supported := True;
             CLI_Flash_Ready_After := 0;
@@ -29984,6 +30095,8 @@ procedure Vector_Check is
          CLI_DShot_Seen := False;
          CLI_Flash_Log := Null_Unbounded_String;
          CLI_Flash_Seen := False;
+         CLI_SP_Log := Null_Unbounded_String;
+         CLI_SP_Seen := False;
          CLI_ESC_Pass_Calls := 0;
          CLI_ESC_Pass_Index := -1;
          CLI_ESC_Pass_Mode := -1;
@@ -30318,6 +30431,23 @@ procedure Vector_Check is
             elsif Word (Command, 0) = "!passthrough" then
                CLI_ESC_Pass_Result := Word (Command, 1) /= "0";
                CLI_GPS_Pass_Result := Word (Command, 2) /= "0";
+            elsif Word (Command, 0) = "!cliport" then
+               CLI_Env.CLI_Port := Interfaces.Integer_32'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!serialopen" then
+               declare
+                  I : constant Integer := Integer'Value (Word (Command, 1));
+               begin
+                  if I in CLI_Open_Ports'Range then
+                     CLI_Open_Ports (I) :=
+                       (Open     => Word (Command, 2) /= "0",
+                        Baud     => Interfaces.Unsigned_32'Value (Word (Command, 2)),
+                        Mode     => Interfaces.Unsigned_8'Value (Word (Command, 3)),
+                        Options  => Interfaces.Unsigned_32'Value (Word (Command, 4)),
+                        Callback => Word (Command, 5) /= "0");
+                  end if;
+               end;
+            elsif Word (Command, 0) = "!serialopenok" then
+               CLI_SP_Open_OK := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!dshotproto" then
                CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!mcu" then
@@ -30890,6 +31020,16 @@ procedure Vector_Check is
             Record_Text ("cli.flash_log", To_String (Expected), To_String (CLI_Flash_Log));
          end;
          CLI_Flash_Seen := True;
+      elsif Str (1) = "clsp" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String;
+         begin
+            for I in 3 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            Record_Text ("cli.serial_pass", To_String (Expected), To_String (CLI_SP_Log));
+         end;
+         CLI_SP_Seen := True;
       elsif Str (1) = "clpt" then
          Record_Int ("cli.esc_pass", Int (3), Integer_64 (CLI_ESC_Pass_Calls));
          Record_Int ("cli.esc_pass_index", Int (4), Integer_64 (CLI_ESC_Pass_Index));
@@ -30913,6 +31053,9 @@ procedure Vector_Check is
          end if;
          if not CLI_Flash_Seen then
             Record_Int ("cli.flash_log", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_Flash_Log)));
+         end if;
+         if not CLI_SP_Seen then
+            Record_Int ("cli.serial_pass", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_SP_Log)));
          end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
@@ -39464,6 +39607,7 @@ begin
    Run (Dir & "/clistatus.csv", "cliset");
    Run (Dir & "/clienv.csv", "cliset");
    Run (Dir & "/clipassthrough.csv", "cliset");
+   Run (Dir & "/cliserpass.csv", "cliset");
    Run (Dir & "/cligyroregs.csv", "cliset");
    Run (Dir & "/cliflash.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
