@@ -11438,3 +11438,15 @@ fills the formals with steps that do nothing for now, so it answers that the fir
 forwarding follows in a board change. A new oracle family, cliserpass, records the replies and the port calls over
 scripted port states through wrapped port functions. The oracle runs on a 64-bit host, where strtol and atoi past the
 32-bit range differ from the board's, so its words stay inside that range.
+
+## D506. USB control line state (2026-10-28)
+
+The USB port keeps the control line state the host last set, DTR in its lowest bit, with the count of the requests
+that set it, so the serial passthrough can act on each one. The reference hands the state to a callback when its port
+control receives the set control line state request with a two-byte value: the request's own value without a data
+stage, the two data bytes with a data stage to the device, and the command buffer's first two bytes with one to the
+host. The port takes the same value at the same three places.
+
+The USB oracle sets a recording callback at each event, since the VCP's start clears it, and each line now ends with
+the last state and the count. A new set of sessions sends the request with a two-byte data stage and reads it back,
+and the earlier sessions' lines are unchanged before the two new fields.

@@ -4496,7 +4496,7 @@ procedure Vector_Check is
          end if;
          P := P + 6;
       end loop;
-      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 31));
+      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 33));
       Record_Int ("usb.status", Int (P), U.Device_Status'Pos (USB_Dev.Status) + 1);
       Record_Int ("usb.stage", Int (P + 1), U.Control_Stage'Pos (USB_Dev.Stage));
       Record_Int ("usb.device_address", Int (P + 2), Integer_64 (USB_Dev.Address));
@@ -4525,6 +4525,8 @@ procedure Vector_Check is
       Record_Int ("usb.out_remaining", Int (P + 29), Integer_64 (USB_Dev.Out_EP (0).Remaining));
       Record_Int ("usb.test_pending", Int (P + 30), Boolean'Pos (USB_Dev.Test_Pending));
       Record_Int ("usb.command_code", Int (P + 31), Integer_64 (USB_Dev.Command_Code));
+      Record_Int ("usb.control_line", Int (P + 32), Integer_64 (USB_Dev.Control_Line));
+      Record_Int ("usb.control_count", Int (P + 33), Integer_64 (USB_Dev.Control_Count));
    end Check_USB_VCP_Line;
 
    procedure Check_Blackbox_Info_Line is
