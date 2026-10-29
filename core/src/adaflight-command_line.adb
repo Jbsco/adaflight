@@ -3924,8 +3924,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Serial_Command_Word,
       Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Status_Command_Word,
       Tasks_Command_Word,
-      Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
-   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
+      Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word,
+      Serialpassthrough_Command_Word);
+   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Serialpassthrough_Command_Word;
 
    --  The command words in one text, each at its start for its length. The text ends with room for a
    --  longest one, so every slice stays within it by its types.
@@ -3957,7 +3958,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Rx_Failsafe_Command => 381, Rx_Range_Command => 387, Serial_Command_Word => 394, Servo_Command_Word => 400,
       Servo_Mix_Command_Word => 405, Set_Command => 409, Simplified_Tuning_Command_Word => 412,
       Tasks_Command_Word => 429, Version_Command_Word => 434, Vtx_Command_Word => 441, Vtx_Info_Command_Word => 444,
-      Vtx_Table_Command_Word => 452, Waypoint_Command_Word => 460);
+      Vtx_Table_Command_Word => 452, Waypoint_Command_Word => 460, Serialpassthrough_Command_Word => 468);
    Command_Word_Lengths : constant array (Known_Command) of Command_Word_Length :=
      (Adjustment_Range_Command_Word => 8, Aux_Command_Word => 3, Batch_Command_Word => 5,
       Battery_Profile_Command => 15, Beacon_Command => 6, Bootloader_Command_Word => 2, Exit_Command_Word => 4,
@@ -3976,7 +3977,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Rc_Smoothing_Info_Command_Word => 17, Resource_Command_Word => 8, Rx_Failsafe_Command => 6,
       Rx_Range_Command => 7, Serial_Command_Word => 6, Servo_Command_Word => 5, Servo_Mix_Command_Word => 4,
       Set_Command => 3, Simplified_Tuning_Command_Word => 17, Tasks_Command_Word => 5, Version_Command_Word => 7,
-      Vtx_Command_Word => 3, Vtx_Info_Command_Word => 8, Vtx_Table_Command_Word => 8, Waypoint_Command_Word => 8);
+      Vtx_Command_Word => 3, Vtx_Info_Command_Word => 8, Vtx_Table_Command_Word => 8, Waypoint_Command_Word => 8,
+      Serialpassthrough_Command_Word => 17);
 
    function Command_Word (K : Known_Command) return String is
      (Command_Word_Text (Natural (Command_Word_Starts (K)) + 1
@@ -4850,6 +4852,299 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Error (Into, "gpspassthrough: GPS forwarding failed###" & CRLF);
       end if;
    end Gpspassthrough_Command;
+
+   --  Whether a text holds a fragment, case and all.
+   function Contains (Text : String; Fragment : String) return Boolean
+     with Global => null,
+          Pre    => Fragment'Length >= 1 and then Text'Last < Positive'Last
+   is
+   begin
+      if Fragment'Length > Text'Length then
+         return False;
+      end if;
+      for Start in Text'First .. Text'Last - Fragment'Length + 1 loop
+         if Text (Start .. Start + Fragment'Length - 1) = Fragment then
+            return True;
+         end if;
+      end loop;
+      return False;
+   end Contains;
+
+   --  A serial port's options from a word, each option's tag found in it as
+   --  written: inverted, two stop bits, even parity, bidirectional,
+   --  push-pull, the SmartAudio pull-down and the transmit check.
+   function Passthrough_Options (Word : String) return Unsigned_32 is
+     ((if Contains (Word, "Invert") then 1 else 0) or (if Contains (Word, "Stop2") then 2 else 0)
+      or (if Contains (Word, "Even") then 4 else 0) or (if Contains (Word, "Bidir") then 8 else 0)
+      or (if Contains (Word, "Pushpull") then 16 else 0) or (if Contains (Word, "Saudio") then 64 else 0)
+      or (if Contains (Word, "Check") then 128 else 0))
+     with Global => null,
+          Pre    => Word'Last < Positive'Last;
+
+   --  The digits %x prints for a number.
+   function Hex_Width (V : Unsigned_32) return Positive is
+     (if V < 16#10# then 1 elsif V < 16#100# then 2 elsif V < 16#1000# then 3 elsif V < 16#1_0000# then 4
+      elsif V < 16#10_0000# then 5 elsif V < 16#100_0000# then 6 elsif V < 16#1000_0000# then 7 else 8)
+     with Global => null,
+          Post   => Hex_Width'Result <= 8;
+
+   --  An unsigned number as %d prints it.
+   function Signed_Value (V : Unsigned_32) return Integer_64 is
+     (if V >= 2 ** 31 then Integer_64 (V) - 2 ** 32 else Integer_64 (V))
+     with Global => null;
+
+   --  serialpassthrough: up to seven words, the first port by esc_sensor,
+   --  cli, name or number with its baud rate, mode and DTR action, then the
+   --  second port with its baud rate and mode, the command line's own port
+   --  when there is none; each port checked against the board's ports, then
+   --  opened or taken as it is open, the USB port's baud rate and DTR set
+   --  up, and the forwarding started, with the reference's lines on the way.
+   procedure Serialpassthrough_Command
+     (Into : in out Output; C : Configuration; Args : String; Ports : Port_List; Env : Environment)
+     with Pre => Args'First >= 1 and then Args'Last < Positive'Last
+                 and then Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      USB_VCP     : constant := 20;
+      PINIO_Count : constant := 4;
+      type Pass_Port is record
+         Id       : Integer_32;
+         Baud     : Unsigned_32;
+         Mode     : Unsigned_8;
+         Options  : Unsigned_32;
+         Selected : Boolean;
+      end record;
+      type Pass_Ports is array (1 .. 2) of Pass_Port;
+      P : Pass_Ports :=
+        (1 => (Id => -1, Baud => 0, Mode => 0, Options => 0, Selected => False),
+         2 => (Id => Env.CLI_Port, Baud => 0, Mode => 0, Options => 0, Selected => True));
+      Reset_On_DTR : Boolean := False;
+      PINIO_DTR    : Integer_32 := -1;
+      ESC_Sensor   : Boolean := False;
+      Index        : Natural := 0;
+      Failed       : Boolean := False;
+
+      --  Whether the board has a port, as its index lookup finds it.
+      function Present (Id : Integer_32) return Boolean is
+        (Id >= 0 and then (for some X of Ports => Integer_32 (X) = Id));
+
+      --  One word at its index: a port, a baud rate, a mode with options, or
+      --  the DTR action; past the seventh, the unexpected argument line.
+      procedure Take (Word : String)
+        with Pre => Word'Length >= 1 and then Word'First >= 1 and then Word'Last < Positive'Last
+                    and then Ports'Length <= Serial_Feature_Map.Max_Ports
+      is
+      begin
+         case Index is
+            when 0 | 4 =>
+               declare
+                  N     : constant Positive := (if Index = 0 then 1 else 2);
+                  Id    : Integer_32;
+                  Found : Boolean;
+                  Name  : Integer_64;
+                  Value : Integer_32;
+                  Next  : Positive;
+               begin
+                  if N = 1 and then CLI_Text.Contains_Ignoring_Case (Word, "esc_sensor") then
+                     ESC_Sensor := True;
+                     Id := Integer_32 (C.Esc_Sensor_Config.Esc_Sensor_Uart);
+                  elsif CLI_Text.Same_Ignoring_Case (Word, "cli") then
+                     Id := Env.CLI_Port;
+                  else
+                     CLI_Text.Port_From_Name (Word, Ports, Found, Name);
+                     if Found and then Name in 0 .. Integer_64 (Integer_32'Last) then
+                        Id := Integer_32 (Name);
+                     else
+                        CLI_Text.Parse_Signed (Word, Value, Next);
+                        if Value < 0 or else Next /= Word'Last + 1 then
+                           Put (Into, "Failed parsing port");
+                           Put_Decimal (Into, Integer_64 (N));
+                           Put (Into, " (");
+                           Put (Into, Word);
+                           Put (Into, ")" & CRLF);
+                           Failed := True;
+                           return;
+                        end if;
+                        Id := Value;
+                     end if;
+                  end if;
+                  if N = 2 then
+                     P (2).Selected := False;
+                  end if;
+                  P (N).Id := Id;
+               end;
+            when 1 | 5 =>
+               P (if Index = 1 then 1 else 2).Baud := Unsigned_32'Mod (CLI_Text.To_Integer (Word));
+            when 2 | 6 =>
+               P (if Index = 2 then 1 else 2).Mode :=
+                 (if CLI_Text.Contains_Ignoring_Case (Word, "rx") then 1 else 0)
+                 or (if CLI_Text.Contains_Ignoring_Case (Word, "tx") then 2 else 0);
+               P (if Index = 2 then 1 else 2).Options := Passthrough_Options (Word);
+            when 3 =>
+               if CLI_Text.Same_Ignoring_Case (Word, "reset") then
+                  Reset_On_DTR := True;
+               elsif not CLI_Text.Same_Ignoring_Case (Word, "none") then
+                  PINIO_DTR := CLI_Text.To_Integer (Word);
+                  if PINIO_DTR < 0 or else PINIO_DTR >= PINIO_Count then
+                     Put (Into, "Invalid PinIO number ");
+                     Put_Decimal (Into, Integer_64 (PINIO_DTR));
+                     Put (Into, CRLF);
+                     Failed := True;
+                  end if;
+               end if;
+            when others =>
+               Put (Into, "Unexpected argument ");
+               Put_Decimal (Into, Integer_64 (Index) + 1);
+               Put (Into, " (");
+               Put (Into, Word);
+               Put (Into, ")" & CRLF);
+               Failed := True;
+         end case;
+      end Take;
+
+      Pos         : Positive := Args'First;
+      Stop        : Positive;
+      Open        : Boolean;
+      Opened      : Boolean;
+      Baud        : Unsigned_32;
+      Mode        : Unsigned_8;
+      Options     : Unsigned_32;
+      Callback    : Boolean;
+      Default     : Boolean;
+      Enable_Baud : Boolean;
+   begin
+      if Args'Length = 0 then
+         Put_Error (Into, "serialpassthrough: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      while Pos <= Args'Last loop
+         pragma Loop_Invariant (Pos in Args'Range and then Index <= Pos - Args'First);
+         pragma Loop_Variant (Increases => Pos);
+         Stop := Pos;
+         while Stop <= Args'Last and then Args (Stop) /= ' ' loop
+            pragma Loop_Invariant (Stop in Pos .. Args'Last);
+            pragma Loop_Variant (Increases => Stop);
+            Stop := Stop + 1;
+         end loop;
+         if Stop > Pos then
+            Take (Args (Pos .. Stop - 1));
+            if Failed then
+               return;
+            end if;
+            Index := Index + 1;
+         end if;
+         exit when Stop >= Args'Last;
+         Pos := Stop + 1;
+      end loop;
+      for I in Pass_Ports'Range loop
+         if not Present (P (I).Id) then
+            Put (Into, "Invalid port");
+            Put_Decimal (Into, Integer_64 (I));
+            Put (Into, " ");
+            Put_Decimal (Into, Integer_64 (P (I).Id));
+            Put (Into, CRLF);
+            return;
+         end if;
+         Put (Into, "Port");
+         Put_Decimal (Into, Integer_64 (I));
+         Put (Into, ": ");
+         Put (Into, CLI_Text.Port_Name (Integer_64 (P (I).Id), Ports));
+         Put (Into, CRLF);
+      end loop;
+      if P (1).Id = P (2).Id then
+         Put (Into, "Port1 and port2 are same" & CRLF);
+         return;
+      end if;
+      Enable_Baud := P (1).Baud = 0 and then P (2).Id = USB_VCP;
+      for I in Pass_Ports'Range loop
+         if not P (I).Selected then
+            Port_State (P (I).Id, Open, Baud, Mode, Options, Callback);
+            if not Open then
+               Default := P (I).Baud = 0;
+               if Default then
+                  P (I).Baud := 57_600;
+               end if;
+               if P (I).Mode = 0 then
+                  Put (Into, "Using RXTX mode as default" & CRLF);
+                  P (I).Mode := 3;
+               end if;
+               if P (I).Options /= 0 then
+                  Put (Into, "Port");
+                  Put_Decimal (Into, Integer_64 (I));
+                  Put (Into, ": using options 0x");
+                  Put_Hex_Text (Into, P (I).Options, Hex_Width (P (I).Options));
+                  Put (Into, CRLF);
+               end if;
+               Port_Open (P (I).Id, P (I).Baud, P (I).Mode, P (I).Options, Opened);
+               if not Opened then
+                  Put (Into, "Port");
+                  Put_Decimal (Into, Integer_64 (I));
+                  Put (Into, " could not be opened." & CRLF);
+                  return;
+               end if;
+               Put (Into, "Port");
+               Put_Decimal (Into, Integer_64 (I));
+               Put (Into, (if Default then " opened, default baud = " else " opened, baud = "));
+               Put_Decimal (Into, Signed_Value (P (I).Baud));
+               Put (Into, "." & CRLF);
+            else
+               if P (I).Baud /= 0 then
+                  Port_Set_Baud (P (I).Id, P (I).Baud);
+                  Baud := P (I).Baud;
+               end if;
+               Put (Into, "Port");
+               Put_Decimal (Into, Integer_64 (I));
+               Put (Into, (if P (I).Baud /= 0 then " is already open, new baud = " else " is already open, baud = "));
+               Put_Decimal (Into, Signed_Value (Baud));
+               Put (Into, "." & CRLF);
+               if P (I).Mode /= 0 and then Mode /= P (I).Mode then
+                  Put (Into, "Port");
+                  Put_Decimal (Into, Integer_64 (I));
+                  Put (Into, " mode changed from ");
+                  Put_Decimal (Into, Integer_64 (Mode));
+                  Put (Into, " to ");
+                  Put_Decimal (Into, Integer_64 (P (I).Mode));
+                  Put (Into, "." & CRLF);
+                  Port_Set_Mode (P (I).Id, P (I).Mode);
+               end if;
+               if P (I).Options /= 0 then
+                  Put (Into, "Port");
+                  Put_Decimal (Into, Integer_64 (I));
+                  Put (Into, " is open, can't change options from 0x");
+                  Put_Hex_Text (Into, Options, Hex_Width (Options));
+                  Put (Into, " to 0x");
+                  Put_Hex_Text (Into, P (I).Options, Hex_Width (P (I).Options));
+                  Put (Into, CRLF);
+               end if;
+               if Callback then
+                  Put (Into, "Port");
+                  Put_Decimal (Into, Integer_64 (I));
+                  Put (Into, ": Callback removed" & CRLF);
+                  Port_Remove_Callback (P (I).Id);
+               end if;
+            end if;
+         end if;
+      end loop;
+      if Enable_Baud then
+         Put (Into, "Port1 baud rate change over USB enabled." & CRLF);
+         Port_Baud_From_USB (P (2).Id, P (1).Id);
+      end if;
+      Put (Into, (if Reset_On_DTR and then P (2).Id = USB_VCP then "Forwarding, power cycle or drop DTR to exit."
+                  else "Forwarding, power cycle to exit."));
+      Put (Into, CRLF);
+      if P (2).Id = USB_VCP then
+         if Reset_On_DTR then
+            Port_DTR_Reset (P (2).Id);
+         elsif PINIO_DTR >= 0 then
+            Port_DTR_PINIO (P (2).Id, Natural (PINIO_DTR));
+         end if;
+      end if;
+      if ESC_Sensor then
+         Motors_Disable;
+         Delay_Ms (5);
+         ESC_Sensor_Pins_Idle;
+      end if;
+      Port_Forward (P (1).Id, P (2).Id);
+   end Serialpassthrough_Command;
 
    --  options: each of the build's option numbers on its own line.
    procedure Options_Command (Into : in out Output; Env : Environment)
@@ -7240,6 +7535,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Escprog_Command (Into, Env, Args);
             when Gpspassthrough_Command_Word =>
                Gpspassthrough_Command (Into);
+            when Serialpassthrough_Command_Word =>
+               Serialpassthrough_Command (Into, C, Args, Ports, Env);
             when Gyroregisters_Command_Word =>
                Gyroregisters_Command (Into, C, Env);
             when Options_Command_Word =>

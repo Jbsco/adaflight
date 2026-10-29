@@ -24,4 +24,14 @@ package Adaflight.Reply_Command_Line is new Adaflight.Command_Line
    Flash_Seek             => Adaflight.CLI_Board_Steps.Flash_Seek,
    Flash_Write            => Adaflight.CLI_Board_Steps.Flash_Write,
    Flash_Flush            => Adaflight.CLI_Board_Steps.Flash_Flush,
-   Flash_Read             => Adaflight.CLI_Board_Steps.Flash_Read);
+   Flash_Read             => Adaflight.CLI_Board_Steps.Flash_Read,
+   Port_State             => Adaflight.CLI_Board_Steps.Port_State,
+   Port_Open              => Adaflight.CLI_Board_Steps.Port_Open,
+   Port_Set_Baud          => Adaflight.CLI_Board_Steps.Port_Set_Baud,
+   Port_Set_Mode          => Adaflight.CLI_Board_Steps.Port_Set_Mode,
+   Port_Remove_Callback   => Adaflight.CLI_Board_Steps.Port_Remove_Callback,
+   Port_Baud_From_USB     => Adaflight.CLI_Board_Steps.Port_Baud_From_USB,
+   Port_DTR_Reset         => Adaflight.CLI_Board_Steps.Port_DTR_Reset,
+   Port_DTR_PINIO         => Adaflight.CLI_Board_Steps.Port_DTR_PINIO,
+   ESC_Sensor_Pins_Idle   => Adaflight.CLI_Board_Steps.ESC_Sensor_Pins_Idle,
+   Port_Forward           => Adaflight.CLI_Board_Steps.Port_Forward);

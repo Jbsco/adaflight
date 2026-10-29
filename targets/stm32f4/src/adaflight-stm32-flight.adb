@@ -508,6 +508,7 @@ package body Adaflight.STM32.Flight is
       Option_Count    => 0,
       Soft_Serial     => False,
       Serial_Ports    => <>,
+      CLI_Port        => 20,
       Gyro_Positions  => 1,
       Gyros_Enabled   => 0,
       Gyros           => <>,
