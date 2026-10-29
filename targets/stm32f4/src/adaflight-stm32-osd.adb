@@ -70,7 +70,7 @@ package body Adaflight.STM32.OSD is
 
    procedure Attach_Bus (D : in out Chip_Bus; Instance : Byte; OK : out Boolean) is
    begin
-      OK := Instance in 1 .. 3 and then SPI.Started (SPI.Bus'Val (Instance - 1));
+      OK := Instance in 1 .. 6 and then SPI.Started (SPI.Bus'Val (Instance - 1));
       if OK then
          D.Bus := SPI.Bus'Val (Instance - 1);
       end if;

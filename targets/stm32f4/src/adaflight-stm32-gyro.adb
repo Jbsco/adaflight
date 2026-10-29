@@ -13,6 +13,10 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Gyro is
+   --  The gyro's bus from the board's configuration, SPI1 when it names none.
+   Gyro_Bus : constant SPI.Bus :=
+     (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then SPI.Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1)
+      else SPI.SPI1);
    use type Interfaces.Unsigned_8;
    use type Interfaces.Integer_32;
    Read_Bit : constant Byte := 16#80#;
@@ -159,7 +163,7 @@ package body Adaflight.STM32.Gyro is
    procedure Set_Divisor (D : in out Device; Divisor : Unsigned_16) is
       pragma Unreferenced (D);
    begin
-      SPI.Set_Divisor (SPI.SPI1, Divisor);
+      SPI.Set_Divisor (Gyro_Bus, Divisor);
    end Set_Divisor;
 
    procedure Probe_Chip (D : in out Device; Index : Positive; Sensor : out Byte) is
@@ -209,7 +213,7 @@ package body Adaflight.STM32.Gyro is
       pragma Unreferenced (Completion);
    begin
       Select_Chip (D);
-      SPI.Transfer (SPI.SPI1, Data, D.Rx);
+      SPI.Transfer (Gyro_Bus, Data, D.Rx);
       Deselect_Chip (D);
    end Start_Sequence;
 
@@ -239,7 +243,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. Data'Length);
    begin
       Select_Chip (D);
-      SPI.Transfer (SPI.SPI1, Tx, Rx);
+      SPI.Transfer (Gyro_Bus, Tx, Rx);
       Deselect_Chip (D);
       Data := Rx (1 .. Data'Length);
       OK := True;
@@ -249,7 +253,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer (SPI.SPI1, (Register, Value), Rx);
+      SPI.Transfer (Gyro_Bus, (Register, Value), Rx);
       Deselect_Chip (D);
    end Write_Register;
 
@@ -257,7 +261,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer (SPI.SPI1, (Register or Read_Bit, 16#FF#), Rx);
+      SPI.Transfer (Gyro_Bus, (Register or Read_Bit, 16#FF#), Rx);
       Deselect_Chip (D);
       Value := Rx (1);
    end Read_Register;
