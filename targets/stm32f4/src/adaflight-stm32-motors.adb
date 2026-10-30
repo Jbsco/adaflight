@@ -1,3 +1,4 @@
+with Ada.Interrupts.Names;
 with Adaflight.CLI_Resources;
 with Interfaces;
 with System;
@@ -23,9 +24,12 @@ package body Adaflight.STM32.Motors is
    Bit_0      : constant := 7;
    Bit_1      : constant := 14;
    Buffer_Size : constant := 18;
+   Input_Length : constant := Adaflight.DShot.Input_Length;
 
+   --  A motor's buffer: a frame's slots, then with bidirectional DShot the
+   --  edge times of the reply its channel captures.
    subtype Motor_Slot is Natural range 0 .. 7;
-   type Frame_Buffer is array (0 .. Buffer_Size - 1) of Unsigned_32;
+   type Frame_Buffer is array (0 .. Input_Length - 1) of Unsigned_32;
    pragma Volatile_Components (Frame_Buffer);
    Buffers : array (Motor_Slot) of aliased Frame_Buffer := (others => (others => 0))
      with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
@@ -37,8 +41,137 @@ package body Adaflight.STM32.Motors is
       Channel    : Channel_Number := 1;
       Source     : Unsigned_32 := 0;
       Stream     : DMA_Stream;
+      N          : Boolean := False;
+      Low        : Boolean := False;
    end record;
    Outputs : array (Motor_Slot) of Output;
+
+   --  Bidirectional DShot: the frames' signal and checksum inverted, and each
+   --  channel in input capture from the end of its frame until the read of
+   --  its reply, which needs the deadtime from the first switch; the motor of
+   --  each stream for its transfer complete interrupt.
+   Bidir       : Boolean := False;
+   Deadtime_Us : Integer_32 := 0;
+   Stream_Slot : array (1 .. 2, 0 .. 7) of Integer range -1 .. 7 := (others => (others => -1));
+   type Motor_Flags_Array is array (Motor_Slot) of Boolean;
+   TCIE        : constant Unsigned_32 := 2 ** 4;
+   DIR_Bits    : constant Unsigned_32 := 2#11# * 2 ** 6;
+
+   --  A channel in input capture at both edges, its filter at two samples
+   --  without a prescaler, the timer counting to its top.
+   procedure Input_Capture (E : Output) is
+      Regs : Timer_Registers with Import, Address => Timer_Base (E.Timer);
+      Byte : constant Natural := (if E.Channel mod 2 = 1 then 0 else 8);
+      Base : constant Natural := 4 * (E.Channel - 1);
+      Mode : Unsigned_32;
+   begin
+      Regs.CR1 := Regs.CR1 or ARPE;
+      Regs.ARR := 16#FFFF_FFFF#;
+      Regs.CCER := Regs.CCER and not Shift_Left (1, Base);
+      Mode := (if E.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2);
+      Mode := (Mode and not Shift_Left (16#F3#, Byte)) or Shift_Left (16#21#, Byte);
+      Mode := Mode and not Shift_Left (16#0C#, Byte);
+      if E.Channel <= 2 then
+         Regs.CCMR1 := Mode and 16#FFFF#;
+      else
+         Regs.CCMR2 := Mode and 16#FFFF#;
+      end if;
+      Regs.CCER := (Regs.CCER and not Shift_Left (2#1010#, Base)) or Shift_Left (2#1011#, Base);
+   end Input_Capture;
+
+   --  The transfer complete interrupt of each stream a motor can use: the
+   --  stream and the timer's request stopped and the stream's flags cleared,
+   --  then with bidirectional DShot the channel in input capture, the switch
+   --  time kept when it is the first, and the stream from the compare
+   --  register for the reply's edges.
+   protected Capture with Interrupt_Priority => System.Interrupt_Priority'First is
+      function Input (Slot : Motor_Slot) return Boolean;
+      function Stamp return Unsigned_32;
+      procedure Leave (Slot : Motor_Slot);
+      procedure Clear_Stamp;
+   private
+      procedure Complete (Controller : Positive; Stream : Natural);
+      procedure DMA1_0 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream0_Interrupt;
+      procedure DMA1_1 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream1_Interrupt;
+      procedure DMA1_2 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream2_Interrupt;
+      procedure DMA1_3 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream3_Interrupt;
+      procedure DMA1_4 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream4_Interrupt;
+      procedure DMA1_5 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream5_Interrupt;
+      procedure DMA1_6 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream6_Interrupt;
+      procedure DMA1_7 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream7_Interrupt;
+      procedure DMA2_1 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream1_Interrupt;
+      procedure DMA2_2 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream2_Interrupt;
+      procedure DMA2_3 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream3_Interrupt;
+      procedure DMA2_4 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream4_Interrupt;
+      procedure DMA2_6 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream6_Interrupt;
+      procedure DMA2_7 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream7_Interrupt;
+      Inputs       : Motor_Flags_Array := (others => False);
+      Switch_Stamp : Unsigned_32 := 0;
+   end Capture;
+
+   protected body Capture is
+      function Input (Slot : Motor_Slot) return Boolean is (Inputs (Slot));
+      function Stamp return Unsigned_32 is (Switch_Stamp);
+
+      procedure Leave (Slot : Motor_Slot) is
+      begin
+         Inputs (Slot) := False;
+      end Leave;
+
+      procedure Clear_Stamp is
+      begin
+         Switch_Stamp := 0;
+      end Clear_Stamp;
+
+      procedure Complete (Controller : Positive; Stream : Natural) is
+         Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
+         Status : Unsigned_32 with Volatile, Import,
+           Address => System'To_Address (DMA_Base (Controller) + (if Stream < 4 then 16#00# else 16#04#));
+         Slot   : constant Integer := Stream_Slot (Controller, Stream);
+      begin
+         if Slot < 0 or else (Status and Shift_Left (16#20#, Shifts (Stream mod 4))) = 0 then
+            return;
+         end if;
+         declare
+            O    : Output renames Outputs (Slot);
+            Regs : Timer_Registers with Import, Address => Timer_Base (O.Timer);
+            S    : Stream_Registers with Import, Address => Stream_Address (O.Stream);
+         begin
+            S.CR := S.CR and not EN;
+            Regs.DIER := Regs.DIER and not O.Source;
+            for Count in 1 .. 1_000 loop
+               exit when (S.CR and EN) = 0;
+            end loop;
+            Clear_Flags (O.Stream);
+            if Bidir then
+               S.CR := S.CR and not (DIR_Bits or TCIE);
+               Inputs (Slot) := True;
+               if Switch_Stamp = 0 then
+                  Switch_Stamp := Adaflight.STM32.Time.Micros;
+               end if;
+               Input_Capture (O);
+               S.NDTR := Input_Length;
+               S.CR := S.CR or EN;
+               Regs.DIER := Regs.DIER or O.Source;
+            end if;
+         end;
+      end Complete;
+
+      procedure DMA1_0 is begin Complete (1, 0); end DMA1_0;
+      procedure DMA1_1 is begin Complete (1, 1); end DMA1_1;
+      procedure DMA1_2 is begin Complete (1, 2); end DMA1_2;
+      procedure DMA1_3 is begin Complete (1, 3); end DMA1_3;
+      procedure DMA1_4 is begin Complete (1, 4); end DMA1_4;
+      procedure DMA1_5 is begin Complete (1, 5); end DMA1_5;
+      procedure DMA1_6 is begin Complete (1, 6); end DMA1_6;
+      procedure DMA1_7 is begin Complete (1, 7); end DMA1_7;
+      procedure DMA2_1 is begin Complete (2, 1); end DMA2_1;
+      procedure DMA2_2 is begin Complete (2, 2); end DMA2_2;
+      procedure DMA2_3 is begin Complete (2, 3); end DMA2_3;
+      procedure DMA2_4 is begin Complete (2, 4); end DMA2_4;
+      procedure DMA2_6 is begin Complete (2, 6); end DMA2_6;
+      procedure DMA2_7 is begin Complete (2, 7); end DMA2_7;
+   end Capture;
 
    Used    : array (Timer_Name) of Boolean := (others => False);
    Sources : array (Timer_Name) of Unsigned_32 := (others => 0);
@@ -109,6 +242,71 @@ package body Adaflight.STM32.Motors is
       end loop;
    end Clear_Pulses;
 
+   --  A channel in PWM mode 1 at zero with its output on, low when the
+   --  output is inverted, its preload off during the setup and on after.
+   procedure Output_Compare (O : Output) is
+      Regs : Timer_Registers with Import, Address => Timer_Base (O.Timer);
+      Byte : constant Natural := (if O.Channel mod 2 = 1 then 0 else 8);
+      Base : constant Natural := 4 * (O.Channel - 1);
+      Mode : Unsigned_32;
+   begin
+      Mode := (if O.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2);
+      Mode := Mode and not Shift_Left (16#08#, Byte);
+      Mode := (Mode and not Shift_Left (16#73#, Byte)) or Shift_Left (16#60#, Byte);
+      if O.Channel <= 2 then
+         Regs.CCMR1 := Mode;
+      else
+         Regs.CCMR2 := Mode;
+      end if;
+      Regs.CCER := Regs.CCER and not Shift_Left (16#F#, Base);
+      if O.N then
+         Regs.CCER := Regs.CCER or Shift_Left (Unsigned_32'(2#0100#), Base)
+           or (if O.Low then Shift_Left (Unsigned_32'(2#1000#), Base) else Unsigned_32'(0));
+      else
+         Regs.CCER := Regs.CCER or Shift_Left (Unsigned_32'(2#0001#), Base)
+           or (if O.Low then Shift_Left (Unsigned_32'(2#0010#), Base) else Unsigned_32'(0));
+      end if;
+      if Advanced (O.Timer) then
+         Regs.CR2 := (Regs.CR2 and not Shift_Left (2#11#, 8 + 2 * (O.Channel - 1)))
+           or (if O.N then Unsigned_32'(0) else Shift_Left (Unsigned_32'(1), 8 + 2 * (O.Channel - 1)));
+      end if;
+      declare
+         CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (O.Timer, O.Channel));
+      begin
+         CCR := 0;
+      end;
+      Mode := (if O.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2) or Shift_Left (16#08#, Byte);
+      if O.Channel <= 2 then
+         Regs.CCMR1 := Mode;
+      else
+         Regs.CCMR2 := Mode;
+      end if;
+   end Output_Compare;
+
+   --  A motor's stream reset, then from its buffer to its channel's compare
+   --  register, with its transfer complete interrupt for bidirectional DShot.
+   procedure Stream_Output (Slot : Motor_Slot) is
+      O      : Output renames Outputs (Slot);
+      Stream : Stream_Registers with Import, Address => Stream_Address (O.Stream);
+   begin
+      Stream.CR := Stream.CR and not EN;
+      for Count in 1 .. 1_000 loop
+         exit when (Stream.CR and EN) = 0;
+      end loop;
+      Stream.CR := 0;
+      Stream.NDTR := 0;
+      Stream.PAR := 0;
+      Stream.M0AR := 0;
+      Stream.M1AR := 0;
+      Stream.FCR := 16#21#;
+      Clear_Flags (O.Stream);
+      Stream.CR := Shift_Left (Unsigned_32 (O.Stream.Channel), 25) or PL_High or MSIZE_32 or PSIZE_32 or MINC
+        or DIR_M2P or (if Bidir then TCIE else 0);
+      Stream.FCR := DMDIS;
+      Stream.PAR := CCR_Value (O.Timer, O.Channel);
+      Stream.M0AR := Unsigned_32 (System.Storage_Elements.To_Integer (Buffers (Slot)'Address));
+   end Stream_Output;
+
    --  One motor's output as the reference configures it: the pin on the
    --  timer's alternate function, the timer at the protocol's bit clock when
    --  it is the timer just added, the channel in PWM mode 1 with its
@@ -120,9 +318,6 @@ package body Adaflight.STM32.Motors is
    is
       Regs   : Timer_Registers with Import, Address => Timer_Base (E.Timer);
       Stream : Stream_Registers with Import, Address => Stream_Address (S);
-      Byte   : constant Natural := (if E.Channel mod 2 = 1 then 0 else 8);
-      Mode   : Unsigned_32;
-      Base   : constant Natural := 4 * (E.Channel - 1);
    begin
       GPIO.Enable_Port (E.Where.Port);
       GPIO.Set_Alternate (E.Where, Alternate (E.Timer), (if Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
@@ -141,55 +336,18 @@ package body Adaflight.STM32.Motors is
          end if;
          Regs.EGR := UG;
       end if;
-      Mode := (if E.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2);
-      Mode := Mode and not Shift_Left (16#08#, Byte);
-      Mode := (Mode and not Shift_Left (16#73#, Byte)) or Shift_Left (16#60#, Byte);
-      if E.Channel <= 2 then
-         Regs.CCMR1 := Mode;
-      else
-         Regs.CCMR2 := Mode;
-      end if;
-      Regs.CCER := Regs.CCER and not Shift_Left (16#F#, Base);
-      if E.N then
-         Regs.CCER := Regs.CCER or Shift_Left (Unsigned_32'(2#0100#), Base) or (if Inverted then Shift_Left (Unsigned_32'(2#1000#), Base) else Unsigned_32'(0));
-      else
-         Regs.CCER := Regs.CCER or Shift_Left (Unsigned_32'(2#0001#), Base) or (if Inverted then Shift_Left (Unsigned_32'(2#0010#), Base) else Unsigned_32'(0));
-      end if;
-      if Advanced (E.Timer) then
-         Regs.CR2 := (Regs.CR2 and not Shift_Left (2#11#, 8 + 2 * (E.Channel - 1)))
-           or (if E.N then Unsigned_32'(0) else Shift_Left (Unsigned_32'(1), 8 + 2 * (E.Channel - 1)));
-      end if;
-      declare
-         CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (E.Timer, E.Channel));
-      begin
-         CCR := 0;
-      end;
-      Mode := (if E.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2) or Shift_Left (16#08#, Byte);
-      if E.Channel <= 2 then
-         Regs.CCMR1 := Mode;
-      else
-         Regs.CCMR2 := Mode;
-      end if;
       Outputs (Slot) :=
         (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel,
-         Source => Shift_Left (1, 8 + E.Channel), Stream => S);
+         Source => Shift_Left (1, 8 + E.Channel), Stream => S, N => E.N, Low => Inverted /= Bidir);
+      Output_Compare (Outputs (Slot));
       Sources (E.Timer) := Sources (E.Timer) and not Outputs (Slot).Source;
       Stream.CR := Stream.CR and not EN;
       for Count in 1 .. 100_000 loop
          exit when (Stream.CR and EN) = 0;
       end loop;
       Enable_DMA (S);
-      Stream.CR := 0;
-      Stream.NDTR := 0;
-      Stream.PAR := 0;
-      Stream.M0AR := 0;
-      Stream.M1AR := 0;
-      Stream.FCR := 16#21#;
-      Clear_Flags (S);
-      Stream.CR := Shift_Left (Unsigned_32 (S.Channel), 25) or PL_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P;
-      Stream.FCR := DMDIS;
-      Stream.PAR := CCR_Value (E.Timer, E.Channel);
-      Stream.M0AR := Unsigned_32 (System.Storage_Elements.To_Integer (Buffers (Slot)'Address));
+      Stream_Output (Slot);
+      Stream_Slot (S.Controller, S.Stream) := Slot;
       Regs.CR1 := Regs.CR1 or CEN;
       if New_Timer then
          Regs.CR1 := Regs.CR1 or ARPE;
@@ -197,6 +355,13 @@ package body Adaflight.STM32.Motors is
             Regs.BDTR := Regs.BDTR or MOE;
          end if;
          Regs.CR1 := Regs.CR1 or CEN;
+      end if;
+      if Bidir then
+         declare
+            CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (E.Timer, E.Channel));
+         begin
+            CCR := 16#FFFF#;
+         end;
       end if;
    end Configure;
 
@@ -217,6 +382,8 @@ package body Adaflight.STM32.Motors is
       Driven := 0;
       Kind := Adaflight.MSP_Motor_In.No_Device;
       Configured_Protocol := C.Motor_Config.Dev.Motor_Protocol;
+      Bidir := Telemetry_Configured (C);
+      Stream_Slot := (others => (others => -1));
       if Configured_Protocol in Adaflight.PWM_Output.Protocol then
          Init_Analog (C, Count, Three_D);
          return;
@@ -224,6 +391,7 @@ package body Adaflight.STM32.Motors is
       if Hz = 0 then
          return;
       end if;
+      Deadtime_Us := 35 + Integer_32 (320_000_000 / Hz);
       for M in 0 .. Total - 1 loop
          declare
             Order    : constant Natural := Natural (C.Motor_Config.Dev.Motor_Output_Reordering (M)) mod 8;
@@ -349,7 +517,7 @@ package body Adaflight.STM32.Motors is
       Stream : Stream_Registers with Import, Address => Stream_Address (O.Stream);
       Packet : Unsigned_16 :=
         Adaflight.DShot.Frame (Adaflight.DShot.Frame_Value (Unsigned_16'Min (Value, 2_047)),
-                               Request_Telemetry => Request, Inverted_Checksum => False);
+                               Request_Telemetry => Request, Inverted_Checksum => Bidir);
    begin
       if not O.Configured then
          return;
@@ -371,23 +539,63 @@ package body Adaflight.STM32.Motors is
       Sources (O.Timer) := Sources (O.Timer) or O.Source;
    end Send_Frame;
 
-   --  The timer driver captures no replies yet, so its frames stay plain
-   --  DShot whatever the telemetry setting.
    function Telemetry_Configured (C : Adaflight.Config_Groups.Configuration) return Boolean is
-      pragma Unreferenced (C);
-   begin
-      return False;
-   end Telemetry_Configured;
+     (C.Motor_Config.Dev.Use_Dshot_Telemetry /= 0 and then C.Motor_Config.Dev.Motor_Protocol in 5 .. 7);
 
-   function Telemetry_On return Boolean is (False);
+   function Telemetry_On return Boolean is (Bidir);
 
+   --  Each motor's capture: whether its channel is in input, the deadtime,
+   --  the edges its stream took from the count left, and their times.
    procedure Captures (C : out Adaflight.DShot.Captures; Stamp_Us : out Unsigned_32) is
    begin
       C := (others => <>);
-      Stamp_Us := 0;
+      for M in 0 .. Driven - 1 loop
+         declare
+            S    : Stream_Registers with Import, Address => Stream_Address (Outputs (M).Stream);
+            Left : constant Unsigned_32 := S.NDTR and 16#FFFF#;
+         begin
+            C (M).Input := Capture.Input (M);
+            C (M).Deadtime := Deadtime_Us;
+            C (M).Edges := (if Left >= Input_Length then 0 else Input_Length - Natural (Left));
+            for K in C (M).Buffer'Range loop
+               C (M).Buffer (K) := Buffers (M) (K);
+            end loop;
+         end;
+      end loop;
+      Stamp_Us := Capture.Stamp;
    end Captures;
 
-   procedure Leave_Input (Processed : Natural; Done : Boolean) is null;
+   --  The motors read leave input: a motor in input stops its timer's
+   --  request, then each takes its output compare and its stream from the
+   --  buffer back; once every motor is read the switch time clears and the
+   --  channels' outputs go on.
+   procedure Leave_Input (Processed : Natural; Done : Boolean) is
+   begin
+      for M in 0 .. Natural'Min (Processed, Driven) - 1 loop
+         declare
+            O    : Output renames Outputs (M);
+            Regs : Timer_Registers with Import, Address => Timer_Base (O.Timer);
+         begin
+            if Capture.Input (M) then
+               Regs.DIER := Regs.DIER and not O.Source;
+            end if;
+            Stream_Output (M);
+            Capture.Leave (M);
+            Output_Compare (O);
+         end;
+      end loop;
+      if Done and then Bidir then
+         Capture.Clear_Stamp;
+         for M in 0 .. Driven - 1 loop
+            declare
+               O    : Output renames Outputs (M);
+               Regs : Timer_Registers with Import, Address => Timer_Base (O.Timer);
+            begin
+               Regs.CCER := Regs.CCER or Shift_Left (Unsigned_32'(if O.N then 2#0100# else 2#0001#), 4 * (O.Channel - 1));
+            end;
+         end loop;
+      end if;
+   end Leave_Input;
 
    --  Each timer used restarts with its period reloaded and asks for the
    --  transfers its motors armed.
