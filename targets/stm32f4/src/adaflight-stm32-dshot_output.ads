@@ -51,4 +51,13 @@ package Adaflight.STM32.DShot_Output is
    function Telemetry return Adaflight.DShot.Telemetry;
    function Counts return Adaflight.DShot.Read_Counts;
    function Qualities return Adaflight.DShot.Qualities;
+   --  The motors' filtered frequencies with the slowest, the average RPM, a
+   --  motor's last eRPM value in hundreds, and whether every motor reports.
+   function Frequencies return Adaflight.DShot.Frequencies;
+   function Min_Frequency return Float;
+   function Rpm_Average return Adaflight.DShot.Rpm_Value;
+   function Erpm (M : Adaflight.DShot.Motor_Index) return Interfaces.Unsigned_16;
+   function Telemetry_Active return Boolean;
+   --  Every reply, count and saved edge forgotten, as arming clears them.
+   procedure Clean_Telemetry;
 end Adaflight.STM32.DShot_Output;

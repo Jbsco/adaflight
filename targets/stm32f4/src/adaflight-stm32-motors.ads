@@ -51,7 +51,9 @@ package Adaflight.STM32.Motors is
    procedure Write_Pulse (Index : Natural; Value : Float);
    procedure Complete_Pulses;
    --  Whether the motors run bidirectional DShot: the configured telemetry
-   --  with a DShot protocol on an output that captures the replies.
+   --  with a DShot protocol on an output that captures the replies, from the
+   --  configuration before the outputs start, and once they have.
+   function Telemetry_Configured (C : Adaflight.Config_Groups.Configuration) return Boolean;
    function Telemetry_On return Boolean;
    --  Each motor's capture after its last frame for the telemetry read, and
    --  the time the first motor switched to input, zero before.

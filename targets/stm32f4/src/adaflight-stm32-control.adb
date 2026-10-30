@@ -49,7 +49,7 @@ package body Adaflight.STM32.Control is
       Adaflight.Mixer.Init_RPM_Limiter (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Battery_Voltage);
       Adaflight.Mixer.Init_Dyn_Idle
         (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile,
-         DShot_Telemetry => False, Motor_Idle => Natural'Min (2_000, Natural (Config.Motor_Config.Motor_Idle)));
+         DShot_Telemetry => Adaflight.STM32.Motors.Telemetry_Configured (Config), Motor_Idle => Natural'Min (2_000, Natural (Config.Motor_Config.Motor_Idle)));
       Last_Step := Mix.Dyn_LPF_Previous_Step;
       Step_Changed := False;
    end Init;
@@ -206,6 +206,9 @@ package body Adaflight.STM32.Control is
       Inp.Sag_Cell_Voltage := Current.Sag_Cell_Voltage;
       Inp.Battery_Voltage_Latest := Current.Battery_Latest;
       Inp.Motors_Enabled := Adaflight.STM32.Motors.Enabled;
+      Inp.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      Inp.RPM_Average := Adaflight.STM32.DShot_Output.Rpm_Average;
+      Inp.Min_Motor_Frequency := Float'Max (0.0, Float'Min (1.0e6, Adaflight.STM32.DShot_Output.Min_Frequency));
       for M in Inp.Motor_Enabled'Range loop
          Inp.Motor_Enabled (M) := Adaflight.STM32.Motors.Motor_Enabled (M);
       end loop;

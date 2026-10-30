@@ -2784,6 +2784,10 @@ def main():
                   text[-700:])
             stopped = re.findall(r"^ +[234] +R---- +0 +0 +0 +0\.00%", text, re.M)
             check("the stopped motors report zero eRPM", len(stopped) == 3, text[-700:])
+            text = cli(sock, "status")
+            flags = re.search(r"Arming disable flags:([^\r\n]*)", text)
+            check("arming does not wait for DShot telemetry every motor reports",
+                  flags is not None and "DSHOT_TELEM" not in flags.group(1), text[-160:])
         finally:
             stop(proc)
             sock.close()

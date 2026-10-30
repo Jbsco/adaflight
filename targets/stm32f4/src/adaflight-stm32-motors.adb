@@ -373,6 +373,12 @@ package body Adaflight.STM32.Motors is
 
    --  The timer driver captures no replies yet, so its frames stay plain
    --  DShot whatever the telemetry setting.
+   function Telemetry_Configured (C : Adaflight.Config_Groups.Configuration) return Boolean is
+      pragma Unreferenced (C);
+   begin
+      return False;
+   end Telemetry_Configured;
+
    function Telemetry_On return Boolean is (False);
 
    procedure Captures (C : out Adaflight.DShot.Captures; Stamp_Us : out Unsigned_32) is
