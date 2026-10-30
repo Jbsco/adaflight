@@ -2801,6 +2801,31 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "reorder.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set motor_output_reordering = 1,0,2,3,4,5,6,7")
+            check("the first two motors' outputs swapped", "motor_output_reordering set to 1,0,2,3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "timer show")
+            check("a timer owner takes the number of the motor pin it drives, whatever the output order",
+                  re.search(r"TIM1:\r\n +CH2N: MOTOR 1\r\n", text) is not None
+                  and re.search(r"TIM8:\r\n +CH3N: MOTOR 2\r\n", text) is not None, text[:400])
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ledstrip.bin")
         proc, sock = start(image, store)
         try:
