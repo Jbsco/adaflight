@@ -4,6 +4,7 @@
 with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.Board;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
 package Adaflight.STM32.Timers is
@@ -240,7 +241,15 @@ package Adaflight.STM32.Timers is
    --  of the timer table from one. A pin without an entry, an option past
    --  the pin's entries, or a channel another owner holds gives none.
    procedure Allocate
-     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean);
+     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean;
+      Ordinal : Natural := 0);
+
+   --  Who holds a map entry by its position in the board's map, and the
+   --  owner's ordinal from one, zero for an owner without one.
+   function Owner_Of (Position : Positive) return Owner
+     with Pre => Position in Adaflight.Board.Timer_Map'Range;
+   function Ordinal_Of (Position : Positive) return Natural
+     with Pre => Position in Adaflight.Board.Timer_Map'Range;
 
    --  A timer's clock on.
    procedure Enable_Clock (T : Timer_Name);

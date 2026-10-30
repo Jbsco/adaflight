@@ -29904,6 +29904,7 @@ procedure Vector_Check is
       Raw_Gyro_ICM456 => False,
       Interactive     => False,
       DMA_Motors      => <>,
+      Timer_Owners    => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -39750,6 +39751,7 @@ begin
    Run (Dir & "/cliwp.csv", "cliset");
    Run (Dir & "/clidump.csv", "cliset");
    Run (Dir & "/clires.csv", "cliset");
+   Run (Dir & "/clitimer.csv", "cliset");
    Run (Dir & "/clidiff.csv", "cliset");
    Run (Dir & "/cliall.csv", "cliset");
    Run (Dir & "/clibrd.csv", "cliset");

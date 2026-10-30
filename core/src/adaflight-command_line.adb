@@ -1,6 +1,6 @@
 with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
-with Adaflight.CLI_Resources;
+with Adaflight.Timer_Tables;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Reset;
@@ -3923,90 +3923,88 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
       Serial_Command_Word,
       Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Status_Command_Word,
-      Tasks_Command_Word,
+      Tasks_Command_Word, Timer_Command_Word,
       Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word,
       Serialpassthrough_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Serialpassthrough_Command_Word;
 
    --  The command words in one text, each at its start for its length. The text ends with room for a
    --  longest one, so every slice stays within it by its types.
-   Command_Word_Pool_Length : constant := 485;
+   Command_Word_Pool_Length : constant := 490;
    Command_Word_Text : constant String (1 .. Command_Word_Pool_Length + 20) :=
-     "adjrangeauxbatchbattery_profilebeaconblexitsavebeeperbind_rxboard_namemanufacturer_idsignaturedefaultsdi"
-     & "ffdmadshot_telemetry_infodshotprogdumpenvescprogfeatureflash_eraseflash_infoflash_readflash_scanflash_wr"
-     & "itegetgpspassthroughgyroregistershelpcolorledmode_colormapmcu_idmotormscplay_soundsd_infosensor_hardware"
-     & "mixermmixoptionsperipheralsstatusrateprofilerc_smoothing_inforesourcerxfailrxrangeserialservosmixsetsimp"
-     & "lified_tuningtasksversionvtxvtx_infovtxtablewaypointserialpassthrough                    ";
+     "adjrangeauxbatchbattery_profilebeaconblexitsavebeeperbind_rxboard_namemanufacturer_idsignaturedefaul"
+     & "tsdiffdmadshot_telemetry_infodshotprogdumpenvescprogfeatureflash_eraseflash_infoflash_readflash_scan"
+     & "flash_writegetgpspassthroughgyroregistershelpcolorledmode_colormapmcu_idmotormscplay_soundsd_infosen"
+     & "sor_hardwaremixermmixoptionsperipheralsstatusrateprofilerc_smoothing_inforesourcerxfailrxrangeserial"
+     & "servosmixsetsimplified_tuningtaskstimerversionvtxvtx_infovtxtablewaypointserialpassthrough          "
+     & "          ";
    type Command_Word_Start is range 0 .. Command_Word_Pool_Length;
    type Command_Word_Length is range 2 .. 20;
    Command_Word_Starts : constant array (Known_Command) of Command_Word_Start :=
-     (Adjustment_Range_Command_Word => 0, Aux_Command_Word => 8, Batch_Command_Word => 11,
-      Battery_Profile_Command => 16, Beacon_Command => 31, Bootloader_Command_Word => 37, Exit_Command_Word => 39,
-      Save_Command_Word => 43, Beeper_Command_Word => 47, Bind_Rx_Command_Word => 53, Board_Name_Command_Word => 60,
-      Manufacturer_Id_Command_Word => 70, Signature_Command_Word => 85, Defaults_Command_Word => 94,
-      Diff_Command => 102, Dma_Command_Word => 106, Dshot_Telemetry_Info_Command_Word => 109,
-      Dshotprog_Command_Word => 129, Dump_Command => 138, Env_Command_Word => 142, Escprog_Command_Word => 145,
-      Feature_Command_Word => 152, Flash_Erase_Command_Word => 159, Flash_Info_Command_Word => 170,
-      Flash_Read_Command_Word => 180, Flash_Scan_Command_Word => 190, Flash_Write_Command_Word => 200,
-      Get_Command => 211, Gpspassthrough_Command_Word => 214, Gyroregisters_Command_Word => 228,
-      Help_Command_Word => 241, Color_Command_Word => 245, Led_Command_Word => 250, Mode_Color_Command_Word => 253,
-      Map_Command_Word => 263, MCU_Id_Command_Word => 266, Motor_Command_Word => 272, MSC_Command_Word => 277,
-      Play_Sound_Command_Word => 280, Sd_Info_Command_Word => 290, Sensor_Hardware_Command_Word => 297,
-      Mixer_Command_Word => 312, Motor_Mix_Command_Word => 317, Options_Command_Word => 321,
-      Peripherals_Command_Word => 328, Status_Command_Word => 339, Profile_Command => 24,
+     (Adjustment_Range_Command_Word => 0, Aux_Command_Word => 8, Batch_Command_Word => 11, Battery_Profile_Command =>
+      16, Beacon_Command => 31, Bootloader_Command_Word => 37, Exit_Command_Word => 39, Save_Command_Word => 43,
+      Beeper_Command_Word => 47, Bind_Rx_Command_Word => 53, Board_Name_Command_Word => 60,
+      Manufacturer_Id_Command_Word => 70, Signature_Command_Word => 85, Defaults_Command_Word => 94, Diff_Command =>
+      102, Dma_Command_Word => 106, Dshot_Telemetry_Info_Command_Word => 109, Dshotprog_Command_Word => 129,
+      Dump_Command => 138, Env_Command_Word => 142, Escprog_Command_Word => 145, Feature_Command_Word => 152,
+      Flash_Erase_Command_Word => 159, Flash_Info_Command_Word => 170, Flash_Read_Command_Word => 180,
+      Flash_Scan_Command_Word => 190, Flash_Write_Command_Word => 200, Get_Command => 211, Gpspassthrough_Command_Word
+      => 214, Gyroregisters_Command_Word => 228, Help_Command_Word => 241, Color_Command_Word => 245, Led_Command_Word
+      => 250, Mode_Color_Command_Word => 253, Map_Command_Word => 263, MCU_Id_Command_Word => 266, Motor_Command_Word
+      => 272, MSC_Command_Word => 277, Play_Sound_Command_Word => 280, Sd_Info_Command_Word => 290,
+      Sensor_Hardware_Command_Word => 297, Mixer_Command_Word => 312, Motor_Mix_Command_Word => 317,
+      Options_Command_Word => 321, Peripherals_Command_Word => 328, Status_Command_Word => 339, Profile_Command => 24,
       Rate_Profile_Command => 345, Rc_Smoothing_Info_Command_Word => 356, Resource_Command_Word => 373,
       Rx_Failsafe_Command => 381, Rx_Range_Command => 387, Serial_Command_Word => 394, Servo_Command_Word => 400,
-      Servo_Mix_Command_Word => 405, Set_Command => 409, Simplified_Tuning_Command_Word => 412,
-      Tasks_Command_Word => 429, Version_Command_Word => 434, Vtx_Command_Word => 441, Vtx_Info_Command_Word => 444,
-      Vtx_Table_Command_Word => 452, Waypoint_Command_Word => 460, Serialpassthrough_Command_Word => 468);
+      Servo_Mix_Command_Word => 405, Set_Command => 409, Simplified_Tuning_Command_Word => 412, Tasks_Command_Word =>
+      429, Timer_Command_Word => 434, Version_Command_Word => 439, Vtx_Command_Word => 446, Vtx_Info_Command_Word =>
+      449, Vtx_Table_Command_Word => 457, Waypoint_Command_Word => 465, Serialpassthrough_Command_Word => 473);
    Command_Word_Lengths : constant array (Known_Command) of Command_Word_Length :=
-     (Adjustment_Range_Command_Word => 8, Aux_Command_Word => 3, Batch_Command_Word => 5,
-      Battery_Profile_Command => 15, Beacon_Command => 6, Bootloader_Command_Word => 2, Exit_Command_Word => 4,
-      Save_Command_Word => 4, Beeper_Command_Word => 6, Bind_Rx_Command_Word => 7, Board_Name_Command_Word => 10,
-      Manufacturer_Id_Command_Word => 15, Signature_Command_Word => 9, Defaults_Command_Word => 8,
-      Diff_Command => 4, Dma_Command_Word => 3, Dshot_Telemetry_Info_Command_Word => 20,
-      Dshotprog_Command_Word => 9, Dump_Command => 4, Env_Command_Word => 3, Escprog_Command_Word => 7,
-      Feature_Command_Word => 7, Flash_Erase_Command_Word => 11, Flash_Info_Command_Word => 10,
-      Flash_Read_Command_Word => 10, Flash_Scan_Command_Word => 10, Flash_Write_Command_Word => 11,
-      Get_Command => 3, Gpspassthrough_Command_Word => 14, Gyroregisters_Command_Word => 13, Help_Command_Word => 4,
+     (Adjustment_Range_Command_Word => 8, Aux_Command_Word => 3, Batch_Command_Word => 5, Battery_Profile_Command =>
+      15, Beacon_Command => 6, Bootloader_Command_Word => 2, Exit_Command_Word => 4, Save_Command_Word => 4,
+      Beeper_Command_Word => 6, Bind_Rx_Command_Word => 7, Board_Name_Command_Word => 10, Manufacturer_Id_Command_Word
+      => 15, Signature_Command_Word => 9, Defaults_Command_Word => 8, Diff_Command => 4, Dma_Command_Word => 3,
+      Dshot_Telemetry_Info_Command_Word => 20, Dshotprog_Command_Word => 9, Dump_Command => 4, Env_Command_Word => 3,
+      Escprog_Command_Word => 7, Feature_Command_Word => 7, Flash_Erase_Command_Word => 11, Flash_Info_Command_Word =>
+      10, Flash_Read_Command_Word => 10, Flash_Scan_Command_Word => 10, Flash_Write_Command_Word => 11, Get_Command =>
+      3, Gpspassthrough_Command_Word => 14, Gyroregisters_Command_Word => 13, Help_Command_Word => 4,
       Color_Command_Word => 5, Led_Command_Word => 3, Mode_Color_Command_Word => 10, Map_Command_Word => 3,
       MCU_Id_Command_Word => 6, Motor_Command_Word => 5, MSC_Command_Word => 3, Play_Sound_Command_Word => 10,
-      Sd_Info_Command_Word => 7, Sensor_Hardware_Command_Word => 15, Mixer_Command_Word => 5,
-      Motor_Mix_Command_Word => 4, Options_Command_Word => 7, Peripherals_Command_Word => 11,
-      Status_Command_Word => 6, Profile_Command => 7, Rate_Profile_Command => 11,
-      Rc_Smoothing_Info_Command_Word => 17, Resource_Command_Word => 8, Rx_Failsafe_Command => 6,
-      Rx_Range_Command => 7, Serial_Command_Word => 6, Servo_Command_Word => 5, Servo_Mix_Command_Word => 4,
-      Set_Command => 3, Simplified_Tuning_Command_Word => 17, Tasks_Command_Word => 5, Version_Command_Word => 7,
-      Vtx_Command_Word => 3, Vtx_Info_Command_Word => 8, Vtx_Table_Command_Word => 8, Waypoint_Command_Word => 8,
-      Serialpassthrough_Command_Word => 17);
+      Sd_Info_Command_Word => 7, Sensor_Hardware_Command_Word => 15, Mixer_Command_Word => 5, Motor_Mix_Command_Word
+      => 4, Options_Command_Word => 7, Peripherals_Command_Word => 11, Status_Command_Word => 6, Profile_Command => 7,
+      Rate_Profile_Command => 11, Rc_Smoothing_Info_Command_Word => 17, Resource_Command_Word => 8,
+      Rx_Failsafe_Command => 6, Rx_Range_Command => 7, Serial_Command_Word => 6, Servo_Command_Word => 5,
+      Servo_Mix_Command_Word => 4, Set_Command => 3, Simplified_Tuning_Command_Word => 17, Tasks_Command_Word => 5,
+      Timer_Command_Word => 5, Version_Command_Word => 7, Vtx_Command_Word => 3, Vtx_Info_Command_Word => 8,
+      Vtx_Table_Command_Word => 8, Waypoint_Command_Word => 8, Serialpassthrough_Command_Word => 17);
 
    function Command_Word (K : Known_Command) return String is
      (Command_Word_Text (Natural (Command_Word_Starts (K)) + 1
                          .. Natural (Command_Word_Starts (K)) + Natural (Command_Word_Lengths (K))))
      with Post => Command_Word'Result'Length in 1 .. 20;
 
-   function Command_Count return Positive is (64);
+   function Command_Count return Positive is (65);
 
-   subtype Command_Position is Positive range 1 .. 64;
+   subtype Command_Position is Positive range 1 .. 65;
 
    --  The command names, each at its start in the command word text for its length.
    type Command_Name_Start is range 0 .. Command_Word_Pool_Length;
    type Command_Name_Length is range 2 .. 20;
    Command_Name_Starts : constant array (Command_Position) of Command_Name_Start :=
-     (1 => 0, 2 => 8, 3 => 11, 4 => 31, 5 => 47, 6 => 53, 7 => 37, 8 => 60, 9 => 245, 10 => 94, 11 => 102,
-      12 => 106, 13 => 109, 14 => 129, 15 => 138, 16 => 142, 17 => 145, 18 => 39, 19 => 152, 20 => 159, 21 => 170,
-      22 => 180, 23 => 190, 24 => 200, 25 => 211, 26 => 214, 27 => 228, 28 => 241, 29 => 250, 30 => 70, 31 => 263,
-      32 => 266, 33 => 312, 34 => 317, 35 => 253, 36 => 272, 37 => 277, 38 => 321, 39 => 328, 40 => 280, 41 => 16,
-      42 => 24, 43 => 345, 44 => 356, 45 => 373, 46 => 381, 47 => 387, 48 => 43, 49 => 290, 50 => 297, 51 => 394,
-      52 => 468, 53 => 400, 54 => 409, 55 => 85, 56 => 412, 57 => 405, 58 => 339, 59 => 429, 60 => 434, 61 => 441,
-      62 => 444, 63 => 452, 64 => 460);
+     (1 => 0, 2 => 8, 3 => 11, 4 => 31, 5 => 47, 6 => 53, 7 => 37, 8 => 60, 9 => 245, 10 => 94, 11 => 102, 12 => 106,
+      13 => 109, 14 => 129, 15 => 138, 16 => 142, 17 => 145, 18 => 39, 19 => 152, 20 => 159, 21 => 170, 22 => 180, 23
+      => 190, 24 => 200, 25 => 211, 26 => 214, 27 => 228, 28 => 241, 29 => 250, 30 => 70, 31 => 263, 32 => 266, 33 =>
+      312, 34 => 317, 35 => 253, 36 => 272, 37 => 277, 38 => 321, 39 => 328, 40 => 280, 41 => 16, 42 => 24, 43 => 345,
+      44 => 356, 45 => 373, 46 => 381, 47 => 387, 48 => 43, 49 => 290, 50 => 297, 51 => 394, 52 => 473, 53 => 400, 54
+      => 409, 55 => 85, 56 => 412, 57 => 405, 58 => 339, 59 => 429, 60 => 434, 61 => 439, 62 => 446, 63 => 449, 64 =>
+      457, 65 => 465);
    Command_Name_Lengths : constant array (Command_Position) of Command_Name_Length :=
-     (1 => 8, 2 => 3, 3 => 5, 4 => 6, 5 => 6, 6 => 7, 7 => 2, 8 => 10, 9 => 5, 10 => 8, 11 => 4, 12 => 3, 13 => 20,
-      14 => 9, 15 => 4, 16 => 3, 17 => 7, 18 => 4, 19 => 7, 20 => 11, 21 => 10, 22 => 10, 23 => 10, 24 => 11,
-      25 => 3, 26 => 14, 27 => 13, 28 => 4, 29 => 3, 30 => 15, 31 => 3, 32 => 6, 33 => 5, 34 => 4, 35 => 10,
-      36 => 5, 37 => 3, 38 => 7, 39 => 11, 40 => 10, 41 => 15, 42 => 7, 43 => 11, 44 => 17, 45 => 8, 46 => 6,
-      47 => 7, 48 => 4, 49 => 7, 50 => 15, 51 => 6, 52 => 17, 53 => 5, 54 => 3, 55 => 9, 56 => 17, 57 => 4, 58 => 6,
-      59 => 5, 60 => 7, 61 => 3, 62 => 8, 63 => 8, 64 => 8);
+     (1 => 8, 2 => 3, 3 => 5, 4 => 6, 5 => 6, 6 => 7, 7 => 2, 8 => 10, 9 => 5, 10 => 8, 11 => 4, 12 => 3, 13 => 20, 14
+      => 9, 15 => 4, 16 => 3, 17 => 7, 18 => 4, 19 => 7, 20 => 11, 21 => 10, 22 => 10, 23 => 10, 24 => 11, 25 => 3, 26
+      => 14, 27 => 13, 28 => 4, 29 => 3, 30 => 15, 31 => 3, 32 => 6, 33 => 5, 34 => 4, 35 => 10, 36 => 5, 37 => 3, 38
+      => 7, 39 => 11, 40 => 10, 41 => 15, 42 => 7, 43 => 11, 44 => 17, 45 => 8, 46 => 6, 47 => 7, 48 => 4, 49 => 7, 50
+      => 15, 51 => 6, 52 => 17, 53 => 5, 54 => 3, 55 => 9, 56 => 17, 57 => 4, 58 => 6, 59 => 5, 60 => 5, 61 => 7, 62
+      => 3, 63 => 8, 64 => 8, 65 => 8);
 
    function Command_Name (Position : Positive) return String is
      (Command_Word_Text (Natural (Command_Name_Starts (Position)) + 1
@@ -5259,37 +5257,39 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The help descriptions and argument lists in one text, each at its start for its length. The text
    --  ends with room for a longest one, so every slice stays within it by its types.
-   Help_Pool_Length : constant := 2784;
+   Help_Pool_Length : constant := 2966;
    Help_Text : constant String (1 .. Help_Pool_Length + 216) :=
      "configure adjustment rangesconfigure modesstart or end a batch of commandsenable/disable Dshot beaco"
      & "n for a conditionenable/disable beeper for a conditioninitiate binding for RX SPI, SRXL2 or CRSFrebo"
      & "ot into bootloaderget / set the name of the board modelconfigure colorsreset to defaults and rebootl"
-     & "ist configuration changes from defaultshow DMA assignmentsdisplay dshot telemetry info and statsprog"
-     & "ram DShot ESC(s)dump configurationshow environment (version + status as NAME=VALUE)passthrough esc t"
-     & "o serialexit command line interface and reboot (default)configure featureserase flash chipshow flash"
-     & " chip infoscan flash device for errorsget variable valuepassthrough gps to serialdump gyro config re"
-     & "gisters contentsdisplay command helpconfigure ledsget / set the id of the board manufacturerconfigur"
-     & "e rc channel orderid of the microcontrollerconfigure mixercustom motor mixerconfigure mode and speci"
-     & "al colorsget/set motorswitch into msc modeshow build optionsshow attached peripheralschange battery "
-     & "profilechange profilechange rate profileshow rc_smoothing operational settingsshow/set resourcesshow"
-     & "/set rx failsafe settingsconfigure rx channel rangessave and reboot (default)sdcard infolist support"
-     & "ed sensor hardwareshow port assignments as set commandspassthrough serial data data from port 1 to V"
-     & "CP / port 2configure servoschange settingget / set the board type signatureapplies or disables simpl"
-     & "ified tuningservo mixershow statusshow task statsshow versionvtx channels on switchvtx power config "
-     & "dumpvtx frequency tableconfigure waypoints<index> <unused> <range channel> <start> <end> <function> "
-     & "<select channel> [<center> <scale>]<index> <mode> <aux> <start> <end> <logic>start | endlist" & ASCII.CR
-     & ASCII.LF & ASCII.HT
-     & "<->[name][rom][board name]{nosave}[master|profile|rates|hardware|all] {defaults|bare}<index> <comman"
-     & "d>+[prefix]<mode [sk/bl/ki/cc]> <index>[noreboot]<address> <length><address> <message>[search string"
-     & "][manufacturer id][<map>]list" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "ist configuration changes from defaultshow/set DMA assignmentsdisplay dshot telemetry info and stats"
+     & "program DShot ESC(s)dump configurationshow environment (version + status as NAME=VALUE)passthrough e"
+     & "sc to serialexit command line interface and reboot (default)configure featureserase flash chipshow f"
+     & "lash chip infoscan flash device for errorsget variable valuepassthrough gps to serialdump gyro confi"
+     & "g registers contentsdisplay command helpconfigure ledsget / set the id of the board manufacturerconf"
+     & "igure rc channel orderid of the microcontrollerconfigure mixercustom motor mixerconfigure mode and s"
+     & "pecial colorsget/set motorswitch into msc modeshow build optionsshow attached peripheralschange batt"
+     & "ery profilechange profilechange rate profileshow rc_smoothing operational settingsshow/set resources"
+     & "show/set rx failsafe settingsconfigure rx channel rangessave and reboot (default)sdcard infolist sup"
+     & "ported sensor hardwareshow port assignments as set commandspassthrough serial data data from port 1 "
+     & "to VCP / port 2configure servoschange settingget / set the board type signatureapplies or disables s"
+     & "implified tuningservo mixershow statusshow task statsshow/set timersshow versionvtx channels on swit"
+     & "chvtx power config dumpvtx frequency tableconfigure waypoints<index> <unused> <range channel> <start"
+     & "> <end> <function> <select channel> [<center> <scale>]<index> <mode> <aux> <start> <end> <logic>star"
+     & "t | endlist" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "<->[name][rom][board name]{nosave}[master|profile|rates|hardware|all] {defaults|bare}<> | <device> <"
+     & "index> list | <device> <index> [<option>|none] | list | show<index> <command>+[prefix]<mode [sk/bl/k"
+     & "i/cc]> <index>[noreboot]<address> <length><address> <message>[search string][manufacturer id][<map>]" & "list"
+     & ASCII.CR & ASCII.LF & ASCII.HT
      & "<name><index> [<value>][<timezone offset minutes>][<index>]<> | <resource name> <index> [<pin>|none]"
      & " | show [all][gyro|acc|baro|mag|rangefinder|opticalflow|pitot][<identifier> <function mask> <msp bau"
      & "d> <gps baud> <telemetry baud> <blackbox baud> (deprecated)]<id1> [<baud1>] [<mode1>] [none|<dtr pin"
      & "io>|reset] [<id2>] [<baud2>] [<mode2>][<name>=<value>][signature]apply | disable<rule> <servo> <sour"
      & "ce> <rate> <speed> <min> <max> <box>" & ASCII.CR & ASCII.LF & ASCII.HT & "reset" & ASCII.CR & ASCII.LF
      & ASCII.HT & "load <mixer>" & ASCII.CR & ASCII.LF & ASCII.HT
-     & "reverse <servo> <source> r|n<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range>"
-     & " <end_range><band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & ASCII.CR & ASCII.LF
+     & "reverse <servo> <source> r|n<> | <pin> list | <pin> [af<alternate function>|none|<option(deprecated)"
+     & ">] | list | show<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range> <end_range>"
+     & "<band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & ASCII.CR & ASCII.LF
      & "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <ya"
      & "w>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <yaw>] | remo"
      & "ve <idx> | clear                                                                                    "
@@ -5299,35 +5299,35 @@ package body Adaflight.Command_Line with SPARK_Mode is
    type Description_Length is range 0 .. 56;
    type Arguments_Length is range 0 .. 216;
    Description_Starts : constant array (Command_Position) of Help_Start :=
-     (1 => 0, 2 => 27, 3 => 42, 4 => 74, 5 => 117, 6 => 154, 7 => 196, 8 => 218, 9 => 255, 10 => 271, 11 => 299,
-      12 => 338, 13 => 358, 14 => 396, 15 => 416, 16 => 434, 17 => 483, 18 => 508, 19 => 556, 20 => 574, 21 => 590,
-      22 => 0, 23 => 610, 24 => 0, 25 => 638, 26 => 656, 27 => 681, 28 => 716, 29 => 736, 30 => 750, 31 => 792,
-      32 => 818, 33 => 843, 34 => 858, 35 => 876, 36 => 909, 37 => 922, 38 => 942, 39 => 960, 40 => 0, 41 => 985,
-      42 => 1007, 43 => 1021, 44 => 1040, 45 => 1078, 46 => 1096, 47 => 1125, 48 => 1152, 49 => 1177, 50 => 1188,
-      51 => 1218, 52 => 1255, 53 => 1311, 54 => 1327, 55 => 1341, 56 => 1375, 57 => 1412, 58 => 1423, 59 => 1434,
-      60 => 1449, 61 => 1461, 62 => 1483, 63 => 1504, 64 => 1523);
+     (1 => 0, 2 => 27, 3 => 42, 4 => 74, 5 => 117, 6 => 154, 7 => 196, 8 => 218, 9 => 255, 10 => 271, 11 => 299, 12 =>
+      338, 13 => 362, 14 => 400, 15 => 420, 16 => 438, 17 => 487, 18 => 512, 19 => 560, 20 => 578, 21 => 594, 22 => 0,
+      23 => 614, 24 => 0, 25 => 642, 26 => 660, 27 => 685, 28 => 720, 29 => 740, 30 => 754, 31 => 796, 32 => 822, 33
+      => 847, 34 => 862, 35 => 880, 36 => 913, 37 => 926, 38 => 946, 39 => 964, 40 => 0, 41 => 989, 42 => 1011, 43 =>
+      1025, 44 => 1044, 45 => 1082, 46 => 1100, 47 => 1129, 48 => 1156, 49 => 1181, 50 => 1192, 51 => 1222, 52 =>
+      1259, 53 => 1315, 54 => 1331, 55 => 1345, 56 => 1379, 57 => 1416, 58 => 1427, 59 => 1438, 60 => 1453, 61 =>
+      1468, 62 => 1480, 63 => 1502, 64 => 1523, 65 => 1542);
    Description_Lengths : constant array (Command_Position) of Description_Length :=
-     (1 => 27, 2 => 15, 3 => 32, 4 => 43, 5 => 37, 6 => 42, 7 => 22, 8 => 37, 9 => 16, 10 => 28, 11 => 39, 12 => 20,
-      13 => 38, 14 => 20, 15 => 18, 16 => 49, 17 => 25, 18 => 48, 19 => 18, 20 => 16, 21 => 20, 22 => 0, 23 => 28,
-      24 => 0, 25 => 18, 26 => 25, 27 => 35, 28 => 20, 29 => 14, 30 => 42, 31 => 26, 32 => 25, 33 => 15, 34 => 18,
-      35 => 33, 36 => 13, 37 => 20, 38 => 18, 39 => 25, 40 => 0, 41 => 22, 42 => 14, 43 => 19, 44 => 38, 45 => 18,
-      46 => 29, 47 => 27, 48 => 25, 49 => 11, 50 => 30, 51 => 37, 52 => 56, 53 => 16, 54 => 14, 55 => 34, 56 => 37,
-      57 => 11, 58 => 11, 59 => 15, 60 => 12, 61 => 22, 62 => 21, 63 => 19, 64 => 19);
+     (1 => 27, 2 => 15, 3 => 32, 4 => 43, 5 => 37, 6 => 42, 7 => 22, 8 => 37, 9 => 16, 10 => 28, 11 => 39, 12 => 24,
+      13 => 38, 14 => 20, 15 => 18, 16 => 49, 17 => 25, 18 => 48, 19 => 18, 20 => 16, 21 => 20, 22 => 0, 23 => 28, 24
+      => 0, 25 => 18, 26 => 25, 27 => 35, 28 => 20, 29 => 14, 30 => 42, 31 => 26, 32 => 25, 33 => 15, 34 => 18, 35 =>
+      33, 36 => 13, 37 => 20, 38 => 18, 39 => 25, 40 => 0, 41 => 22, 42 => 14, 43 => 19, 44 => 38, 45 => 18, 46 => 29,
+      47 => 27, 48 => 25, 49 => 11, 50 => 30, 51 => 37, 52 => 56, 53 => 16, 54 => 14, 55 => 34, 56 => 37, 57 => 11, 58
+      => 11, 59 => 15, 60 => 15, 61 => 12, 62 => 22, 63 => 21, 64 => 19, 65 => 19);
    Arguments_Starts : constant array (Command_Position) of Help_Start :=
-     (1 => 1542, 2 => 1635, 3 => 1677, 4 => 1688, 5 => 1688, 6 => 0, 7 => 1704, 8 => 1709, 9 => 0, 10 => 1721,
-      11 => 1729, 12 => 338, 13 => 0, 14 => 1780, 15 => 1729, 16 => 1798, 17 => 1806, 18 => 1834, 19 => 1688,
-      20 => 0, 21 => 0, 22 => 1844, 23 => 0, 24 => 1862, 25 => 1698, 26 => 0, 27 => 0, 28 => 1881, 29 => 0,
-      30 => 1896, 31 => 1913, 32 => 0, 33 => 1920, 34 => 0, 35 => 0, 36 => 1933, 37 => 1950, 38 => 0, 39 => 0,
-      40 => 1977, 41 => 1977, 42 => 1977, 43 => 1977, 44 => 0, 45 => 1986, 46 => 0, 47 => 0, 48 => 1834, 49 => 0,
-      50 => 2040, 51 => 2089, 52 => 2187, 53 => 0, 54 => 2265, 55 => 2281, 56 => 2292, 57 => 2307, 58 => 0, 59 => 0,
-      60 => 0, 61 => 2417, 62 => 0, 63 => 2501, 64 => 2568);
+     (1 => 1561, 2 => 1654, 3 => 1696, 4 => 1707, 5 => 1707, 6 => 0, 7 => 1723, 8 => 1728, 9 => 0, 10 => 1740, 11 =>
+      1748, 12 => 1799, 13 => 0, 14 => 1874, 15 => 1748, 16 => 1892, 17 => 1900, 18 => 1928, 19 => 1707, 20 => 0, 21
+      => 0, 22 => 1938, 23 => 0, 24 => 1956, 25 => 1717, 26 => 0, 27 => 0, 28 => 1975, 29 => 0, 30 => 1990, 31 =>
+      2007, 32 => 0, 33 => 2014, 34 => 0, 35 => 0, 36 => 2027, 37 => 2044, 38 => 0, 39 => 0, 40 => 2071, 41 => 2071,
+      42 => 2071, 43 => 2071, 44 => 0, 45 => 2080, 46 => 0, 47 => 0, 48 => 1928, 49 => 0, 50 => 2134, 51 => 2183, 52
+      => 2281, 53 => 0, 54 => 2359, 55 => 2375, 56 => 2386, 57 => 2401, 58 => 0, 59 => 0, 60 => 2511, 61 => 0, 62 =>
+      2599, 63 => 0, 64 => 2683, 65 => 2750);
    Arguments_Lengths : constant array (Command_Position) of Arguments_Length :=
-     (1 => 93, 2 => 42, 3 => 11, 4 => 16, 5 => 16, 6 => 0, 7 => 5, 8 => 12, 9 => 0, 10 => 8, 11 => 51, 12 => 4,
-      13 => 0, 14 => 18, 15 => 51, 16 => 8, 17 => 28, 18 => 10, 19 => 16, 20 => 0, 21 => 0, 22 => 18, 23 => 0,
-      24 => 19, 25 => 6, 26 => 0, 27 => 0, 28 => 15, 29 => 0, 30 => 17, 31 => 7, 32 => 0, 33 => 13, 34 => 0,
-      35 => 0, 36 => 17, 37 => 27, 38 => 0, 39 => 0, 40 => 9, 41 => 9, 42 => 9, 43 => 9, 44 => 0, 45 => 54, 46 => 0,
-      47 => 0, 48 => 10, 49 => 0, 50 => 49, 51 => 98, 52 => 78, 53 => 0, 54 => 16, 55 => 11, 56 => 15, 57 => 110,
-      58 => 0, 59 => 0, 60 => 0, 61 => 84, 62 => 0, 63 => 67, 64 => 216);
+     (1 => 93, 2 => 42, 3 => 11, 4 => 16, 5 => 16, 6 => 0, 7 => 5, 8 => 12, 9 => 0, 10 => 8, 11 => 51, 12 => 75, 13 =>
+      0, 14 => 18, 15 => 51, 16 => 8, 17 => 28, 18 => 10, 19 => 16, 20 => 0, 21 => 0, 22 => 18, 23 => 0, 24 => 19, 25
+      => 6, 26 => 0, 27 => 0, 28 => 15, 29 => 0, 30 => 17, 31 => 7, 32 => 0, 33 => 13, 34 => 0, 35 => 0, 36 => 17, 37
+      => 27, 38 => 0, 39 => 0, 40 => 9, 41 => 9, 42 => 9, 43 => 9, 44 => 0, 45 => 54, 46 => 0, 47 => 0, 48 => 10, 49
+      => 0, 50 => 49, 51 => 98, 52 => 78, 53 => 0, 54 => 16, 55 => 11, 56 => 15, 57 => 110, 58 => 0, 59 => 0, 60 =>
+      88, 61 => 0, 62 => 84, 63 => 0, 64 => 67, 65 => 216);
 
    --  help: the entry of every command the build has, or of those whose
    --  name or description holds the search, else the no-match error.
@@ -7011,6 +7011,811 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
    end Resource_Check;
 
+   --  A pin as the timer and dma commands read it: NONE for the empty tag,
+   --  else a port letter from A to I and a number from 0 to 15, read as the C
+   --  library reads it, and whether the word was one.
+   procedure Parse_Pin (Word : String; Tag : out Unsigned_8; Valid : out Boolean)
+     with Global => null,
+          Pre    => Word'First >= 1 and then Word'Last < Positive'Last and then Word'First <= Word'Last + 1
+   is
+      Pin  : Integer_32;
+      Next : Positive;
+   begin
+      Tag := 0;
+      Valid := CLI_Text.Same_Ignoring_Case (Word, "NONE");
+      if Valid or else Word'Length = 0 then
+         return;
+      end if;
+      declare
+         Letter : constant Character := Word (Word'First);
+         Port   : constant Integer :=
+           (if Letter >= 'a' then Character'Pos (Letter) - Character'Pos ('a')
+            else Character'Pos (Letter) - Character'Pos ('A'));
+      begin
+         if Port in 0 .. 8 then
+            CLI_Text.Parse_Signed (Word (Word'First + 1 .. Word'Last), Pin, Next);
+            if Next > Word'First + 1 and then Pin in 0 .. 15 then
+               Tag := Unsigned_8 ((Port + 1) * 16) + Unsigned_8 (Pin);
+               Valid := True;
+            end if;
+         end if;
+      end;
+   end Parse_Pin;
+
+   --  Whether a pin is on the board: ports A to F.
+   function On_Board (Tag : Unsigned_8) return Boolean is (Tag /= 0 and then Natural (Tag / 16) in 1 .. 6);
+
+   --  Whether a word starts a keyword without regard to case, as the
+   --  command line compares a word with a keyword over the word's length.
+   function Prefix_Of_Ignoring_Case (Word, Keyword : String) return Boolean is
+     (Word'Length <= Keyword'Length
+      and then (for all I in 0 .. Word'Length - 1 =>
+                  CLI_Text.Lower (Word (Word'First + I)) = CLI_Text.Lower (Keyword (Keyword'First + I))));
+
+   --  A timer channel as TIM4 CH1 or TIM1 CH2N.
+   procedure Put_Timer_Channel (Into : in out Output; K : Positive)
+     with Global => null, Pre => K <= Timer_Tables.Channels'Last
+   is
+   begin
+      Put (Into, "TIM");
+      Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).Timer));
+      Put (Into, " CH");
+      Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).Channel));
+      if Timer_Tables.Channels (K).N then
+         Put (Into, "N");
+      end if;
+   end Put_Timer_Channel;
+
+   --  A DMA stream as DMA1 Stream 4 Channel 0.
+   procedure Put_Stream (Into : in out Output; S : Timer_Tables.DMA_Stream)
+     with Global => null
+   is
+   begin
+      Put (Into, "DMA");
+      Put_Decimal (Into, Integer_64 (S.Controller));
+      Put (Into, " Stream ");
+      Put_Decimal (Into, Integer_64 (S.Stream));
+      Put (Into, " Channel ");
+      Put_Decimal (Into, Integer_64 (S.Channel));
+   end Put_Stream;
+
+   --  Whether a dump line prints: a default line after a number sign where
+   --  the dump shows a changed line's default, a current line unless a diff
+   --  finds it equal to its default.
+   function Prints (Mode : Dump_Mode; Equal : Boolean; As_Default : Boolean) return Boolean is
+     (if As_Default then Shows_Default (Mode, Equal) else Shows_Line (Mode, Equal));
+
+   --  A timer map entry's line, timer B06 AF2 with its channel's detail
+   --  after it, or timer B06 NONE for no channel.
+   procedure Put_Timer_Line
+     (Into : in out Output; Tag : Unsigned_8; Index : Natural; Mode : Dump_Mode; Equal : Boolean;
+      As_Default : Boolean)
+     with Global => null
+   is
+      K : constant Natural := Timer_Tables.By_Tag_And_Index (Tag, Index);
+   begin
+      if not Prints (Mode, Equal, As_Default) then
+         return;
+      end if;
+      if As_Default then
+         Put (Into, "#");
+      end if;
+      Put (Into, "timer ");
+      Put (Into, Pin_Text (Tag));
+      if K > 0 then
+         Put (Into, " AF");
+         Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+         Put (Into, CRLF);
+         if As_Default then
+            Put (Into, "#");
+         end if;
+         Put (Into, "# pin ");
+         Put (Into, Pin_Text (Tag));
+         Put (Into, ": ");
+         Put_Timer_Channel (Into, K);
+         Put (Into, " (AF");
+         Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+         Put (Into, ")" & CRLF);
+      else
+         Put (Into, " NONE" & CRLF);
+      end if;
+   end Put_Timer_Line;
+
+   --  The timer section: each map entry with a pin against the default
+   --  entry of the same pin, then the default entries whose pins the map
+   --  no longer has, as changed, each with its default and NONE.
+   procedure Put_Timer_Dump (Into : in out Output; C : Configuration; Mode : Dump_Mode; Dump : Boolean)
+     with Global => null
+   is
+      Pending : Boolean := Dump;
+      In_Use  : array (Defaults.Timer_Io_Config'Range) of Boolean := (others => False);
+   begin
+      if Dump then
+         Put_Heading (Into, Mode, False, "timer", Pending);
+      end if;
+      for I in C.Timer_Io_Config'Range loop
+         pragma Loop_Invariant (True);
+         declare
+            Tag           : constant Unsigned_8 := C.Timer_Io_Config (I).Io_Tag;
+            Index         : constant Natural := Natural (C.Timer_Io_Config (I).Index);
+            Default_Index : Natural := 0;
+         begin
+            if Tag /= 0 then
+               if Dump then
+                  for J in Defaults.Timer_Io_Config'Range loop
+                     pragma Loop_Invariant (True);
+                     if Defaults.Timer_Io_Config (J).Io_Tag = Tag then
+                        Default_Index := Natural (Defaults.Timer_Io_Config (J).Index);
+                        In_Use (J) := True;
+                        exit;
+                     end if;
+                  end loop;
+                  Put_Heading (Into, Mode, Default_Index /= Index, "timer", Pending);
+                  if Default_Index > 0 then
+                     Put_Timer_Line (Into, Tag, Default_Index, Mode, Default_Index = Index, As_Default => True);
+                  end if;
+               end if;
+               Put_Timer_Line (Into, Tag, Index, Mode, Default_Index = Index, As_Default => False);
+            end if;
+         end;
+      end loop;
+      if Dump then
+         for J in Defaults.Timer_Io_Config'Range loop
+            pragma Loop_Invariant (True);
+            if not In_Use (J) and then Defaults.Timer_Io_Config (J).Io_Tag /= 0 then
+               Put_Heading (Into, Mode, True, "timer", Pending);
+               Put_Timer_Line
+                 (Into, Defaults.Timer_Io_Config (J).Io_Tag, Natural (Defaults.Timer_Io_Config (J).Index), Mode, False,
+                  As_Default => True);
+               Put_Timer_Line (Into, Defaults.Timer_Io_Config (J).Io_Tag, 0, Mode, False, As_Default => False);
+            end if;
+         end loop;
+      end if;
+   end Put_Timer_Dump;
+
+   --  The peripherals with DMA options, by the reference's device names and
+   --  in its order: the SPI buses' output and input under two names each,
+   --  the ADCs and the UARTs' transmit and receive sides.
+   type DMA_Device is
+     (SPI_SDO_Device, SPI_SDI_Device, SPI_TX_Device, SPI_RX_Device, ADC_Device, UART_TX_Device, UART_RX_Device);
+
+   function Device_Name (D : DMA_Device) return String is
+     (case D is
+         when SPI_SDO_Device => "SPI_SDO",
+         when SPI_SDI_Device => "SPI_SDI",
+         when SPI_TX_Device  => "SPI_TX",
+         when SPI_RX_Device  => "SPI_RX",
+         when ADC_Device     => "ADC",
+         when UART_TX_Device => "UART_TX",
+         when UART_RX_Device => "UART_RX")
+     with Post => Device_Name'Result'First = 1 and then Device_Name'Result'Length in 3 .. 7;
+
+   function Device_Count (D : DMA_Device) return Positive is
+     (case D is
+         when UART_TX_Device | UART_RX_Device => 6,
+         when others => 3);
+
+   function Device_Peripheral (D : DMA_Device) return Timer_Tables.Peripheral is
+     (case D is
+         when SPI_SDO_Device | SPI_TX_Device => Timer_Tables.SPI_SDO,
+         when SPI_SDI_Device | SPI_RX_Device => Timer_Tables.SPI_SDI,
+         when ADC_Device                     => Timer_Tables.ADC,
+         when UART_TX_Device                 => Timer_Tables.UART_TX,
+         when UART_RX_Device                 => Timer_Tables.UART_RX);
+
+   --  A device's DMA option in the configuration, none as -1.
+   function Device_Option (C : Configuration; D : DMA_Device; I : Natural) return Integer_8 is
+     (case D is
+         when SPI_SDO_Device | SPI_TX_Device => C.Spi_Pin_Config (I).Tx_Dmaopt,
+         when SPI_SDI_Device | SPI_RX_Device => C.Spi_Pin_Config (I).Rx_Dmaopt,
+         when ADC_Device                     => C.Adc_Config.Dmaopt (I),
+         when UART_TX_Device                 => C.Serial_Uart_Config (I).Tx_Dmaopt,
+         when UART_RX_Device                 => C.Serial_Uart_Config (I).Rx_Dmaopt)
+     with Pre => I < Device_Count (D);
+
+   procedure Set_Device_Option (C : in out Configuration; D : DMA_Device; I : Natural; V : Integer_8)
+     with Pre => I < Device_Count (D)
+   is
+   begin
+      case D is
+         when SPI_SDO_Device | SPI_TX_Device => C.Spi_Pin_Config (I).Tx_Dmaopt := V;
+         when SPI_SDI_Device | SPI_RX_Device => C.Spi_Pin_Config (I).Rx_Dmaopt := V;
+         when ADC_Device                     => C.Adc_Config.Dmaopt (I) := V;
+         when UART_TX_Device                 => C.Serial_Uart_Config (I).Tx_Dmaopt := V;
+         when UART_RX_Device                 => C.Serial_Uart_Config (I).Rx_Dmaopt := V;
+      end case;
+   end Set_Device_Option;
+
+   --  An option's text: its number, or NONE.
+   function Option_Text (V : Integer_8) return String is
+     (if V = -1 then "NONE" else Decimal (Integer_64 (V)));
+
+   --  A device's option line, dma ADC 1 1 with the stream's detail after it,
+   --  or dma ADC 1 NONE unless unused options are hidden; an option without
+   --  a stream shows the empty stream.
+   procedure Put_Device_Line
+     (Into : in out Output; D : DMA_Device; I : Natural; Option : Integer_8; Mode : Dump_Mode; Equal : Boolean;
+      As_Default : Boolean; Hide_Unused : Boolean)
+     with Global => null, Pre => I < Device_Count (D)
+   is
+      Found  : Boolean;
+      Stream : Timer_Tables.DMA_Stream;
+   begin
+      if (Option = -1 and then Hide_Unused) or else not Prints (Mode, Equal, As_Default) then
+         return;
+      end if;
+      if As_Default then
+         Put (Into, "#");
+      end if;
+      Put (Into, "dma ");
+      Put (Into, Device_Name (D));
+      Put (Into, " ");
+      Put_Decimal (Into, Integer_64 (I + 1));
+      Put (Into, " ");
+      Put (Into, Option_Text (Option));
+      Put (Into, CRLF);
+      if Option /= -1 then
+         if As_Default then
+            Put (Into, "#");
+         end if;
+         Put (Into, "# ");
+         Put (Into, Device_Name (D));
+         Put (Into, " ");
+         Put_Decimal (Into, Integer_64 (I + 1));
+         Put (Into, ": ");
+         Timer_Tables.Peripheral_Option (Device_Peripheral (D), I, Integer (Option), Found, Stream);
+         if Found then
+            Put_Stream (Into, Stream);
+         else
+            Put (Into, "DMA0 Stream 0 Channel 0");
+         end if;
+         Put (Into, CRLF);
+      end if;
+   end Put_Device_Line;
+
+   --  A timer pin's option line, dma pin B06 0 with the stream's detail
+   --  after it where the pin's channel has the option, or dma pin B06 NONE
+   --  unless unused options are hidden.
+   procedure Put_Pin_Option_Line
+     (Into : in out Output; Tag : Unsigned_8; K : Natural; Option : Integer_8; Mode : Dump_Mode; Equal : Boolean;
+      As_Default : Boolean; Hide_Unused : Boolean)
+     with Global => null, Pre => K <= Timer_Tables.Channels'Last
+   is
+      Found  : Boolean;
+      Stream : Timer_Tables.DMA_Stream;
+   begin
+      if (Option = -1 and then Hide_Unused) or else not Prints (Mode, Equal, As_Default) then
+         return;
+      end if;
+      if As_Default then
+         Put (Into, "#");
+      end if;
+      Put (Into, "dma pin ");
+      Put (Into, Pin_Text (Tag));
+      Put (Into, " ");
+      Put (Into, Option_Text (Option));
+      Put (Into, CRLF);
+      if Option /= -1 and then K > 0 then
+         Timer_Tables.Timer_Option
+           (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Integer (Option), Found, Stream);
+         if Found then
+            if As_Default then
+               Put (Into, "#");
+            end if;
+            Put (Into, "# pin ");
+            Put (Into, Pin_Text (Tag));
+            Put (Into, ": ");
+            Put_Stream (Into, Stream);
+            Put (Into, CRLF);
+         end if;
+      end if;
+   end Put_Pin_Option_Line;
+
+   --  The dma section: every device's option against its default, then each
+   --  timer map entry's against the default entry of the same pin, equal
+   --  only with the same channel or no option, then the default entries
+   --  with an option whose map slot has no pin, as changed, each with its
+   --  default and NONE. The dma command's listing hides the unused options.
+   procedure Put_DMA_Dump
+     (Into : in out Output; C : Configuration; Mode : Dump_Mode; Dump : Boolean; Hide_Unused : Boolean)
+     with Global => null
+   is
+      Pending : Boolean := Dump;
+      In_Use  : array (Defaults.Timer_Io_Config'Range) of Boolean := (others => False);
+   begin
+      if Dump then
+         Put_Heading (Into, Mode, False, "dma", Pending);
+      end if;
+      for D in DMA_Device loop
+         pragma Loop_Invariant (True);
+         for I in 0 .. Device_Count (D) - 1 loop
+            pragma Loop_Invariant (True);
+            declare
+               Current : constant Integer_8 := Device_Option (C, D, I);
+               Default : constant Integer_8 := (if Dump then Device_Option (Defaults, D, I) else -1);
+               Equal   : constant Boolean := Current = Default;
+            begin
+               if Dump then
+                  Put_Heading (Into, Mode, not Equal, "dma", Pending);
+                  Put_Device_Line (Into, D, I, Default, Mode, Equal, As_Default => True, Hide_Unused => Hide_Unused);
+               end if;
+               Put_Device_Line (Into, D, I, Current, Mode, Equal, As_Default => False, Hide_Unused => Hide_Unused);
+            end;
+         end loop;
+      end loop;
+      for I in C.Timer_Io_Config'Range loop
+         pragma Loop_Invariant (True);
+         declare
+            Tag     : constant Unsigned_8 := C.Timer_Io_Config (I).Io_Tag;
+            Index   : constant Natural := Natural (C.Timer_Io_Config (I).Index);
+            Option  : constant Integer_8 := C.Timer_Io_Config (I).Dmaopt;
+            K       : constant Natural := Timer_Tables.By_Tag_And_Index (Tag, Index);
+            Default : Integer_8 := -1;
+            Equal   : Boolean := Option = -1;
+         begin
+            if Tag /= 0 then
+               if Dump then
+                  for J in Defaults.Timer_Io_Config'Range loop
+                     pragma Loop_Invariant (True);
+                     if Defaults.Timer_Io_Config (J).Io_Tag = Tag then
+                        Default := Defaults.Timer_Io_Config (J).Dmaopt;
+                        Equal := Default = Option
+                          and then (Natural (Defaults.Timer_Io_Config (J).Index) = Index or else Option = -1);
+                        In_Use (I) := True;
+                        exit;
+                     end if;
+                  end loop;
+                  Put_Heading (Into, Mode, not Equal, "dma", Pending);
+                  Put_Pin_Option_Line
+                    (Into, Tag, K, Default, Mode, Equal, As_Default => True, Hide_Unused => Hide_Unused);
+               end if;
+               Put_Pin_Option_Line (Into, Tag, K, Option, Mode, Equal, As_Default => False, Hide_Unused => Hide_Unused);
+            end if;
+         end;
+      end loop;
+      if Dump then
+         for J in Defaults.Timer_Io_Config'Range loop
+            pragma Loop_Invariant (True);
+            declare
+               Tag : constant Unsigned_8 := Defaults.Timer_Io_Config (J).Io_Tag;
+               K   : constant Natural :=
+                 Timer_Tables.By_Tag_And_Index (Tag, Natural (Defaults.Timer_Io_Config (J).Index));
+            begin
+               if not In_Use (J) and then Tag /= 0 and then Defaults.Timer_Io_Config (J).Dmaopt /= -1 then
+                  Put_Heading (Into, Mode, True, "dma", Pending);
+                  Put_Pin_Option_Line
+                    (Into, Tag, K, Defaults.Timer_Io_Config (J).Dmaopt, Mode, False, As_Default => True,
+                     Hide_Unused => Hide_Unused);
+                  Put_Pin_Option_Line (Into, Tag, K, -1, Mode, False, As_Default => False, Hide_Unused => Hide_Unused);
+               end if;
+            end;
+         end loop;
+      end if;
+   end Put_DMA_Dump;
+
+   --  The active timers: each timer with the channels the map's held entries
+   --  configure on it, the first entry of a channel naming its owner with the
+   --  owner's ordinal, or FREE.
+   procedure Put_Timer_Show (Into : in out Output; C : Configuration; Env : Environment)
+     with Global => null
+   is
+      package R renames CLI_Resources;
+   begin
+      Put (Into, CRLF & "Currently active Timers:" & CRLF & "-----------------------" & CRLF);
+      for T of Timer_Tables.Timers loop
+         pragma Loop_Invariant (True);
+         declare
+            Used : Boolean := False;
+         begin
+            Put (Into, "TIM");
+            Put_Decimal (Into, Integer_64 (T));
+            Put (Into, ":");
+            for Ch in Timer_Tables.Channel_Number loop
+               pragma Loop_Invariant (True);
+               for I in C.Timer_Io_Config'Range loop
+                  pragma Loop_Invariant (True);
+                  declare
+                     K : constant Natural :=
+                       Timer_Tables.By_Tag_And_Index
+                         (C.Timer_Io_Config (I).Io_Tag, Natural (C.Timer_Io_Config (I).Index));
+                  begin
+                     if K > 0 and then Timer_Tables.Channels (K).Timer = T
+                       and then Timer_Tables.Channels (K).Channel = Ch
+                     then
+                        if Env.Timer_Owners (I).Held then
+                           if not Used then
+                              Used := True;
+                              Put (Into, CRLF);
+                           end if;
+                           Put (Into, "    CH");
+                           Put_Decimal (Into, Integer_64 (Ch));
+                           Put (Into, (if Timer_Tables.Channels (K).N then "N: " else " : "));
+                           Put (Into, R.Name (Env.Timer_Owners (I).Owner));
+                           if Env.Timer_Owners (I).Ordinal > 0 then
+                              Put (Into, " ");
+                              Put_Decimal (Into, Integer_64 (Env.Timer_Owners (I).Ordinal));
+                           end if;
+                           Put (Into, CRLF);
+                        end if;
+                        exit;
+                     end if;
+                  end;
+               end loop;
+            end loop;
+            if not Used then
+               Put (Into, " FREE" & CRLF);
+            end if;
+         end;
+      end loop;
+   end Put_Timer_Show;
+
+   --  A pin's alternate function text by its channel occurrence from one,
+   --  NONE for none.
+   function AF_Text (Tag : Unsigned_8; Index : Natural) return String is
+     (if Timer_Tables.By_Tag_And_Index (Tag, Index) > 0
+      then "AF" & Decimal (Integer_64 (Timer_Tables.Channels (Timer_Tables.By_Tag_And_Index (Tag, Index)).AF))
+      else "NONE");
+
+   --  timer: the map's entries without arguments; a word starting list is
+   --  not implemented, one starting show lists the active timers; else a pin
+   --  on the board, whose map entry is its own or the first free slot: its
+   --  line alone, its channel options for list, a channel by alternate
+   --  function with af or none, the entry's option cleared.
+   procedure Timer_Command (Into : in out Output; C : in out Configuration; Env : Environment; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Tag      : Unsigned_8;
+      Valid    : Boolean;
+      Slot     : Integer := -1;
+      Existing : Boolean := False;
+      First    : Positive := Arguments'First;
+      Last     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         Put_Timer_Dump (Into, C, Listing, Dump => False);
+         return;
+      end if;
+      if Prefix_Of_Ignoring_Case (Arguments, "list") then
+         Put_Error (Into, "timer: NOT IMPLEMENTED YET###" & CRLF);
+         return;
+      end if;
+      if Prefix_Of_Ignoring_Case (Arguments, "show") then
+         Put_Timer_Show (Into, C, Env);
+         return;
+      end if;
+      while First <= Arguments'Last and then Arguments (First) = ' ' loop
+         pragma Loop_Invariant (First in Arguments'First .. Arguments'Last);
+         First := First + 1;
+      end loop;
+      Last := First - 1;
+      while Last < Arguments'Last and then Arguments (Last + 1) /= ' ' loop
+         pragma Loop_Invariant (Last in First - 1 .. Arguments'Last - 1);
+         Last := Last + 1;
+      end loop;
+      Parse_Pin (Arguments (First .. Last), Tag, Valid);
+      if not Valid then
+         Put_Error (Into, "timer: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      if not On_Board (Tag) then
+         Put_Error (Into, "timer: PIN NOT USED ON BOARD.###" & CRLF);
+         return;
+      end if;
+      for I in C.Timer_Io_Config'Range loop
+         pragma Loop_Invariant (Slot in -1 .. I - 1);
+         if C.Timer_Io_Config (I).Io_Tag = Tag then
+            Slot := I;
+            Existing := True;
+            exit;
+         end if;
+         if Slot < 0 and then C.Timer_Io_Config (I).Io_Tag = 0 then
+            Slot := I;
+         end if;
+      end loop;
+      if Slot < 0 then
+         Put_Error (Into, "timer: PIN TIMER MAP FULL.###" & CRLF);
+         return;
+      end if;
+      First := Last + 1;
+      while First <= Arguments'Last and then Arguments (First) = ' ' loop
+         pragma Loop_Invariant (First in Arguments'First .. Arguments'Last);
+         First := First + 1;
+      end loop;
+      Last := First - 1;
+      while Last < Arguments'Last and then Arguments (Last + 1) /= ' ' loop
+         pragma Loop_Invariant (Last in First - 1 .. Arguments'Last - 1);
+         Last := Last + 1;
+      end loop;
+      if Last < First then
+         Put_Timer_Line (Into, Tag, Natural (C.Timer_Io_Config (Slot).Index), Listing, False, As_Default => False);
+         return;
+      end if;
+      declare
+         Word        : constant String := Arguments (First .. Last);
+         Timer_Index : Integer := -1;
+         Old_Index   : constant Integer := (if Existing then Integer (C.Timer_Io_Config (Slot).Index) - 1 else -1);
+      begin
+         if CLI_Text.Same_Ignoring_Case (Word, "list") then
+            for N in 1 .. Timer_Tables.Occurrences (Tag) loop
+               pragma Loop_Invariant (True);
+               declare
+                  K : constant Natural := Timer_Tables.By_Tag_And_Index (Tag, N);
+               begin
+                  if K > 0 then
+                     Put (Into, "# AF");
+                     Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+                     Put (Into, ": ");
+                     Put_Timer_Channel (Into, K);
+                     Put (Into, CRLF);
+                  end if;
+               end;
+            end loop;
+            return;
+         elsif Word'Length >= 2 and then CLI_Text.Same_Ignoring_Case (Word (Word'First .. Word'First + 1), "af") then
+            declare
+               Wanted : constant Integer_32 := CLI_Text.To_Integer (Word (Word'First + 2 .. Word'Last));
+            begin
+               for N in 1 .. Timer_Tables.Occurrences (Tag) loop
+                  pragma Loop_Invariant (Timer_Index = -1);
+                  declare
+                     K : constant Natural := Timer_Tables.By_Tag_And_Index (Tag, N);
+                  begin
+                     if K > 0 and then Integer_32 (Timer_Tables.Channels (K).AF) = Wanted then
+                        Timer_Index := N - 1;
+                        exit;
+                     end if;
+                  end;
+               end loop;
+               if Timer_Index < 0 then
+                  Put_Error (Into, "timer: INVALID ALTERNATE FUNCTION FOR ");
+                  Put (Into, Pin_Text (Tag));
+                  Put (Into, ": '");
+                  Put (Into, Word);
+                  Put (Into, "'###" & CRLF);
+                  return;
+               end if;
+            end;
+         elsif not CLI_Text.Same_Ignoring_Case (Word, "none") then
+            Put_Error (Into, "timer: INVALID TIMER OPTION FOR ");
+            Put (Into, Pin_Text (Tag));
+            Put (Into, ": '");
+            Put (Into, Word);
+            Put (Into, "'###" & CRLF);
+            return;
+         end if;
+         C.Timer_Io_Config (Slot).Io_Tag := (if Timer_Index < 0 then 0 else Tag);
+         C.Timer_Io_Config (Slot).Index := Unsigned_8 (Timer_Index + 1);
+         C.Timer_Io_Config (Slot).Dmaopt := -1;
+         Put (Into, "# timer ");
+         Put (Into, Pin_Text (Tag));
+         if Timer_Index = Old_Index then
+            Put (Into, ": no change: ");
+            Put (Into, AF_Text (Tag, Old_Index + 1));
+         else
+            Put (Into, ": changed from ");
+            Put (Into, AF_Text (Tag, Old_Index + 1));
+            Put (Into, " to ");
+            Put (Into, AF_Text (Tag, Timer_Index + 1));
+         end if;
+         Put (Into, CRLF);
+      end;
+   end Timer_Command;
+
+   --  dma: a word starting show lists the streams; else the options set
+   --  without arguments, list not implemented, a device by name and ordinal
+   --  or pin on the board by its pin: its option alone, its stream options
+   --  for list, an option by number or none with the change noted, an
+   --  option the device or the pin's channel lacks refused.
+   procedure DMA_Command (Into : in out Output; C : in out Configuration; Env : Environment; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Device  : DMA_Device := DMA_Device'First;
+      Is_Pin  : Boolean := False;
+      Index   : Integer := -1;
+      Tag     : Unsigned_8 := 0;
+      Valid   : Boolean;
+      Slot    : Integer := -1;
+      K       : Natural := 0;
+      Current : Integer_8 := -1;
+      Found   : Boolean;
+      Stream  : Timer_Tables.DMA_Stream;
+      First   : Positive := Arguments'First;
+      Last    : Natural;
+
+      procedure Next_Word
+        with Pre  => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                     and then First in Arguments'First .. Arguments'Last + 1,
+             Post => First in Arguments'First .. Arguments'Last + 1 and then Last in First - 1 .. Arguments'Last
+      is
+      begin
+         while First <= Arguments'Last and then Arguments (First) = ' ' loop
+            pragma Loop_Invariant (First in Arguments'First .. Arguments'Last);
+            First := First + 1;
+         end loop;
+         Last := First - 1;
+         while Last < Arguments'Last and then Arguments (Last + 1) /= ' ' loop
+            pragma Loop_Invariant (Last in First - 1 .. Arguments'Last - 1);
+            Last := Last + 1;
+         end loop;
+      end Next_Word;
+
+      --  The device with its ordinal, or the pin, for the change lines.
+      procedure Put_Target
+        with Pre => (Is_Pin or else Index in 0 .. 15)
+      is
+      begin
+         if Is_Pin then
+            Put (Into, "pin ");
+            Put (Into, Pin_Text (Tag));
+         else
+            Put (Into, Device_Name (Device));
+            Put (Into, " ");
+            Put_Decimal (Into, Integer_64 (Index + 1));
+         end if;
+      end Put_Target;
+   begin
+      if Arguments'Length > 0 and then Prefix_Of_Ignoring_Case (Arguments, "show") then
+         Put_DMA (Into, Env);
+         return;
+      end if;
+      Next_Word;
+      if Last < First then
+         Put_DMA_Dump (Into, C, Listing, Dump => False, Hide_Unused => True);
+         return;
+      end if;
+      if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "list") then
+         Put_Error (Into, "dma: NOT IMPLEMENTED YET###" & CRLF);
+         return;
+      end if;
+      declare
+         Word  : constant String := Arguments (First .. Last);
+         Known : Boolean := False;
+      begin
+         for D in DMA_Device loop
+            pragma Loop_Invariant (True);
+            if CLI_Text.Same_Ignoring_Case (Word, Device_Name (D)) then
+               Device := D;
+               Known := True;
+            end if;
+         end loop;
+         if not Known then
+            if not CLI_Text.Same_Ignoring_Case (Word, "pin") then
+               Put_Error (Into, "dma: BAD DEVICE: ");
+               Put (Into, Word);
+               Put (Into, "###" & CRLF);
+               return;
+            end if;
+            Is_Pin := True;
+         end if;
+      end;
+      First := Last + 1;
+      Next_Word;
+      if not Is_Pin then
+         declare
+            Number : constant Integer_32 :=
+              (if Last >= First then CLI_Text.To_Integer (Arguments (First .. Last)) else -1);
+         begin
+            if Number >= 1 and then Number <= Integer_32 (Device_Count (Device)) then
+               Index := Integer (Number) - 1;
+            else
+               Put_Error (Into, "dma: BAD INDEX: '");
+               Put (Into, Arguments (First .. Last));
+               Put (Into, "'###" & CRLF);
+               return;
+            end if;
+            Current := Device_Option (C, Device, Index);
+         end;
+      else
+         Parse_Pin (Arguments (First .. Last), Tag, Valid);
+         if Last < First or else not Valid or else not On_Board (Tag) then
+            Put_Error (Into, "dma: INVALID PIN: '");
+            Put (Into, Arguments (First .. Last));
+            Put (Into, "'###" & CRLF);
+            return;
+         end if;
+         for I in C.Timer_Io_Config'Range loop
+            pragma Loop_Invariant (Slot in -1 .. I - 1);
+            if C.Timer_Io_Config (I).Io_Tag = Tag then
+               Slot := I;
+               Current := C.Timer_Io_Config (I).Dmaopt;
+               K := Timer_Tables.By_Tag_And_Index (Tag, Natural (C.Timer_Io_Config (I).Index));
+               exit;
+            end if;
+         end loop;
+      end if;
+      First := Last + 1;
+      Next_Word;
+      if Last < First then
+         if Is_Pin then
+            Put_Pin_Option_Line (Into, Tag, K, Current, Listing, True, As_Default => False, Hide_Unused => False);
+         else
+            Put_Device_Line (Into, Device, Index, Current, Listing, True, As_Default => False, Hide_Unused => False);
+         end if;
+         return;
+      end if;
+      if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "list") then
+         if Is_Pin and then K = 0 then
+            return;
+         end if;
+         for Option in 0 .. Timer_Tables.Max_Timer_Options - 1 loop
+            pragma Loop_Invariant (True);
+            if Is_Pin then
+               Timer_Tables.Timer_Option
+                 (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Option, Found, Stream);
+            else
+               Timer_Tables.Peripheral_Option (Device_Peripheral (Device), Index, Option, Found, Stream);
+            end if;
+            exit when not Found;
+            Put (Into, "# ");
+            Put_Decimal (Into, Integer_64 (Option));
+            Put (Into, ": ");
+            Put_Stream (Into, Stream);
+            Put (Into, CRLF);
+         end loop;
+         return;
+      end if;
+      declare
+         Word    : constant String := Arguments (First .. Last);
+         Is_None : constant Boolean := CLI_Text.Same_Ignoring_Case (Word, "none");
+         Number  : constant Integer_32 := (if Is_None then -1 else CLI_Text.To_Integer (Word));
+         Option  : Integer_8 := -1;
+      begin
+         if not Is_None then
+            if Number < 0 then
+               Found := False;
+            elsif Is_Pin then
+               Found := K > 0
+                 and then Timer_Tables.Has_Timer_Option
+                            (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Integer (Number));
+            else
+               Found := Timer_Tables.Has_Peripheral_Option (Device_Peripheral (Device), Index, Integer (Number));
+            end if;
+            if not Found then
+               Put_Error (Into, "dma: INVALID DMA OPTION FOR ");
+               if Is_Pin then
+                  Put (Into, "PIN ");
+                  Put (Into, Pin_Text (Tag));
+               else
+                  Put (Into, Device_Name (Device));
+                  Put (Into, " ");
+                  Put_Decimal (Into, Integer_64 (Index + 1));
+               end if;
+               Put (Into, ": '");
+               Put (Into, Word);
+               Put (Into, "'###" & CRLF);
+               return;
+            end if;
+            Option := Integer_8 (Number);
+         end if;
+         Put (Into, "# dma ");
+         if Option /= Current then
+            if Is_Pin then
+               if Slot >= 0 then
+                  C.Timer_Io_Config (Slot).Dmaopt := Option;
+               end if;
+            else
+               Set_Device_Option (C, Device, Index, Option);
+            end if;
+            Put_Target;
+            Put (Into, ": changed from ");
+            Put (Into, Option_Text (Current));
+            Put (Into, " to ");
+            Put (Into, Option_Text (Option));
+         else
+            if Is_Pin then
+               Put (Into, Pin_Text (Tag));
+            else
+               Put_Target;
+            end if;
+            Put (Into, ": no change: ");
+            Put (Into, Option_Text (Current));
+         end if;
+         Put (Into, CRLF);
+      end;
+   end DMA_Command;
+
    --  resource: the pins set without arguments; the active assignments for
    --  show, no pin known, with the DMA streams after all; an owner's pin by
    --  name and ordinal, the ordinal left out for a single pin, as a port
@@ -7069,6 +7874,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          First := Skip_Spaces (Last + 1);
          Last := Word_End (First) - 1;
          if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "all") then
+            Put_Timer_Show (Into, C, Env);
             Put_DMA (Into, Env);
          end if;
          return;
@@ -7206,6 +8012,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, CRLF);
       end if;
       Put_Resources (Into, C, Mode, Dump => True);
+      Put_Timer_Dump (Into, C, Mode, Dump => True);
+      Put_DMA_Dump (Into, C, Mode, Dump => True, Hide_Unused => False);
       Put_Feature_Dump (Into, C.Feature_Config.Enabled_Features, Mode => Mode, Heading => "feature");
       if Hardware_Only then
          Dump_Values (Into, C, Hardware, Current (C), "master", Command, Mode, Ports);
@@ -7488,7 +8296,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Diff_Command =>
                Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
             when Dma_Command_Word =>
-               Put_DMA (Into, Env);
+               DMA_Command (Into, C, Env, Args);
             when Exit_Command_Word =>
                Exit_Command (Into, Args, Changes);
             when Dump_Command =>
@@ -7579,6 +8387,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Set (Into, C, Args, Ports);
             when Simplified_Tuning_Command_Word =>
                Simplified_Tuning_Command (Into, C, Args);
+            when Timer_Command_Word =>
+               Timer_Command (Into, C, Env, Args);
             when Tasks_Command_Word =>
                Tasks_Command (Into, C.System_Config, Env, Sched);
             when Version_Command_Word =>
