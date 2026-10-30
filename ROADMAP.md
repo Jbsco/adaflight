@@ -50,8 +50,7 @@ Silver with no assume, and pass the gates on `main`.
   Kakute F7 with a run-time library generated from the toolchain's and the drivers on the F7's register
   sets. Then H7, then the other families Betaflight
   runs on, and a physics simulator link for the host target. Drivers for SPI, I2C, DMA, timers, USB,
-  flash, SD card, DShot, with the DShot input capture for bidirectional DShot and the bitbang DShot driver still to
-  come.
+  flash, SD card, DShot, with the bitbang DShot driver still to come.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the
