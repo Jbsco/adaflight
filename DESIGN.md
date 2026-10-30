@@ -11889,3 +11889,11 @@ telemetry reply gives each motor's RPM, invalid share and extended values, and t
 and RPM without the ESC sensor. The SRXL telemetry and the debug modes have no board path yet, so their telemetry inputs
 wait for them. The host smoke reads both MSP replies during a motor test. The Kakute F7 image builds at 650468 bytes of
 code and the CLRacing F4S one at 652988. The host smoke, style and the vectors pass.
+
+## D528. Motor timer owners by pin (2026-10-29)
+
+A motor's timer channel takes the number of the motor pin it drives as its owner's ordinal, so the timer listing shows
+the same owner on a pin whatever the output order. The motor setups gave the mixer's motor number until now (D521),
+which differed from the reference once the order changed. The host smoke swaps the first two outputs and checks the
+listing. The Kakute F7 image builds at 650468 bytes of code and the CLRacing F4S one at 652988, as in D527. The host
+smoke, style and the vectors pass.
