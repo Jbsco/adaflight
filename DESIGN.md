@@ -11820,3 +11820,28 @@ The reference's timer driver decodes a five-bit code outside the GCR alphabet as
 its checksum holds, where its bitbang driver rejects it. In the oracle's 2000 draws the timer driver's table kept 12
 damaged or random words as values. The port takes the bitbang decoder's table and check, a divergence (F310), and the
 oracle fixes the extracted decode the same way.
+
+## D524. DShot telemetry read after a frame (2026-10-29)
+
+`Adaflight.DShot.Read_Replies` is the reference timer DShot driver's read of the motors' replies after a frame, the step
+the motor update runs before it writes the next values. Without telemetry it does nothing. Else each motor in order
+stops the read when the time since the channels switched to input, taken as the reference's signed difference of the
+microsecond counts, is under the motor's deadtime, so the motors before it have already been read. A motor in input with
+more than seven captured edges counts a read and decodes them (D523). A valid value is kept as the motor's raw value,
+unless it is the extended telemetry acknowledgement while the motor's current command enables extended telemetry, which
+marks the state events kind received. An invalid reply counts as such and the first motor's edges are saved for the
+command line. Every reply counts in the motor's quality (D58). Each motor read leaves input. After the last motor the
+raw values wait for processing, the switch time clears, and the driver enables the channels again.
+
+The core takes the captures as values: whether the channel is in input, its deadtime, the edge count and the edge times,
+which the driver reads from the DMA stream's counter and buffer before the call, since the reply is complete once the
+deadtime has passed. The read reports how many motors left input, in order from the first, so the driver switches those
+back to output. The read has no caller on the boards yet. The driver's input capture follows.
+
+The telemetry read oracle takes the read and the quality update out of the reference's sources at build time over the
+capture decode of D523, with the DMA counters, the direction switch and the clocks as stubs. Each of 30 cases per seed
+resets the state and runs 25 steps of drawn captures: replies of random values and of the acknowledgement, damaged
+sometimes, few or random edges, inputs on and off, deadtimes of the three DShot rates that differ between motors at
+times, switch times before, at and after the deadtime, and wrapping clocks. The family holds four seeds. The Kakute F7
+image stays at 648964 bytes of code and the CLRacing F4S one at 651692, as in D523. The host smoke, style and the
+vectors pass.
