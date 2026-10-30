@@ -1340,48 +1340,49 @@ def main():
                 vcp.close()
             if log is not None:
                 log.close()
-        card = os.path.join(work, "sdcard.img")
-        fat16_image(card, 40960)
-        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
-        try:
-            time.sleep(1.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set blackbox_device = SDCARD")
-            check("flight log device set to the card", "blackbox_device set to SDCARD" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
-        try:
-            time.sleep(6.0)
-            summary = msp(sock, 79)
-            check("MSP SD card summary reports the card ready",
-                  summary is not None and len(summary) == 11 and summary[0] == 1 and summary[1] == 4, repr(summary))
-            total = int.from_bytes(summary[7:11], "little") if summary and len(summary) == 11 else 0
-            check("MSP SD card summary sizes the card", total == 20480, str(total))
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "sd_info")
-            check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
-            deadline = time.time() + 15
-            while time.time() < deadline:
-                data, why = fat16_log(card)
-                if data is not None and data.startswith(b"H Product:"):
-                    break
-                time.sleep(0.5)
-        finally:
-            stop(proc)
-            sock.close()
-        data, why = fat16_log(card)
-        check("card image holds the log file", data is not None, why)
-        check("log file on the card starts with the header",
-              data is not None and data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"),
-              repr(data[:60] if data else data))
-        check("log file on the card names the firmware", data is not None and b"H Firmware type:Adaflight\n" in data,
-              repr(data[:200] if data else data))
+        if built("SD_Card"):
+            card = os.path.join(work, "sdcard.img")
+            fat16_image(card, 40960)
+            proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+            try:
+                time.sleep(1.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set blackbox_device = SDCARD")
+                check("flight log device set to the card", "blackbox_device set to SDCARD" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+            try:
+                time.sleep(6.0)
+                summary = msp(sock, 79)
+                check("MSP SD card summary reports the card ready",
+                      summary is not None and len(summary) == 11 and summary[0] == 1 and summary[1] == 4, repr(summary))
+                total = int.from_bytes(summary[7:11], "little") if summary and len(summary) == 11 else 0
+                check("MSP SD card summary sizes the card", total == 20480, str(total))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "sd_info")
+                check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
+                deadline = time.time() + 15
+                while time.time() < deadline:
+                    data, why = fat16_log(card)
+                    if data is not None and data.startswith(b"H Product:"):
+                        break
+                    time.sleep(0.5)
+            finally:
+                stop(proc)
+                sock.close()
+            data, why = fat16_log(card)
+            check("card image holds the log file", data is not None, why)
+            check("log file on the card starts with the header",
+                  data is not None and data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"),
+                  repr(data[:60] if data else data))
+            check("log file on the card names the firmware", data is not None and b"H Firmware type:Adaflight\n" in data,
+                  repr(data[:200] if data else data))
         chip = os.path.join(work, "flash.img")
         with open(chip, "wb") as f:
             f.write(b"\xff" * (16 * 1024 * 1024))
@@ -2405,32 +2406,33 @@ def main():
             esc.stop.set()
             stop(proc)
             sock.close()
-        card = os.path.join(work, "logstatus.img")
-        fat16_image(card, 40960)
-        store = os.path.join(work, "logstatus.bin")
-        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            for line in ("blackbox_device = SDCARD", "blackbox_mode = ALWAYS", "osd_displayport_device = MAX7456",
-                         "vcd_video_system = PAL", "osd_log_status_pos = 2177"):
-                text = cli(sock, "set " + line)
-                check(f"log status {line}", line.replace(" = ", " set to ") in text, text[-120:])
-            text = cli(sock, "aux 0 26 0 900 2100 0 0")
-            check("flight log box on AUX1", "aux 0 26 0 900 2100 0 0" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
-        try:
-            passed, row = until(lambda: screen_row(store, 4), lambda r: r[2:4] == "1 ", wait=30.0)
-            check("OSD log status element shows the SD card's log number", passed, repr(row))
-        finally:
-            stop(proc)
-            sock.close()
+        if built("SD_Card"):
+            card = os.path.join(work, "logstatus.img")
+            fat16_image(card, 40960)
+            store = os.path.join(work, "logstatus.bin")
+            proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("blackbox_device = SDCARD", "blackbox_mode = ALWAYS", "osd_displayport_device = MAX7456",
+                             "vcd_video_system = PAL", "osd_log_status_pos = 2177"):
+                    text = cli(sock, "set " + line)
+                    check(f"log status {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                text = cli(sock, "aux 0 26 0 900 2100 0 0")
+                check("flight log box on AUX1", "aux 0 26 0 900 2100 0 0" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+            try:
+                passed, row = until(lambda: screen_row(store, 4), lambda r: r[2:4] == "1 ", wait=30.0)
+                check("OSD log status element shows the SD card's log number", passed, repr(row))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "auxvalue.bin")
         proc, sock = start(image, store)
         try:
@@ -2826,33 +2828,34 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        store = os.path.join(work, "ledstrip.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "resource LED_STRIP 1")
-            check("resource names the board's LED strip pin", "# resource LED_STRIP 1 B08" in text, text[-120:])
-            text = cli(sock, "feature LED_STRIP")
-            check("LED strip feature on", "Enabled LED_STRIP" in text, text[-120:])
-            for line in ("led 0 0,0::C:2", "led 1 1,0::C:1"):
-                cli(sock, line)
-            text = cli(sock, "led")
-            check("two LEDs take their colors", "led 0 0,0::C:2" in text and "led 1 1,0::C:1" in text, text[-200:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            ok, lines = until(lambda: led_lines(store), lambda l: ["led", "0", "FF0000"] in l and ["led", "1", "FFFFFF"] in l,
-                              wait=8.0)
-            check("the LED strip shows the red and white LEDs", ok, repr(lines[-6:]))
-        finally:
-            stop(proc)
-            sock.close()
+        if built("LED_Strip"):
+            store = os.path.join(work, "ledstrip.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "resource LED_STRIP 1")
+                check("resource names the board's LED strip pin", "# resource LED_STRIP 1 B08" in text, text[-120:])
+                text = cli(sock, "feature LED_STRIP")
+                check("LED strip feature on", "Enabled LED_STRIP" in text, text[-120:])
+                for line in ("led 0 0,0::C:2", "led 1 1,0::C:1"):
+                    cli(sock, line)
+                text = cli(sock, "led")
+                check("two LEDs take their colors", "led 0 0,0::C:2" in text and "led 1 1,0::C:1" in text, text[-200:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                ok, lines = until(lambda: led_lines(store), lambda l: ["led", "0", "FF0000"] in l and ["led", "1", "FFFFFF"] in l,
+                                  wait=8.0)
+                check("the LED strip shows the red and white LEDs", ok, repr(lines[-6:]))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

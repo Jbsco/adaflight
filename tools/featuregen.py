@@ -27,6 +27,8 @@ FLASH_KB = {"STM32F405": 1024, "STM32F411": 512, "STM32F446": 512, "STM32F722": 
 FEATURES = [
     ("Menus", 1024, "The menu system on the OSD, the display port and the CRSF transmitter's screen."),
     ("Gimbal", 1024, "The gimbal control on a UART."),
+    ("LED_Strip", 1024, "The LED strip on a timer."),
+    ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
     ("LTM_Telemetry", 1024, "The LTM telemetry."),

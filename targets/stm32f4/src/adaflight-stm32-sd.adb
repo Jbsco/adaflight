@@ -1,4 +1,5 @@
 with Adaflight.Blackbox_SD;
+with Adaflight.Build_Features;
 with Adaflight.FAT_FS;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.SD_Card;
@@ -315,6 +316,9 @@ package body Adaflight.STM32.SD is
    procedure Init (C : Adaflight.Config_Groups.Configuration) is
    begin
       Preinit (C);
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Started := Setup.Mode = Types.Mode_SPI;
       if not Started then
          Setup.Mode := Types.Mode_Off;
@@ -326,6 +330,9 @@ package body Adaflight.STM32.SD is
 
    procedure Poll is
    begin
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Card.Poll (M.Dev, M.S, Ready);
       if M.Dev.Done then
          M.Dev.Done := False;
@@ -383,21 +390,37 @@ package body Adaflight.STM32.SD is
 
    procedure Log_Begin (Done : out Boolean) is
    begin
+      Done := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Log.Begin_Log (L, FS, M, Done);
    end Log_Begin;
 
    procedure Log_End (Retain : Boolean; Done : out Boolean) is
    begin
+      Done := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Log.End_Log (L, FS, M, Retain, Done);
    end Log_End;
 
    procedure Log_Flush (Done : out Boolean) is
    begin
+      Done := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Log.Flush_Force (FS, M, Done);
    end Log_Flush;
 
    procedure Log_Flush_Complete (Done : out Boolean) is
    begin
+      Done := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       Log.Flush_Force_Complete (FS, M, Done);
    end Log_Flush_Complete;
 
@@ -405,6 +428,9 @@ package body Adaflight.STM32.SD is
       Text   : Adaflight.FAT.Data_Bytes (0 .. Data'Length - 1);
       Length : Natural;
    begin
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
       for K in Text'Range loop
          Text (K) := Data (Data'First + K);
       end loop;
