@@ -11970,3 +11970,11 @@ A setup oracle extracts reference start, post start, pacer search, port groups a
 time over F405 timer and DMA tables, with stand-ins for DMA stream and pin owners. It draws maps with owners, streams
 and pins already taken, motor pins and order, and settings. Its family holds four seeds of 250 cases, and twenty
 mutations of setup each fail it.
+
+## D534. Blocking DShot commands on bit-banged DShot (2026-10-30)
+
+A blocking DShot command, as command line and MSP send them, writes frames through driver update hooks. With bit-banged
+DShot each repeat clears port buffers before writes, waits for replies before completion, and decodes replies after
+completion, where timer DShot decodes before writes. `Adaflight.DShot_Command.Blocking_Run` takes driver choice and both
+hooks. Command oracle runs a second time with bit-banged DShot active over its bench sequences, and adaflight's steps
+match it.

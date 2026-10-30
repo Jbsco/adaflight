@@ -162,6 +162,18 @@ package body Adaflight.STM32.DShot_Output is
       Read_Telemetry (Done);
    end Table_Decode;
 
+   procedure Table_Init (T : in out Table) is
+      pragma Unreferenced (T);
+   begin
+      null;
+   end Table_Init;
+
+   procedure Table_Wait (T : in out Table) is
+      pragma Unreferenced (T);
+   begin
+      null;
+   end Table_Wait;
+
    procedure Table_Request (T : in out Table; Index : Motor_Index) is
       pragma Unreferenced (T);
    begin
@@ -186,8 +198,10 @@ package body Adaflight.STM32.DShot_Output is
      (Motor_Table       => Table,
       Delay_Us          => Table_Delay,
       Decode_Telemetry  => Table_Decode,
+      Update_Init       => Table_Init,
       Request_Telemetry => Table_Request,
       Write_Int         => Table_Write,
+      Telemetry_Wait    => Table_Wait,
       Update_Complete   => Table_Complete);
 
    procedure Write_Command
@@ -200,7 +214,7 @@ package body Adaflight.STM32.DShot_Output is
       T    : Table;
    begin
       Write (Queue, Facts, Index, Natural'Min (Motors, Max_Motors), Command, Kind, Plan);
-      Blocking_Commands.Run (Queue, T, Plan);
+      Blocking_Commands.Run (Queue, T, Plan, Bitbang => False);
    end Write_Command;
 
    procedure Request_Telemetry (Index : Natural) is
