@@ -269,6 +269,7 @@ package body Adaflight.STM32.Motors is
    --  The host drives the motors through the timer driver's model only.
    function Bitbang_Active (C : Adaflight.Config_Groups.Configuration) return Boolean is (False);
    function Bitbang_On return Boolean is (False);
+   function Bitbang_Setup return Adaflight.DShot_Bitbang.Setup is (others => <>);
    function Bitbang_OK return Boolean is (True);
    procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural) is null;
    procedure Update_Init is null;

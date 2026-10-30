@@ -29907,7 +29907,8 @@ procedure Vector_Check is
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
       Interactive     => False,
-      DMA_Motors      => <>,
+      DMA_Owners      => <>,
+      Pacers          => <>,
       Timer_Owners    => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
@@ -37972,6 +37973,76 @@ procedure Vector_Check is
       Record_Int ("bbsetup.active_f7", Int (128),
                   Boolean'Pos (B.Active (Interfaces.Unsigned_8 (Int (77)), Int (73) /= 0,
                                Interfaces.Unsigned_8 (Int (74)), False)));
+
+      --  The command line's timer and DMA listings over the case's map, its
+      --  owners, the strip's streams and the setup's groups.
+      declare
+         package R renames Adaflight.CLI_Resources;
+         Ports   : constant Adaflight.Serial_Feature_Map.Port_List := (20, 51, 52, 53, 54, 55, 56, 30, 31);
+         Config  : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+         Env     : CLI.Environment := CLI_Identity;
+         Reply   : CLI.Output;
+         Board   : CLI.Board_State;
+         Sched   : Adaflight.Scheduler.State;
+         Changes : CLI.Effects;
+
+         function Owner_Named (Name : String) return R.Owner is
+         begin
+            for O in R.Owner loop
+               if R.Name (O) = Name then
+                  return O;
+               end if;
+            end loop;
+            Put_Line ("unknown timer owner " & Name);
+            Failures := Failures + 1;
+            return R.Owner'First;
+         end Owner_Named;
+
+         --  The reply with each line end as a bar.
+         function Bars (Text : String) return String is
+            Result : Ada.Strings.Unbounded.Unbounded_String;
+            I      : Natural := Text'First;
+         begin
+            while I <= Text'Last loop
+               if Text (I) = ASCII.CR and then I < Text'Last and then Text (I + 1) = ASCII.LF then
+                  Ada.Strings.Unbounded.Append (Result, '|');
+                  I := I + 2;
+               else
+                  Ada.Strings.Unbounded.Append (Result, Text (I));
+                  I := I + 1;
+               end if;
+            end loop;
+            return Ada.Strings.Unbounded.To_String (Result);
+         end Bars;
+      begin
+         Config.Timer_Io_Config := Map;
+         for E in Map'Range loop
+            Numbers (Str (25 + E));
+            if Head (1 .. Head_Length) /= "FREE" then
+               Env.Timer_Owners (E) := (Held => True, Owner => Owner_Named (Head (1 .. Head_Length)),
+                                        Ordinal => Natural (Values (1)));
+            end if;
+         end loop;
+         for D in Busy'Range loop
+            if S.Streams (D) > 0 then
+               Env.DMA_Owners (D) := (Kind => CLI.Bitbang, Index => Natural (S.Streams (D)));
+            elsif Busy (D) then
+               Env.DMA_Owners (D) := (Kind => CLI.Strip, Index => 0);
+            end if;
+         end loop;
+         for P in B.Port_Index loop
+            if P < S.Used_Ports and then S.Ports (P).Allocated and then S.Ports (P).Pacer > 0 then
+               Env.Pacers (P) := (Timer   => B.Pacers (S.Ports (P).Pacer).Timer,
+                                  Channel => B.Pacers (S.Ports (P).Pacer).Channel,
+                                  Port    => Natural (S.Ports (P).Port));
+            end if;
+         end loop;
+         CLI.Process_Line (Reply, Config, "timer show", Ports, Env, Board, Sched, Changes);
+         Record_Text ("bbsetup.timer_show", Str (129), Bars (Ada.Strings.Unbounded.To_String (Reply.Target.Text)));
+         Reply.Target.Text := Ada.Strings.Unbounded.Null_Unbounded_String;
+         CLI.Process_Line (Reply, Config, "dma show", Ports, Env, Board, Sched, Changes);
+         Record_Text ("bbsetup.dma_show", Str (130), Bars (Ada.Strings.Unbounded.To_String (Reply.Target.Text)));
+      end;
    end Check_BB_Setup_Line;
 
    --  The menu contents: the reference's menus over the configuration on one

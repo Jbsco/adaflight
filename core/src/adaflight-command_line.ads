@@ -318,9 +318,24 @@ package Adaflight.Command_Line with SPARK_Mode is
    end record;
    type Serial_Port_Statuses is array (1 .. Serial_Feature_Map.Max_Ports) of Serial_Port_Status;
 
-   --  The motor's ordinal each DMA stream drives, zero for a free stream, from
-   --  the first controller's stream 0 to the second's stream 7.
-   type DMA_Motor_List is array (1 .. 16) of Natural range 0 .. 8;
+   --  Each DMA stream's owner, from the first controller's stream 0 to the
+   --  second's stream 7: free, a motor by its ordinal, the LED strip, or a
+   --  bit-banged DShot group by its port's number from 1 for port A.
+   type DMA_Owner_Kind is (Free, Motor, Strip, Bitbang);
+   type DMA_Owner is record
+      Kind  : DMA_Owner_Kind := Free;
+      Index : Natural range 0 .. 15 := 0;
+   end record;
+   type DMA_Owner_List is array (1 .. 16) of DMA_Owner;
+
+   --  The bit-banged groups' pacer channels by timer and channel number,
+   --  with each group's port number, zero for none.
+   type Pacer_Owner is record
+      Timer   : Natural range 0 .. 14 := 0;
+      Channel : Natural range 0 .. 4 := 0;
+      Port    : Natural range 0 .. 15 := 0;
+   end record;
+   type Pacer_Owner_List is array (0 .. 3) of Pacer_Owner;
 
    subtype Timer_Owner is CLI_Resources.Timer_Owner;
    subtype Timer_Owner_List is CLI_Resources.Timer_Owner_List;
@@ -486,7 +501,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       Status          : System_Status;
       Raw_Gyro_ICM456 : Boolean := False;
       Interactive     : Boolean := False;
-      DMA_Motors      : DMA_Motor_List := (others => 0);
+      DMA_Owners      : DMA_Owner_List := (others => <>);
+      Pacers          : Pacer_Owner_List := (others => <>);
       Timer_Owners    : Timer_Owner_List := (others => <>);
    end record;
 

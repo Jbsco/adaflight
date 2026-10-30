@@ -12005,3 +12005,14 @@ the data tightly coupled memory outside the data cache, where the reference clea
 
 The driver runs only on hardware and waits for a bench check on the Kakute F7 and the CLRacing F4S. The host keeps the
 timer driver's model. The command line's timer and dma listings do not show the bit-banged owners yet.
+
+## D536. Bit-banged owners in the timer and DMA listings (2026-10-30)
+
+`dma show` names each stream's owner among the drivers the port runs on DMA: a motor by its number, the LED strip, or
+a bit-banged group by its port's number, else FREE. `timer show` names for each channel the first map entry that holds
+it, with the owner and its ordinal, else the bit-banged group the channel paces, by its port's number. The flight code
+fills the owners after the bit-banged post start, once the servos and the LED strip hold their timers. It took the
+timer owners right after the motors before, so the listing left out the servos and the strip, and a free map entry
+ahead of a held one on the same channel hid the held one. The setup oracle prints the reference's two listings for
+each case over the map's owners, the LED strip's streams and the setup's groups, and the port's listings match them.
+The reference's `dma show` also names the ADC, SPI and UART streams, which the port does not run on DMA.
