@@ -39780,6 +39780,7 @@ begin
    Run (Dir & "/bbenc.csv", "bbenc");
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
+   Run (Dir & "/dshotbb.csv", "dshot");
    Run (Dir & "/dshotcmd.csv", "dshotcmd");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");

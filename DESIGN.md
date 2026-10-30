@@ -11915,3 +11915,12 @@ controllers, at lowest interrupt priority like other handlers.
 Capture runs only on hardware. Host motors model replies (D525), and vectors check read and decode (D523, D524), so this
 driver waits for a bench check on Kakute F7 and CLRacing F4S. Kakute F7 image builds at 654748 bytes of code and
 CLRacing F4S image at 657268. Host smoke, style and vectors pass.
+
+## D530. Bit-band sample decode on F4 (2026-10-30)
+
+Reference F4 builds decode a bit-banged port's reply samples through the processor's bit-band alias, one word per sample
+bit, with an edge search alternating between rising and falling edges. F7 builds compare each sample with its last level
+(D58). Adaflight keeps one sample decode for both. A bit-band decode oracle runs reference F4 decode on a 32-bit host,
+since board pointers wrap, over an emulated alias region with draws of the sample decode family, and adaflight's decode
+gives its results, preamble skips, margins and check times on all of them. Its unrolled reads past an edge in reach
+change no result, since an edge counts only with a sample after it within reach.
