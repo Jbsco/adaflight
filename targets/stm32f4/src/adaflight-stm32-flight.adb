@@ -15,6 +15,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
 with Adaflight.STM32.Timers;
+with Adaflight.Timer_Tables;
 with Adaflight.Build_Features;
 with Adaflight.Build_Options;
 with Adaflight.Board_Info;
@@ -1606,14 +1607,56 @@ package body Adaflight.STM32.Flight is
        Number => Adaflight.Pins.Pin_Number (Tag mod 16)))
      with Pre => Tagged_Pin (Tag);
 
-   --  Whether an analog input is on with a pin that has a converter channel.
-   function Analog_Input (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Boolean is
-     (Channel.Enabled and then Tagged_Pin (Channel.Io_Tag)
-      and then Adaflight.STM32.ADC.Has_Channel (Pin_Of (Channel.Io_Tag)));
+   --  The converter's inputs in the reference's order, and each one's slot in
+   --  the scan, minus one for an input off or without a channel.
+   type Analog_Source is (Battery_Input, Current_Input, External_Input, RSSI_Input);
+   ADC_Slots  : array (Analog_Source) of Integer range -1 .. 3 := (others => -1);
+   ADC_Device : Natural := 0;
 
    --  An analog input's sample, zero when the input is off.
-   function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Natural is
-     (if Analog_Input (Channel) then Natural (Adaflight.STM32.ADC.Read (Pin_Of (Channel.Io_Tag))) else 0);
+   function Analog (Source : Analog_Source) return Natural is
+     (if ADC_Slots (Source) >= 0 then Natural (Adaflight.STM32.ADC.Scanned (ADC_Slots (Source))) else 0);
+
+   --  The converter's scan as the reference starts it after the motors: the
+   --  configured converter, each input on with a pin the converter reaches
+   --  in order, and the stream of the converter's DMA option unless a motor
+   --  took it.
+   procedure Start_ADC_Scan is
+      A       : Adaflight.Config_Groups.Adc_Config_Record renames Config.Adc_Config;
+      Sources : constant array (Analog_Source) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=
+        (A.Vbat, A.Current, A.External1, A.Rssi);
+      Device  : constant Integer := Integer (A.Device) - 1;
+      Pins    : Adaflight.STM32.ADC.Input_Pins := (others => (Port => Adaflight.Pins.Port_A, Number => 0));
+      Count   : Adaflight.STM32.ADC.Input_Count := 0;
+      Taken   : Adaflight.STM32.ADC.Stream_Flags := (others => False);
+      Found   : Boolean;
+      Stream  : Adaflight.Timer_Tables.DMA_Stream;
+   begin
+      ADC_Slots := (others => -1);
+      if Device not in 0 .. 2 then
+         return;
+      end if;
+      ADC_Device := Device;
+      for S in Analog_Source loop
+         if Sources (S).Enabled and then Tagged_Pin (Sources (S).Io_Tag)
+           and then Adaflight.STM32.ADC.Has_Channel (Pin_Of (Sources (S).Io_Tag), Device)
+         then
+            Pins (Count) := Pin_Of (Sources (S).Io_Tag);
+            ADC_Slots (S) := Count;
+            Count := Count + 1;
+         end if;
+      end loop;
+      for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
+         if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
+            Taken (Adaflight.STM32.Motors.Stream_Of (M)) := True;
+         end if;
+      end loop;
+      Adaflight.Timer_Tables.Peripheral_Option
+        (Adaflight.Timer_Tables.ADC, Device, Integer (A.Dmaopt (Device)), Found, Stream);
+      Adaflight.STM32.ADC.Start_Scan
+        (Device, Pins, Count, (Controller => Stream.Controller, Stream => Stream.Stream, Channel => Stream.Channel),
+         Found, Taken);
+   end Start_ADC_Scan;
 
    --  The internal ADC task: once the started conversion ends, both readings
    --  into the averages, the supply and core temperature to the status
@@ -1696,7 +1739,7 @@ package body Adaflight.STM32.Flight is
    begin
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Update_Voltage
-        (Bat, Bat_Settings, Analog (Config.Adc_Config.Vbat),
+        (Bat, Bat_Settings, Analog (Battery_Input),
          Adaflight.STM32.Time.Millis, Meters);
    end Run_Battery_Voltage;
 
@@ -1704,7 +1747,7 @@ package body Adaflight.STM32.Flight is
    begin
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Update_Current
-        (Bat, Bat_Settings, Analog (Config.Adc_Config.Current), Before, Meters);
+        (Bat, Bat_Settings, Analog (Current_Input), Before, Meters);
    end Run_Battery_Current;
 
    --  A battery's connection: the PID profile for the detected cells while
@@ -2591,7 +2634,7 @@ package body Adaflight.STM32.Flight is
             Receiver_Step
               (Before, Adaflight.STM32.Time.Millis,
                (if Adaflight.STM32.Radio.RSSI_ADC
-                then Analog (Config.Adc_Config.Rssi) else 0),
+                then Analog (RSSI_Input) else 0),
                Ready);
             if Adaflight.Build_Features.Menus then
                Run_Display_Command;
@@ -3968,16 +4011,6 @@ package body Adaflight.STM32.Flight is
             Open_Drain => Config.Beeper_Dev_Config.Is_Open_Drain /= 0);
       end if;
       Adaflight.STM32.ADC.Init;
-      declare
-         Inputs : constant array (1 .. 3) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=
-           (Config.Adc_Config.Vbat, Config.Adc_Config.Current, Config.Adc_Config.Rssi);
-      begin
-         for Channel of Inputs loop
-            if Analog_Input (Channel) then
-               Adaflight.STM32.ADC.Enable (Pin_Of (Channel.Io_Tag));
-            end if;
-         end loop;
-      end;
       Start_Buses;
       Start_Gyro;
       Init_Loop_Units;
@@ -4030,6 +4063,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init
         (Config, Adaflight.STM32.Control.Motor_Count, (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0);
+      Start_ADC_Scan;
       Adaflight.STM32.DShot_Output.Init (Config);
       if Config.Motor_Config.Dev.Use_Dshot_Telemetry /= 0
         or else (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0
@@ -4045,7 +4079,8 @@ package body Adaflight.STM32.Flight is
          Adaflight.LED_Strip.Init (Strip, Strip_Settings, Strip_Layout);
          Adaflight.STM32.LED_Strip.Send (Strip.Output);
       end if;
-      Adaflight.STM32.Motors.Post_Init (Config, Adaflight.STM32.LED_Strip.Stream_Number);
+      Adaflight.STM32.Motors.Post_Init
+        (Config, Adaflight.STM32.LED_Strip.Stream_Number, Adaflight.STM32.ADC.Stream_Number);
       for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
             Env.DMA_Owners (Adaflight.STM32.Motors.Stream_Of (M)) := (Kind => CLI.Motor, Index => M + 1);
@@ -4053,6 +4088,9 @@ package body Adaflight.STM32.Flight is
       end loop;
       if Adaflight.STM32.LED_Strip.Stream_Number > 0 then
          Env.DMA_Owners (Adaflight.STM32.LED_Strip.Stream_Number) := (Kind => CLI.Strip, Index => 0);
+      end if;
+      if Adaflight.STM32.ADC.Stream_Number > 0 then
+         Env.DMA_Owners (Adaflight.STM32.ADC.Stream_Number) := (Kind => CLI.Analog, Index => ADC_Device + 1);
       end if;
       declare
          S : constant Adaflight.DShot_Bitbang.Setup := Adaflight.STM32.Motors.Bitbang_Setup;

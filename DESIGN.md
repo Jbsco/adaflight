@@ -12010,3 +12010,15 @@ bit-banged post start, once servos and LED strip hold their timers. It took time
 listings left out servos and strip, and a free map entry ahead of a held one on one channel hid the held one. Setup
 oracle prints reference listings for each case over map owners, LED strip streams and setup groups, and adaflight's
 listings match them. Reference `dma show` also names ADC, SPI and UART streams, which adaflight does not run on DMA.
+
+## D537. ADC on DMA (2026-10-30)
+
+Analog inputs come from a continuous scan. After motor start, a configured converter scans battery, current, external
+and RSSI inputs in that order, each one on with a pin its converter reaches, at 480 cycles each, and a circular DMA
+stream writes every result into its input's slot. Its stream comes from its converter's DMA option, unless a timer DShot
+motor took it. Without a stream its converter stays stopped and every input reads zero. A read takes its slot's last
+result, where adaflight converted each input on request before at about 48 microseconds a read. LED strip refuses an ADC
+stream as it refuses motor streams, bit-banged pacer search counts it busy, and `dma show` lists it as ADC with its
+converter number. Setup oracle draws ADCs with their numbers among stream owners, and adaflight's listings match its
+listings. ADC1 still converts internal reference and temperature channels on request, between scan conversions. Scan
+runs only on hardware and waits for a bench check on Kakute F7 and CLRacing F4S.

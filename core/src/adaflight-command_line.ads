@@ -319,9 +319,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    type Serial_Port_Statuses is array (1 .. Serial_Feature_Map.Max_Ports) of Serial_Port_Status;
 
    --  Each DMA stream's owner, from the first controller's stream 0 to the
-   --  second's stream 7: free, a motor by its ordinal, the LED strip, or a
-   --  bit-banged DShot group by its port's number from 1 for port A.
-   type DMA_Owner_Kind is (Free, Motor, Strip, Bitbang);
+   --  second's stream 7: free, a motor by its ordinal, the LED strip, an ADC
+   --  by its number, or a bit-banged DShot group by its port's number from 1
+   --  for port A.
+   type DMA_Owner_Kind is (Free, Motor, Strip, Analog, Bitbang);
    type DMA_Owner is record
       Kind  : DMA_Owner_Kind := Free;
       Index : Natural range 0 .. 15 := 0;

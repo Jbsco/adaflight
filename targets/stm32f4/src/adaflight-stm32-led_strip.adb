@@ -4,6 +4,7 @@ with System.Storage_Elements;
 with Adaflight.CLI_Resources;
 with Adaflight.WS2811;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.ADC;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
 with Adaflight.STM32.Platform;
@@ -108,6 +109,9 @@ package body Adaflight.STM32.LED_Strip is
             return;
          end if;
       end loop;
+      if Adaflight.STM32.ADC.Stream_Number = (S.Controller - 1) * 8 + S.Stream + 1 then
+         return;
+      end if;
       Configure (E, S);
       Channel := E;
       Stream := S;

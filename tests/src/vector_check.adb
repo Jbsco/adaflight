@@ -37837,6 +37837,7 @@ procedure Vector_Check is
       S      : B.Setup;
       Values : array (0 .. 7) of Integer_64;
       Count  : Natural;
+      Busy_Owners : CLI.DMA_Owner_List := (others => <>);
 
       --  The colon-separated numbers of a field, the part before the first
       --  colon kept as text.
@@ -37888,6 +37889,11 @@ procedure Vector_Check is
       for D in Busy'Range loop
          Numbers (Str (45 + D));
          Busy (D) := Head (1 .. Head_Length) /= "FREE";
+         if Head (1 .. Head_Length) = "ADC" then
+            Busy_Owners (D) := (Kind => CLI.Analog, Index => Natural (Values (1)));
+         elsif Busy (D) then
+            Busy_Owners (D) := (Kind => CLI.Strip, Index => 0);
+         end if;
       end loop;
       declare
          F     : constant String := Str (62);
@@ -38026,8 +38032,8 @@ procedure Vector_Check is
          for D in Busy'Range loop
             if S.Streams (D) > 0 then
                Env.DMA_Owners (D) := (Kind => CLI.Bitbang, Index => Natural (S.Streams (D)));
-            elsif Busy (D) then
-               Env.DMA_Owners (D) := (Kind => CLI.Strip, Index => 0);
+            else
+               Env.DMA_Owners (D) := Busy_Owners (D);
             end if;
          end loop;
          for P in B.Port_Index loop

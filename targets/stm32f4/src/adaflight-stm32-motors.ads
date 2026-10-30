@@ -71,8 +71,8 @@ package Adaflight.STM32.Motors is
    function Bitbang_On return Boolean;
    function Bitbang_OK return Boolean;
    --  The bit-banged groups' pacers, streams and periods, once the other
-   --  owners took their timers and the LED strip its stream.
-   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural);
+   --  owners took their timers and the LED strip and the ADC their streams.
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural; ADC_Stream : Natural);
    --  The bit-banged setup, its groups' streams and pacers for the listings.
    function Bitbang_Setup return Adaflight.DShot_Bitbang.Setup;
    --  The groups' frames cleared before an update's writes.
