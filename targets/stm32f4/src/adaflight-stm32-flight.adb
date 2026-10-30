@@ -518,7 +518,7 @@ package body Adaflight.STM32.Flight is
       F.Acc_1G := Integer_32 (Adaflight.STM32.Gyro.Acc_One_G);
       F.Loop_Time := Integer_32 (Loop_Time_Us);
       F.PID_Process_Denom := Integer_32 (Loop_Ratio);
-      F.DShot_Telemetry := False;
+      F.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       F.RC_Setpoint_Cutoff := Integer_32 (Config.Rx_Config.Rc_Smoothing_Setpoint_Cutoff);
       F.RC_Throttle_Cutoff := Integer_32 (Config.Rx_Config.Rc_Smoothing_Throttle_Cutoff);
       F.RC_Debug_Axis := Integer_32 (Config.Rx_Config.Rc_Smoothing_Debug_Axis);
@@ -972,6 +972,7 @@ package body Adaflight.STM32.Flight is
          Device => Config.Gyro_Device_Config (0), Board => Config.Board_Alignment, Motor => Config.Motor_Config,
          Loop_Rate => Config.Pid_Config, Sample_Time_Us => Adaflight.PID_Config.Loop_Time_Us (Sample_Us),
          Scale => Selection.Scale, Motors => Motors, Overflow_Protected => Selection.Overflow_Protected);
+      Gyro_Settings.Motor_Telemetry := Adaflight.STM32.Motors.Telemetry_Configured (Config);
       Adaflight.Gyro_Filters.Init (Gyro_State, Gyro_Settings);
       if Gyro_Report.Acc_Sample_Rate_Hz in 1 .. 10_000 then
          Acc_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
@@ -1815,16 +1816,23 @@ package body Adaflight.STM32.Flight is
    end Counts;
 
    --  The filter task: the DShot telemetry's replies decoded, then the
-   --  loop's filtering without throttle or motor frequencies yet, then the
-   --  filtered rates into the raw readings reply.
+   --  loop's filtering with the motors' frequencies and without the
+   --  throttle yet, then the filtered rates into the raw readings reply.
    procedure Run_Filter (Now_Us : Scheduler.Time_Us) is
       Multiplier : constant Float := Scheduler.Cycle_Time_Multiplier (Sched, Sched_Settings);
       Scale      : constant Adaflight.RPM_Filter.Cycle_Multiplier := Float'Max (0.25, Float'Min (4.0, Multiplier));
-      No_Motors  : constant Adaflight.RPM_Filter.Motor_Frequencies := (others => 0.0);
+      Motor_Hz   : Adaflight.RPM_Filter.Motor_Frequencies;
    begin
       Adaflight.STM32.DShot_Output.Update_Telemetry;
+      declare
+         F : constant Adaflight.DShot.Frequencies := Adaflight.STM32.DShot_Output.Frequencies;
+      begin
+         for M in Motor_Hz'Range loop
+            Motor_Hz (M) := Float'Max (0.0, Float'Min (Adaflight.RPM_Filter.Motor_Frequency'Last, F (M)));
+         end loop;
+      end;
       Adaflight.Gyro_Filters.Filter (Gyro_State, Gyro_Settings, Now_Us, Throttle_Percent => 0,
-                                     Motor_Hz => No_Motors, Dt_Scale => Scale);
+                                     Motor_Hz => Motor_Hz, Dt_Scale => Scale);
       for I in Adaflight.MSP_Out.Axis loop
          Ctx.Out_Views.State.IMU.Gyro_Dps (I) := Counts (Gyro_State.Filtered (Adaflight.Axes.Axis'Val (I)));
       end loop;
@@ -1914,6 +1922,8 @@ package body Adaflight.STM32.Flight is
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
       Sensed.Motor_Protocol_Enabled := Adaflight.STM32.Motors.Count > 0;
+      Sensed.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      Sensed.DShot_Telemetry_Active := Adaflight.STM32.DShot_Output.Telemetry_Active;
       Sensed.Late_Permille := Scheduler.CPU_Percentage_Late (Sched);
       Sensed.PID_Sums := Adaflight.STM32.Control.PID_Sums;
       for A in Adaflight.Axes.Axis loop
@@ -2105,6 +2115,9 @@ package body Adaflight.STM32.Flight is
       if Adaflight.Arming."/=" (Step.Telemetry_Ports, Adaflight.Arming.No_Port_Change) then
          Check_Telemetry;
       end if;
+      if Step.Telemetry_Cleans > 0 then
+         Adaflight.STM32.DShot_Output.Clean_Telemetry;
+      end if;
       for I in 1 .. Natural'Min (Step.DShot_Commands.Count, Adaflight.Arming.Command_Slot'Last) loop
          Adaflight.STM32.DShot_Output.Write_Command
            (Adaflight.DShot_Command.All_Motors, Adaflight.STM32.Control.Motor_Count,
@@ -2221,7 +2234,7 @@ package body Adaflight.STM32.Flight is
          Use_3D_Speed  => G.Use_3D_Speed);
       F.GPS_Feature := Adaflight.STM32.GPS.Enabled;
       F.Conditions.Has_Servos := Adaflight.STM32.Control.Uses_Servos;
-      F.Conditions.DShot_Telemetry := False;
+      F.Conditions.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
       F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
       F.Surface_Raw := Adaflight.STM32.Rangefinder.Raw_Altitude_Cm;

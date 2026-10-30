@@ -134,6 +134,18 @@ package body Adaflight.STM32.DShot_Output is
    function Telemetry return Adaflight.DShot.Telemetry is (Telemetry_State);
    function Counts return Adaflight.DShot.Read_Counts is (Read_Counts);
    function Qualities return Adaflight.DShot.Qualities is (Quality);
+   function Frequencies return Adaflight.DShot.Frequencies is (Telemetry_State.Frequency);
+   function Min_Frequency return Float is (Telemetry_State.Min_Frequency);
+   function Rpm_Average return Adaflight.DShot.Rpm_Value is (Telemetry_State.Rpm_Average);
+   function Erpm (M : Adaflight.DShot.Motor_Index) return Interfaces.Unsigned_16 is
+     (Telemetry_State.Motors (M).Values (Adaflight.DShot.Erpm));
+   function Telemetry_Active return Boolean is (Adaflight.DShot.Active (Telemetry_State));
+
+   procedure Clean_Telemetry is
+   begin
+      Adaflight.DShot.Clean (Telemetry_State);
+      Read_Counts := (others => <>);
+   end Clean_Telemetry;
 
    type Table is null record;
 

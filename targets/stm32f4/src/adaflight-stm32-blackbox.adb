@@ -8,6 +8,7 @@ with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Stream_Buffers;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.Pilot;
@@ -252,6 +253,9 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Main.Motor := (others => 0.0);
       for M in 0 .. Motors - 1 loop
          In_Flight.Main.Motor (M) := Logged (Adaflight.STM32.Control.Motors (M));
+      end loop;
+      for M in 0 .. Motors - 1 loop
+         In_Flight.Main.ERPM (M) := Adaflight.STM32.DShot_Output.Erpm (M);
       end loop;
       In_Flight.Main.Motor_Output_Low := Logged (Adaflight.STM32.Control.Output_Low);
       for X in Core.Servo_Index loop

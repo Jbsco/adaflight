@@ -11864,3 +11864,16 @@ for each throttle step above the first, so the host smoke reads the telemetry of
 and RPM, the stopped motors at zero, and no invalid reply. The RPM filter, the dynamic idle, the arming check and the
 flight log's RPM fields take the telemetry in the next increment. The Kakute F7 image builds at 649476 bytes of code and
 the CLRacing F4S one at 651484. The host smoke, style and the vectors pass.
+
+## D526. DShot telemetry for the RPM filter, the dynamic idle and arming (2026-10-29)
+
+The motors' DShot telemetry feeds the flight path's consumers of the reference. The RPM filter takes the motors'
+filtered frequencies each filter task, the dynamic idle the slowest motor's frequency and the RPM limiter the average
+RPM each mixer pass, arming waits while bidirectional DShot runs and a motor does not report, an arming clears the
+replies and the read counts when the ESC sensor is off, and the flight log's header and RPM fields take the driver's
+telemetry flag and each motor's eRPM. The reference sets that flag at the start of its DShot device setup, ahead of the
+gyro filters and the PID setup that read it, so the port takes it from the configuration before its loop units start:
+the configured telemetry with a DShot protocol on an output that captures the replies, which the boards' timer driver
+does not yet do (D525). The host smoke checks that arming does not wait for the telemetry when every motor reports. The
+Kakute F7 image builds at 649956 bytes of code and the CLRacing F4S one at 651964. The host smoke, style and the vectors
+pass.
