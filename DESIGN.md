@@ -11916,3 +11916,13 @@ both DMA controllers, at the lowest interrupt priority as the other handlers.
 The capture runs only on hardware: the host's motors model the replies (D525) and the vectors check the read and the
 decode (D523, D524), so this driver waits for a bench check on the Kakute F7 and the CLRacing F4S. The Kakute F7 image
 builds at 654748 bytes of code and the CLRacing F4S one at 657268. The host smoke, style and the vectors pass.
+
+## D530. Bit-band sample decode on the F4 (2026-10-30)
+
+The reference's F4 builds decode a bit-banged port's reply samples through the processor's bit-band alias, one word per
+sample bit, with its own edge search that alternates between rising and falling edges, where the F7 builds compare each
+sample with the last level (D58). The port keeps the one sample decode for both. The bit-band decode oracle runs the
+reference's F4 decode on a 32-bit host, as the board's pointers wrap, over an emulated alias region, with the draws of
+the sample decode family, and the port's decode gives its results, preamble skips, margins and check times on all of
+them. Its unrolled reads past the edge in reach do not change a result, since an edge only counts with a sample after it
+within reach.
