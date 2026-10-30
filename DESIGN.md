@@ -11915,3 +11915,36 @@ controllers, at lowest interrupt priority like other handlers.
 Capture runs only on hardware. Host motors model replies (D525), and vectors check read and decode (D523, D524), so this
 driver waits for a bench check on Kakute F7 and CLRacing F4S. Kakute F7 image builds at 654748 bytes of code and
 CLRacing F4S image at 657268. Host smoke, style and vectors pass.
+
+## D530. Bit-band sample decode on F4 (2026-10-30)
+
+Reference F4 builds decode a bit-banged port's reply samples through the processor's bit-band alias, one word per sample
+bit, with an edge search alternating between rising and falling edges. F7 builds compare each sample with its last level
+(D58). Adaflight keeps one sample decode for both. A bit-band decode oracle runs reference F4 decode on a 32-bit host,
+since board pointers wrap, over an emulated alias region with draws of the sample decode family, and adaflight's decode
+gives its results, preamble skips, margins and check times on all of them. Its unrolled reads past an edge in reach
+change no result, since an edge counts only with a sample after it within reach.
+
+## D531. Bit-banged DShot port buffers (2026-10-30)
+
+`Adaflight.DShot_Bitbang` builds a GPIO port's output buffer for reference bit-banged DShot: three words per bit, which
+a timer-paced DMA stream writes into its port's bit set and reset register, and three hold words after each frame. Each
+motor pin adds its set word at every bit start and its reset word at every bit end, inverted output swapping halves,
+with middles and last two hold words cleared. Each update clears middles, then every motor frame sets its pin's middle
+at each zero bit, so a pin falls a third of its way into a zero and two thirds into a one. SPARK proves buffer indices.
+An output oracle extracts all three builders from driver source at build time and draws port pins and inversion with
+three updates of frames. Its family holds four seeds of 200 cases.
+
+## D532. Bit-banged DShot reply read (2026-10-30)
+
+`Adaflight.DShot_Bitbang.Read_Replies` reads motor replies after a bit-banged frame. Each motor in order whose port
+finished sampling decodes its pin from port samples through sample decode (D58), one decoder memory serving every motor.
+A reply found counts a read and keeps its value, or marks extended telemetry acknowledged when its value is an
+acknowledgement and its motor's command enables it, or counts an invalid reply. Each found reply counts in motor
+quality, and a pin without a reply counts nothing. Raw values then wait for processing, and used ports' abort marks
+clear. A read takes one clock reading for every motor decode, where reference reads its clock at each decode, so
+half-second margin checks can move by microseconds between two decodes. SPARK proves indices, decoded value range and
+cleared marks. A read oracle extracts reference read from driver source at build time over sample decode and quality
+count, and draws ports, pins, aborted waits, short sample counts and commands with steps of replies, invalid and garbage
+samples and steady lines. Its family holds two seeds of 20 cases of 10 steps, and ten mutations of the read each fail
+it.
