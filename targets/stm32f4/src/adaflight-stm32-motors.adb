@@ -563,6 +563,8 @@ package body Adaflight.STM32.Motors is
 
    function Bitbang_On return Boolean is (BB_On);
 
+   function Bitbang_Setup return BB.Setup is (BB_Setup);
+
    function Bitbang_OK return Boolean is (BB."=" (BB_Status, BB.OK));
 
    --  The setup over the configuration's pins and settings, the timer map's

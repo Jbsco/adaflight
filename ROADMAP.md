@@ -30,7 +30,7 @@ Silver with no assume, and pass the gates on `main`.
   `targets/host` runs flight software on host, its UARTs and USB port on TCP ports. `targets/stm32f7`
   builds STM32F7 images. Then H7 and other families Betaflight runs on, plus a physics simulator link
   for host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot on timers and
-  bit-banged on GPIO ports, bit-banged owners in timer and dma listings still to come.
+  bit-banged on GPIO ports, ADC on DMA still to come.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the

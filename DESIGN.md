@@ -12000,3 +12000,13 @@ data cache, where reference cleans and invalidates cache lines.
 
 This driver runs only on hardware and waits for a bench check on Kakute F7 and CLRacing F4S. Host keeps its timer DShot
 model. Command line timer and dma listings do not show bit-banged owners yet.
+
+## D536. Bit-banged owners in timer and DMA listings (2026-10-30)
+
+`dma show` names each stream's owner among drivers adaflight runs on DMA: a motor by its number, LED strip, or a
+bit-banged group by its port's number, else FREE. `timer show` names for each channel its first map entry that holds it,
+with owner and ordinal, else a bit-banged group the channel paces, by port number. Flight code fills owners after
+bit-banged post start, once servos and LED strip hold their timers. It took timer owners right after motors before, so
+listings left out servos and strip, and a free map entry ahead of a held one on one channel hid the held one. Setup
+oracle prints reference listings for each case over map owners, LED strip streams and setup groups, and adaflight's
+listings match them. Reference `dma show` also names ADC, SPI and UART streams, which adaflight does not run on DMA.

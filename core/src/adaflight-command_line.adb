@@ -6902,26 +6902,31 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Dump_Every_Profile;
 
-   --  The DMA streams, each with the motor it drives or free.
+   --  The DMA streams, each with its owner and the owner's index when it
+   --  has one, or free.
    procedure Put_DMA (Into : in out Output; Env : Environment)
      with Global => null
    is
    begin
       Put (Into, CRLF & "Currently active DMA:" & CRLF & "--------------------" & CRLF);
-      for K in Env.DMA_Motors'Range loop
+      for K in Env.DMA_Owners'Range loop
          pragma Loop_Invariant (True);
          Put (Into, "DMA");
          Put_Decimal (Into, Integer_64 ((K - 1) / 8 + 1));
          Put (Into, " Stream ");
          Put_Decimal (Into, Integer_64 ((K - 1) mod 8));
          Put (Into, ":");
-         if Env.DMA_Motors (K) > 0 then
-            Put (Into, " MOTOR ");
-            Put_Decimal (Into, Integer_64 (Env.DMA_Motors (K)));
-            Put (Into, CRLF);
-         else
-            Put (Into, " FREE" & CRLF);
+         case Env.DMA_Owners (K).Kind is
+            when Free    => Put (Into, " FREE");
+            when Motor   => Put (Into, " MOTOR");
+            when Strip   => Put (Into, " LED_STRIP");
+            when Bitbang => Put (Into, " DSHOT_BITBANG");
+         end case;
+         if Env.DMA_Owners (K).Kind /= Free and then Env.DMA_Owners (K).Index > 0 then
+            Put (Into, " ");
+            Put_Decimal (Into, Integer_64 (Env.DMA_Owners (K).Index));
          end if;
+         Put (Into, CRLF);
       end loop;
    end Put_DMA;
 
@@ -7393,9 +7398,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Put_DMA_Dump;
 
-   --  The active timers: each timer with the channels the map's held entries
-   --  configure on it, the first entry of a channel naming its owner with the
-   --  owner's ordinal, or FREE.
+   --  The active timers: each timer with its channels' owners, the first held
+   --  map entry of a channel naming its owner with the owner's ordinal, else
+   --  a bit-banged group's pacer channel naming the group's port, or FREE.
    procedure Put_Timer_Show (Into : in out Output; C : Configuration; Env : Environment)
      with Global => null
    is
@@ -7406,12 +7411,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
          pragma Loop_Invariant (True);
          declare
             Used : Boolean := False;
+            Held : Boolean;
          begin
             Put (Into, "TIM");
             Put_Decimal (Into, Integer_64 (T));
             Put (Into, ":");
             for Ch in Timer_Tables.Channel_Number loop
                pragma Loop_Invariant (True);
+               Held := False;
                for I in C.Timer_Io_Config'Range loop
                   pragma Loop_Invariant (True);
                   declare
@@ -7420,27 +7427,43 @@ package body Adaflight.Command_Line with SPARK_Mode is
                          (C.Timer_Io_Config (I).Io_Tag, Natural (C.Timer_Io_Config (I).Index));
                   begin
                      if K > 0 and then Timer_Tables.Channels (K).Timer = T
-                       and then Timer_Tables.Channels (K).Channel = Ch
+                       and then Timer_Tables.Channels (K).Channel = Ch and then Env.Timer_Owners (I).Held
                      then
-                        if Env.Timer_Owners (I).Held then
-                           if not Used then
-                              Used := True;
-                              Put (Into, CRLF);
-                           end if;
-                           Put (Into, "    CH");
-                           Put_Decimal (Into, Integer_64 (Ch));
-                           Put (Into, (if Timer_Tables.Channels (K).N then "N: " else " : "));
-                           Put (Into, R.Name (Env.Timer_Owners (I).Owner));
-                           if Env.Timer_Owners (I).Ordinal > 0 then
-                              Put (Into, " ");
-                              Put_Decimal (Into, Integer_64 (Env.Timer_Owners (I).Ordinal));
-                           end if;
+                        if not Used then
+                           Used := True;
                            Put (Into, CRLF);
                         end if;
+                        Put (Into, "    CH");
+                        Put_Decimal (Into, Integer_64 (Ch));
+                        Put (Into, (if Timer_Tables.Channels (K).N then "N: " else " : "));
+                        Put (Into, R.Name (Env.Timer_Owners (I).Owner));
+                        if Env.Timer_Owners (I).Ordinal > 0 then
+                           Put (Into, " ");
+                           Put_Decimal (Into, Integer_64 (Env.Timer_Owners (I).Ordinal));
+                        end if;
+                        Put (Into, CRLF);
+                        Held := True;
                         exit;
                      end if;
                   end;
                end loop;
+               if not Held then
+                  for P of Env.Pacers loop
+                     pragma Loop_Invariant (True);
+                     if P.Port > 0 and then P.Timer = T and then P.Channel = Ch then
+                        if not Used then
+                           Used := True;
+                           Put (Into, CRLF);
+                        end if;
+                        Put (Into, "    CH");
+                        Put_Decimal (Into, Integer_64 (Ch));
+                        Put (Into, " : DSHOT_BITBANG ");
+                        Put_Decimal (Into, Integer_64 (P.Port));
+                        Put (Into, CRLF);
+                        exit;
+                     end if;
+                  end loop;
+               end if;
             end loop;
             if not Used then
                Put (Into, " FREE" & CRLF);
