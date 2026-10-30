@@ -39363,12 +39363,30 @@ procedure Vector_Check is
       MX_Op ("complete");
    end DC_Complete;
 
+   --  The bit-banged driver's port buffer clear and reply wait, which the
+   --  timer driver does not have.
+   DC_Bitbang : Boolean := False;
+
+   procedure DC_Update_Init (T : in out DC_Table) is
+      pragma Unreferenced (T);
+   begin
+      MX_Op ("init");
+   end DC_Update_Init;
+
+   procedure DC_Telemetry_Wait (T : in out DC_Table) is
+      pragma Unreferenced (T);
+   begin
+      MX_Op ("wait");
+   end DC_Telemetry_Wait;
+
    package DC_Blocking is new Adaflight.DShot_Command.Blocking_Run
      (Motor_Table       => DC_Table,
       Delay_Us          => DC_Delay,
       Decode_Telemetry  => DC_Decode,
+      Update_Init       => DC_Update_Init,
       Request_Telemetry => DC_Request_Telemetry,
       Write_Int         => DC_Write,
+      Telemetry_Wait    => DC_Telemetry_Wait,
       Update_Complete   => DC_Complete);
 
    procedure Check_DShot_Command_Line is
@@ -39398,7 +39416,7 @@ procedure Vector_Check is
             DC_Idle;
             Write (DC_Q, DC_Facts, Interfaces.Unsigned_8 (Int (4)), Motor_Count (Int (5)),
                    Interfaces.Unsigned_8 (Int (6)), (if Int (7) = 1 then Blocking else Inline), Plan);
-            DC_Blocking.Run (DC_Q, DC_Motors, Plan);
+            DC_Blocking.Run (DC_Q, DC_Motors, Plan, DC_Bitbang);
          end;
       elsif Name = "dcupdate" then
          declare
@@ -39579,7 +39597,8 @@ procedure Vector_Check is
                   Check_Text_Line;
                elsif Kind = "dshot" then
                   Check_DShot_Line;
-               elsif Kind = "dshotcmd" then
+               elsif Kind = "dshotcmd" or else Kind = "dshotcmdbb" then
+                  DC_Bitbang := Kind = "dshotcmdbb";
                   Check_DShot_Command_Line;
                elsif Kind = "crsftlm" then
                   Check_CRSF_Telemetry_Line;
@@ -40063,6 +40082,7 @@ begin
    Run (Dir & "/bbread.csv", "bbread");
    Run (Dir & "/bbsetup.csv", "bbsetup");
    Run (Dir & "/dshotcmd.csv", "dshotcmd");
+   Run (Dir & "/dshotcmdbb.csv", "dshotcmdbb");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
    Run (Dir & "/sport.csv", "sport");
