@@ -73,7 +73,7 @@ package body Adaflight.STM32.Motors is
             Index : Natural;
             Found : Boolean;
          begin
-            Allocate (Dev.Io_Tags (Order), Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => M + 1);
+            Allocate (Dev.Io_Tags (Order), Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => Order + 1);
             if not Found or else (not Analog and then Option_Of (Index) < 0) then
                Driven := 0;
                return;
