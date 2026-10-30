@@ -13,6 +13,12 @@ package Adaflight.DShot_Table_Steps with SPARK_Mode is
    procedure Step_Decode (T : in out Table)
      with Global => null;
 
+   procedure Step_Init (T : in out Table)
+     with Global => null;
+
+   procedure Step_Wait (T : in out Table)
+     with Global => null;
+
    procedure Step_Request (T : in out Table; Index : Adaflight.DShot_Command.Motor_Index)
      with Global => null;
 

@@ -120,6 +120,9 @@ package body Adaflight.STM32.LED_Strip is
       return Configured and then (DMA.CR and EN) = 0;
    end Ready;
 
+   function Stream_Number return Natural is
+     (if Configured then (Stream.Controller - 1) * 8 + Stream.Stream + 1 else 0);
+
    procedure Send (Colors : Adaflight.LED_Strip.Led_Output) is
       Bits : constant Natural := W.Bits (Strip_Format);
       Regs : Timer_Registers with Import, Address => Timer_Base (Channel.Timer);

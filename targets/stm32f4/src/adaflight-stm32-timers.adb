@@ -27,6 +27,7 @@ package body Adaflight.STM32.Timers is
    end Load;
 
    function Owners return Adaflight.CLI_Resources.Timer_Owner_List is (Table.Owners);
+   function Allocation return Adaflight.Timer_Allocation.Table is (Table);
    function Option_Of (Slot : Adaflight.Timer_Allocation.Slot) return Integer is
      (Integer (Adaflight.Timer_Allocation.Option_Of (Table, Slot)));
 
