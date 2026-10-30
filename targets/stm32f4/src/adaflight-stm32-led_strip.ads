@@ -12,6 +12,9 @@ package Adaflight.STM32.LED_Strip is
    procedure Init (C : Adaflight.Config_Groups.Configuration);
    --  Whether the strip has its channel and the last transfer is done.
    function Ready return Boolean;
+   --  The strip's DMA stream, numbered from 1 for the first controller's
+   --  stream 0, or 0 without a strip.
+   function Stream_Number return Natural;
    --  The LEDs' colors written to the strip.
    procedure Send (Colors : Adaflight.LED_Strip.Led_Output);
 end Adaflight.STM32.LED_Strip;

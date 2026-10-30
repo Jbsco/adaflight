@@ -1,3 +1,4 @@
+with Adaflight.DShot_Bitbang;
 with Adaflight.DShot_Command.Blocking_Run;
 with Adaflight.MSP_Motor_In;
 with Adaflight.STM32.Motors;
@@ -14,10 +15,14 @@ package body Adaflight.STM32.DShot_Output is
    --  request for the next frame.
    Last      : array (Motor_Index) of Interfaces.Unsigned_16 := (others => 0);
    Requests  : array (Motor_Index) of Boolean := (others => False);
-   --  The motors' telemetry, its read counts and their reply quality.
+   --  The motors' telemetry, its read counts and their reply quality, and
+   --  for the bit-banged driver the ports' samples with their aborted waits
+   --  and the sample decoder's memory.
    Telemetry_State : Adaflight.DShot.Telemetry;
    Read_Counts     : Adaflight.DShot.Read_Counts;
    Quality         : Adaflight.DShot.Qualities;
+   Port_Inputs     : Adaflight.DShot_Bitbang.Port_Inputs;
+   Decoder         : Adaflight.DShot.Edge_Decoder;
 
    procedure Init (C : Adaflight.Config_Groups.Configuration) is
    begin
@@ -107,6 +112,24 @@ package body Adaflight.STM32.DShot_Output is
          Looptime => Adaflight.DShot.Looptime_Us (Natural'Min (Looptime_Us, 2 ** 20)));
    end Init_Telemetry;
 
+   --  The bit-banged read of the replies the ports sampled after the last
+   --  frames.
+   procedure Read_Ports is
+      Commands   : Adaflight.DShot.Command_List;
+      Used       : Adaflight.DShot_Bitbang.Port_Total;
+      Pins       : Adaflight.DShot_Bitbang.Motor_Pins;
+      Configured : Adaflight.DShot.Motor_Total;
+      Now_Ms     : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Millis;
+   begin
+      Adaflight.STM32.Motors.Port_Samples (Port_Inputs, Used, Pins, Configured);
+      for M in Motor_Index loop
+         Commands (M) := Get_Current (Queue, M);
+      end loop;
+      Adaflight.DShot_Bitbang.Read_Replies
+        (Telemetry_State, Read_Counts, Quality, Decoder, Port_Inputs, Used, Pins, Configured,
+         Adaflight.STM32.Motors.Telemetry_On, Commands, Adaflight.STM32.Time.Micros, Now_Ms);
+   end Read_Ports;
+
    procedure Read_Telemetry (Done : out Boolean) is
       C         : Adaflight.DShot.Captures;
       Stamp     : Interfaces.Unsigned_32;
@@ -114,6 +137,11 @@ package body Adaflight.STM32.DShot_Output is
       Processed : Adaflight.DShot.Motor_Total;
       Now_Ms    : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Millis;
    begin
+      if Adaflight.STM32.Motors.Bitbang_On then
+         Read_Ports;
+         Done := True;
+         return;
+      end if;
       Adaflight.STM32.Motors.Captures (C, Stamp);
       for M in Motor_Index loop
          Commands (M) := Get_Current (Queue, M);
@@ -165,13 +193,13 @@ package body Adaflight.STM32.DShot_Output is
    procedure Table_Init (T : in out Table) is
       pragma Unreferenced (T);
    begin
-      null;
+      Adaflight.STM32.Motors.Update_Init;
    end Table_Init;
 
    procedure Table_Wait (T : in out Table) is
       pragma Unreferenced (T);
    begin
-      null;
+      Adaflight.STM32.Motors.Telemetry_Wait (Port_Inputs);
    end Table_Wait;
 
    procedure Table_Request (T : in out Table; Index : Motor_Index) is
@@ -214,7 +242,7 @@ package body Adaflight.STM32.DShot_Output is
       T    : Table;
    begin
       Write (Queue, Facts, Index, Natural'Min (Motors, Max_Motors), Command, Kind, Plan);
-      Blocking_Commands.Run (Queue, T, Plan, Bitbang => False);
+      Blocking_Commands.Run (Queue, T, Plan, Bitbang => Adaflight.STM32.Motors.Bitbang_On);
    end Write_Command;
 
    procedure Request_Telemetry (Index : Natural) is
@@ -242,7 +270,11 @@ package body Adaflight.STM32.DShot_Output is
          Adaflight.STM32.Motors.Complete_Pulses;
          return;
       end if;
-      Read_Telemetry (Done);
+      if Adaflight.STM32.Motors.Bitbang_On then
+         Adaflight.STM32.Motors.Update_Init;
+      else
+         Read_Telemetry (Done);
+      end if;
       for M in 0 .. Driven - 1 loop
          declare
             Clamped : constant Float := Float'Max (0.0, Float'Min (2_047.0, Float (Values (M))));
@@ -250,6 +282,12 @@ package body Adaflight.STM32.DShot_Output is
             Write_Int (Queue, M, Interfaces.Unsigned_16 (Float'Unbiased_Rounding (Clamped)));
          end;
       end loop;
-      Complete (Queue);
+      if Adaflight.STM32.Motors.Bitbang_On then
+         Adaflight.STM32.Motors.Telemetry_Wait (Port_Inputs);
+         Complete (Queue);
+         Read_Ports;
+      else
+         Complete (Queue);
+      end if;
    end Write_All;
 end Adaflight.STM32.DShot_Output;

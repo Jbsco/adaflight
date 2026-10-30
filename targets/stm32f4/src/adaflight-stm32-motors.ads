@@ -9,10 +9,14 @@
 --  OneShot, MultiShot and brushed a write sets the compare register to the
 --  motor value's pulse, and without continuous updates each timer's first
 --  motor forces an overflow that starts the pulses before the registers
---  clear.
+--  clear. The bit-banged DShot driver instead groups the motors by GPIO
+--  port: a TIM8 or TIM1 channel paces each group's stream, which writes the
+--  frames' set and reset words into the port, three a bit, and with
+--  bidirectional DShot samples the port's input register for the replies.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.DShot;
+with Adaflight.DShot_Bitbang;
 with Adaflight.MSP_Motor_In;
 package Adaflight.STM32.Motors is
    --  The outputs of the mixer's motors from the configuration; every motor
@@ -61,4 +65,22 @@ package Adaflight.STM32.Motors is
    --  The first Processed motors leave input, in order, and with Done the
    --  channels go back to output and the switch time clears.
    procedure Leave_Input (Processed : Natural; Done : Boolean);
+   --  Whether the configuration chooses the bit-banged driver, whether the
+   --  driver runs, and whether its setup gave every motor a group.
+   function Bitbang_Active (C : Adaflight.Config_Groups.Configuration) return Boolean;
+   function Bitbang_On return Boolean;
+   function Bitbang_OK return Boolean;
+   --  The bit-banged groups' pacers, streams and periods, once the other
+   --  owners took their timers and the LED strip its stream.
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural);
+   --  The groups' frames cleared before an update's writes.
+   procedure Update_Init;
+   --  The wait before an update until no group still samples its replies, or
+   --  the reply timeout, which marks the groups still sampling as aborted.
+   procedure Telemetry_Wait (Ports : in out Adaflight.DShot_Bitbang.Port_Inputs);
+   --  The groups' samples for the read, the groups in use, each motor's
+   --  group and pin, and the motors set up, in order from the first.
+   procedure Port_Samples
+     (Ports : in out Adaflight.DShot_Bitbang.Port_Inputs; Used : out Adaflight.DShot_Bitbang.Port_Total;
+      Pins : out Adaflight.DShot_Bitbang.Motor_Pins; Configured : out Adaflight.DShot.Motor_Total);
 end Adaflight.STM32.Motors;

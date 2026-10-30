@@ -175,6 +175,7 @@ package Adaflight.STM32.Timers is
    --  The map entries' owners with their ordinals, and an entry's DMA
    --  option, minus one for none.
    function Owners return Adaflight.CLI_Resources.Timer_Owner_List;
+   function Allocation return Adaflight.Timer_Allocation.Table;
    function Option_Of (Slot : Adaflight.Timer_Allocation.Slot) return Integer;
 
    --  A timer's clock on.

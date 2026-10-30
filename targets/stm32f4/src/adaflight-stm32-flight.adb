@@ -1939,6 +1939,8 @@ package body Adaflight.STM32.Flight is
       Sensed.Motor_Protocol_Enabled := Adaflight.STM32.Motors.Count > 0;
       Sensed.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       Sensed.DShot_Telemetry_Active := Adaflight.STM32.DShot_Output.Telemetry_Active;
+      Sensed.Bitbang_Active := Adaflight.STM32.Motors.Bitbang_Active (Config);
+      Sensed.Bitbang_OK := Adaflight.STM32.Motors.Bitbang_OK;
       Sensed.Late_Permille := Scheduler.CPU_Percentage_Late (Sched);
       Sensed.PID_Sums := Adaflight.STM32.Control.PID_Sums;
       for A in Adaflight.Axes.Axis loop
@@ -4047,6 +4049,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.LED_Strip.Init (Strip, Strip_Settings, Strip_Layout);
          Adaflight.STM32.LED_Strip.Send (Strip.Output);
       end if;
+      Adaflight.STM32.Motors.Post_Init (Config, Adaflight.STM32.LED_Strip.Stream_Number);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
