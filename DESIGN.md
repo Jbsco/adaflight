@@ -11897,3 +11897,21 @@ the same owner on a pin whatever the output order. The motor setups gave the mix
 which differed from the reference once the order changed. The host smoke swaps the first two outputs and checks the
 listing. The Kakute F7 image builds at 650468 bytes of code and the CLRacing F4S one at 652988, as in D527. The host
 smoke, style and the vectors pass.
+
+## D529. DShot input capture on timers (2026-10-29)
+
+STM32 timer DShot captures each motor's telemetry reply. With bidirectional DShot and a DShot protocol, frames go out
+inverted with an inverted checksum, each pin keeps its configured inversion's pull, and each compare register starts at
+its top so lines idle high. A motor's stream raises its transfer complete interrupt, whose handler stops stream and
+timer request, waits for the stream to stop, clears its flags and turns it to peripheral-to-memory without interrupt.
+The handler then notes when a first motor switched, sets its timer counting to top and its channel to input capture at
+both edges with a two-sample filter, and restarts its stream for 22 edges with request on. A read before motor writes
+(D524, D525) takes each motor's edges from its stream's remaining count and buffer, stops each input motor's request,
+resets its stream to memory-to-peripheral with interrupt, and sets its channel back to PWM. Once every motor is read,
+switch time clears and channel outputs go on, and next transfers reload periods. Deadtime is 35 microseconds plus
+sixteen bits at protocol bit clock. Handlers cover every stream a motor's timer channel can use on F405, on both DMA
+controllers, at lowest interrupt priority like other handlers.
+
+Capture runs only on hardware. Host motors model replies (D525), and vectors check read and decode (D523, D524), so this
+driver waits for a bench check on Kakute F7 and CLRacing F4S. Kakute F7 image builds at 654748 bytes of code and
+CLRacing F4S image at 657268. Host smoke, style and vectors pass.
