@@ -37611,6 +37611,97 @@ procedure Vector_Check is
                   Integer_64 (Adaflight.DShot.Decode_Edges (Buffer, Adaflight.DShot.Edge_Count (Count))));
    end Check_DShot_Capture_Line;
 
+   --  The DShot telemetry read after a frame: each step's captures, inputs
+   --  and clocks, then the result, the counts, the motors' replies and
+   --  quality, and the saved edges.
+   DR_T      : Adaflight.DShot.Telemetry;
+   DR_Counts : Adaflight.DShot.Read_Counts;
+   DR_Q      : Adaflight.DShot.Qualities;
+   DR_C      : Adaflight.DShot.Captures;
+
+   procedure Check_DShot_Read_Line is
+      package D renames Adaflight.DShot;
+      N         : constant Natural := Natural (Int (5));
+      Commands  : D.Command_List := (others => 0);
+      Stamp     : Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (9));
+      Processed : D.Motor_Total;
+      Done      : Boolean;
+
+      --  The colon-separated numbers of a field.
+      procedure Numbers (Text : String; Values : out D.Input_Buffer; Head : out D.Input_Buffer; Shown : out Natural) is
+         Start : Positive := Text'First;
+         K     : Natural := 0;
+      begin
+         Values := (others => 0);
+         Head := (others => 0);
+         Shown := 0;
+         for I in Text'First .. Text'Last + 1 loop
+            if I > Text'Last or else Text (I) = ':' then
+               declare
+                  V : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32'Value (Text (Start .. I - 1));
+               begin
+                  if K < 4 then
+                     Head (K) := V;
+                  else
+                     Values (K - 4) := V;
+                     Shown := Shown + 1;
+                  end if;
+               end;
+               K := K + 1;
+               Start := I + 1;
+            end if;
+         end loop;
+      end Numbers;
+   begin
+      if Int (4) = 0 then
+         DR_T.Motors := (others => <>);
+         DR_T.State := D.Invalid;
+         DR_Counts := (others => <>);
+         DR_Q := (others => <>);
+         DR_C := (others => <>);
+      end if;
+      for M in 0 .. N - 1 loop
+         declare
+            Head   : D.Input_Buffer;
+            Values : D.Input_Buffer;
+            Shown  : Natural;
+         begin
+            Numbers (Str (10 + M), Values, Head, Shown);
+            DR_C (M).Input := Head (0) /= 0;
+            DR_C (M).Deadtime := Interfaces.Integer_32 (Head (1));
+            DR_C (M).Edges := D.Input_Count (D.Input_Length - Natural (Head (2)));
+            DR_C (M).Buffer := Values;
+            Commands (M) := Interfaces.Unsigned_8 (Head (3));
+         end;
+      end loop;
+      D.Read_Replies (DR_T, DR_Counts, DR_Q, DR_C, N, Int (6) /= 0, Commands, Interfaces.Unsigned_32 (Int (7)),
+                      Interfaces.Unsigned_32 (Int (8)), Stamp, Processed, Done);
+      Record_Int ("dshotread.result", Int (10 + N), Boolean'Pos (Done));
+      Record_Int ("dshotread.reads", Int (11 + N), Integer_64 (DR_Counts.Reads));
+      Record_Int ("dshotread.invalids", Int (12 + N), Integer_64 (DR_Counts.Invalids));
+      Record_Int ("dshotread.state", Int (13 + N), D.Raw_State'Pos (DR_T.State));
+      Record_Int ("dshotread.stamp", Int (14 + N), Integer_64 (Stamp));
+      Record_Int ("dshotread.enables", Int (15 + N), (if Done and then Int (6) /= 0 then 1 else 0));
+      Record_Int ("dshotread.switched", Int (16 + N), 2 ** Processed - 1);
+      for M in 0 .. N - 1 loop
+         declare
+            Head   : D.Input_Buffer;
+            Values : D.Input_Buffer;
+            Shown  : Natural;
+         begin
+            Numbers (Str (17 + N + M) & ":0:0", Values, Head, Shown);
+            Record_Int ("dshotread.raw", Integer_64 (Head (0)), Integer_64 (DR_T.Motors (M).Raw));
+            Record_Int ("dshotread.types", Integer_64 (Head (1)), Integer_64 (DR_T.Motors (M).Received));
+            Record_Int ("dshotread.packets", Integer_64 (Head (2)), Integer_64 (DR_Q (M).Packet_Sum));
+            Record_Int ("dshotread.invalid_sum", Integer_64 (Head (3)), Integer_64 (DR_Q (M).Invalid_Sum));
+            Record_Int ("dshotread.bucket", Integer_64 (Values (0)), Integer_64 (DR_Q (M).Last_Bucket));
+         end;
+      end loop;
+      for K in 0 .. D.Input_Length - 1 loop
+         Record_Int ("dshotread.saved", Int (17 + 2 * N + K), Integer_64 (DR_Counts.Saved (K)));
+      end loop;
+   end Check_DShot_Read_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39590,6 +39681,8 @@ procedure Vector_Check is
                   Check_Timer_Alloc_Line;
                elsif Kind = "dshotcapture" then
                   Check_DShot_Capture_Line;
+               elsif Kind = "dshotread" then
+                  Check_DShot_Read_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39951,6 +40044,7 @@ begin
    Run (Dir & "/i2ctiming.csv", "i2ctiming");
    Run (Dir & "/timeralloc.csv", "timeralloc");
    Run (Dir & "/dshotcapture.csv", "dshotcapture");
+   Run (Dir & "/dshotread.csv", "dshotread");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
