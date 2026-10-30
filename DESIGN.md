@@ -11877,3 +11877,15 @@ the configured telemetry with a DShot protocol on an output that captures the re
 does not yet do (D525). The host smoke checks that arming does not wait for the telemetry when every motor reports. The
 Kakute F7 image builds at 649956 bytes of code and the CLRacing F4S one at 651964. The host smoke, style and the vectors
 pass.
+
+## D527. DShot telemetry in the OSD and MSP replies (2026-10-29)
+
+The motors' DShot telemetry reaches the reporting consumers. The OSD's ESC RPM and frequency elements, its average RPM
+statistic, its highest ESC temperature from each motor's hottest reply, its ESC temperature alarm and element, and the
+element list take the telemetry while bidirectional DShot runs. The ESC warning reads each reporting motor's eRPM,
+current and temperature, the last two only with the extended kinds, while the setting asks for DShot telemetry. The eRPM
+factor of the OSD's rates comes from the pole count when the ESC sensor or the telemetry setting is on. The MSP motor
+telemetry reply gives each motor's RPM, invalid share and extended values, and the ESC sensor data reply the temperature
+and RPM without the ESC sensor. The SRXL telemetry and the debug modes have no board path yet, so their telemetry inputs
+wait for them. The host smoke reads both MSP replies during a motor test. The Kakute F7 image builds at 650468 bytes of
+code and the CLRacing F4S one at 652988. The host smoke, style and the vectors pass.
