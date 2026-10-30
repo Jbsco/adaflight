@@ -296,6 +296,7 @@ with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Frames;
 with Adaflight.MAVLink_Mission;
 with Adaflight.MAVLink_Telemetry;
+with Adaflight.Sim_FDM;
 
 procedure Vector_Check is
 
@@ -37492,6 +37493,60 @@ procedure Vector_Check is
                                                   Natural (Int (6))));
    end Check_I2C_Timing_Line;
 
+   --  The simulator link's packet update: the reference SITL's state over a
+   --  sequence of drawn packets and clocks, for each bridge.
+   SimF_Seq   : Integer_64 := -1;
+   SimF_State : Adaflight.Sim_FDM.State;
+
+   procedure Check_Sim_FDM_Line is
+      package SF renames Adaflight.Sim_FDM;
+      use type SF.Outcome;
+      function Rate_Bits is new Ada.Unchecked_Conversion (Long_Float, Interfaces.Unsigned_64);
+      Key    : constant Integer_64 := Int (2) * 1_000 + Int (3);
+      Bridge : constant SF.Bridge := (if Int (2) = 1 then SF.Gazebo else SF.Legacy);
+      P      : SF.Packet;
+      Valid  : Boolean;
+      F      : SF.Feed;
+      R      : Interfaces.Unsigned_64;
+   begin
+      if Key /= SimF_Seq then
+         SimF_Seq := Key;
+         SimF_State := (others => <>);
+      end if;
+      SF.Decode (Hex_Bytes (5), P, Valid);
+      if not Valid then
+         Put_Line ("simfdm packet out of range at sequence " & Str (3) & " step " & Str (4));
+         Failures := Failures + 1;
+         return;
+      end if;
+      SF.Step (SimF_State, P, Bridge, Interfaces.Unsigned_64 (Int (6)), Interfaces.Unsigned_64 (Int (7)),
+               (Sec => Int (8), Nsec => Int (9)), F);
+      Record_Int ("simfdm.kind", Int (10), SF.Outcome'Pos (F.Kind));
+      for I in 1 .. 3 loop
+         Record_Int ("simfdm.acc", Int (10 + I), Integer_64 (F.Acc (I)));
+         Record_Int ("simfdm.gyro", Int (13 + I), Integer_64 (F.Gyro (I)));
+         Record_Int ("simfdm.mag", Int (22 + I), Integer_64 (F.Mag (I)));
+      end loop;
+      Record_Int ("simfdm.pressure", Int (17), Integer_64 (F.Pressure));
+      Record_Int ("simfdm.temperature", Int (18), (if F.Kind = SF.Update then SF.Temperature else 0));
+      for I in 1 .. 4 loop
+         Record_Result ("simfdm.attitude", Bits (18 + I), To_Bits (F.Attitude (I)));
+      end loop;
+      Record_Int ("simfdm.gps", Int (26), Boolean'Pos (F.GPS_Set));
+      Record_Int ("simfdm.lat", Int (27), Integer_64 (F.GPS.Lat));
+      Record_Int ("simfdm.lon", Int (28), Integer_64 (F.GPS.Lon));
+      Record_Int ("simfdm.alt", Int (29), Integer_64 (F.GPS.Alt_Cm));
+      Record_Int ("simfdm.speed", Int (30), Integer_64 (F.GPS.Ground_Speed));
+      Record_Int ("simfdm.speed3d", Int (31), Integer_64 (F.GPS.Speed_3D));
+      Record_Int ("simfdm.course", Int (32), Integer_64 (F.GPS.Course));
+      Record_Int ("simfdm.vel_n", Int (33), Integer_64 (F.GPS.Vel_North));
+      Record_Int ("simfdm.vel_e", Int (34), Integer_64 (F.GPS.Vel_East));
+      Record_Int ("simfdm.vel_d", Int (35), Integer_64 (F.GPS.Vel_Down));
+      R := Rate_Bits (SimF_State.Sim_Rate);
+      Record_Int ("simfdm.rate_hi", Int_Hex (36), Integer_64 (Interfaces.Shift_Right (R, 32)));
+      Record_Int ("simfdm.rate_lo", Int_Hex (37), Integer_64 (Interfaces."and" (R, 16#FFFF_FFFF#)));
+   end Check_Sim_FDM_Line;
+
    procedure Check_WS2811_Line is
       package W renames Adaflight.WS2811;
       Name : constant String := Str (1);
@@ -40047,6 +40102,8 @@ procedure Vector_Check is
                   Check_WS2811_Line;
                elsif Kind = "timeralloc" then
                   Check_Timer_Alloc_Line;
+               elsif Kind = "simfdm" then
+                  Check_Sim_FDM_Line;
                elsif Kind = "dshotcapture" then
                   Check_DShot_Capture_Line;
                elsif Kind = "dshotread" then
@@ -40423,6 +40480,7 @@ begin
    Run (Dir & "/i2ctiming.csv", "i2ctiming");
    Run (Dir & "/timeralloc.csv", "timeralloc");
    Run (Dir & "/dshotcapture.csv", "dshotcapture");
+   Run (Dir & "/simfdm.csv", "simfdm");
    Run (Dir & "/dshotread.csv", "dshotread");
    Check_Twiddles;
    New_Line;
