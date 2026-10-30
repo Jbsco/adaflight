@@ -1,10 +1,12 @@
 --  The STM32F405's timers: the timer table, each timer's registers, clock,
---  alternate function and enable bit, the owners of the board's timer pin
---  map entries, and a channel's setup as a PWM output.
+--  alternate function and enable bit, the owners of the configured timer
+--  pin map's entries, and a channel's setup as a PWM output.
 with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
-with Adaflight.Board;
+with Adaflight.CLI_Resources;
+with Adaflight.Config_Groups;
+with Adaflight.Timer_Allocation;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
 package Adaflight.STM32.Timers is
@@ -21,80 +23,6 @@ package Adaflight.STM32.Timers is
       N       : Boolean;
       Where   : Pin;
    end record;
-
-   --  The STM32F405's timer outputs in the order the reference's timer table
-   --  lists them, which the board map's occurrence numbers count.
-   Timer_Table : constant array (Positive range <>) of Timer_Entry :=
-     ((TIM2, 1, False, (Port_A, 0)),
-      (TIM2, 2, False, (Port_A, 1)),
-      (TIM2, 3, False, (Port_A, 2)),
-      (TIM2, 4, False, (Port_A, 3)),
-      (TIM2, 1, False, (Port_A, 5)),
-      (TIM1, 1, True, (Port_A, 7)),
-      (TIM1, 1, False, (Port_A, 8)),
-      (TIM1, 2, False, (Port_A, 9)),
-      (TIM1, 3, False, (Port_A, 10)),
-      (TIM1, 4, False, (Port_A, 11)),
-      (TIM2, 1, False, (Port_A, 15)),
-      (TIM5, 1, False, (Port_A, 0)),
-      (TIM5, 2, False, (Port_A, 1)),
-      (TIM5, 3, False, (Port_A, 2)),
-      (TIM5, 4, False, (Port_A, 3)),
-      (TIM3, 1, False, (Port_A, 6)),
-      (TIM3, 2, False, (Port_A, 7)),
-      (TIM9, 1, False, (Port_A, 2)),
-      (TIM9, 2, False, (Port_A, 3)),
-      (TIM8, 1, True, (Port_A, 5)),
-      (TIM8, 1, True, (Port_A, 7)),
-      (TIM13, 1, False, (Port_A, 6)),
-      (TIM14, 1, False, (Port_A, 7)),
-      (TIM1, 2, True, (Port_B, 0)),
-      (TIM1, 3, True, (Port_B, 1)),
-      (TIM2, 2, False, (Port_B, 3)),
-      (TIM2, 3, False, (Port_B, 10)),
-      (TIM2, 4, False, (Port_B, 11)),
-      (TIM1, 1, True, (Port_B, 13)),
-      (TIM1, 2, True, (Port_B, 14)),
-      (TIM1, 3, True, (Port_B, 15)),
-      (TIM3, 3, False, (Port_B, 0)),
-      (TIM3, 4, False, (Port_B, 1)),
-      (TIM3, 1, False, (Port_B, 4)),
-      (TIM3, 2, False, (Port_B, 5)),
-      (TIM4, 1, False, (Port_B, 6)),
-      (TIM4, 2, False, (Port_B, 7)),
-      (TIM4, 3, False, (Port_B, 8)),
-      (TIM4, 4, False, (Port_B, 9)),
-      (TIM8, 2, True, (Port_B, 0)),
-      (TIM8, 3, True, (Port_B, 1)),
-      (TIM10, 1, False, (Port_B, 8)),
-      (TIM11, 1, False, (Port_B, 9)),
-      (TIM8, 2, True, (Port_B, 14)),
-      (TIM8, 3, True, (Port_B, 15)),
-      (TIM12, 1, False, (Port_B, 14)),
-      (TIM12, 2, False, (Port_B, 15)),
-      (TIM3, 1, False, (Port_C, 6)),
-      (TIM3, 2, False, (Port_C, 7)),
-      (TIM3, 3, False, (Port_C, 8)),
-      (TIM3, 4, False, (Port_C, 9)),
-      (TIM8, 1, False, (Port_C, 6)),
-      (TIM8, 2, False, (Port_C, 7)),
-      (TIM8, 3, False, (Port_C, 8)),
-      (TIM8, 4, False, (Port_C, 9)),
-      (TIM4, 1, False, (Port_D, 12)),
-      (TIM4, 2, False, (Port_D, 13)),
-      (TIM4, 3, False, (Port_D, 14)),
-      (TIM4, 4, False, (Port_D, 15)),
-      (TIM1, 1, True, (Port_E, 8)),
-      (TIM1, 1, False, (Port_E, 9)),
-      (TIM1, 2, True, (Port_E, 10)),
-      (TIM1, 2, False, (Port_E, 11)),
-      (TIM1, 3, True, (Port_E, 12)),
-      (TIM1, 3, False, (Port_E, 13)),
-      (TIM1, 4, False, (Port_E, 14)),
-      (TIM9, 1, False, (Port_E, 5)),
-      (TIM9, 2, False, (Port_E, 6)),
-      (TIM10, 1, False, (Port_F, 6)),
-      (TIM11, 1, False, (Port_F, 7)));
 
    Timer_Base_Value : constant array (Timer_Name) of Unsigned_32 :=
      (TIM1  => 16#4001_0000#, TIM2  => 16#4000_0000#, TIM3  => 16#4000_0400#, TIM4  => 16#4000_0800#,
@@ -233,23 +161,21 @@ package Adaflight.STM32.Timers is
    procedure Clear_Flags (S : DMA_Stream);
    procedure Enable_DMA (S : DMA_Stream);
 
-   --  Who holds an entry of the board's timer pin map.
-   type Owner is (Free, Motor, Servo, LED_Strip);
+   --  The configured timer pin map taken in at boot, every entry free.
+   procedure Load (Map : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21);
 
    --  The timer channel of a pin by its tag, which the owner holds from then
-   --  on: the pin's first map entry, whose option counts the pin's entries
-   --  of the timer table from one. A pin without an entry, an option past
-   --  the pin's entries, or a channel another owner holds gives none.
+   --  on: the pin's first map entry at its occurrence among the pin's
+   --  channels, with the entry's slot. A pin without an entry, an occurrence
+   --  past the pin's channels, or a channel another owner holds gives none.
    procedure Allocate
-     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean;
-      Ordinal : Natural := 0);
+     (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner; E : out Timer_Entry; Slot : out Natural;
+      Found : out Boolean; Ordinal : Natural := 0);
 
-   --  Who holds a map entry by its position in the board's map, and the
-   --  owner's ordinal from one, zero for an owner without one.
-   function Owner_Of (Position : Positive) return Owner
-     with Pre => Position in Adaflight.Board.Timer_Map'Range;
-   function Ordinal_Of (Position : Positive) return Natural
-     with Pre => Position in Adaflight.Board.Timer_Map'Range;
+   --  The map entries' owners with their ordinals, and an entry's DMA
+   --  option, minus one for none.
+   function Owners return Adaflight.CLI_Resources.Timer_Owner_List;
+   function Option_Of (Slot : Adaflight.Timer_Allocation.Slot) return Integer;
 
    --  A timer's clock on.
    procedure Enable_Clock (T : Timer_Name);

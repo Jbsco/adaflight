@@ -5,7 +5,7 @@
 with Ada.Environment_Variables;
 with Ada.Text_IO;
 with Interfaces;
-with Adaflight.Board;
+with Adaflight.CLI_Resources;
 with Adaflight.Color;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.LED_Strip is
@@ -46,10 +46,8 @@ package body Adaflight.STM32.LED_Strip is
       if Tag = 0 then
          return;
       end if;
-      Allocate (Tag, Adaflight.STM32.Timers.LED_Strip, E, Index, Found);
-      if Found
-        and then Adaflight.Board.Timer_Map (Index).DMA_Option in 0 .. Options_Of (E.Timer, E.Channel)'Length - 1
-      then
+      Allocate (Tag, Adaflight.CLI_Resources.LED_Strip, E, Index, Found);
+      if Found and then Option_Of (Index) in 0 .. Options_Of (E.Timer, E.Channel)'Length - 1 then
          Configured := True;
          Last := (others => (0, 0, 0));
       end if;

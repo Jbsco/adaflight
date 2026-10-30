@@ -182,6 +182,8 @@ with Adaflight.Main_Loop;
 with Adaflight.Core_Loop;
 with Adaflight.PWM_Output;
 with Adaflight.WS2811;
+with Adaflight.CLI_Resources;
+with Adaflight.Timer_Allocation;
 with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
@@ -37517,6 +37519,86 @@ procedure Vector_Check is
       end if;
    end Check_WS2811_Line;
 
+   --  The timer allocation: the reference's timer management over a drawn
+   --  map, an allocation's channel and entry, a pin's configured channel with
+   --  its owner, and the owners after the run.
+   TA_Table : Adaflight.Timer_Allocation.Table;
+
+   procedure Check_Timer_Alloc_Line is
+      package TA renames Adaflight.Timer_Allocation;
+      package R renames Adaflight.CLI_Resources;
+      Name : constant String := Str (1);
+
+      function Owner_Named (S : String) return R.Owner is
+      begin
+         for O in R.Owner loop
+            if R.Name (O) = S then
+               return O;
+            end if;
+         end loop;
+         Put_Line ("unknown timer owner " & S);
+         Failures := Failures + 1;
+         return R.Owner'First;
+      end Owner_Named;
+
+      function Image (N : Natural) return String is
+         I : constant String := Natural'Image (N);
+      begin
+         return I (I'First + 1 .. I'Last);
+      end Image;
+
+      function Owner_Text (O : R.Timer_Owner) return String is
+        (if O.Held then R.Name (O.Owner) else "FREE");
+   begin
+      if Name = "tm" then
+         declare
+            Map : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21;
+         begin
+            for S in Map'Range loop
+               declare
+                  E  : constant String := Str (4 + S);
+                  C1 : constant Positive := Ada.Strings.Fixed.Index (E, ":");
+                  C2 : constant Positive := Ada.Strings.Fixed.Index (E (C1 + 1 .. E'Last), ":");
+               begin
+                  Map (S) := (Io_Tag => Interfaces.Unsigned_8'Value (E (E'First .. C1 - 1)),
+                              Index  => Interfaces.Unsigned_8'Value (E (C1 + 1 .. C2 - 1)),
+                              Dmaopt => Interfaces.Integer_8'Value (E (C2 + 1 .. E'Last)));
+               end;
+            end loop;
+            TA.Load (TA_Table, Map);
+         end;
+      elsif Name = "ta" then
+         declare
+            K : TA.Channel_Index;
+            S : Natural;
+         begin
+            TA.Allocate (TA_Table, Interfaces.Unsigned_8 (Int (4)), Owner_Named (Str (5)), TA.Ordinal_Number (Int (6)),
+                         K, S);
+            Record_Int ("timeralloc.channel", Int (7), Integer_64 (K));
+            Record_Int ("timeralloc.slot", Int (8), (if S > TA.Slot'Last then -1 else Integer_64 (S)));
+         end;
+      elsif Name = "tq" then
+         declare
+            K : constant TA.Channel_Index := TA.Configured_Channel (TA_Table, Interfaces.Unsigned_8 (Int (4)));
+            O : constant R.Timer_Owner :=
+              (if K = 0 then (Held => False, Owner => R.Owner'First, Ordinal => 0)
+               else TA.Channel_Owner (TA_Table, K));
+         begin
+            Record_Int ("timeralloc.configured", Int (5), Integer_64 (K));
+            Record_Text ("timeralloc.owner", Str (6), Owner_Text (O));
+            Record_Int ("timeralloc.ordinal", Int (7), Integer_64 (O.Ordinal));
+         end;
+      elsif Name = "to" then
+         for S in TA.Slot loop
+            Record_Text ("timeralloc.owners", Str (4 + S),
+                         Owner_Text (TA_Table.Owners (S)) & ":" & Image (TA_Table.Owners (S).Ordinal));
+         end loop;
+      else
+         Put_Line ("unknown timer allocation case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Timer_Alloc_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39492,6 +39574,8 @@ procedure Vector_Check is
                   Check_I2C_Timing_Line;
                elsif Kind = "ws2811" then
                   Check_WS2811_Line;
+               elsif Kind = "timeralloc" then
+                  Check_Timer_Alloc_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39851,6 +39935,7 @@ begin
    Run (Dir & "/ws2811.csv", "ws2811");
    Run (Dir & "/spekbind.csv", "spekbind");
    Run (Dir & "/i2ctiming.csv", "i2ctiming");
+   Run (Dir & "/timeralloc.csv", "timeralloc");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

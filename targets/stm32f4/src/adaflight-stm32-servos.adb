@@ -1,3 +1,4 @@
+with Adaflight.CLI_Resources;
 with Interfaces;
 with System;
 with Adaflight.STM32.GPIO;
@@ -19,7 +20,7 @@ package body Adaflight.STM32.Servos is
                Index : Natural;
                Found : Boolean;
             begin
-               Allocate (Dev.Io_Tags (N), Servo, E, Index, Found, Ordinal => N + 1);
+               Allocate (Dev.Io_Tags (N), Adaflight.CLI_Resources.Servo, E, Index, Found, Ordinal => N + 1);
                exit when not Found;
                GPIO.Enable_Port (E.Where.Port);
                GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull, Rate => GPIO.Low);
