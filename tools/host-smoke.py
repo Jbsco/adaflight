@@ -2752,6 +2752,41 @@ def main():
             finally:
                 stop(proc)
                 sock.close()
+        store = os.path.join(work, "bidir.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "dshot_telemetry_info")
+            check("dshot_telemetry_info reports DShot telemetry off", "Dshot telemetry not enabled" in text, text[-120:])
+            text = cli(sock, "set dshot_bidir = ON")
+            check("bidirectional DShot set", "dshot_bidir set to ON" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            msp(sock, 214, struct.pack("<8H", 1500, 1000, 1000, 1000, 1000, 1000, 1000, 1000))
+            time.sleep(1.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "dshot_telemetry_info")
+            reads = re.search(r"Dshot reads: (\d+)", text)
+            check("the motors' replies are read", reads is not None and int(reads.group(1)) > 100, text[:200])
+            check("no reply is invalid", "Dshot invalid pkts: 0\r\n" in text, text[:200])
+            first = re.search(r"^ +1 +R---- +(\d+) +(\d+) +(\d+) +0\.00%", text, re.M)
+            check("the spinning motor reports its eRPM and RPM",
+                  first is not None and 29000 <= int(first.group(1)) <= 31000 and 4100 <= int(first.group(2)) <= 4500,
+                  text[-700:])
+            stopped = re.findall(r"^ +[234] +R---- +0 +0 +0 +0\.00%", text, re.M)
+            check("the stopped motors report zero eRPM", len(stopped) == 3, text[-700:])
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ledstrip.bin")
         proc, sock = start(image, store)
         try:

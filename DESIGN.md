@@ -11845,3 +11845,22 @@ sometimes, few or random edges, inputs on and off, deadtimes of the three DShot 
 times, switch times before, at and after the deadtime, and wrapping clocks. The family holds four seeds. The Kakute F7
 image stays at 648964 bytes of code and the CLRacing F4S one at 651692, as in D523. The host smoke, style and the
 vectors pass.
+
+## D525. DShot telemetry on the motor path (2026-10-29)
+
+The motor update reads the last frame's replies before it writes the next values, as the reference's motor write does
+for its timer DShot driver: the read of D524 over each motor's capture, the motors' current commands from the command
+queue and the clocks, with the motors it reports switched back to output. The blocking command writes read the same way
+between their frames. The filter task decodes the raw values into the motors' kinds, rates and filtered frequencies
+(D58) before the gyro filtering, as the reference's filter task does, and dshot_telemetry_info reports the reads, the
+invalid replies, each motor's values and the saved edges. The telemetry's rates and filters start with the motors when
+DShot telemetry or the ESC sensor runs.
+
+The boards' timer driver captures no replies yet, so their frames stay plain DShot whatever the telemetry setting, and
+the telemetry stays off until the input capture with its direction switch follows. Betaflight's automatic DShot driver
+setting picks its bitbang driver on the F7 and, with bidirectional DShot, on the F4, where the port runs the timer
+driver. The host's motors answer each frame with a reply at sixteen counts a bit, zero eRPM at the stop and thirty eRPM
+for each throttle step above the first, so the host smoke reads the telemetry of a motor test: the spinning motor's eRPM
+and RPM, the stopped motors at zero, and no invalid reply. The RPM filter, the dynamic idle, the arming check and the
+flight log's RPM fields take the telemetry in the next increment. The Kakute F7 image builds at 649476 bytes of code and
+the CLRacing F4S one at 651484. The host smoke, style and the vectors pass.
