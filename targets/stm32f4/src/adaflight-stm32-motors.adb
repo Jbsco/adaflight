@@ -71,7 +71,7 @@ package body Adaflight.STM32.Motors is
             Index : Natural;
             Found : Boolean;
          begin
-            Allocate (Dev.Io_Tags (Order), Motor, E, Index, Found);
+            Allocate (Dev.Io_Tags (Order), Motor, E, Index, Found, Ordinal => M + 1);
             if not Found then
                Driven := 0;
                Outputs := (others => (others => <>));
@@ -233,7 +233,7 @@ package body Adaflight.STM32.Motors is
             S        : DMA_Stream;
             Inverted : constant Boolean := C.Motor_Config.Dev.Motor_Inversion /= 0;
          begin
-            Allocate (Tag, Motor, E, Index, Found);
+            Allocate (Tag, Motor, E, Index, Found, Ordinal => M + 1);
             if Found then
                declare
                   O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);

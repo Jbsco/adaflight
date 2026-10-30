@@ -2621,8 +2621,13 @@ def main():
             text = cli(sock, "resource SERVO 1 B00")
             check("resource notes a pin another owner holds",
                   "NOTE: B00 already assigned to MOTOR 1." in text and "Resource is set to B00" in text, text[-160:])
+            text = cli(sock, "dma show")
+            check("dma show lists the streams", "Currently active DMA:" in text and "DMA2 Stream 7: FREE" in text, text[-160:])
             text = cli(sock, "dma")
-            check("dma lists the streams", "Currently active DMA:" in text and "DMA2 Stream 7: FREE" in text, text[-160:])
+            check("dma lists the options set", "dma pin A02 0" in text and "# pin A02: DMA1 Stream 1 Channel 3" in text,
+                  text[-160:])
+            text = cli(sock, "timer")
+            check("timer lists the board's map", "timer A02 AF1" in text and "# pin A02: TIM2 CH3 (AF1)" in text, text[-160:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:

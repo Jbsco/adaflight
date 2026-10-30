@@ -1,4 +1,3 @@
-with Adaflight.Board;
 with Adaflight.PWM_Output;
 package body Adaflight.STM32.Timers is
 
@@ -8,6 +7,7 @@ package body Adaflight.STM32.Timers is
 
    Map    : Timer_Pin_Map renames Adaflight.Board.Timer_Map;
    Owners : array (Map'Range) of Owner := (others => Free);
+   Ordinals : array (Map'Range) of Natural := (others => 0);
 
    function Tagged_Pin (Tag : Unsigned_8) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
 
@@ -30,8 +30,12 @@ package body Adaflight.STM32.Timers is
       return 0;
    end Table_Index;
 
+   function Owner_Of (Position : Positive) return Owner is (Owners (Position));
+   function Ordinal_Of (Position : Positive) return Natural is (Ordinals (Position));
+
    procedure Allocate
-     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean)
+     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean;
+      Ordinal : Natural := 0)
    is
    begin
       E := Timer_Table (Timer_Table'First);
@@ -57,6 +61,7 @@ package body Adaflight.STM32.Timers is
                   end if;
                end loop;
                Owners (I) := Who;
+               Ordinals (I) := Ordinal;
                E := Timer_Table (T);
                Map_Index := I;
                Found := True;
