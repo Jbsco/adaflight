@@ -25,7 +25,7 @@ FLASH_KB = {"STM32F405": 1024, "STM32F411": 512, "STM32F446": 512, "STM32F722": 
 
 # Each feature with the smallest flash size, in KB, that contains it by default.
 FEATURES = [
-    ("Menus", 0, "The menu system on the OSD, the display port and the CRSF transmitter's screen."),
+    ("Menus", 1024, "The menu system on the OSD, the display port and the CRSF transmitter's screen."),
     ("Gimbal", 1024, "The gimbal control on a UART."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
