@@ -11897,3 +11897,22 @@ the same owner on a pin whatever the output order. The motor setups gave the mix
 which differed from the reference once the order changed. The host smoke swaps the first two outputs and checks the
 listing. The Kakute F7 image builds at 650468 bytes of code and the CLRacing F4S one at 652988, as in D527. The host
 smoke, style and the vectors pass.
+
+## D529. DShot input capture on the timers (2026-10-29)
+
+The STM32 timer driver captures the motors' DShot telemetry replies. With bidirectional DShot set and a DShot protocol,
+the frames go out inverted with the inverted checksum, the pin keeping the pull of the configured inversion, and each
+motor's compare register starts at its top so the line idles high. Each motor's stream raises its transfer complete
+interrupt: the handler stops the stream and the timer's request, waits for the stream to stop and clears its flags, then
+turns the stream to peripheral to memory without the interrupt, notes the time of the first switch, sets the timer
+counting to its top and the channel to input capture at both edges with a filter of two samples, and restarts the stream
+for 22 edges with the request on. The read before the motor writes (D524, D525) takes each motor's edges from the count
+the stream left and its buffer, then stops the request of each motor in input, resets its stream to memory to peripheral
+with the interrupt, takes it out of input and sets its channel back to PWM. Once every motor is read, the switch time
+clears and the channels' outputs go on. The next transfers reload the period. The deadtime is 35 microseconds plus
+sixteen bits at the protocol's bit clock. The handlers cover every stream a motor's timer channel can use on the F405,
+both DMA controllers, at the lowest interrupt priority as the other handlers.
+
+The capture runs only on hardware: the host's motors model the replies (D525) and the vectors check the read and the
+decode (D523, D524), so this driver waits for a bench check on the Kakute F7 and the CLRacing F4S. The Kakute F7 image
+builds at 654748 bytes of code and the CLRacing F4S one at 657268. The host smoke, style and the vectors pass.
