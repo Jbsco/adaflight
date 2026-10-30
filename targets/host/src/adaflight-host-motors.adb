@@ -21,12 +21,16 @@ with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
    use type Interfaces.Integer_32;
+   use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    Driven : Natural range 0 .. 8 := 0;
    Is_On  : Boolean := False;
    Bidir  : Boolean := False;
    Deadtime_Us : Interfaces.Integer_32 := 0;
    Kind   : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
+
+   function Telemetry_Configured (C : Adaflight.Config_Groups.Configuration) return Boolean is
+     (C.Motor_Config.Dev.Use_Dshot_Telemetry /= 0 and then C.Motor_Config.Dev.Motor_Protocol in 5 .. 7);
 
    function Image (N : Interfaces.Unsigned_32) return String is
      (Interfaces.Unsigned_32'Image (N) (2 .. Interfaces.Unsigned_32'Image (N)'Last));
@@ -51,14 +55,13 @@ package body Adaflight.STM32.Motors is
 
    procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural; Three_D : Boolean) is
       use Adaflight.STM32.Timers;
-      use type Interfaces.Unsigned_8;
       Dev    : Adaflight.Config_Groups.Motor_Dev_Config_Record renames C.Motor_Config.Dev;
       Analog : constant Boolean := Dev.Motor_Protocol in Adaflight.PWM_Output.Protocol;
       Idle   : constant Interfaces.Unsigned_16 :=
         (if Three_D then C.Flight3_D_Config.Neutral3d else C.Motor_Config.Mincommand);
    begin
       Driven := 0;
-      Bidir := False;
+      Bidir := Telemetry_Configured (C);
       Kind := Adaflight.MSP_Motor_In.No_Device;
       if not Analog and then Dev.Motor_Protocol not in 5 .. 7 then
          return;
@@ -91,7 +94,6 @@ package body Adaflight.STM32.Motors is
         (if Driven = 0 then Adaflight.MSP_Motor_In.No_Device
          elsif Analog then Adaflight.MSP_Motor_In.PWM
          else Adaflight.MSP_Motor_In.DShot);
-      Bidir := not Analog and then Driven > 0 and then Dev.Use_Dshot_Telemetry /= 0;
       Deadtime_Us := 35 + Interfaces.Integer_32
         (Interfaces.Unsigned_32'(320_000_000)
          / (case Dev.Motor_Protocol is when 5 => 3_000_000, when 6 => 6_000_000, when others => 12_000_000));
