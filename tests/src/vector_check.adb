@@ -37599,6 +37599,18 @@ procedure Vector_Check is
       end if;
    end Check_Timer_Alloc_Line;
 
+   --  The DShot telemetry capture decode: the reply's edge times to a value.
+   procedure Check_DShot_Capture_Line is
+      Count  : constant Natural := Natural (Int (4));
+      Buffer : Adaflight.DShot.Edge_Times (0 .. Adaflight.DShot.Max_Edges - 1) := (others => 0);
+   begin
+      for K in 0 .. Count - 1 loop
+         Buffer (K) := Interfaces.Unsigned_32 (Int (5 + K));
+      end loop;
+      Record_Int ("dshotcapture.value", Int (5 + Count),
+                  Integer_64 (Adaflight.DShot.Decode_Edges (Buffer, Adaflight.DShot.Edge_Count (Count))));
+   end Check_DShot_Capture_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39576,6 +39588,8 @@ procedure Vector_Check is
                   Check_WS2811_Line;
                elsif Kind = "timeralloc" then
                   Check_Timer_Alloc_Line;
+               elsif Kind = "dshotcapture" then
+                  Check_DShot_Capture_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39936,6 +39950,7 @@ begin
    Run (Dir & "/spekbind.csv", "spekbind");
    Run (Dir & "/i2ctiming.csv", "i2ctiming");
    Run (Dir & "/timeralloc.csv", "timeralloc");
+   Run (Dir & "/dshotcapture.csv", "dshotcapture");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

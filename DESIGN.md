@@ -11798,3 +11798,25 @@ the timer shim of D521, draws the board's default map with random entries rewrit
 and ordinal and queries of a pin's configured channel and its owner, and prints the owners after the run. The timer
 allocation family holds four seeds of 200 cases. The Kakute F7 image builds at 648964 bytes of code and the CLRacing F4S
 one at 651692, both below D521 with the crate table gone; the host smoke, style and the vectors pass.
+
+## D523. DShot telemetry capture decode (2026-10-29)
+
+`Adaflight.DShot.Decode_Edges` decodes a motor's telemetry reply as the reference's timer DShot driver reads it from the
+edge times its timer captured at sixteen counts per bit, the first edge falling. Each gap rounds to a run of bits, a one
+then zeros, the gap taken as the reference's signed difference of the counts. The last run is padded to twenty-one bits
+when the line ends high, since the return to idle closes a reply that ends low. A run past the word, a gap below half a
+bit or a word short of twenty-one bits gives the invalid value, else the word goes through the group decode of D58, the
+GCR table, the nibble checksum and the value above it. This is the first of the bidirectional DShot increments: the
+timer driver's input capture, the DMA direction switch after each frame, the deadtime and the telemetry state follow.
+
+The capture decode oracle takes the decode out of the reference's driver source at build time, since the rest of that
+file needs the processor's registers, and draws replies of random values through the GCR codes with the closing edge,
+jittered within and past half a bit, with a missing or a spurious edge, with a wrong checksum, and random edges within a
+frame's span. The capture family holds four seeds of 500 cases. The decode has no caller on the boards yet, so the
+Kakute F7 image stays at 648964 bytes of code and the CLRacing F4S one at 651692. The host smoke, style and the vectors
+pass.
+
+The reference's timer driver decodes a five-bit code outside the GCR alphabet as a zero nibble and keeps the word when
+its checksum holds, where its bitbang driver rejects it. In the oracle's 2000 draws the timer driver's table kept 12
+damaged or random words as values. The port takes the bitbang decoder's table and check, a divergence (F310), and the
+oracle fixes the extracted decode the same way.

@@ -105,6 +105,21 @@ package Adaflight.DShot with SPARK_Mode, Pure is
      with Pre  => Buffer'First = 0 and then Count <= Buffer'Length,
           Post => Result = No_Edge or else Result = Invalid_Value or else Result <= 16#FFF#;
 
+   --  The reply as the timer DShot driver captures it: the times of the
+   --  line's edges at sixteen counts per bit, the first edge falling. Each
+   --  gap rounds to a run of bits, a one then zeros, the last run padded to
+   --  twenty-one bits when the line ends high; a run past the word, a gap
+   --  below half a bit, a word short of twenty-one bits, or the groups'
+   --  decode failing gives Invalid_Value, else the twelve bit value.
+   Max_Edges : constant := 32;
+   subtype Edge_Count is Natural range 0 .. Max_Edges;
+   subtype Edge_Index is Natural range 0 .. Max_Edges - 1;
+   type Edge_Times is array (Edge_Index range <>) of Unsigned_32;
+
+   function Decode_Edges (Buffer : Edge_Times; Count : Edge_Count) return Unsigned_32
+     with Pre  => Buffer'First = 0 and then Buffer'Length >= 1 and then Count <= Buffer'Length,
+          Post => Decode_Edges'Result = Invalid_Value or else Decode_Edges'Result <= 16#FFF#;
+
    --  Four five-bit groups to nibbles, the nibble checksum, then the twelve
    --  bits above the checksum.
    function Decode_Groups (Word : Unsigned_32) return Unsigned_32
