@@ -73,6 +73,8 @@ package Adaflight.STM32.Motors is
    --  The bit-banged groups' pacers, streams and periods, once the other
    --  owners took their timers and the LED strip its stream.
    procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural);
+   --  The bit-banged setup, its groups' streams and pacers for the listings.
+   function Bitbang_Setup return Adaflight.DShot_Bitbang.Setup;
    --  The groups' frames cleared before an update's writes.
    procedure Update_Init;
    --  The wait before an update until no group still samples its replies, or

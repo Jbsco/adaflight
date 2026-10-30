@@ -24,6 +24,7 @@ with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.MSP_Allocation;
 with Adaflight.DShot;
+with Adaflight.DShot_Bitbang;
 with Adaflight.DShot_Command;
 with Adaflight.LED_Strip;
 with Adaflight.LTM_Telemetry;
@@ -581,7 +582,8 @@ package body Adaflight.STM32.Flight is
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
       Interactive     => True,
-      DMA_Motors      => <>,
+      DMA_Owners      => <>,
+      Pacers          => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -4028,12 +4030,6 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init
         (Config, Adaflight.STM32.Control.Motor_Count, (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0);
-      for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
-         if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
-            Env.DMA_Motors (Adaflight.STM32.Motors.Stream_Of (M)) := M + 1;
-         end if;
-      end loop;
-      Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Adaflight.STM32.DShot_Output.Init (Config);
       if Config.Motor_Config.Dev.Use_Dshot_Telemetry /= 0
         or else (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0
@@ -4050,6 +4046,32 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.LED_Strip.Send (Strip.Output);
       end if;
       Adaflight.STM32.Motors.Post_Init (Config, Adaflight.STM32.LED_Strip.Stream_Number);
+      for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
+         if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
+            Env.DMA_Owners (Adaflight.STM32.Motors.Stream_Of (M)) := (Kind => CLI.Motor, Index => M + 1);
+         end if;
+      end loop;
+      if Adaflight.STM32.LED_Strip.Stream_Number > 0 then
+         Env.DMA_Owners (Adaflight.STM32.LED_Strip.Stream_Number) := (Kind => CLI.Strip, Index => 0);
+      end if;
+      declare
+         S : constant Adaflight.DShot_Bitbang.Setup := Adaflight.STM32.Motors.Bitbang_Setup;
+      begin
+         for D in S.Streams'Range loop
+            if S.Streams (D) > 0 then
+               Env.DMA_Owners (D) := (Kind => CLI.Bitbang, Index => Natural (S.Streams (D)));
+            end if;
+         end loop;
+         for G in 0 .. S.Used_Ports - 1 loop
+            if S.Ports (G).Allocated and then S.Ports (G).Pacer > 0 then
+               Env.Pacers (G) :=
+                 (Timer   => Adaflight.DShot_Bitbang.Pacers (S.Ports (G).Pacer).Timer,
+                  Channel => Adaflight.DShot_Bitbang.Pacers (S.Ports (G).Pacer).Channel,
+                  Port    => Natural (S.Ports (G).Port));
+            end if;
+         end loop;
+      end;
+      Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
