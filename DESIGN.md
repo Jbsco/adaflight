@@ -12022,3 +12022,16 @@ stream as it refuses motor streams, bit-banged pacer search counts it busy, and 
 converter number. Setup oracle draws ADCs with their numbers among stream owners, and adaflight's listings match its
 listings. ADC1 still converts internal reference and temperature channels on request, between scan conversions. Scan
 runs only on hardware and waits for a bench check on Kakute F7 and CLRacing F4S.
+
+## D538. F7 code in flash sector 0 (2026-10-30)
+
+F7 images place code in flash sector 0 beside their vector table. Its linker script holds a second code section in
+sector 0, and `--enable-non-contiguous-regions` lets each function that does not fit there go to its code region from
+sector 2. Read-only data stays in that region, since merged string sections cannot move between regions. Both crates
+now link their link-time optimized code in one section per function and per object, so placement works function by
+function and `--gc-sections` drops functions no caller reaches: F4 image 1044 bytes smaller, F7 512 KB set 1656. Kakute
+F7 holds 29768 bytes of code in its 32 KB sector 0, 32192 in its 512 KB set. An F722's 16 KB sector 0 takes about 15.8
+KB, room Betaflight's F722 layout leaves empty. Flashing writes sector 0's file with vector table and code last, so its
+bootloader leaves through that vector table. An image too big for its regions now fails with ld's relaxation message
+about a merged string section in place of an overflow count. F4 images keep their vector table alone in sector 0, since
+1 MB has room. Speed is unchanged: both sectors are one flash behind one cache.

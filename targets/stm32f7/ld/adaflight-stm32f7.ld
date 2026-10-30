@@ -41,8 +41,9 @@
 
 /* Modified for adaflight from the light-tasking-stm32f746disco runtime's common-ROM.ld:
    the MCU's memory layout comes from gen/memory.ld (tools/memorygen.py), with the vector
-   table alone in flash sector 0, sector 1 kept for the configuration store, the code from
-   sector 2, and the core coupled memory on the data tightly coupled memory. */
+   table and the code that fits beside it in flash sector 0, sector 1 kept for the
+   configuration store, the rest of the code from sector 2, and the core coupled memory on
+   the data tightly coupled memory. */
 INCLUDE memory.ld
 REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
@@ -59,6 +60,11 @@ SECTIONS
   .vectors :
   {
     KEEP (*(.vectors))
+  } > flash0
+
+  .text0 :
+  {
+    *(.text .text.* .gnu.linkonce.t*)
   } > flash0
 
   .text :

@@ -3,8 +3,8 @@
 
 usage: memorygen.py <configs dir> <board name> <output .ld>
 
-The layout keeps the vector table alone in flash sector 0, sector 1 for the configuration store, and
-the code from sector 2; the main RAM and the core coupled memory follow the MCU. The crate's linker
+The layout keeps flash sector 0 as its own region for the vector table, sector 1 for the configuration
+store, and the code from sector 2; the main RAM and the core coupled memory follow the MCU. The crate's linker
 script includes the output, and the Ada package adaflight-stm32-memory.ads beside it gives the code
 the configuration sector, the bootloader and the unique identifier's addresses.
 """
