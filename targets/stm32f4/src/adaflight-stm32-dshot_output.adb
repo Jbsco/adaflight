@@ -4,6 +4,7 @@ with Adaflight.STM32.Motors;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.DShot_Output is
    use Adaflight.DShot_Command;
+   use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
 
    Queue     : Adaflight.DShot_Command.Queue;
@@ -13,6 +14,10 @@ package body Adaflight.STM32.DShot_Output is
    --  request for the next frame.
    Last      : array (Motor_Index) of Interfaces.Unsigned_16 := (others => 0);
    Requests  : array (Motor_Index) of Boolean := (others => False);
+   --  The motors' telemetry, its read counts and their reply quality.
+   Telemetry_State : Adaflight.DShot.Telemetry;
+   Read_Counts     : Adaflight.DShot.Read_Counts;
+   Quality         : Adaflight.DShot.Qualities;
 
    procedure Init (C : Adaflight.Config_Groups.Configuration) is
    begin
@@ -92,6 +97,44 @@ package body Adaflight.STM32.DShot_Output is
       Adaflight.STM32.Motors.Start_Transfers;
    end Complete;
 
+   procedure Init_Telemetry (C : Adaflight.Config_Groups.Configuration; Looptime_Us : Positive) is
+   begin
+      Adaflight.DShot.Init
+        (Telemetry_State, Count => Driven,
+         Poles => Adaflight.DShot.Pole_Count (Interfaces.Unsigned_8'Max (1, C.Motor_Config.Motor_Pole_Count)),
+         Extended_Forced => C.Motor_Config.Dev.Use_Dshot_Edt = 2,
+         Cutoff_Hz => Adaflight.DShot.Cutoff_Setting (C.Rpm_Filter_Config.Rpm_Filter_Lpf_Hz),
+         Looptime => Adaflight.DShot.Looptime_Us (Natural'Min (Looptime_Us, 2 ** 20)));
+   end Init_Telemetry;
+
+   procedure Read_Telemetry (Done : out Boolean) is
+      C         : Adaflight.DShot.Captures;
+      Stamp     : Interfaces.Unsigned_32;
+      Commands  : Adaflight.DShot.Command_List;
+      Processed : Adaflight.DShot.Motor_Total;
+      Now_Ms    : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Millis;
+   begin
+      Adaflight.STM32.Motors.Captures (C, Stamp);
+      for M in Motor_Index loop
+         Commands (M) := Get_Current (Queue, M);
+      end loop;
+      Adaflight.DShot.Read_Replies
+        (Telemetry_State, Read_Counts, Quality, C, Driven, Adaflight.STM32.Motors.Telemetry_On, Commands,
+         Adaflight.STM32.Time.Micros, Now_Ms, Stamp, Processed, Done);
+      Adaflight.STM32.Motors.Leave_Input (Processed, Done);
+   end Read_Telemetry;
+
+   procedure Update_Telemetry is
+   begin
+      if Adaflight.STM32.Motors.Telemetry_On then
+         Adaflight.DShot.Update (Telemetry_State);
+      end if;
+   end Update_Telemetry;
+
+   function Telemetry return Adaflight.DShot.Telemetry is (Telemetry_State);
+   function Counts return Adaflight.DShot.Read_Counts is (Read_Counts);
+   function Qualities return Adaflight.DShot.Qualities is (Quality);
+
    type Table is null record;
 
    procedure Table_Delay (T : in out Table; Us : Interfaces.Unsigned_32) is
@@ -102,8 +145,9 @@ package body Adaflight.STM32.DShot_Output is
 
    procedure Table_Decode (T : in out Table) is
       pragma Unreferenced (T);
+      Done : Boolean;
    begin
-      null;
+      Read_Telemetry (Done);
    end Table_Decode;
 
    procedure Table_Request (T : in out Table; Index : Motor_Index) is
@@ -160,6 +204,7 @@ package body Adaflight.STM32.DShot_Output is
    end Write_Blocking;
 
    procedure Write_All (Values : Adaflight.Mixer.Motor_Outputs) is
+      Done : Boolean;
    begin
       if not Adaflight.STM32.Motors.Enabled then
          return;
@@ -171,6 +216,7 @@ package body Adaflight.STM32.DShot_Output is
          Adaflight.STM32.Motors.Complete_Pulses;
          return;
       end if;
+      Read_Telemetry (Done);
       for M in 0 .. Driven - 1 loop
          declare
             Clamped : constant Float := Float'Max (0.0, Float'Min (2_047.0, Float (Values (M))));
