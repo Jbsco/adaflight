@@ -12059,3 +12059,19 @@ log writes test its constant, so card protocol and FAT file system drop out of t
 messages and command line parts stay and SD card status reads as no card. F7 512 KB set loses 13564 bytes of code
 (550368 to 536804), F4's 13528 (551932 to 538404), and a CLRACINGF7 image now runs 33788 bytes over its 491520 of
 room. `FEATURES=+SD_Card` keeps it, and host smoke skips its checks when a build leaves it out.
+
+## D542. Simulator FDM packets (2026-10-30)
+
+`Adaflight.Sim_FDM` contains a first part of a simulator link for host target: decode of a 144-byte flight dynamics
+packet, eighteen little-endian doubles, and state update Betaflight's SITL runs for each one. A packet more than 500 ms
+of host time after its predecessor restarts timing and asks for a motor update, and one with an older timestamp is
+stale. Any other gives accelerometer and gyro counts at 256 per g and 16.4 per degree per second, pressure, attitude
+quaternion, a synthetic magnetometer from a fixed earth field and a virtual GPS solution, then a sim rate from
+simulation and monotonic time while packets arrive faster than 50 Hz. Gazebo's bridge keeps its yaw rate sign, derives
+pressure from altitude, takes back its conjugated attitude and mirrors GPS position around its first position. Older
+bridges send pressure and attitude as they are. Scale constants round as a C compiler rounds them, and `pow`, `atan2`
+and `sqrt` come from C library, so results match bit for bit. Where C conversions are undefined, adaflight drops a
+packet with a NaN, infinite or larger than 1e6 field, or an attitude component past 2, and saturates pressure,
+coordinates, speeds and velocities (F313). Simfdm oracle extracts SITL's update from Betaflight's platform source,
+builds it once per bridge with its virtual GPS conversion included, and replays 48 sequences of 160 packets over
+scripted clocks. Host UDP link, sensor feeds and motor packets come next.
