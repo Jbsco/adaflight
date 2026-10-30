@@ -489,6 +489,51 @@ package body Adaflight.DShot with SPARK_Mode is
       end if;
    end Invalid_Percent;
 
+   procedure Read_Replies
+     (T : in out Telemetry; Counts : in out Read_Counts; Q : in out Qualities; C : in out Captures;
+      Count : Motor_Total; Use_Telemetry : Boolean; Commands : Command_List; Now_Us : Time_Us; Now_Ms : Time_Ms;
+      Stamp_Us : in out Time_Us; Processed : out Motor_Total; Done : out Boolean)
+   is
+      Elapsed : constant Unsigned_32 := Now_Us - Stamp_Us;
+      Since   : constant Integer_32 :=
+        (if Elapsed < 2 ** 31 then Integer_32 (Elapsed) else Integer_32 (Interfaces.Integer_64 (Elapsed) - 2 ** 32));
+      Raw     : Unsigned_32;
+   begin
+      Processed := 0;
+      Done := True;
+      if not Use_Telemetry then
+         return;
+      end if;
+      for M in 0 .. Count - 1 loop
+         pragma Loop_Invariant (Processed = M);
+         if Since >= 0 and then Since < C (M).Deadtime then
+            Done := False;
+            return;
+         end if;
+         if C (M).Input and then C (M).Edges > Min_Edges then
+            Counts.Reads := Counts.Reads + 1;
+            Raw := Decode_Edges (C (M).Buffer, C (M).Edges);
+            if Raw /= Invalid_Value then
+               if Raw = Extended_Acknowledge and then Commands (M) = Extended_Telemetry_Enable then
+                  T.Motors (M).Received := State_Events_Bit;
+               else
+                  T.Motors (M).Raw := Raw_Value (Raw);
+               end if;
+            else
+               Counts.Invalids := Counts.Invalids + 1;
+               if M = 0 then
+                  Counts.Saved := C (M).Buffer;
+               end if;
+            end if;
+            Count_Packet (Q (M), Raw /= Invalid_Value, Now_Ms);
+         end if;
+         C (M).Input := False;
+         Processed := M + 1;
+      end loop;
+      T.State := Not_Processed;
+      Stamp_Us := 0;
+   end Read_Replies;
+
    --------------------
    -- Validate_Order --
    --------------------
