@@ -1,6 +1,6 @@
 # Building and flashing
 
-The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature. A 512 KB board leaves out menu system, gimbal control, rangefinders, LED strip, iBus, LTM and MAVLink telemetry, Jeti EX Bus and SUMD receivers, and the board crate's run-time checks. `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features:
+The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature. A 512 KB board leaves out menu system, gimbal control, rangefinders, LED strip, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus and SUMD receivers, and the board crate's run-time checks. `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features:
 
     FEATURES="-Menus" bash target.do          # every feature but the menu system
     FLASH_KB=512 bash target.do               # the features of a 512 KB board

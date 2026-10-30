@@ -12050,3 +12050,12 @@ LED strip is now a build feature on from 1024 KB, so 512 KB builds leave it out 
 under 1 MB do. Its task, start and build option test its constant, so strip code drops out of those images, while its
 settings, MSP messages and command line parts stay. F7 512 KB set loses 5960 bytes of code (556328 to 550368), F4's
 5480 (557412 to 551932). `FEATURES=+LED_Strip` keeps it, and host smoke skips its checks when a build leaves it out.
+
+## D541. SD card logging off under 1024 KB (2026-10-30)
+
+SD card logging is now a build feature on from 1024 KB, so 512 KB builds leave it out by default, as Betaflight's
+builds under 1 MB do. A Talon F7 has no SD slot and keeps its flight log on its flash chip. SD card's start, poll and
+log writes test its constant, so card protocol and FAT file system drop out of those images, while settings, MSP
+messages and command line parts stay and SD card status reads as no card. F7 512 KB set loses 13564 bytes of code
+(550368 to 536804), F4's 13528 (551932 to 538404), and a CLRACINGF7 image now runs 33788 bytes over its 491520 of
+room. `FEATURES=+SD_Card` keeps it, and host smoke skips its checks when a build leaves it out.
