@@ -617,6 +617,36 @@ package body Adaflight.Attitude with SPARK_Mode is
       end if;
    end Update;
 
+   ------------------------
+   -- Set_From_Simulator --
+   ------------------------
+
+   procedure Set_From_Simulator (S : in out State; Q : Quaternion; Legacy_Bridge : Boolean; Headfree_Mode : Boolean) is
+   begin
+      S.Q := Q;
+      Compute_Rotation (S);
+      if Legacy_Bridge then
+         S.Rotation (Y, X) := -S.Rotation (Y, X);
+         S.Rotation (Z, X) := -S.Rotation (Z, X);
+      end if;
+      S.Established := True;
+      Update_Euler (S, Headfree_Mode);
+   end Set_From_Simulator;
+
+   ----------------------
+   -- Update_Simulated --
+   ----------------------
+
+   procedure Update_Simulated (S : in out State; C : Config; Armed : Boolean; Angle_Mode : Boolean) is
+   begin
+      S.GPS_Heading := True;
+      if C.Throttle_Angle_Value /= 0 and then Angle_Mode and then Armed then
+         S.Throttle_Correction := Throttle_Correction_Of (S, C);
+      else
+         S.Throttle_Correction := 0;
+      end if;
+   end Update_Simulated;
+
    -------------------------
    -- Set_Headfree_Offset --
    -------------------------

@@ -16,9 +16,10 @@ package Adaflight.Sim_FDM with SPARK_Mode is
    Field_Bound : constant := 1.0E6;
    subtype Field is Long_Float range -Field_Bound .. Field_Bound;
 
-   --  The largest magnitude of an attitude quaternion's component, about
-   --  twice that of a unit quaternion's; a packet with a larger one is dropped.
-   Orientation_Bound : constant := 2.0;
+   --  The largest magnitude of an attitude quaternion's component, which
+   --  keeps Gazebo's turned attitude within two a component; a packet with a
+   --  larger one is dropped.
+   Orientation_Bound : constant := 1.4;
    subtype Component is Field range -Orientation_Bound .. Orientation_Bound;
 
    type Vector3 is array (1 .. 3) of Field;
@@ -61,7 +62,8 @@ package Adaflight.Sim_FDM with SPARK_Mode is
 
    type Outcome is (Timeout, Stale, Update);
    type Axes is array (1 .. 3) of Integer_16;
-   type Quaternion is array (1 .. 4) of Float;
+   subtype Attitude_Component is Float range -2.0 .. 2.0;
+   type Quaternion is array (1 .. 4) of Attitude_Component;
 
    type GPS_Fix is record
       Lat, Lon, Alt_Cm               : Integer_32 := 0;

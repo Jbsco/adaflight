@@ -37547,6 +37547,47 @@ procedure Vector_Check is
       Record_Int ("simfdm.rate_lo", Int_Hex (37), Integer_64 (Interfaces."and" (R, 16#FFFF_FFFF#)));
    end Check_Sim_FDM_Line;
 
+   --  The simulator target's attitude: each packet's quaternion set, the
+   --  rotation and angles after it, and the update's throttle correction and
+   --  GPS heading, for each bridge.
+   IMUS_Config : Adaflight.Attitude.Config;
+   IMUS_State  : Adaflight.Attitude.State;
+
+   procedure Check_IMU_Sim_Line is
+      package IA renames Adaflight.Attitude;
+      Name : constant String := Str (1);
+   begin
+      if Name = "imusiminit" then
+         IMUS_Config := IA.Configure ((DCM_Kp                    => Integer (Int (4)),
+                                       DCM_Ki                    => Integer (Int (5)),
+                                       Small_Angle               => Integer (Int (6)),
+                                       Throttle_Correction_Angle => Integer (Int (7)),
+                                       Throttle_Correction_Value => Integer (Int (8)),
+                                       Mag_Declination           => Integer (Int (9))));
+         IA.Init (IMUS_State);
+      else
+         declare
+            Modes : constant Integer_64 := Int (6);
+            K     : Positive := 14;
+         begin
+            IA.Set_From_Simulator (IMUS_State, (W => Flt (7), X => Flt (8), Y => Flt (9), Z => Flt (10)),
+                                   Legacy_Bridge => Int (2) = 0, Headfree_Mode => Modes / 64 mod 2 = 1);
+            IA.Update_Simulated (IMUS_State, IMUS_Config, Armed => Int (5) /= 0, Angle_Mode => Modes mod 4 /= 0);
+            Record_Int ("imusim.roll", Int (11), Integer_64 (IMUS_State.Euler.Roll));
+            Record_Int ("imusim.pitch", Int (12), Integer_64 (IMUS_State.Euler.Pitch));
+            Record_Int ("imusim.yaw", Int (13), Integer_64 (IMUS_State.Euler.Yaw));
+            for R in Adaflight.Vectors.Coordinate loop
+               for C in Adaflight.Vectors.Coordinate loop
+                  Record_Result ("imusim.rotation", Bits (K), To_Bits (IMUS_State.Rotation (R, C)));
+                  K := K + 1;
+               end loop;
+            end loop;
+            Record_Int ("imusim.correction", Int (23), Integer_64 (IMUS_State.Throttle_Correction));
+            Record_Int ("imusim.heading", Int (24), Boolean'Pos (IMUS_State.GPS_Heading));
+         end;
+      end if;
+   end Check_IMU_Sim_Line;
+
    procedure Check_WS2811_Line is
       package W renames Adaflight.WS2811;
       Name : constant String := Str (1);
@@ -40102,6 +40143,8 @@ procedure Vector_Check is
                   Check_WS2811_Line;
                elsif Kind = "timeralloc" then
                   Check_Timer_Alloc_Line;
+               elsif Kind = "imusim" then
+                  Check_IMU_Sim_Line;
                elsif Kind = "simfdm" then
                   Check_Sim_FDM_Line;
                elsif Kind = "dshotcapture" then
@@ -40481,6 +40524,7 @@ begin
    Run (Dir & "/timeralloc.csv", "timeralloc");
    Run (Dir & "/dshotcapture.csv", "dshotcapture");
    Run (Dir & "/simfdm.csv", "simfdm");
+   Run (Dir & "/imusim.csv", "imusim");
    Run (Dir & "/dshotread.csv", "dshotread");
    Check_Twiddles;
    New_Line;

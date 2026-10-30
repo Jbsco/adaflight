@@ -19,7 +19,7 @@ overflow reads as a large negative value, and 16-bit fields wrap.
 
 ## adaflight
 
-A packet with a NaN, infinite or larger than 1e6 field, or an attitude component past 2, is dropped. Pressure is 0 above Gazebo's 44.3 km and saturates
+A packet with a NaN, infinite or larger than 1e6 field, or an attitude component past 1.4, is dropped. Pressure is 0 above Gazebo's 44.3 km and saturates
 at `int32_t`'s limits, coordinates saturate at the `int32_t` limits, speeds at 65535 and velocities at +-32767 cm/s,
 and a span of less than 1 ns leaves the sim rate as it was.
 
