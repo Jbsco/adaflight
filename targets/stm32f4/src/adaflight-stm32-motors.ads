@@ -12,6 +12,7 @@
 --  clear.
 with Interfaces;
 with Adaflight.Config_Groups;
+with Adaflight.DShot;
 with Adaflight.MSP_Motor_In;
 package Adaflight.STM32.Motors is
    --  The outputs of the mixer's motors from the configuration; every motor
@@ -49,4 +50,13 @@ package Adaflight.STM32.Motors is
    --  every compare register clears.
    procedure Write_Pulse (Index : Natural; Value : Float);
    procedure Complete_Pulses;
+   --  Whether the motors run bidirectional DShot: the configured telemetry
+   --  with a DShot protocol on an output that captures the replies.
+   function Telemetry_On return Boolean;
+   --  Each motor's capture after its last frame for the telemetry read, and
+   --  the time the first motor switched to input, zero before.
+   procedure Captures (C : out Adaflight.DShot.Captures; Stamp_Us : out Interfaces.Unsigned_32);
+   --  The first Processed motors leave input, in order, and with Done the
+   --  channels go back to output and the switch time clears.
+   procedure Leave_Input (Processed : Natural; Done : Boolean);
 end Adaflight.STM32.Motors;

@@ -1321,6 +1321,12 @@ package body Adaflight.STM32.Flight is
       Env.Motors := Adaflight.STM32.Control.Motor_Count;
       Env.Motor_Device := Adaflight.STM32.Motors.Device;
       Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
+      Env.DShot_Telemetry.Enabled := Adaflight.STM32.Motors.Telemetry_On;
+      Env.DShot_Telemetry.Reads := Adaflight.STM32.DShot_Output.Counts.Reads;
+      Env.DShot_Telemetry.Invalid_Replies := Adaflight.STM32.DShot_Output.Counts.Invalids;
+      Env.DShot_Telemetry.Telemetry := Adaflight.STM32.DShot_Output.Telemetry;
+      Env.DShot_Telemetry.Quality := CLI.Motor_Qualities (Adaflight.STM32.DShot_Output.Qualities);
+      Env.DShot_Telemetry.Edges := CLI.Edge_Times (Adaflight.STM32.DShot_Output.Counts.Saved);
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
       Ctx.Out_Views.State.Altitude :=
@@ -1808,13 +1814,15 @@ package body Adaflight.STM32.Flight is
       return Integer_16 (Float'Max (-32_768.0, Float'Min (32_767.0, Scaled)));
    end Counts;
 
-   --  The filter task: the loop's filtering without throttle or motor
-   --  frequencies yet, then the filtered rates into the raw readings reply.
+   --  The filter task: the DShot telemetry's replies decoded, then the
+   --  loop's filtering without throttle or motor frequencies yet, then the
+   --  filtered rates into the raw readings reply.
    procedure Run_Filter (Now_Us : Scheduler.Time_Us) is
       Multiplier : constant Float := Scheduler.Cycle_Time_Multiplier (Sched, Sched_Settings);
       Scale      : constant Adaflight.RPM_Filter.Cycle_Multiplier := Float'Max (0.25, Float'Min (4.0, Multiplier));
       No_Motors  : constant Adaflight.RPM_Filter.Motor_Frequencies := (others => 0.0);
    begin
+      Adaflight.STM32.DShot_Output.Update_Telemetry;
       Adaflight.Gyro_Filters.Filter (Gyro_State, Gyro_Settings, Now_Us, Throttle_Percent => 0,
                                      Motor_Hz => No_Motors, Dt_Scale => Scale);
       for I in Adaflight.MSP_Out.Axis loop
@@ -3994,6 +4002,11 @@ package body Adaflight.STM32.Flight is
       end loop;
       Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Adaflight.STM32.DShot_Output.Init (Config);
+      if Config.Motor_Config.Dev.Use_Dshot_Telemetry /= 0
+        or else (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0
+      then
+         Adaflight.STM32.DShot_Output.Init_Telemetry (Config, Positive (Sample_Us));
+      end if;
       Adaflight.STM32.Control.Init_Servos
         (Config, Runtime_Features, Adaflight.STM32.Radio.Channel_Count, Natural (Sample_Us) * Positive (Loop_Ratio));
       Show_Servos;

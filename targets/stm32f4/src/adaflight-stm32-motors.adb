@@ -371,6 +371,18 @@ package body Adaflight.STM32.Motors is
       Sources (O.Timer) := Sources (O.Timer) or O.Source;
    end Send_Frame;
 
+   --  The timer driver captures no replies yet, so its frames stay plain
+   --  DShot whatever the telemetry setting.
+   function Telemetry_On return Boolean is (False);
+
+   procedure Captures (C : out Adaflight.DShot.Captures; Stamp_Us : out Unsigned_32) is
+   begin
+      C := (others => <>);
+      Stamp_Us := 0;
+   end Captures;
+
+   procedure Leave_Input (Processed : Natural; Done : Boolean) is null;
+
    --  Each timer used restarts with its period reloaded and asks for the
    --  transfers its motors armed.
    procedure Start_Transfers is
