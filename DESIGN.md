@@ -11951,3 +11951,26 @@ indices, the decoded value's range and the cleared marks. The read oracle takes 
 build time over the sample decode and the quality count, and draws ports, pins, aborted waits, short sample counts and
 commands with steps of replies, invalid and garbage samples and steady lines. The family holds two seeds of 20 cases of
 10 steps, and ten mutations of the read each fail it.
+
+## D533. Bit-banged DShot setup (2026-10-30)
+
+`Adaflight.DShot_Bitbang.Configure` sets up the bit-banged driver. At the motors' start each motor in order takes the
+pin of its place in the output order, and a pin without a timer map channel, or one already held, stops the start with
+a pin conflict. A motor's output flags are its channel's complementary flag with the inversion and the telemetry
+applied. After the other owners take their timers and streams, each of four port group slots takes the first pacer
+channel the timer setting allows, from TIM8 channels 1 to 4 and then TIM1 channel 1 twice, 2, 3 and 4, whose timer no
+map owner holds, whose channel no earlier slot has, and whose DMA stream is free. Each motor in order then joins its
+port's group or starts the next. A fifth group stops the setup with too many ports, a slot without a pacer stops it
+without a pacer, and a pacer stream another group already took stops it with the status unchanged. A started group
+owns its stream, sets the output and input periods, the reply timeout and the frame time from the timer clock, and
+adds its channel's DMA request to its pacer timer. `Active` gives the driver choice: the setting on, or automatic with
+a protocol other than ProShot, the F4 needing the telemetry too. SPARK proves the indices and that the pacer timers
+never outnumber the groups.
+
+The reference's pacer search reads the timer of an earlier slot that found no pacer, a null pointer (F311). An STM32
+reads its boot alias there and matches no timer, and the port leaves such a slot out of the check, the STM32's result.
+
+The setup oracle takes the reference's start, post start, pacer search, port groups and timebase out of its source at
+build time over the F405 timer and DMA tables, with stand-ins for the DMA streams' and pins' owners. It draws the map
+with its owners, the streams and pins already taken, the motors' pins and order, and the settings. The family holds
+four seeds of 250 cases, and twenty mutations of the setup each fail it.
