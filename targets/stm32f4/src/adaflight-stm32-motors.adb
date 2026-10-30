@@ -79,18 +79,68 @@ package body Adaflight.STM32.Motors is
       Regs.CCER := (Regs.CCER and not Shift_Left (2#1010#, Base)) or Shift_Left (2#1011#, Base);
    end Input_Capture;
 
+   --  The bit-banged driver: on when the configuration chose it, its setup
+   --  and status, and each running group's port, pacer timer with the
+   --  channel's DMA request, stream, pins' mode bits and outputs, and the set
+   --  or reset word that holds its pins at idle; the groups' frames, which
+   --  their streams write into the ports, and the samples their streams take.
+   package BB renames Adaflight.DShot_Bitbang;
+   BB_On     : Boolean := False;
+   BB_Status : BB.Status_Kind := BB.OK;
+   BB_Setup  : BB.Setup;
+
+   type Group_Hardware is record
+      Running     : Boolean := False;
+      Port        : Port_Name := Port_A;
+      Timer       : Timer_Name := TIM8;
+      Request     : Unsigned_32 := 0;
+      Stream      : DMA_Stream;
+      Mode_Mask   : Unsigned_32 := 0;
+      Mode_Output : Unsigned_32 := 0;
+      Idle        : Unsigned_32 := 0;
+   end record;
+   Groups : array (BB.Port_Index) of Group_Hardware;
+   type Group_Flags is array (BB.Port_Index) of Boolean;
+
+   BB_Frames : array (BB.Port_Index) of aliased BB.Port_Buffer := (others => (others => 0))
+     with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
+   type Sample_Buffer is array (0 .. Adaflight.DShot.Max_Samples - 1) of Unsigned_16 with Alignment => 4;
+   pragma Volatile_Components (Sample_Buffer);
+   BB_Samples : array (BB.Port_Index) of aliased Sample_Buffer := (others => (others => 0))
+     with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
+
+   PSIZE_16     : constant Unsigned_32 := 2 ** 11;
+   PL_Very_High : constant Unsigned_32 := 3 * 2 ** 16;
+
+   function Address_Of (A : System.Address) return Unsigned_32 is
+     (Unsigned_32 (System.Storage_Elements.To_Integer (A)));
+
    --  The transfer complete interrupt of each stream a motor can use: the
    --  stream and the timer's request stopped and the stream's flags cleared,
    --  then with bidirectional DShot the channel in input capture, the switch
    --  time kept when it is the first, and the stream from the compare
-   --  register for the reply's edges.
+   --  register for the reply's edges. With the bit-banged driver the
+   --  interrupt serves the group of the stream, and the switches of a
+   --  group's direction run here.
    protected Capture with Interrupt_Priority => System.Interrupt_Priority'First is
       function Input (Slot : Motor_Slot) return Boolean;
       function Stamp return Unsigned_32;
       procedure Leave (Slot : Motor_Slot);
       procedure Clear_Stamp;
+      --  Whether a group still samples its replies.
+      function BB_Pending (G : BB.Port_Index) return Boolean;
+      --  A group's stream from its frames into the port's set and reset
+      --  register, the pins outputs at idle and the pacer at the output
+      --  period; Done is False when the stream does not stop.
+      procedure BB_To_Output (G : BB.Port_Index; Done : out Boolean);
+      --  The update's transfers: each running group reloaded after a
+      --  transfer error, back to output from input, and its stream on, then
+      --  each pacer timer's requests on.
+      procedure BB_Start;
    private
       procedure Complete (Controller : Positive; Stream : Natural);
+      procedure BB_Complete (Controller : Positive; Stream : Natural);
+      procedure BB_To_Input (G : BB.Port_Index);
       procedure DMA1_0 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream0_Interrupt;
       procedure DMA1_1 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream1_Interrupt;
       procedure DMA1_2 with Attach_Handler => Ada.Interrupts.Names.DMA1_Stream2_Interrupt;
@@ -107,6 +157,9 @@ package body Adaflight.STM32.Motors is
       procedure DMA2_7 with Attach_Handler => Ada.Interrupts.Names.DMA2_Stream7_Interrupt;
       Inputs       : Motor_Flags_Array := (others => False);
       Switch_Stamp : Unsigned_32 := 0;
+      BB_Waiting   : Group_Flags := (others => False);
+      BB_Reload    : Group_Flags := (others => False);
+      BB_Input     : Group_Flags := (others => False);
    end Capture;
 
    protected body Capture is
@@ -123,12 +176,143 @@ package body Adaflight.STM32.Motors is
          Switch_Stamp := 0;
       end Clear_Stamp;
 
+      function BB_Pending (G : BB.Port_Index) return Boolean is (BB_Waiting (G));
+
+      procedure BB_To_Output (G : BB.Port_Index; Done : out Boolean) is
+         H    : Group_Hardware renames Groups (G);
+         S    : Stream_Registers with Import, Address => Stream_Address (H.Stream);
+         Regs : Timer_Registers with Import, Address => Timer_Base (H.Timer);
+         Port : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (H.Port);
+      begin
+         S.CR := S.CR and not EN;
+         Done := False;
+         for Spin in 1 .. 100 loop
+            if (S.CR and EN) = 0 then
+               Done := True;
+               exit;
+            end if;
+         end loop;
+         if not Done then
+            return;
+         end if;
+         Port.BSRR := H.Idle;
+         Port.MODER := (Port.MODER and not H.Mode_Mask) or H.Mode_Output;
+         S.CR := Shift_Left (Unsigned_32 (H.Stream.Channel), 25) or PL_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P
+           or TCIE;
+         S.FCR := DMDIS;
+         S.NDTR := BB.Buffer_Length;
+         S.PAR := Address_Of (GPIO.Port_Base (H.Port)) + 16#18#;
+         S.M0AR := Address_Of (BB_Frames (G)'Address);
+         Regs.ARR := BB_Setup.Output_Period;
+         BB_Input (G) := False;
+      end BB_To_Output;
+
+      --  A group's pins inputs and its stream from the port's input register
+      --  into its samples, the pacer restarted at the input period.
+      procedure BB_To_Input (G : BB.Port_Index) is
+         H    : Group_Hardware renames Groups (G);
+         S    : Stream_Registers with Import, Address => Stream_Address (H.Stream);
+         Regs : Timer_Registers with Import, Address => Timer_Base (H.Timer);
+         Port : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (H.Port);
+      begin
+         Port.MODER := Port.MODER and not H.Mode_Mask;
+         S.CR := Shift_Left (Unsigned_32 (H.Stream.Channel), 25) or PL_Very_High or MSIZE_32 or PSIZE_16 or MINC
+           or TCIE;
+         S.FCR := DMDIS;
+         S.NDTR := Adaflight.DShot.Max_Samples;
+         S.PAR := Address_Of (GPIO.Port_Base (H.Port)) + 16#10#;
+         S.M0AR := Address_Of (BB_Samples (G)'Address);
+         Regs.CNT := 0;
+         Regs.ARR := BB_Setup.Input_Period;
+         S.CR := S.CR or EN;
+         BB_Input (G) := True;
+      end BB_To_Input;
+
+      --  A group's transfer done: its stream and request off and its flags
+      --  cleared; a transfer error leaves the stream for the next update to
+      --  reload. With bidirectional DShot an output's end turns the group to
+      --  input with its request on, and an input's end ends the wait.
+      procedure BB_Complete (Controller : Positive; Stream : Natural) is
+         Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
+         Status : Unsigned_32 with Volatile, Import,
+           Address => System'To_Address (DMA_Base (Controller) + (if Stream < 4 then 16#00# else 16#04#));
+      begin
+         for G in 0 .. BB_Setup.Used_Ports - 1 loop
+            if Groups (G).Running and then Groups (G).Stream.Controller = Controller
+              and then Groups (G).Stream.Stream = Stream
+            then
+               declare
+                  H     : Group_Hardware renames Groups (G);
+                  S     : Stream_Registers with Import, Address => Stream_Address (H.Stream);
+                  Regs  : Timer_Registers with Import, Address => Timer_Base (H.Timer);
+                  Error : Boolean;
+               begin
+                  S.CR := S.CR and not EN;
+                  Regs.DIER := Regs.DIER and not H.Request;
+                  Error := (Status and Shift_Left (2#1000#, Shifts (Stream mod 4))) /= 0;
+                  Clear_Flags (H.Stream);
+                  if Error then
+                     BB_Reload (G) := True;
+                  elsif Bidir then
+                     if BB_Input (G) then
+                        BB_Waiting (G) := False;
+                        S.CR := S.CR and not EN;
+                     else
+                        BB_To_Input (G);
+                        BB_Waiting (G) := True;
+                        Regs.DIER := Regs.DIER or H.Request;
+                     end if;
+                  end if;
+               end;
+               return;
+            end if;
+         end loop;
+      end BB_Complete;
+
+      procedure BB_Start is
+         Done : Boolean;
+      begin
+         for G in 0 .. BB_Setup.Used_Ports - 1 loop
+            if Groups (G).Running then
+               Done := True;
+               if BB_Reload (G) then
+                  BB_To_Output (G, Done);
+                  if Done then
+                     BB_Reload (G) := False;
+                  end if;
+               end if;
+               if Done and then Bidir and then BB_Input (G) then
+                  BB_To_Output (G, Done);
+               end if;
+               if Done then
+                  declare
+                     S : Stream_Registers with Import, Address => Stream_Address (Groups (G).Stream);
+                  begin
+                     S.CR := S.CR or EN;
+                  end;
+               end if;
+            end if;
+         end loop;
+         for P in 0 .. BB_Setup.Used_Pacers - 1 loop
+            declare
+               Regs : Timer_Registers with Import,
+                 Address => Timer_Base (if BB_Setup.Timers (P).Timer = 1 then TIM1 else TIM8);
+            begin
+               Regs.DIER := Regs.DIER or Unsigned_32 (BB_Setup.Timers (P).Requests);
+            end;
+         end loop;
+      end BB_Start;
+
       procedure Complete (Controller : Positive; Stream : Natural) is
          Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
          Status : Unsigned_32 with Volatile, Import,
            Address => System'To_Address (DMA_Base (Controller) + (if Stream < 4 then 16#00# else 16#04#));
          Slot   : constant Integer := Stream_Slot (Controller, Stream);
       begin
+         if BB_On then
+            BB_Complete (Controller, Stream);
+            return;
+         end if;
          if Slot < 0 or else (Status and Shift_Left (16#20#, Shifts (Stream mod 4))) = 0 then
             return;
          end if;
@@ -373,6 +557,212 @@ package body Adaflight.STM32.Motors is
          when 7 => 12_000_000,
          when others => 0);
 
+   function Bitbang_Active (C : Adaflight.Config_Groups.Configuration) return Boolean is
+     (BB.Active (C.Motor_Config.Dev.Use_Dshot_Bitbang, C.Motor_Config.Dev.Use_Dshot_Telemetry /= 0,
+                 C.Motor_Config.Dev.Motor_Protocol, Adaflight.STM32.Platform.F4));
+
+   function Bitbang_On return Boolean is (BB_On);
+
+   function Bitbang_OK return Boolean is (BB."=" (BB_Status, BB.OK));
+
+   --  The setup over the configuration's pins and settings, the timer map's
+   --  owners and the strip's stream, with no pin held before the motors.
+   procedure Configure_Bitbang
+     (C : Adaflight.Config_Groups.Configuration; Total : Natural; Strip_Stream : Natural; S : out BB.Setup)
+   is
+      Busy  : BB.Stream_Flags := (others => False);
+      Tags  : BB.Tag_List;
+      Order : BB.Order_List;
+   begin
+      for M in Tags'Range loop
+         Tags (M) := C.Motor_Config.Dev.Io_Tags (M);
+         Order (M) := Natural (C.Motor_Config.Dev.Motor_Output_Reordering (M)) mod 8;
+      end loop;
+      if Strip_Stream in Busy'Range then
+         Busy (Strip_Stream) := True;
+      end if;
+      BB.Configure
+        (S, Adaflight.STM32.Timers.Allocation, Busy, (others => False), Total, Tags, Order,
+         C.Motor_Config.Dev.Use_Dshot_Bitbanged_Timer, Bidir, C.Motor_Config.Dev.Motor_Inversion /= 0,
+         C.Motor_Config.Dev.Motor_Protocol, Adaflight.STM32.Platform.APB2_Timer_Hz);
+   end Configure_Bitbang;
+
+   --  The bit-banged start: the motors' pins through the output order as
+   --  the setup checks them; a pin conflict leaves no motor driven, else
+   --  each pin is a push-pull output pulled toward its idle level and set
+   --  to its output's idle level.
+   procedure Init_Bitbang (C : Adaflight.Config_Groups.Configuration; Total : Natural) is
+      S        : BB.Setup;
+      Inverted : constant Boolean := C.Motor_Config.Dev.Motor_Inversion /= 0;
+      Speed    : constant Unsigned_32 := (if Adaflight.STM32.Platform.F4 then 2 else 0);
+   begin
+      BB_On := True;
+      Configure_Bitbang (C, Total, 0, S);
+      BB_Status := S.Status;
+      if not S.Init_OK then
+         return;
+      end if;
+      for M in 0 .. Total - 1 loop
+         declare
+            Tag   : constant Unsigned_8 := S.Motors (M).Tag;
+            P     : constant Pin := (Port => Port_Name'Val (Natural (Tag / 16) - 1), Number => Pin_Number (Tag mod 16));
+            Port  : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (P.Port);
+            Shift : constant Natural := 2 * Natural (P.Number);
+         begin
+            Outputs (M).Configured := True;
+            Outputs (M).Where := P;
+            GPIO.Enable_Port (P.Port);
+            GPIO.Set_Output (P);
+            Port.OSPEEDR := (Port.OSPEEDR and not Shift_Left (3, Shift)) or Shift_Left (Speed, Shift);
+            Port.PUPDR := (Port.PUPDR and not Shift_Left (3, Shift)) or Shift_Left ((if Inverted then 2 else 1), Shift);
+            if (S.Motors (M).Output and 1) /= 0 then
+               GPIO.Set_Low (P);
+            else
+               GPIO.Set_High (P);
+            end if;
+         end;
+      end loop;
+      Driven := Total;
+      Kind := Adaflight.MSP_Motor_In.DShot;
+   end Init_Bitbang;
+
+   --  A group's pacer and stream as the reference starts them: the timer
+   --  counting up at the timer clock over the output period with its period
+   --  preloaded, the channel in PWM mode 1 at ten counts with a low polarity
+   --  and its output idling set, the timer on, and the stream's controller on.
+   procedure Start_Group (G : BB.Port_Index; Row : BB.Pacer_Row) is
+      P     : constant BB.Pacer := BB.Pacers (Row);
+      Timer : constant Timer_Name := (if P.Timer = 1 then TIM1 else TIM8);
+      Regs  : Timer_Registers with Import, Address => Timer_Base (Timer);
+      Byte  : constant Natural := (if P.Channel mod 2 = 1 then 0 else 8);
+      Base  : constant Natural := 4 * (P.Channel - 1);
+      Idle  : constant Natural := 8 + 2 * (P.Channel - 1);
+      Mode  : Unsigned_32;
+   begin
+      Groups (G) := (Running => True, Port => Port_Name'Val (Natural (BB_Setup.Ports (G).Port) - 1), Timer => Timer,
+                     Request => Shift_Left (16#0200#, P.Channel - 1),
+                     Stream  => (Controller => 2, Stream => P.Stream - 9, Channel => P.Request), others => <>);
+      Enable_Clock (Timer);
+      Set_Time_Base (Timer, Reload => BB_Setup.Output_Period, Prescale => 0);
+      Regs.CR1 := Regs.CR1 or ARPE;
+      Regs.CR1 := Regs.CR1 and not CEN;
+      Regs.CCER := Regs.CCER and not Shift_Left (1, Base);
+      Mode := (if P.Channel <= 2 then Regs.CCMR1 else Regs.CCMR2);
+      Mode := (Mode and not Shift_Left (16#73#, Byte)) or Shift_Left (16#60#, Byte);
+      Regs.CR2 := (Regs.CR2 and not Shift_Left (2#11#, Idle)) or Shift_Left (1, Idle);
+      if P.Channel <= 2 then
+         Regs.CCMR1 := Mode and 16#FFFF#;
+      else
+         Regs.CCMR2 := Mode and 16#FFFF#;
+      end if;
+      declare
+         CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (Timer, P.Channel));
+      begin
+         CCR := 10;
+      end;
+      Regs.CCER := (Regs.CCER and not Shift_Left (2#1111#, Base)) or Shift_Left (2#0011#, Base);
+      Regs.CR1 := Regs.CR1 or CEN;
+      Enable_DMA (Groups (G).Stream);
+   end Start_Group;
+
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural) is
+      Done : Boolean;
+   begin
+      if not BB_On or else Driven = 0 then
+         return;
+      end if;
+      Configure_Bitbang (C, Driven, Strip_Stream, BB_Setup);
+      BB_Status := BB_Setup.Status;
+      for G in 0 .. BB_Setup.Used_Ports - 1 loop
+         declare
+            Row : constant BB.Pacer_Row := BB_Setup.Ports (G).Pacer;
+         begin
+            if BB_Setup.Ports (G).Allocated and then Row > 0
+              and then BB_Setup.Streams (BB.Pacers (Row).Stream) = BB_Setup.Ports (G).Port
+            then
+               Start_Group (G, Row);
+            end if;
+         end;
+      end loop;
+      for M in 0 .. Driven - 1 loop
+         if BB_Setup.Motors (M).Configured then
+            declare
+               G   : constant BB.Port_Index := BB_Setup.Motors (M).Group;
+               Bit : constant Natural := BB_Setup.Motors (M).Pin;
+            begin
+               Groups (G).Mode_Mask := Groups (G).Mode_Mask or Shift_Left (3, 2 * Bit);
+               Groups (G).Mode_Output := Groups (G).Mode_Output or Shift_Left (1, 2 * Bit);
+               Groups (G).Idle := Groups (G).Idle or (if Bidir then Shift_Left (1, Bit) else Shift_Left (1, Bit + 16));
+               if Bidir then
+                  GPIO.Set_High (Outputs (M).Where);
+               else
+                  GPIO.Set_Low (Outputs (M).Where);
+               end if;
+               BB.Init (BB_Frames (G), Shift_Left (1, Bit), Inverted => Bidir);
+               Capture.BB_To_Output (G, Done);
+            end;
+         end if;
+      end loop;
+   end Post_Init;
+
+   procedure Update_Init is
+   begin
+      if BB_On then
+         for G in 0 .. BB_Setup.Used_Ports - 1 loop
+            BB.Clear (BB_Frames (G));
+         end loop;
+      end if;
+   end Update_Init;
+
+   procedure Telemetry_Wait (Ports : in out BB.Port_Inputs) is
+      Start   : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Pending : Boolean;
+      Elapsed : Unsigned_32;
+   begin
+      if not BB_On then
+         return;
+      end if;
+      loop
+         Pending := False;
+         for G in 0 .. BB_Setup.Used_Ports - 1 loop
+            Pending := Pending or else Capture.BB_Pending (G);
+         end loop;
+         Elapsed := Adaflight.STM32.Time.Micros - Start;
+         if Elapsed < 2 ** 31 and then Integer_32 (Elapsed) > BB_Setup.Timeout_Us then
+            for G in 0 .. BB_Setup.Used_Ports - 1 loop
+               if Capture.BB_Pending (G) then
+                  Ports (G).Aborted := True;
+               end if;
+            end loop;
+            exit;
+         end if;
+         exit when not Pending;
+      end loop;
+   end Telemetry_Wait;
+
+   procedure Port_Samples
+     (Ports : in out BB.Port_Inputs; Used : out BB.Port_Total; Pins : out BB.Motor_Pins;
+      Configured : out Adaflight.DShot.Motor_Total)
+   is
+   begin
+      Used := (if BB_On then BB_Setup.Used_Ports else 0);
+      Pins := (others => <>);
+      Configured := 0;
+      for G in 0 .. Used - 1 loop
+         for K in Sample_Buffer'Range loop
+            Ports (G).Buffer (K) := BB_Samples (G) (K);
+         end loop;
+         Ports (G).Count := Adaflight.DShot.Max_Samples;
+      end loop;
+      if BB_On then
+         for M in 0 .. Driven - 1 loop
+            exit when not BB_Setup.Motors (M).Configured;
+            Pins (M) := (Port => BB_Setup.Motors (M).Group, Pin => BB_Setup.Motors (M).Pin);
+            Configured := M + 1;
+         end loop;
+      end if;
+   end Port_Samples;
+
    procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural; Three_D : Boolean) is
       Hz    : constant Unsigned_32 := Protocol_Hz (C.Motor_Config.Dev.Motor_Protocol);
       Total : constant Natural := Natural'Min (Count, 8);
@@ -384,11 +774,17 @@ package body Adaflight.STM32.Motors is
       Configured_Protocol := C.Motor_Config.Dev.Motor_Protocol;
       Bidir := Telemetry_Configured (C);
       Stream_Slot := (others => (others => -1));
+      BB_On := False;
+      BB_Status := BB.OK;
       if Configured_Protocol in Adaflight.PWM_Output.Protocol then
          Init_Analog (C, Count, Three_D);
          return;
       end if;
       if Hz = 0 then
+         return;
+      end if;
+      if Bitbang_Active (C) then
+         Init_Bitbang (C, Total);
          return;
       end if;
       Deadtime_Us := 35 + Integer_32 (320_000_000 / Hz);
@@ -495,10 +891,10 @@ package body Adaflight.STM32.Motors is
    end Hold_Idle;
 
    function Motor_Enabled (Index : Natural) return Boolean is
-     (Index < Driven and then Outputs (Index).Configured);
+     (Index < Driven and then Outputs (Index).Configured and then (not BB_On or else BB_Setup.Motors (Index).Enabled));
 
    function Stream_Of (Index : Natural) return Natural is
-     (if Index < Driven and then Outputs (Index).Configured and then CCR_Of (Index) = 0
+     (if Index < Driven and then Outputs (Index).Configured and then CCR_Of (Index) = 0 and then not BB_On
       then (Outputs (Index).Stream.Controller - 1) * 8 + Outputs (Index).Stream.Stream + 1
       else 0);
 
@@ -519,6 +915,12 @@ package body Adaflight.STM32.Motors is
         Adaflight.DShot.Frame (Adaflight.DShot.Frame_Value (Unsigned_16'Min (Value, 2_047)),
                                Request_Telemetry => Request, Inverted_Checksum => Bidir);
    begin
+      if BB_On then
+         if Index < Driven and then BB_Setup.Motors (Index).Configured then
+            BB.Set (BB_Frames (BB_Setup.Motors (Index).Group), BB_Setup.Motors (Index).Pin, Packet, Inverted => Bidir);
+         end if;
+         return;
+      end if;
       if not O.Configured then
          return;
       end if;
@@ -601,6 +1003,10 @@ package body Adaflight.STM32.Motors is
    --  transfers its motors armed.
    procedure Start_Transfers is
    begin
+      if BB_On then
+         Capture.BB_Start;
+         return;
+      end if;
       for T in Timer_Name loop
          if Used (T) then
             declare

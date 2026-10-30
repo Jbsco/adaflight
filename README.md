@@ -24,7 +24,7 @@ The flight software is ported and runs on the host, where each ported function r
 
 - **Flight control**: Betaflight, Raceflight, KISS, Actual and Quick rates, RC smoothing and feedforward, PID controller with anti-gravity, I-term relax, TPA and dynamic idle, launch control, crash flip, EZ landing, in-flight adjustments, simplified tuning, failsafe
 - **Filters**: gyro and D-term lowpass and notch filters, dynamic notch over a sliding DFT, RPM filter
-- **Motors and servos**: multirotor and wing mixers with custom mixes, servos, 3D mode, DShot with bidirectional telemetry and commands, PWM, OneShot, MultiShot and brushed outputs
+- **Motors and servos**: multirotor and wing mixers with custom mixes, servos, 3D mode, DShot on the timers or bit-banged on the GPIO ports with bidirectional telemetry and commands, PWM, OneShot, MultiShot and brushed outputs
 - **Attitude and navigation**: attitude estimator with compass heading, accelerometer calibration, position estimate from barometer, accelerometer and GPS, altitude hold, position hold, GPS rescue, flight plans with waypoints, NMEA and UBX GPS with u-blox configuration
 - **Gyros and accelerometers**: MPU6000, MPU6500, ICM20689 family, ICM426xx, ICM456xx, ICM40609, ICM56686, LSM6DSO, LSM6DSV16X, BMI160, BMI270, BMI423
 - **Barometers**: BMP085, BMP280, BMP388, BMP5xx, DPS310, MS5611, LPS, LPS22DF, QMP6988, 2SMPB-02B

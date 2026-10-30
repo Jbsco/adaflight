@@ -265,4 +265,23 @@ package body Adaflight.STM32.Motors is
          Frames (M).Loaded := False;
       end loop;
    end Start_Transfers;
+
+   --  The host drives the motors through the timer driver's model only.
+   function Bitbang_Active (C : Adaflight.Config_Groups.Configuration) return Boolean is (False);
+   function Bitbang_On return Boolean is (False);
+   function Bitbang_OK return Boolean is (True);
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural) is null;
+   procedure Update_Init is null;
+   procedure Telemetry_Wait (Ports : in out Adaflight.DShot_Bitbang.Port_Inputs) is null;
+
+   procedure Port_Samples
+     (Ports : in out Adaflight.DShot_Bitbang.Port_Inputs; Used : out Adaflight.DShot_Bitbang.Port_Total;
+      Pins : out Adaflight.DShot_Bitbang.Motor_Pins; Configured : out Adaflight.DShot.Motor_Total)
+   is
+      pragma Unreferenced (Ports);
+   begin
+      Used := 0;
+      Pins := (others => <>);
+      Configured := 0;
+   end Port_Samples;
 end Adaflight.STM32.Motors;

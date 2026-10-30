@@ -3,6 +3,7 @@
 --  and the section the DMA buffers go to, the main RAM on the F4, whose
 --  core coupled memory the DMA cannot reach.
 package Adaflight.STM32.Platform is
+   F4            : constant Boolean := True;
    Core_Hz       : constant := 168_000_000;
    APB1_Hz       : constant := 42_000_000;
    APB2_Hz       : constant := 84_000_000;

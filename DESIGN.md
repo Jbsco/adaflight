@@ -11982,3 +11982,26 @@ hooks. With the bit-banged driver each repeat clears the port buffers before the
 the completion, and decodes the replies after it, where the timer driver decodes before the writes.
 `Adaflight.DShot_Command.Blocking_Run` takes the driver choice and the two hooks. The command oracle runs a second time
 with the bit-banged driver active over its bench sequences, and the port's steps match it.
+
+## D535. Bit-banged DShot driver on the STM32 (2026-10-30)
+
+The STM32 crate runs the bit-banged DShot driver when the configuration chooses it (D533): the setting on, or
+automatic with a DShot protocol, the F4 needing bidirectional DShot. At the motors' start the setup checks the pins,
+and each pin becomes a push-pull output pulled toward its idle level. After the LED strip takes its stream the setup
+finds the pacers and groups, and each running group gets its TIM8 or TIM1 channel at the output period with a compare at
+ten counts, and its DMA2 stream. A motor update clears the groups' frames, sets each motor's frame (D531), waits for the
+replies to end or time out, turns any group still in input back to output, and starts every stream and pacer request.
+Each stream writes its group's 51 set and reset words into the port, one each pacer period. With bidirectional DShot a
+stream's transfer complete turns the group's pins to inputs and samples the port's input register 140 times at the
+input period, and the update reads the replies from those samples (D532) after its transfers start. A transfer error
+leaves the stream for the next update to reload. The transfer complete interrupts of DMA2 streams 1, 2, 3, 4, 6 and 7
+serve the timer driver's captures or the groups, whichever runs. Blocking commands follow D534, and the arming check
+takes the driver choice and the setup's status.
+
+The port reads the replies of the motors the setup gave a group, where the reference reads every motor and goes
+through the null group of a motor its setup stopped before (F312). The port keeps no pin owners at the motors' start,
+so a motor pin another device holds does not stop the start with a pin conflict. The F7 keeps the frames and samples in
+the data tightly coupled memory outside the data cache, where the reference cleans and invalidates cache lines.
+
+The driver runs only on hardware and waits for a bench check on the Kakute F7 and the CLRacing F4S. The host keeps the
+timer driver's model. The command line's timer and dma listings do not show the bit-banged owners yet.
