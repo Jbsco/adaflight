@@ -12035,3 +12035,11 @@ KB, room Betaflight's F722 layout leaves empty. Flashing writes sector 0's file 
 bootloader leaves through that vector table. An image too big for its regions now fails with ld's relaxation message
 about a merged string section in place of an overflow count. F4 images keep their vector table alone in sector 0, since
 1 MB has room. Speed is unchanged: both sectors are one flash behind one cache.
+
+## D539. Menus off under 1024 KB (2026-10-30)
+
+Menu system is now on from 1024 KB, so 512 KB builds leave it out by default and keep their OSD. After size work
+(D480 to D497, D503, D504, D538) an F722's 512 KB set stays about 100 KB over its room, and its menu system is the
+largest feature an OSD board can drop. F7 512 KB set loses 54208 bytes of code (610536 to 556328), F4's 54768 (612180
+to 557412). `FEATURES=+Menus` keeps menus in a 512 KB build. Boards with 1 MB or more keep every feature, so their
+images do not change. Build options leave out CMS when menus are off (D513), and host smoke skips menu checks.
