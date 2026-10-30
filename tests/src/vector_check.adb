@@ -185,6 +185,7 @@ with Adaflight.PWM_Output;
 with Adaflight.WS2811;
 with Adaflight.CLI_Resources;
 with Adaflight.Timer_Allocation;
+with Adaflight.Timer_Tables;
 with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
@@ -37817,6 +37818,162 @@ procedure Vector_Check is
       end loop;
    end Check_BB_Read_Line;
 
+   --  The bit-banged DShot setup: the timer map, its owners, the streams and
+   --  pins already taken and the motor settings, then the start's result,
+   --  the status, the groups and pacers, the motors, the streams' owners, the
+   --  pacer channels' owners, the periods and the driver choice.
+   procedure Check_BB_Setup_Line is
+      use type Interfaces.Unsigned_8;
+      package B renames Adaflight.DShot_Bitbang;
+      package TA renames Adaflight.Timer_Allocation;
+      package TT renames Adaflight.Timer_Tables;
+      Map    : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21;
+      T      : TA.Table;
+      Busy   : B.Stream_Flags;
+      Taken  : B.Pin_Flags := (others => False);
+      Tags   : B.Tag_List;
+      Order  : B.Order_List;
+      S      : B.Setup;
+      Values : array (0 .. 7) of Integer_64;
+      Count  : Natural;
+
+      --  The colon-separated numbers of a field, the part before the first
+      --  colon kept as text.
+      Head : String (1 .. 32);
+      Head_Length : Natural;
+      procedure Numbers (Text : String) is
+         Start : Positive := Text'First;
+         K     : Natural := 0;
+      begin
+         Values := (others => 0);
+         Head_Length := 0;
+         for I in Text'First .. Text'Last + 1 loop
+            if I > Text'Last or else Text (I) = ':' then
+               if K = 0 then
+                  Head_Length := I - Start;
+                  Head (1 .. Head_Length) := Text (Start .. I - 1);
+                  if Text (Start) in '0' .. '9' | '-' then
+                     Values (0) := Integer_64'Value (Text (Start .. I - 1));
+                  end if;
+               else
+                  Values (K) := Integer_64'Value (Text (Start .. I - 1));
+               end if;
+               K := K + 1;
+               Start := I + 1;
+            end if;
+         end loop;
+      end Numbers;
+
+      function Image (N : Integer_64) return String is
+         I : constant String := Integer_64'Image (N);
+      begin
+         return I (I'First + 1 .. I'Last);
+      end Image;
+
+      function Owner_Text (Stream : Positive) return String is
+        (if S.Streams (Stream) > 0 then "DSHOT_BITBANG:" & Image (Integer_64 (S.Streams (Stream)))
+         else Str (45 + Stream));
+   begin
+      for E in Map'Range loop
+         Numbers (Str (4 + E));
+         Map (E) := (Io_Tag => Interfaces.Unsigned_8 (Values (0)), Index => Interfaces.Unsigned_8 (Values (1)),
+                     Dmaopt => Interfaces.Integer_8 (Values (2)));
+      end loop;
+      TA.Load (T, Map);
+      for E in Map'Range loop
+         Numbers (Str (25 + E));
+         T.Owners (E).Held := Head (1 .. Head_Length) /= "FREE";
+      end loop;
+      for D in Busy'Range loop
+         Numbers (Str (45 + D));
+         Busy (D) := Head (1 .. Head_Length) /= "FREE";
+      end loop;
+      declare
+         F     : constant String := Str (62);
+         Start : Positive := F'First;
+      begin
+         for I in F'First .. F'Last + 1 loop
+            if I > F'Last or else F (I) = ':' then
+               Taken (Interfaces.Unsigned_8'Value (F (Start .. I - 1))) := True;
+               Start := I + 1;
+            end if;
+         end loop;
+         Taken (0) := False;
+      end;
+      Count := Natural (Int (63));
+      for M in Tags'Range loop
+         Numbers (Str (64 + M));
+         Tags (M) := Interfaces.Unsigned_8 (Values (0));
+         Order (M) := Adaflight.DShot.Motor_Index (Values (1));
+      end loop;
+      B.Configure (S, T, Busy, Taken, Count, Tags, Order, Interfaces.Unsigned_8 (Int (72)), Int (73) /= 0,
+                   Int (75) /= 0, Interfaces.Unsigned_8 (Int (74)), Interfaces.Unsigned_32 (Int (76)));
+      Record_Int ("bbsetup.init", Int (78), Boolean'Pos (S.Init_OK));
+      Record_Int ("bbsetup.status", Int (80), B.Status_Kind'Pos (S.Status));
+      Record_Int ("bbsetup.ports", Int (81), Integer_64 (S.Used_Ports));
+      Record_Int ("bbsetup.pacers", Int (82), Integer_64 (S.Used_Pacers));
+      for P in B.Port_Index loop
+         Numbers (Str (83 + P));
+         Record_Int ("bbsetup.pacer_timer", Values (0), Integer_64 (S.Timers (P).Timer));
+         Record_Int ("bbsetup.pacer_requests", Values (1), Integer_64 (S.Timers (P).Requests));
+         Numbers (Str (87 + P));
+         Record_Int ("bbsetup.port", Values (0),
+                     (if P < S.Used_Ports then Integer_64 (S.Ports (P).Port) - 1 else -1));
+         Record_Int ("bbsetup.pacer_row", Values (1), Integer_64 (S.Ports (P).Pacer));
+         Record_Int ("bbsetup.stream", Values (2), Integer_64 (S.Ports (P).Stream));
+         Record_Int ("bbsetup.owner", Values (3),
+                     (if S.Ports (P).Allocated then Integer_64 (S.Ports (P).Port) else 0));
+      end loop;
+      for M in Adaflight.DShot.Motor_Index loop
+         Numbers (Str (91 + M));
+         Record_Int ("bbsetup.configured", Values (0), Boolean'Pos (S.Motors (M).Configured));
+         Record_Int ("bbsetup.enabled", Values (1), Boolean'Pos (S.Motors (M).Enabled));
+         Record_Int ("bbsetup.group", Values (2), (if S.Motors (M).Configured then Integer_64 (S.Motors (M).Group)
+                                                  else -1));
+         Record_Int ("bbsetup.pin", Values (3), Integer_64 (S.Motors (M).Pin));
+         Record_Int ("bbsetup.output", Values (4), Integer_64 (S.Motors (M).Output));
+      end loop;
+      for D in Busy'Range loop
+         Record_Text ("bbsetup.dma_owner", Str (98 + D), Owner_Text (D));
+      end loop;
+      for K in 0 .. 7 loop
+         declare
+            Timer   : constant Positive := (if K < 4 then 1 else 8);
+            Channel : constant Positive := K mod 4 + 1;
+            Expect  : constant String := Str (115 + K);
+            Port    : constant Interfaces.Unsigned_8 := B.Pacer_Owner (S, Timer, Channel);
+            Map_Held : Boolean := False;
+         begin
+            for E in Map'Range loop
+               declare
+                  C : constant Natural := TA.Channel_Of (T, E);
+               begin
+                  if T.Owners (E).Held and then C > 0 and then TT.Channels (C).Timer = Timer
+                    and then TT.Channels (C).Channel = Channel
+                  then
+                     Map_Held := True;
+                     exit;
+                  end if;
+               end;
+            end loop;
+            if not Map_Held then
+               Record_Text ("bbsetup.pacer_owner", Expect,
+                            (if Port > 0 then "DSHOT_BITBANG:" & Image (Integer_64 (Port)) else "FREE:0"));
+            end if;
+         end;
+      end loop;
+      Record_Int ("bbsetup.output_period", Int (123), Integer_64 (S.Output_Period));
+      Record_Int ("bbsetup.input_period", Int (124), Integer_64 (S.Input_Period));
+      Record_Int ("bbsetup.timeout", Int (125), Integer_64 (S.Timeout_Us));
+      Record_Int ("bbsetup.frame", Int (126), Integer_64 (S.Frame_Us));
+      Record_Int ("bbsetup.active_f4", Int (127),
+                  Boolean'Pos (B.Active (Interfaces.Unsigned_8 (Int (77)), Int (73) /= 0,
+                               Interfaces.Unsigned_8 (Int (74)), True)));
+      Record_Int ("bbsetup.active_f7", Int (128),
+                  Boolean'Pos (B.Active (Interfaces.Unsigned_8 (Int (77)), Int (73) /= 0,
+                               Interfaces.Unsigned_8 (Int (74)), False)));
+   end Check_BB_Setup_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39802,6 +39959,8 @@ procedure Vector_Check is
                   Check_BB_Out_Line;
                elsif Kind = "bbread" then
                   Check_BB_Read_Line;
+               elsif Kind = "bbsetup" then
+                  Check_BB_Setup_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39902,6 +40061,7 @@ begin
    Run (Dir & "/dshotbb.csv", "dshot");
    Run (Dir & "/bbout.csv", "bbout");
    Run (Dir & "/bbread.csv", "bbread");
+   Run (Dir & "/bbsetup.csv", "bbsetup");
    Run (Dir & "/dshotcmd.csv", "dshotcmd");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
