@@ -11924,3 +11924,13 @@ bit, with an edge search alternating between rising and falling edges. F7 builds
 since board pointers wrap, over an emulated alias region with draws of the sample decode family, and adaflight's decode
 gives its results, preamble skips, margins and check times on all of them. Its unrolled reads past an edge in reach
 change no result, since an edge counts only with a sample after it within reach.
+
+## D531. Bit-banged DShot port buffers (2026-10-30)
+
+`Adaflight.DShot_Bitbang` builds a GPIO port's output buffer for reference bit-banged DShot: three words per bit, which
+a timer-paced DMA stream writes into its port's bit set and reset register, and three hold words after each frame. Each
+motor pin adds its set word at every bit start and its reset word at every bit end, inverted output swapping halves,
+with middles and last two hold words cleared. Each update clears middles, then every motor frame sets its pin's middle
+at each zero bit, so a pin falls a third of its way into a zero and two thirds into a one. SPARK proves buffer indices.
+An output oracle extracts all three builders from driver source at build time and draws port pins and inversion with
+three updates of frames. Its family holds four seeds of 200 cases.
