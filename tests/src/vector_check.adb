@@ -37743,6 +37743,80 @@ procedure Vector_Check is
       end loop;
    end Check_BB_Out_Line;
 
+   --  The bit-banged DShot telemetry read after a frame: each step's port
+   --  samples, motor pins and commands, then the counts, the motors' replies
+   --  and quality, the decoder's memory and the ports' marks.
+   BBR_T      : Adaflight.DShot.Telemetry;
+   BBR_Counts : Adaflight.DShot.Read_Counts;
+   BBR_Q      : Adaflight.DShot.Qualities;
+   BBR_D      : Adaflight.DShot.Edge_Decoder;
+   BBR_Ports  : Adaflight.DShot_Bitbang.Port_Inputs;
+
+   procedure Check_BB_Read_Line is
+      package D renames Adaflight.DShot;
+      package B renames Adaflight.DShot_Bitbang;
+      type Number_List is array (0 .. D.Max_Samples + 1) of Integer_64;
+      Motors   : B.Motor_Pins;
+      Commands : D.Command_List := (others => 0);
+      Values   : Number_List;
+
+      --  The colon-separated numbers of a field.
+      procedure Numbers (Text : String) is
+         Start : Positive := Text'First;
+         K     : Natural := 0;
+      begin
+         Values := (others => 0);
+         for I in Text'First .. Text'Last + 1 loop
+            if I > Text'Last or else Text (I) = ':' then
+               Values (K) := Integer_64'Value (Text (Start .. I - 1));
+               K := K + 1;
+               Start := I + 1;
+            end if;
+         end loop;
+      end Numbers;
+   begin
+      if Int (4) = 0 then
+         BBR_T.Motors := (others => <>);
+         BBR_T.State := D.Invalid;
+         BBR_Counts := (others => <>);
+         BBR_Q := (others => <>);
+         BBR_D := (others => <>);
+      end if;
+      for P in B.Port_Index loop
+         Numbers (Str (10 + P));
+         BBR_Ports (P).Count := D.Sample_Count (Values (0));
+         BBR_Ports (P).Aborted := Values (1) /= 0;
+         for J in B.Input_Buffer'Range loop
+            BBR_Ports (P).Buffer (J) := Interfaces.Unsigned_16 (Values (2 + J));
+         end loop;
+      end loop;
+      for M in D.Motor_Index loop
+         Numbers (Str (14 + M));
+         Motors (M) := (Port => B.Port_Index (Values (0)), Pin => B.Pin_Number (Values (1)));
+         Commands (M) := Interfaces.Unsigned_8 (Values (2));
+      end loop;
+      B.Read_Replies (BBR_T, BBR_Counts, BBR_Q, BBR_D, BBR_Ports, B.Port_Total (Int (6)), Motors,
+                      D.Motor_Total (Int (5)), Int (7) /= 0, Commands, Interfaces.Unsigned_32 (Int (8)),
+                      Interfaces.Unsigned_32 (Int (9)));
+      Record_Int ("bbread.reads", Int (22), Integer_64 (BBR_Counts.Reads));
+      Record_Int ("bbread.invalids", Int (23), Integer_64 (BBR_Counts.Invalids));
+      Record_Int ("bbread.state", Int (24), D.Raw_State'Pos (BBR_T.State));
+      for M in D.Motor_Index loop
+         Numbers (Str (25 + M));
+         Record_Int ("bbread.raw", Values (0), Integer_64 (BBR_T.Motors (M).Raw));
+         Record_Int ("bbread.types", Values (1), Integer_64 (BBR_T.Motors (M).Received));
+         Record_Int ("bbread.packets", Values (2), Integer_64 (BBR_Q (M).Packet_Sum));
+         Record_Int ("bbread.invalid_sum", Values (3), Integer_64 (BBR_Q (M).Invalid_Sum));
+         Record_Int ("bbread.bucket", Values (4), Integer_64 (BBR_Q (M).Last_Bucket));
+      end loop;
+      Record_Int ("bbread.skip", Int (33), Integer_64 (BBR_D.Preamble_Skip));
+      Record_Int ("bbread.margin", Int (34), Integer_64 (BBR_D.Min_Margin));
+      Record_Int ("bbread.next", Int (35), Integer_64 (BBR_D.Next_Margin_Check));
+      for P in B.Port_Index loop
+         Record_Int ("bbread.aborted", Int (36 + P), Boolean'Pos (BBR_Ports (P).Aborted));
+      end loop;
+   end Check_BB_Read_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39726,6 +39800,8 @@ procedure Vector_Check is
                   Check_DShot_Read_Line;
                elsif Kind = "bbout" then
                   Check_BB_Out_Line;
+               elsif Kind = "bbread" then
+                  Check_BB_Read_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39825,6 +39901,7 @@ begin
    Run (Dir & "/dshot.csv", "dshot");
    Run (Dir & "/dshotbb.csv", "dshot");
    Run (Dir & "/bbout.csv", "bbout");
+   Run (Dir & "/bbread.csv", "bbread");
    Run (Dir & "/dshotcmd.csv", "dshotcmd");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");

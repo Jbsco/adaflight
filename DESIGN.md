@@ -11934,3 +11934,17 @@ with middles and last two hold words cleared. Each update clears middles, then e
 at each zero bit, so a pin falls a third of its way into a zero and two thirds into a one. SPARK proves buffer indices.
 An output oracle extracts all three builders from driver source at build time and draws port pins and inversion with
 three updates of frames. Its family holds four seeds of 200 cases.
+
+## D532. Bit-banged DShot reply read (2026-10-30)
+
+`Adaflight.DShot_Bitbang.Read_Replies` reads motor replies after a bit-banged frame. Each motor in order whose port
+finished sampling decodes its pin from port samples through sample decode (D58), one decoder memory serving every motor.
+A reply found counts a read and keeps its value, or marks extended telemetry acknowledged when its value is an
+acknowledgement and its motor's command enables it, or counts an invalid reply. Each found reply counts in motor
+quality, and a pin without a reply counts nothing. Raw values then wait for processing, and used ports' abort marks
+clear. A read takes one clock reading for every motor decode, where reference reads its clock at each decode, so
+half-second margin checks can move by microseconds between two decodes. SPARK proves indices, decoded value range and
+cleared marks. A read oracle extracts reference read from driver source at build time over sample decode and quality
+count, and draws ports, pins, aborted waits, short sample counts and commands with steps of replies, invalid and garbage
+samples and steady lines. Its family holds two seeds of 20 cases of 10 steps, and ten mutations of the read each fail
+it.
