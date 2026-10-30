@@ -14,7 +14,6 @@ with Adaflight.Blackbox;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
-with Adaflight.CLI_Resources;
 with Adaflight.STM32.Timers;
 with Adaflight.Build_Features;
 with Adaflight.Build_Options;
@@ -145,7 +144,6 @@ package body Adaflight.STM32.Flight is
    use type Adaflight.MSP_Port.Event;
    use type Scheduler.Task_Id;
    use type Adaflight.STM32.Gyro.Read_Mode;
-   use type Adaflight.STM32.Timers.Owner;
 
    Baud       : constant := 115_200;
    Stack_Size : constant := 32_768;
@@ -3901,6 +3899,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
       Adaflight.STM32.USART.Init_Inverters;
       Init_Configuration;
+      Adaflight.STM32.Timers.Load (Config.Timer_Io_Config);
       Adaflight.STM32.PINIO.Init (Config);
       declare
          Bind_Saved : Boolean;
@@ -3993,22 +3992,7 @@ package body Adaflight.STM32.Flight is
             Env.DMA_Motors (Adaflight.STM32.Motors.Stream_Of (M)) := M + 1;
          end if;
       end loop;
-      for J in Adaflight.Board.Timer_Map'Range loop
-         declare
-            Slot : constant Natural := Adaflight.Board.Timer_Map (J).Index;
-            Who  : constant Adaflight.STM32.Timers.Owner := Adaflight.STM32.Timers.Owner_Of (J);
-         begin
-            if Slot in Env.Timer_Owners'Range then
-               Env.Timer_Owners (Slot) :=
-                 (Held    => Who /= Adaflight.STM32.Timers.Free,
-                  Owner   => (case Who is
-                                 when Adaflight.STM32.Timers.Servo     => Adaflight.CLI_Resources.Servo,
-                                 when Adaflight.STM32.Timers.LED_Strip => Adaflight.CLI_Resources.LED_Strip,
-                                 when others                           => Adaflight.CLI_Resources.Motor),
-                  Ordinal => Natural'Min (16, Adaflight.STM32.Timers.Ordinal_Of (J)));
-            end if;
-         end;
-      end loop;
+      Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Adaflight.STM32.DShot_Output.Init (Config);
       Adaflight.STM32.Control.Init_Servos
         (Config, Runtime_Features, Adaflight.STM32.Radio.Channel_Count, Natural (Sample_Us) * Positive (Loop_Ratio));

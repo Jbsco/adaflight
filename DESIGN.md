@@ -11779,3 +11779,22 @@ the passthrough port number read as signed bytes, so 256 passed as option 0 and 
 (F307, F308), and the OSD group reset that writes the live warnings when the serial command or the setting information
 reply resets a copy for a default comparison (F309). The port checks both numbers at their full width and its printing
 changes nothing. The oracle fixes the three.
+
+## D522. Timer allocation from the configured map (2026-10-29)
+
+The timer drivers allocate their channels from the configuration's timer pin map, so the timer and dma commands take
+effect at the next boot. `Adaflight.Timer_Allocation` holds the reference's timer management as a SPARK package over the
+map and an owner per entry: an entry's channel is its pin's tag at the entry's occurrence in the timer table (D521),
+none for an empty entry or an occurrence past the pin's channels; a pin's first entry answers for the pin; a channel's
+owner comes from the first entry whose channel it is; an allocation takes the pin's first entry when its channel is
+free, and the entry holds the owner and its ordinal from then on, even when the entry has no channel, in which case the
+owner gets no channel back. The entry's DMA option is the motor's or the LED strip's. The STM32 timer driver loads the
+map at boot after the configuration, allocates through the package with the resource owners, and reports the owners to
+the command line, which the resource and timer listings print. The crate's own copy of the timer table went away with
+the static board map lookups; the board map only seeds the configuration's defaults (D520).
+
+The timer allocation oracle builds the reference's timer management as source over the settings oracle's F405 target and
+the timer shim of D521, draws the board's default map with random entries rewritten, then a run of allocations by owner
+and ordinal and queries of a pin's configured channel and its owner, and prints the owners after the run. The timer
+allocation family holds four seeds of 200 cases. The Kakute F7 image builds at 648964 bytes of code and the CLRacing F4S
+one at 651692, both below D521 with the crate table gone; the host smoke, style and the vectors pass.

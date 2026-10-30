@@ -7,6 +7,7 @@
 with Ada.Environment_Variables;
 with Ada.Text_IO;
 with Interfaces;
+with Adaflight.CLI_Resources;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Servos is
    use Interfaces;
@@ -41,7 +42,7 @@ package body Adaflight.STM32.Servos is
                Index : Natural;
                Found : Boolean;
             begin
-               Allocate (Dev.Io_Tags (N), Servo, E, Index, Found);
+               Allocate (Dev.Io_Tags (N), Adaflight.CLI_Resources.Servo, E, Index, Found, Ordinal => N + 1);
                exit when not Found;
                Configured (N) := True;
                Pulses (N) := 0;
