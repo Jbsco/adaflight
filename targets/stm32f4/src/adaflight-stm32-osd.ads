@@ -142,6 +142,7 @@ package Adaflight.STM32.OSD is
       Motors_Running    : Boolean := False;
       Motor_Active      : Motor_Flags := (others => False);
       ESC_Feature       : Boolean := False;
+      DShot_Configured  : Boolean := False;
       ESC_Erpm_To_Hz    : Float range 0.0 .. 1.0 := 0.0;
       ESC_Combined      : Adaflight.ESC_Sensor.Reading;
       ESC_Motors        : Adaflight.ESC_Sensor.Readings;

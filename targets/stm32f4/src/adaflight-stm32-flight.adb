@@ -1330,6 +1330,21 @@ package body Adaflight.STM32.Flight is
       Env.DShot_Telemetry.Edges := CLI.Edge_Times (Adaflight.STM32.DShot_Output.Counts.Saved);
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
+      declare
+         T : Adaflight.DShot.Telemetry renames Env.DShot_Telemetry.Telemetry;
+         V : Adaflight.MSP_Out.ESC_Values renames Ctx.Out_Views.State.ESC;
+      begin
+         V.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+         for M in 0 .. V.Count - 1 loop
+            V.Motors (M).DShot_Rpm := T.Rpm (M);
+            V.Motors (M).DShot_Active := Adaflight.DShot.Motor_Active (T, M);
+            V.Motors (M).Invalid_Percent := Adaflight.DShot.Invalid_Percent (Env.DShot_Telemetry.Quality (M), True);
+            V.Motors (M).Kinds := T.Motors (M).Received;
+            V.Motors (M).Temperature := T.Motors (M).Values (Adaflight.DShot.Temperature);
+            V.Motors (M).Voltage := T.Motors (M).Values (Adaflight.DShot.Voltage);
+            V.Motors (M).Current := T.Motors (M).Values (Adaflight.DShot.Current);
+         end loop;
+      end;
       Ctx.Out_Views.State.Altitude :=
         (Estimate_Cm    => Estimated_Altitude_Cm, Vario => Estimated_Vario,
          Rangefinder_Cm => Adaflight.STM32.Rangefinder.Altitude_Cm);
@@ -2713,8 +2728,11 @@ package body Adaflight.STM32.Flight is
       end loop;
       F.Motors_Running := Adaflight.STM32.Control.Motors_Running;
       F.ESC_Feature := Adaflight.STM32.ESC_Sensor.Feature_On;
-      if F.ESC_Feature then
+      F.DShot_Configured := Config.Motor_Config.Dev.Use_Dshot_Telemetry /= 0;
+      if F.ESC_Feature or else F.DShot_Configured then
          F.ESC_Erpm_To_Hz := Float'Min (1.0, Adaflight.STM32.ESC_Sensor.Erpm_Factor);
+      end if;
+      if F.ESC_Feature then
          Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, F.ESC_Combined);
          for M in F.ESC_Motors'Range loop
             F.ESC_Motors (M) := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);

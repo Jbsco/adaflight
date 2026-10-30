@@ -1,11 +1,11 @@
-with Adaflight.Bytes; use Adaflight.Bytes;
-with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Board;
-with Adaflight.MAX7456;
-with Adaflight.MAX7456.Display_Port;
+with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.Display_Port_MSP;
+with Adaflight.DShot;
+with Adaflight.MAX7456;
+with Adaflight.MAX7456.Display_Port;
 with Adaflight.MSP_Port;
 with Adaflight.OSD_Canvas;
 with Adaflight.OSD_Elements;
@@ -13,8 +13,11 @@ with Adaflight.OSD_Format;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Warnings;
+with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Motors;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
@@ -740,6 +743,36 @@ package body Adaflight.STM32.OSD is
       Context.Element_Inputs.Acc_Present := F.Acc_Present;
       Context.Element_Inputs.GPS_Present := F.GPS_Feature;
       Context.Element_Inputs.ESC_Sensor_Feature := F.ESC_Feature;
+      Context.Element_Inputs.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      declare
+         T : constant Adaflight.DShot.Telemetry := Adaflight.STM32.DShot_Output.Telemetry;
+      begin
+         R.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+         R.DShot_RPM_Average := Float'Min (1.0e7, T.Rpm_Average);
+         D.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+         W.DShot_Telemetry := F.DShot_Configured;
+         for K in Adaflight.OSD_Render.Motor_Index loop
+            declare
+               M        : Adaflight.DShot.Motor_Telemetry renames T.Motors (K);
+               Extended : constant Boolean := (M.Received and 16#FE#) /= 0;
+               Temp_Set : constant Boolean := (M.Received and 2) /= 0;
+            begin
+               R.DShot_Max_Temp (K) := M.Max_Temperature;
+               A.DShot (K) := (Has_Temperature => Temp_Set, Temperature => M.Values (Adaflight.DShot.Temperature));
+               D.DShot (K) := A.DShot (K);
+               D.DShot_RPM (K) := Float'Min (Adaflight.OSD_Render.RPM_Bound, T.Rpm (K));
+               W.DShot_Sensor (K) :=
+                 (Present     => Adaflight.DShot.Motor_Active (T, K),
+                  RPM         => Interfaces.Integer_16 (Interfaces.Unsigned_16'Min
+                                   (32_767, M.Values (Adaflight.DShot.Erpm))),
+                  Current     => (if Extended and then (M.Received and 8) /= 0
+                                  then Interfaces.Integer_32 (M.Values (Adaflight.DShot.Current)) else 0),
+                  Temperature => (if Extended and then Temp_Set
+                                  then Interfaces.Unsigned_8 (Interfaces.Unsigned_16'Min
+                                         (255, M.Values (Adaflight.DShot.Temperature))) else 0));
+            end;
+         end loop;
+      end;
       Adaflight.STM32.RTC.Date_Now (Context.Has_Time, Context.Date);
       Context.Zone := (Zone => Adaflight.STM32.RTC.Zone);
       Context.Draw.Inputs.Has_Time := Context.Has_Time;

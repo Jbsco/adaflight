@@ -2772,6 +2772,16 @@ def main():
             time.sleep(3.0)
             msp(sock, 214, struct.pack("<8H", 1500, 1000, 1000, 1000, 1000, 1000, 1000, 1000))
             time.sleep(1.0)
+            telemetry = msp(sock, 139)
+            rpms = [struct.unpack_from("<IH", telemetry, 1 + 13 * m) for m in range(4)] \
+                if telemetry is not None and len(telemetry) == 1 + 13 * 4 else []
+            check("the MSP motor telemetry gives the spinning motor's RPM with no invalid replies",
+                  len(rpms) == 4 and 4100 <= rpms[0][0] <= 4500 and rpms[0][1] == 0
+                  and all(r == (0, 0) for r in rpms[1:]), repr(telemetry))
+            sensor = msp(sock, 134)
+            check("the MSP ESC sensor data reply takes the DShot RPM",
+                  sensor is not None and len(sensor) == 1 + 3 * 4 and sensor[0] == 4
+                  and 4100 <= struct.unpack_from("<H", sensor, 2)[0] <= 4500, repr(sensor))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "dshot_telemetry_info")
