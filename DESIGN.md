@@ -11948,3 +11948,25 @@ cleared marks. A read oracle extracts reference read from driver source at build
 count, and draws ports, pins, aborted waits, short sample counts and commands with steps of replies, invalid and garbage
 samples and steady lines. Its family holds two seeds of 20 cases of 10 steps, and ten mutations of the read each fail
 it.
+
+## D533. Bit-banged DShot setup (2026-10-30)
+
+`Adaflight.DShot_Bitbang.Configure` sets up bit-banged DShot. At motor start each motor in order takes the pin of its
+place in output order, and a pin without a timer map channel, or one already held, stops the start with a pin conflict.
+Motor output flags are a channel's complementary flag with inversion and telemetry applied. After other owners take
+their timers and streams, each of four port group slots takes the first pacer channel its timer setting allows, from
+TIM8 channels 1 to 4 then TIM1 channel 1 twice, 2, 3 and 4, whose timer no map owner holds, whose channel no earlier
+slot has, and whose DMA stream is free. Each motor in order then joins its port's group or starts a new one. A fifth
+group stops setup with too many ports, a slot without a pacer stops it without a pacer, and a pacer stream another group
+took stops it with status unchanged. A started group owns its stream, sets output and input periods, reply timeout and
+frame time from timer clock, and adds its channel's DMA request to its pacer timer. `Active` gives driver choice:
+setting on, or automatic with a protocol other than ProShot, F4 needing telemetry too. SPARK proves indices and that
+pacer timers never outnumber groups.
+
+Reference pacer search reads the timer of an earlier slot that found no pacer, a null pointer (F311). An STM32 reads its
+boot alias there and matches no timer, and adaflight leaves such a slot out of its check, matching an STM32.
+
+A setup oracle extracts reference start, post start, pacer search, port groups and timebase from its source at build
+time over F405 timer and DMA tables, with stand-ins for DMA stream and pin owners. It draws maps with owners, streams
+and pins already taken, motor pins and order, and settings. Its family holds four seeds of 250 cases, and twenty
+mutations of setup each fail it.
