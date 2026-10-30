@@ -9,15 +9,23 @@
 --  and the compare register's value for a change. Each frame of a DShot command, a value from 1 to 47,
 --  that the transfers send adds a line of the motor, the value and the
 --  telemetry request to the file the environment variable
---  ADAFLIGHT_DSHOT_LOG names.
+--  ADAFLIGHT_DSHOT_LOG names. With bidirectional DShot set, each motor answers
+--  its frame with a reply the transfers capture at the timer's sixteen
+--  counts a bit: zero eRPM below the first throttle value, else an eRPM
+--  thirty times the throttle value above it.
 with Ada.Environment_Variables;
 with Ada.Text_IO;
 with Adaflight.CLI_Resources;
 with Adaflight.PWM_Output;
+with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
+   use type Interfaces.Integer_32;
+   use type Interfaces.Unsigned_32;
    Driven : Natural range 0 .. 8 := 0;
    Is_On  : Boolean := False;
+   Bidir  : Boolean := False;
+   Deadtime_Us : Interfaces.Integer_32 := 0;
    Kind   : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
 
    function Image (N : Interfaces.Unsigned_32) return String is
@@ -50,6 +58,7 @@ package body Adaflight.STM32.Motors is
         (if Three_D then C.Flight3_D_Config.Neutral3d else C.Motor_Config.Mincommand);
    begin
       Driven := 0;
+      Bidir := False;
       Kind := Adaflight.MSP_Motor_In.No_Device;
       if not Analog and then Dev.Motor_Protocol not in 5 .. 7 then
          return;
@@ -82,6 +91,10 @@ package body Adaflight.STM32.Motors is
         (if Driven = 0 then Adaflight.MSP_Motor_In.No_Device
          elsif Analog then Adaflight.MSP_Motor_In.PWM
          else Adaflight.MSP_Motor_In.DShot);
+      Bidir := not Analog and then Driven > 0 and then Dev.Use_Dshot_Telemetry /= 0;
+      Deadtime_Us := 35 + Interfaces.Integer_32
+        (Interfaces.Unsigned_32'(320_000_000)
+         / (case Dev.Motor_Protocol is when 5 => 3_000_000, when 6 => 6_000_000, when others => 12_000_000));
    end Init;
 
    procedure Shutdown is
@@ -90,7 +103,6 @@ package body Adaflight.STM32.Motors is
    end Shutdown;
 
    procedure Write_Pulse (Index : Natural; Value : Float) is
-      use type Interfaces.Unsigned_32;
    begin
       if Index < Driven then
          declare
@@ -135,6 +147,77 @@ package body Adaflight.STM32.Motors is
 
    function Device return Adaflight.MSP_Motor_In.Device_Kind is (Kind);
 
+   --  Each motor's capture of its last reply, and the time the first motor
+   --  switched to input.
+   Captured : Adaflight.DShot.Captures;
+   Stamp    : Interfaces.Unsigned_32 := 0;
+   Base     : Interfaces.Unsigned_32 := 0;
+
+   GCR : constant array (Interfaces.Unsigned_32 range 0 .. 15) of Interfaces.Unsigned_32 :=
+     (16#19#, 16#1B#, 16#12#, 16#13#, 16#1D#, 16#15#, 16#16#, 16#17#, 16#1A#, 16#09#, 16#0A#, 16#0B#, 16#1E#,
+      16#0D#, 16#0E#, 16#0F#);
+
+   --  A motor's reply to a frame value: its period word of the eRPM as the
+   --  edges of its GCR transitions, sixteen counts a bit from the line's
+   --  first falling edge, with the closing edge of a reply that ends low.
+   procedure Answer (M : Natural; Value : Natural) is
+      use Interfaces;
+      Raw    : Unsigned_32 := 16#0FFF#;
+      Period : Unsigned_32;
+      E      : Natural := 0;
+   begin
+      if Value >= 48 then
+         Period := 60_000_000 / Unsigned_32 (30 * (Value - 47));
+         while Period >= 512 loop
+            Period := Shift_Right (Period, 1);
+            E := E + 1;
+         end loop;
+         Raw := Shift_Left (Unsigned_32 (E), 9) or Period;
+      end if;
+      declare
+         Csum  : constant Unsigned_32 := (not (Raw xor Shift_Right (Raw, 4) xor Shift_Right (Raw, 8))) and 16#F#;
+         Word  : constant Unsigned_32 := Shift_Left (Raw, 4) or Csum;
+         Bits  : constant Unsigned_32 :=
+           Shift_Left (1, 20) or Shift_Left (GCR (Shift_Right (Word, 12) and 16#F#), 15)
+           or Shift_Left (GCR (Shift_Right (Word, 8) and 16#F#), 10) or Shift_Left (GCR (Shift_Right (Word, 4) and 16#F#), 5)
+           or GCR (Word and 16#F#);
+         Count : Natural := 0;
+         Ones  : Natural := 0;
+      begin
+         Captured (M).Buffer := (others => 0);
+         for B in reverse 0 .. 20 loop
+            if (Shift_Right (Bits, B) and 1) /= 0 then
+               Captured (M).Buffer (Count) := Base + Unsigned_32 (16 * (20 - B));
+               Count := Count + 1;
+               Ones := Ones + 1;
+            end if;
+         end loop;
+         if Ones mod 2 = 1 then
+            Captured (M).Buffer (Count) := Base + 16 * 21;
+            Count := Count + 1;
+         end if;
+         Captured (M).Edges := Count;
+      end;
+   end Answer;
+
+   function Telemetry_On return Boolean is (Bidir);
+
+   procedure Captures (C : out Adaflight.DShot.Captures; Stamp_Us : out Interfaces.Unsigned_32) is
+   begin
+      C := Captured;
+      Stamp_Us := Stamp;
+   end Captures;
+
+   procedure Leave_Input (Processed : Natural; Done : Boolean) is
+   begin
+      for M in 0 .. Natural'Min (Processed, Captured'Length) - 1 loop
+         Captured (M).Input := False;
+      end loop;
+      if Done then
+         Stamp := 0;
+      end if;
+   end Leave_Input;
+
    --  Each motor's frame loaded since the last transfers.
    type Frame is record
       Loaded  : Boolean := False;
@@ -167,6 +250,15 @@ package body Adaflight.STM32.Motors is
             Ada.Text_IO.Put_Line
               (File, Image (M) & "," & Image (Frames (M).Value) & "," & (if Frames (M).Request then "1" else "0"));
             Ada.Text_IO.Close (File);
+         end if;
+         if Bidir and then Frames (M).Loaded and then M < Driven then
+            Base := Base + 4_000;
+            Answer (M, Frames (M).Value);
+            Captured (M).Input := True;
+            Captured (M).Deadtime := Deadtime_Us;
+            if Stamp = 0 then
+               Stamp := Adaflight.STM32.Time.Micros;
+            end if;
          end if;
          Frames (M).Loaded := False;
       end loop;
