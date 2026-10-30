@@ -236,6 +236,45 @@ package body Adaflight.DShot with SPARK_Mode is
    -- Decode_Groups --
    -------------------
 
+   function Decode_Edges (Buffer : Edge_Times; Count : Edge_Count) return Unsigned_32 is
+      Value     : Unsigned_32 := 0;
+      Old       : Unsigned_32 := Buffer (0);
+      Bits      : Natural := 0;
+      Line_High : Boolean := False;
+      Len       : Integer;
+   begin
+      for I in 1 .. Count loop
+         pragma Loop_Invariant (Bits <= 21);
+         if I < Count then
+            exit when Bits >= 21;
+            declare
+               Diff : constant Unsigned_32 := Buffer (I) - Old;
+               Gap  : constant Interfaces.Integer_64 :=
+                 (if Diff < 2 ** 31 then Interfaces.Integer_64 (Diff) else Interfaces.Integer_64 (Diff) - 2 ** 32);
+            begin
+               Len := Integer ((Gap + 8) / 16);
+            end;
+            exit when Len <= 0;
+            Line_High := not Line_High;
+         else
+            Len := 21 - Bits;
+            exit when Len <= 0 or else not Line_High;
+         end if;
+         if Len > 21 - Bits then
+            return Invalid_Value;
+         end if;
+         Value := Shift_Left (Value, Len) or Shift_Left (1, Len - 1);
+         if I < Count then
+            Old := Buffer (I);
+         end if;
+         Bits := Bits + Len;
+      end loop;
+      if Bits /= 21 then
+         return Invalid_Value;
+      end if;
+      return Decode_Groups (Value);
+   end Decode_Edges;
+
    function Decode_Groups (Word : Unsigned_32) return Unsigned_32 is
       V       : constant Unsigned_32 := Word and 16#FFFFF#;
       Decoded : constant Unsigned_32 :=
