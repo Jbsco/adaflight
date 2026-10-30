@@ -35,4 +35,42 @@ package body Adaflight.DShot_Bitbang with SPARK_Mode is
       end loop;
    end Clear;
 
+   procedure Read_Replies
+     (T : in out Adaflight.DShot.Telemetry; Counts : in out Adaflight.DShot.Read_Counts;
+      Q : in out Adaflight.DShot.Qualities; D : in out Adaflight.DShot.Edge_Decoder; Ports : in out Port_Inputs;
+      Used_Ports : Port_Total; Motors : Motor_Pins; Count : Adaflight.DShot.Motor_Total; Use_Telemetry : Boolean;
+      Commands : Adaflight.DShot.Command_List; Now_Us : Adaflight.DShot.Time_Us; Now_Ms : Adaflight.DShot.Time_Ms)
+   is
+      package S renames Adaflight.DShot;
+      Raw : Unsigned_32;
+   begin
+      if not Use_Telemetry then
+         return;
+      end if;
+      for M in 0 .. Count - 1 loop
+         if not Ports (Motors (M).Port).Aborted then
+            S.Decode_Samples (D, Ports (Motors (M).Port).Buffer, Ports (Motors (M).Port).Count, Motors (M).Pin, Now_Us,
+                              Raw);
+            if Raw /= S.No_Edge then
+               Counts.Reads := Counts.Reads + 1;
+               if Raw /= S.Invalid_Value then
+                  if Raw = S.Extended_Acknowledge and then Commands (M) = S.Extended_Telemetry_Enable then
+                     T.Motors (M).Received := S.State_Events_Bit;
+                  else
+                     T.Motors (M).Raw := S.Raw_Value (Raw);
+                  end if;
+               else
+                  Counts.Invalids := Counts.Invalids + 1;
+               end if;
+               S.Count_Packet (Q (M), Raw /= S.Invalid_Value, Now_Ms);
+            end if;
+         end if;
+      end loop;
+      T.State := S.Not_Processed;
+      for P in 0 .. Used_Ports - 1 loop
+         Ports (P).Aborted := False;
+         pragma Loop_Invariant (for all K in 0 .. P => not Ports (K).Aborted);
+      end loop;
+   end Read_Replies;
+
 end Adaflight.DShot_Bitbang;
