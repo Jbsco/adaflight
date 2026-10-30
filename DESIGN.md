@@ -12043,3 +12043,10 @@ Menu system is now on from 1024 KB, so 512 KB builds leave it out by default and
 largest feature an OSD board can drop. F7 512 KB set loses 54208 bytes of code (610536 to 556328), F4's 54768 (612180
 to 557412). `FEATURES=+Menus` keeps menus in a 512 KB build. Boards with 1 MB or more keep every feature, so their
 images do not change. Build options leave out CMS when menus are off (D513), and host smoke skips menu checks.
+
+## D540. LED strip off under 1024 KB (2026-10-30)
+
+LED strip is now a build feature on from 1024 KB, so 512 KB builds leave it out by default, as Betaflight's builds
+under 1 MB do. Its task, start and build option test its constant, so strip code drops out of those images, while its
+settings, MSP messages and command line parts stay. F7 512 KB set loses 5960 bytes of code (556328 to 550368), F4's
+5480 (557412 to 551932). `FEATURES=+LED_Strip` keeps it, and host smoke skips its checks when a build leaves it out.

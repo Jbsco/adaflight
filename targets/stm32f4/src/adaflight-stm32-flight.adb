@@ -453,9 +453,10 @@ package body Adaflight.STM32.Flight is
        Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
        Build.Telemetry_MAVLink => Adaflight.Build_Features.MAVLink_Telemetry,
-       Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.LED_Strip | Build.OSD_SD | Build.OSD_HD | Build.PINIO
+       Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.OSD_SD | Build.OSD_HD | Build.PINIO
        | Build.Position_Hold | Build.Servos | Build.VTX => True,
        Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
+       Build.LED_Strip => Adaflight.Build_Features.LED_Strip,
        Build.Brushed | Build.DShot | Build.MultiShot | Build.OneShot | Build.PWM_Output => True,
        others => False));
 
@@ -1005,7 +1006,8 @@ package body Adaflight.STM32.Flight is
          GPS => True, GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True,
          VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
-         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, LED_Strip => True,
+         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
+         LED_Strip => Adaflight.Build_Features.LED_Strip,
          Baro => Adaflight.STM32.Baro.Detected, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
@@ -3801,7 +3803,7 @@ package body Adaflight.STM32.Flight is
    procedure Run_LED_Strip is
       Updated : Boolean;
    begin
-      if Adaflight.STM32.LED_Strip.Ready then
+      if Adaflight.Build_Features.LED_Strip and then Adaflight.STM32.LED_Strip.Ready then
          Adaflight.LED_Strip.Update (Strip, Strip_Settings, Strip_Layout, LED_Inputs, Updated);
          if Updated then
             Adaflight.STM32.LED_Strip.Send (Strip.Output);
@@ -4073,11 +4075,13 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Init_Servos
         (Config, Runtime_Features, Adaflight.STM32.Radio.Channel_Count, Natural (Sample_Us) * Positive (Loop_Ratio));
       Show_Servos;
-      Strip_Layout := Adaflight.LED_Strip.Evaluate (Strip_Settings);
-      if (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0 then
-         Adaflight.STM32.LED_Strip.Init (Config);
-         Adaflight.LED_Strip.Init (Strip, Strip_Settings, Strip_Layout);
-         Adaflight.STM32.LED_Strip.Send (Strip.Output);
+      if Adaflight.Build_Features.LED_Strip then
+         Strip_Layout := Adaflight.LED_Strip.Evaluate (Strip_Settings);
+         if (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0 then
+            Adaflight.STM32.LED_Strip.Init (Config);
+            Adaflight.LED_Strip.Init (Strip, Strip_Settings, Strip_Layout);
+            Adaflight.STM32.LED_Strip.Send (Strip.Output);
+         end if;
       end if;
       Adaflight.STM32.Motors.Post_Init
         (Config, Adaflight.STM32.LED_Strip.Stream_Number, Adaflight.STM32.ADC.Stream_Number);

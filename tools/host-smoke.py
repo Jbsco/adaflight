@@ -2826,33 +2826,34 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        store = os.path.join(work, "ledstrip.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "resource LED_STRIP 1")
-            check("resource names the board's LED strip pin", "# resource LED_STRIP 1 B08" in text, text[-120:])
-            text = cli(sock, "feature LED_STRIP")
-            check("LED strip feature on", "Enabled LED_STRIP" in text, text[-120:])
-            for line in ("led 0 0,0::C:2", "led 1 1,0::C:1"):
-                cli(sock, line)
-            text = cli(sock, "led")
-            check("two LEDs take their colors", "led 0 0,0::C:2" in text and "led 1 1,0::C:1" in text, text[-200:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            ok, lines = until(lambda: led_lines(store), lambda l: ["led", "0", "FF0000"] in l and ["led", "1", "FFFFFF"] in l,
-                              wait=8.0)
-            check("the LED strip shows the red and white LEDs", ok, repr(lines[-6:]))
-        finally:
-            stop(proc)
-            sock.close()
+        if built("LED_Strip"):
+            store = os.path.join(work, "ledstrip.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "resource LED_STRIP 1")
+                check("resource names the board's LED strip pin", "# resource LED_STRIP 1 B08" in text, text[-120:])
+                text = cli(sock, "feature LED_STRIP")
+                check("LED strip feature on", "Enabled LED_STRIP" in text, text[-120:])
+                for line in ("led 0 0,0::C:2", "led 1 1,0::C:1"):
+                    cli(sock, line)
+                text = cli(sock, "led")
+                check("two LEDs take their colors", "led 0 0,0::C:2" in text and "led 1 1,0::C:1" in text, text[-200:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                ok, lines = until(lambda: led_lines(store), lambda l: ["led", "0", "FF0000"] in l and ["led", "1", "FFFFFF"] in l,
+                                  wait=8.0)
+                check("the LED strip shows the red and white LEDs", ok, repr(lines[-6:]))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
