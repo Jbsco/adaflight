@@ -1,7 +1,7 @@
 with Interfaces;
 with System;
 with System.Storage_Elements;
-with Adaflight.Board;
+with Adaflight.CLI_Resources;
 with Adaflight.WS2811;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
@@ -90,13 +90,13 @@ package body Adaflight.STM32.LED_Strip is
       if Tag = 0 then
          return;
       end if;
-      Allocate (Tag, Adaflight.STM32.Timers.LED_Strip, E, Index, Found);
+      Allocate (Tag, Adaflight.CLI_Resources.LED_Strip, E, Index, Found);
       if not Found then
          return;
       end if;
       declare
          O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Adaflight.Board.Timer_Map (Index).DMA_Option;
+         Option : constant Integer := Option_Of (Index);
       begin
          if Option not in 0 .. O'Length - 1 then
             return;

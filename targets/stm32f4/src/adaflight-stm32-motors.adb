@@ -1,3 +1,4 @@
+with Adaflight.CLI_Resources;
 with Interfaces;
 with System;
 with System.Storage_Elements;
@@ -71,7 +72,7 @@ package body Adaflight.STM32.Motors is
             Index : Natural;
             Found : Boolean;
          begin
-            Allocate (Dev.Io_Tags (Order), Motor, E, Index, Found, Ordinal => M + 1);
+            Allocate (Dev.Io_Tags (Order), Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => M + 1);
             if not Found then
                Driven := 0;
                Outputs := (others => (others => <>));
@@ -233,11 +234,11 @@ package body Adaflight.STM32.Motors is
             S        : DMA_Stream;
             Inverted : constant Boolean := C.Motor_Config.Dev.Motor_Inversion /= 0;
          begin
-            Allocate (Tag, Motor, E, Index, Found, Ordinal => M + 1);
+            Allocate (Tag, Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => M + 1);
             if Found then
                declare
                   O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-                  Option : constant Integer := Adaflight.Board.Timer_Map (Index).DMA_Option;
+                  Option : constant Integer := Option_Of (Index);
                begin
                   Found := Option in 0 .. O'Length - 1;
                   if Found then

@@ -322,14 +322,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  the first controller's stream 0 to the second's stream 7.
    type DMA_Motor_List is array (1 .. 16) of Natural range 0 .. 8;
 
-   --  Who holds a timer pin map entry's channel on the board: the owner and
-   --  its ordinal from one, zero for an owner without one.
-   type Timer_Owner is record
-      Held    : Boolean := False;
-      Owner   : CLI_Resources.Owner := CLI_Resources.Owner'First;
-      Ordinal : Natural range 0 .. 16 := 0;
-   end record;
-   type Timer_Owner_List is array (0 .. 20) of Timer_Owner;
+   subtype Timer_Owner is CLI_Resources.Timer_Owner;
+   subtype Timer_Owner_List is CLI_Resources.Timer_Owner_List;
 
    --  A gyro's interrupt mode as its SPI driver sets it.
    type Gyro_Mode is (Interrupt_Init, Interrupt_DMA, Interrupt, No_Interrupt);

@@ -1,13 +1,12 @@
 with Adaflight.PWM_Output;
+with Adaflight.Timer_Tables;
 package body Adaflight.STM32.Timers is
 
    RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
    RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
 
-   Map    : Timer_Pin_Map renames Adaflight.Board.Timer_Map;
-   Owners : array (Map'Range) of Owner := (others => Free);
-   Ordinals : array (Map'Range) of Natural := (others => 0);
+   Table : Adaflight.Timer_Allocation.Table;
 
    function Tagged_Pin (Tag : Unsigned_8) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
 
@@ -15,60 +14,38 @@ package body Adaflight.STM32.Timers is
      ((Port => Port_Name'Val (Natural (Tag / 16) - 1), Number => Pin_Number (Tag mod 16)))
      with Pre => Tagged_Pin (Tag);
 
-   --  The timer table's entry an option counts among a pin's entries, or 0.
-   function Table_Index (Where : Pin; Option : Natural) return Natural is
-      Seen : Natural := 0;
-   begin
-      for T in Timer_Table'Range loop
-         if Timer_Table (T).Where = Where then
-            Seen := Seen + 1;
-            if Seen = Option then
-               return T;
-            end if;
-         end if;
-      end loop;
-      return 0;
-   end Table_Index;
+   --  A timer by its number in the timer table.
+   function Name_Of (N : Adaflight.Timer_Tables.Timer_Number) return Timer_Name is
+     (case N is
+         when 1 => TIM1, when 2 => TIM2, when 3 => TIM3, when 4 => TIM4, when 5 => TIM5, when 8 => TIM8,
+         when 9 => TIM9, when 10 => TIM10, when 11 => TIM11, when 12 => TIM12, when 13 => TIM13,
+         when 14 => TIM14, when others => TIM1);
 
-   function Owner_Of (Position : Positive) return Owner is (Owners (Position));
-   function Ordinal_Of (Position : Positive) return Natural is (Ordinals (Position));
+   procedure Load (Map : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21) is
+   begin
+      Adaflight.Timer_Allocation.Load (Table, Map);
+   end Load;
+
+   function Owners return Adaflight.CLI_Resources.Timer_Owner_List is (Table.Owners);
+   function Option_Of (Slot : Adaflight.Timer_Allocation.Slot) return Integer is
+     (Integer (Adaflight.Timer_Allocation.Option_Of (Table, Slot)));
 
    procedure Allocate
-     (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean;
-      Ordinal : Natural := 0)
+     (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner; E : out Timer_Entry; Slot : out Natural;
+      Found : out Boolean; Ordinal : Natural := 0)
    is
+      K : Adaflight.Timer_Allocation.Channel_Index;
    begin
-      E := Timer_Table (Timer_Table'First);
-      Map_Index := 0;
-      Found := False;
-      if not Tagged_Pin (Tag) then
-         return;
+      E := (TIM1, 1, False, (Port_A, 0));
+      Adaflight.Timer_Allocation.Allocate (Table, Tag, Who, Natural'Min (Ordinal, 16), K, Slot);
+      Found := K /= 0 and then Tagged_Pin (Tag);
+      if Found then
+         declare
+            C : Adaflight.Timer_Tables.Timer_Channel renames Adaflight.Timer_Tables.Channels (K);
+         begin
+            E := (Timer => Name_Of (C.Timer), Channel => C.Channel, N => C.N, Where => Pin_Of (Tag));
+         end;
       end if;
-      for I in Map'Range loop
-         if Map (I).P = Pin_Of (Tag) then
-            declare
-               T : constant Natural := Table_Index (Map (I).P, Map (I).Timer_Option);
-            begin
-               if T = 0 then
-                  return;
-               end if;
-               for J in Map'Range loop
-                  if Table_Index (Map (J).P, Map (J).Timer_Option) = T then
-                     if Owners (J) /= Free then
-                        return;
-                     end if;
-                     exit;
-                  end if;
-               end loop;
-               Owners (I) := Who;
-               Ordinals (I) := Ordinal;
-               E := Timer_Table (T);
-               Map_Index := I;
-               Found := True;
-               return;
-            end;
-         end if;
-      end loop;
    end Allocate;
 
    --  The stream's interrupt flag clear register and its six-bit group in it.

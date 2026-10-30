@@ -12,7 +12,7 @@
 --  ADAFLIGHT_DSHOT_LOG names.
 with Ada.Environment_Variables;
 with Ada.Text_IO;
-with Adaflight.Board;
+with Adaflight.CLI_Resources;
 with Adaflight.PWM_Output;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
@@ -61,8 +61,8 @@ package body Adaflight.STM32.Motors is
             Index : Natural;
             Found : Boolean;
          begin
-            Allocate (Dev.Io_Tags (Order), Motor, E, Index, Found);
-            if not Found or else (not Analog and then Adaflight.Board.Timer_Map (Index).DMA_Option < 0) then
+            Allocate (Dev.Io_Tags (Order), Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => M + 1);
+            if not Found or else (not Analog and then Option_Of (Index) < 0) then
                Driven := 0;
                return;
             end if;

@@ -41,4 +41,13 @@ package Adaflight.CLI_Resources with SPARK_Mode is
    procedure Set_Tag (C : in out Configuration; O : Owner; I : Natural; T : Unsigned_8)
      with Pre => I < Count (O);
 
+   --  Who holds a timer pin map entry's channel on the board: the owner and
+   --  its ordinal from one, zero for an owner without one.
+   type Timer_Owner is record
+      Held    : Boolean := False;
+      Owner   : CLI_Resources.Owner := CLI_Resources.Owner'First;
+      Ordinal : Natural range 0 .. 16 := 0;
+   end record;
+   type Timer_Owner_List is array (0 .. 20) of Timer_Owner;
+
 end Adaflight.CLI_Resources;
