@@ -11970,3 +11970,33 @@ A setup oracle extracts reference start, post start, pacer search, port groups a
 time over F405 timer and DMA tables, with stand-ins for DMA stream and pin owners. It draws maps with owners, streams
 and pins already taken, motor pins and order, and settings. Its family holds four seeds of 250 cases, and twenty
 mutations of setup each fail it.
+
+## D534. Blocking DShot commands on bit-banged DShot (2026-10-30)
+
+A blocking DShot command, as command line and MSP send them, writes frames through driver update hooks. With bit-banged
+DShot each repeat clears port buffers before writes, waits for replies before completion, and decodes replies after
+completion, where timer DShot decodes before writes. `Adaflight.DShot_Command.Blocking_Run` takes driver choice and both
+hooks. Command oracle runs a second time with bit-banged DShot active over its bench sequences, and adaflight's steps
+match it.
+
+## D535. Bit-banged DShot driver on STM32 (2026-10-30)
+
+STM32 crate runs bit-banged DShot when configuration chooses it (D533): setting on, or automatic with a DShot protocol,
+F4 needing bidirectional DShot. At motor start, setup checks pins, and each pin becomes a push-pull output pulled toward
+its idle level. After LED strip takes its stream, setup finds pacers and groups, and each running group gets its TIM8 or
+TIM1 channel at output period with a compare at ten counts, plus its DMA2 stream. A motor update clears group frames,
+sets each motor frame (D531), waits for replies to end or time out, turns any group still in input back to output, and
+starts every stream and pacer request. Each stream writes its group's 51 set and reset words into its port, one per
+pacer period. With bidirectional DShot a stream's transfer complete turns group pins to inputs and samples port input
+register 140 times at input period, and each update reads replies from those samples (D532) after its transfers start. A
+transfer error leaves its stream for next update to reload. Transfer complete interrupts of DMA2 streams 1, 2, 3, 4, 6
+and 7 serve timer DShot captures or groups, whichever runs. Blocking commands follow D534, and arming check takes driver
+choice and setup status.
+
+Adaflight reads replies only for motors setup gave a group, where reference reads every motor and goes through a null
+group for a motor its setup stopped before (F312). Adaflight keeps no pin owners at motor start, so a motor pin another
+device holds does not stop start with a pin conflict. F7 keeps frames and samples in data tightly coupled memory outside
+data cache, where reference cleans and invalidates cache lines.
+
+This driver runs only on hardware and waits for a bench check on Kakute F7 and CLRacing F4S. Host keeps its timer DShot
+model. Command line timer and dma listings do not show bit-banged owners yet.

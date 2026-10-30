@@ -3,6 +3,7 @@
 --  twice their bus, and the section the DMA buffers go to: the data tightly
 --  coupled memory, which the DMA reaches and the data cache does not cover.
 package Adaflight.STM32.Platform is
+   F4            : constant Boolean := False;
    Core_Hz       : constant := 216_000_000;
    APB1_Hz       : constant := 54_000_000;
    APB2_Hz       : constant := 108_000_000;

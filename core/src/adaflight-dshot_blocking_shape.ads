@@ -8,6 +8,8 @@ package Adaflight.DShot_Blocking_Shape is new Adaflight.DShot_Command.Blocking_R
   (Motor_Table       => Adaflight.DShot_Table_Steps.Table,
    Delay_Us          => Adaflight.DShot_Table_Steps.Step_Delay_Us,
    Decode_Telemetry  => Adaflight.DShot_Table_Steps.Step_Decode,
+   Update_Init       => Adaflight.DShot_Table_Steps.Step_Init,
    Request_Telemetry => Adaflight.DShot_Table_Steps.Step_Request,
    Write_Int         => Adaflight.DShot_Table_Steps.Step_Write,
+   Telemetry_Wait    => Adaflight.DShot_Table_Steps.Step_Wait,
    Update_Complete   => Adaflight.DShot_Table_Steps.Step_Complete);

@@ -54,6 +54,7 @@ package body Adaflight.STM32.LED_Strip is
    end Init;
 
    function Ready return Boolean is (Configured);
+   function Stream_Number return Natural is (0);
 
    procedure Send (Colors : Adaflight.LED_Strip.Led_Output) is
    begin
