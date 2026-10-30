@@ -12016,3 +12016,16 @@ timer owners right after the motors before, so the listing left out the servos a
 ahead of a held one on the same channel hid the held one. The setup oracle prints the reference's two listings for
 each case over the map's owners, the LED strip's streams and the setup's groups, and the port's listings match them.
 The reference's `dma show` also names the ADC, SPI and UART streams, which the port does not run on DMA.
+
+## D537. ADC on DMA (2026-10-30)
+
+The analog inputs come from a continuous scan as the reference takes them. After the motors start, the configured
+converter scans the battery, current, external and RSSI inputs in that order, each one on with a pin the converter
+reaches, at 480 cycles each, and a circular DMA stream writes every result into the input's slot. The stream is the one
+the converter's DMA option names, unless a timer DShot motor took it. Without a stream the converter stays stopped and
+every input reads zero, as the reference's do. A read takes the slot's last result, where the port converted each input
+on request before at about 48 microseconds a read. The LED strip refuses the ADC's stream as it refuses the motors', the
+bit-banged pacer search takes it as busy, and `dma show` lists it as ADC with the converter's number. The setup oracle's
+stream owners now include the ADCs with their numbers, and the port's listings match the reference's. ADC1 still
+converts the internal reference and temperature channels on request, between the scan's conversions. The scan runs only
+on hardware and waits for a bench check on the Kakute F7 and the CLRacing F4S.

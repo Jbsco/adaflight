@@ -568,9 +568,11 @@ package body Adaflight.STM32.Motors is
    function Bitbang_OK return Boolean is (BB."=" (BB_Status, BB.OK));
 
    --  The setup over the configuration's pins and settings, the timer map's
-   --  owners and the strip's stream, with no pin held before the motors.
+   --  owners and the strip's and the ADC's streams, with no pin held before
+   --  the motors.
    procedure Configure_Bitbang
-     (C : Adaflight.Config_Groups.Configuration; Total : Natural; Strip_Stream : Natural; S : out BB.Setup)
+     (C : Adaflight.Config_Groups.Configuration; Total : Natural; Strip_Stream : Natural; ADC_Stream : Natural;
+      S : out BB.Setup)
    is
       Busy  : BB.Stream_Flags := (others => False);
       Tags  : BB.Tag_List;
@@ -582,6 +584,9 @@ package body Adaflight.STM32.Motors is
       end loop;
       if Strip_Stream in Busy'Range then
          Busy (Strip_Stream) := True;
+      end if;
+      if ADC_Stream in Busy'Range then
+         Busy (ADC_Stream) := True;
       end if;
       BB.Configure
         (S, Adaflight.STM32.Timers.Allocation, Busy, (others => False), Total, Tags, Order,
@@ -599,7 +604,7 @@ package body Adaflight.STM32.Motors is
       Speed    : constant Unsigned_32 := (if Adaflight.STM32.Platform.F4 then 2 else 0);
    begin
       BB_On := True;
-      Configure_Bitbang (C, Total, 0, S);
+      Configure_Bitbang (C, Total, 0, 0, S);
       BB_Status := S.Status;
       if not S.Init_OK then
          return;
@@ -667,13 +672,13 @@ package body Adaflight.STM32.Motors is
       Enable_DMA (Groups (G).Stream);
    end Start_Group;
 
-   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural) is
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural; ADC_Stream : Natural) is
       Done : Boolean;
    begin
       if not BB_On or else Driven = 0 then
          return;
       end if;
-      Configure_Bitbang (C, Driven, Strip_Stream, BB_Setup);
+      Configure_Bitbang (C, Driven, Strip_Stream, ADC_Stream, BB_Setup);
       BB_Status := BB_Setup.Status;
       for G in 0 .. BB_Setup.Used_Ports - 1 loop
          declare

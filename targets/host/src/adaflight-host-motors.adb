@@ -271,7 +271,8 @@ package body Adaflight.STM32.Motors is
    function Bitbang_On return Boolean is (False);
    function Bitbang_Setup return Adaflight.DShot_Bitbang.Setup is (others => <>);
    function Bitbang_OK return Boolean is (True);
-   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural) is null;
+   procedure Post_Init (C : Adaflight.Config_Groups.Configuration; Strip_Stream : Natural; ADC_Stream : Natural)
+   is null;
    procedure Update_Init is null;
    procedure Telemetry_Wait (Ports : in out Adaflight.DShot_Bitbang.Port_Inputs) is null;
 
