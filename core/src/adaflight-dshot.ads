@@ -22,6 +22,7 @@ package Adaflight.DShot with SPARK_Mode, Pure is
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    subtype Integer_16 is Interfaces.Integer_16;
+   subtype Integer_32 is Interfaces.Integer_32;
    subtype Motor_Index is Adaflight.Mixer.Motor_Index;
    subtype Motor_Total is Natural range 0 .. Adaflight.Mixer.Max_Motors;
    subtype Motor_Value is Adaflight.Mixer.Motor_Value;
@@ -234,6 +235,55 @@ package Adaflight.DShot with SPARK_Mode, Pure is
    --  The invalid share of the counted replies in hundredths of a percent,
    --  the whole when the motor has no telemetry.
    function Invalid_Percent (Q : Quality; Active : Boolean) return Hundredths_Percent;
+
+   ---------------------------------------------------------------------------
+   --  The replies read after a frame
+   ---------------------------------------------------------------------------
+
+   Input_Length : constant := 22;
+   Min_Edges    : constant := 7;
+   subtype Input_Count is Natural range 0 .. Input_Length;
+   subtype Input_Buffer is Edge_Times (0 .. Input_Length - 1);
+   Extended_Telemetry_Enable : constant := 13;
+   Extended_Acknowledge      : constant := 16#0E00#;
+   State_Events_Bit          : constant := 2 ** 7;
+
+   --  A motor's channel after its frame: whether it switched to input, the
+   --  time its reply needs from the switch, the edges its DMA stream captured
+   --  and their times.
+   type Capture is record
+      Input    : Boolean := False;
+      Deadtime : Integer_32 := 0;
+      Edges    : Input_Count := 0;
+      Buffer   : Input_Buffer := (others => 0);
+   end record;
+   type Captures is array (Motor_Index) of Capture;
+   type Command_List is array (Motor_Index) of Unsigned_8;
+   type Qualities is array (Motor_Index) of Quality;
+
+   --  The replies read and the invalid ones, and the edges of the first
+   --  motor's last invalid reply.
+   type Read_Counts is record
+      Reads    : Unsigned_32 := 0;
+      Invalids : Unsigned_32 := 0;
+      Saved    : Input_Buffer := (others => 0);
+   end record;
+
+   --  The read after a frame: nothing without telemetry. Else each motor in
+   --  order stops the read when the time since the inputs switched is under
+   --  its deadtime; a motor in input with more than seven edges counts a
+   --  read, decodes them and keeps the value, or marks the extended telemetry
+   --  acknowledged when the value is the acknowledgement and the motor's
+   --  command enables it, or counts an invalid reply and saves the first
+   --  motor's edges, and counts the reply in its quality; the motor then
+   --  leaves input. After every motor the raw values wait for processing, the
+   --  switch time clears and Done is set. Processed counts the motors that
+   --  left input, in order from the first.
+   procedure Read_Replies
+     (T : in out Telemetry; Counts : in out Read_Counts; Q : in out Qualities; C : in out Captures;
+      Count : Motor_Total; Use_Telemetry : Boolean; Commands : Command_List; Now_Us : Time_Us; Now_Ms : Time_Ms;
+      Stamp_Us : in out Time_Us; Processed : out Motor_Total; Done : out Boolean)
+     with Post => Processed <= Count and then (if Done and then Use_Telemetry then Processed = Count);
 
    ---------------------------------------------------------------------------
    --  The motor output order
