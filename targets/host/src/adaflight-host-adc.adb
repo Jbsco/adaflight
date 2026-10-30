@@ -1,17 +1,19 @@
 package body Adaflight.STM32.ADC is
    procedure Init is null;
 
-   function Has_Channel (P : Pin) return Boolean is
+   function Has_Channel (P : Pin; Device : Natural) return Boolean is
      (case P.Port is
-         when Port_A => P.Number <= 7,
-         when Port_B => P.Number <= 1,
-         when Port_C => P.Number <= 5,
+         when Port_A => P.Number <= (if Device = 2 then 3 else 7),
+         when Port_B => Device <= 1 and then P.Number <= 1,
+         when Port_C => P.Number <= (if Device = 2 then 3 else 5),
          when others => False);
 
-   procedure Enable (P : Pin) is null;
-
-   --  No analog input is connected on the host.
-   function Read (P : Pin) return Sample is (0);
+   --  No analog input is connected on the host, and no stream runs.
+   procedure Start_Scan
+     (Device : Natural; Inputs : Input_Pins; Count : Input_Count; Stream : Adaflight.STM32.Timers.DMA_Stream;
+      Has_Stream : Boolean; Taken : Stream_Flags) is null;
+   function Scanned (Slot : Natural) return Sample is (0);
+   function Stream_Number return Natural is (0);
 
    --  The internal channels read 0 until the first conversion, then a
    --  reference of 3300 mV and a core at 40 degrees for the calibration

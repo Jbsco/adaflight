@@ -1,6 +1,10 @@
 with System;
+with System.Storage_Elements;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Platform;
 package body Adaflight.STM32.ADC is
+   use Adaflight.STM32.Timers;
+   use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
 
@@ -31,6 +35,7 @@ package body Adaflight.STM32.ADC is
       DR    at 16#4C# range 0 .. 31;
    end record;
    Regs : Registers with Import, Address => System'To_Address (16#4001_2000#);
+   function Base (Device : Natural) return Unsigned_32 is (16#4001_2000# + 16#100# * Unsigned_32 (Device));
    CCR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4001_2304#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
    Vrefint_Cal : Interfaces.Unsigned_16 with Volatile, Import, Address => System'To_Address (16#1FFF_7A2A#);
@@ -51,15 +56,29 @@ package body Adaflight.STM32.ADC is
    Reference_Channel   : constant := 17;
    Temperature_Channel : constant := 16;
 
+   Continuous : constant Unsigned_32 := 2 ** 1;
+   DMA_On     : constant Unsigned_32 := 2 ** 8;
+   DMA_Repeat : constant Unsigned_32 := 2 ** 9;
+   Circular   : constant Unsigned_32 := 2 ** 8;
+   Sizes_16   : constant Unsigned_32 := 2 ** 11 or 2 ** 13;
+
    In_Progress : Boolean := False;
+
+   --  The scan's results, one slot an input, and the stream it owns.
+   type Result_Buffer is array (0 .. Max_Inputs - 1) of Interfaces.Unsigned_16 with Alignment => 4;
+   pragma Volatile_Components (Result_Buffer);
+   Results : Result_Buffer := (others => 0) with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
+   Owned   : Natural := 0;
 
    subtype Channel is Natural range 0 .. 15;
 
-   function Has_Channel (P : Pin) return Boolean is
+   --  ADC1 and ADC2 reach PA0 to PA7, PB0, PB1 and PC0 to PC5, ADC3 only
+   --  PA0 to PA3 and PC0 to PC3.
+   function Has_Channel (P : Pin; Device : Natural) return Boolean is
      (case P.Port is
-         when Port_A => P.Number <= 7,
-         when Port_B => P.Number <= 1,
-         when Port_C => P.Number <= 5,
+         when Port_A => P.Number <= (if Device = 2 then 3 else 7),
+         when Port_B => Device <= 1 and then P.Number <= 1,
+         when Port_C => P.Number <= (if Device = 2 then 3 else 5),
          when others => False);
 
    --  The pin's channel: PA0 to PA7 are 0 to 7, PB0 and PB1 are 8 and 9,
@@ -69,7 +88,7 @@ package body Adaflight.STM32.ADC is
          when Port_A => Channel (P.Number),
          when Port_B => 8 + Channel (P.Number),
          when others => 10 + Channel (P.Number))
-     with Pre => Has_Channel (P);
+     with Pre => Has_Channel (P, 0);
 
    procedure Init is
    begin
@@ -80,30 +99,71 @@ package body Adaflight.STM32.ADC is
       Regs.SQR1 := 0;
    end Init;
 
-   procedure Enable (P : Pin) is
-      C : constant Channel := Channel_Of (P);
+   procedure Start_Scan
+     (Device : Natural; Inputs : Input_Pins; Count : Input_Count; Stream : Adaflight.STM32.Timers.DMA_Stream;
+      Has_Stream : Boolean; Taken : Stream_Flags)
+   is
+      R      : Registers with Import, Address => System'To_Address (Base (Device));
+      Number : constant Natural := (Stream.Controller - 1) * 8 + Stream.Stream + 1;
+      Ranks  : Unsigned_32 := 0;
    begin
-      GPIO.Enable_Port (P.Port);
-      GPIO.Set_Analog (P);
-      if C >= 10 then
-         Regs.SMPR1 := (Regs.SMPR1 and not Interfaces.Shift_Left (7, 3 * (C - 10)))
-           or Interfaces.Shift_Left (Cycles_480, 3 * (C - 10));
-      else
-         Regs.SMPR2 := (Regs.SMPR2 and not Interfaces.Shift_Left (7, 3 * C))
-           or Interfaces.Shift_Left (Cycles_480, 3 * C);
+      Owned := 0;
+      RCC_APB2ENR := RCC_APB2ENR or Interfaces.Shift_Left (ADC1_Bit, Device);
+      CCR := (CCR and not (3 * 2 ** 16)) or Prescaler_Div8;
+      if Count = 0 then
+         return;
       end if;
-   end Enable;
-
-   function Read (P : Pin) return Sample is
-   begin
-      Regs.SQR3 := Unsigned_32 (Channel_Of (P));
-      Regs.SR := not End_Of_Conversion;
-      Regs.CR2 := Regs.CR2 or Start;
-      while (Regs.SR and End_Of_Conversion) = 0 loop
-         null;
+      for I in 0 .. Count - 1 loop
+         declare
+            C : constant Channel := Channel_Of (Inputs (I));
+         begin
+            GPIO.Enable_Port (Inputs (I).Port);
+            GPIO.Set_Analog (Inputs (I));
+            if C >= 10 then
+               R.SMPR1 := (R.SMPR1 and not Interfaces.Shift_Left (7, 3 * (C - 10)))
+                 or Interfaces.Shift_Left (Cycles_480, 3 * (C - 10));
+            else
+               R.SMPR2 := (R.SMPR2 and not Interfaces.Shift_Left (7, 3 * C)) or Interfaces.Shift_Left (Cycles_480, 3 * C);
+            end if;
+            Ranks := Ranks or Interfaces.Shift_Left (Unsigned_32 (C), 5 * I);
+         end;
       end loop;
-      return Sample (Regs.DR and 16#FFF#);
-   end Read;
+      R.CR1 := (R.CR1 and not (3 * 2 ** 24)) or Scan;
+      R.CR2 := (R.CR2 and not (2 ** 11 or 16#3F# * 2 ** 24 or Continuous)) or Continuous;
+      R.SQR1 := (R.SQR1 and not (16#F# * 2 ** 20)) or Unsigned_32 (Count - 1) * 2 ** 20;
+      R.SQR3 := Ranks;
+      R.CR2 := R.CR2 or DMA_Repeat;
+      R.CR2 := R.CR2 or DMA_On;
+      R.CR2 := R.CR2 or Converter_On;
+      if not Has_Stream or else Taken (Number) then
+         return;
+      end if;
+      declare
+         S : Stream_Registers with Import, Address => Stream_Address (Stream);
+      begin
+         Enable_DMA (Stream);
+         S.CR := 0;
+         for Spin in 1 .. 1_000 loop
+            exit when (S.CR and EN) = 0;
+         end loop;
+         Clear_Flags (Stream);
+         S.NDTR := 0;
+         S.FCR := 0;
+         S.PAR := Base (Device) + 16#4C#;
+         S.M0AR := Unsigned_32 (System.Storage_Elements.To_Integer (Results'Address));
+         S.NDTR := Unsigned_32 (Count);
+         S.CR := Interfaces.Shift_Left (Unsigned_32 (Stream.Channel), 25) or PL_High or Sizes_16
+           or (if Count > 1 then MINC else 0) or Circular;
+         S.CR := S.CR or EN;
+      end;
+      Owned := Number;
+      R.CR2 := R.CR2 or Start;
+   end Start_Scan;
+
+   function Scanned (Slot : Natural) return Sample is
+     (if Slot < Max_Inputs then Sample (Results (Slot) and 16#FFF#) else 0);
+
+   function Stream_Number return Natural is (Owned);
 
    procedure Init_Internal is
    begin

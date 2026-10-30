@@ -6920,6 +6920,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Free    => Put (Into, " FREE");
             when Motor   => Put (Into, " MOTOR");
             when Strip   => Put (Into, " LED_STRIP");
+            when Analog  => Put (Into, " ADC");
             when Bitbang => Put (Into, " DSHOT_BITBANG");
          end case;
          if Env.DMA_Owners (K).Kind /= Free and then Env.DMA_Owners (K).Index > 0 then
