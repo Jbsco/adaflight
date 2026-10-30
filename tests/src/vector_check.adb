@@ -102,6 +102,7 @@ with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
 with Adaflight.DShot;
+with Adaflight.DShot_Bitbang;
 with Adaflight.DShot_Command;
 with Adaflight.DShot_Command.Blocking_Run;
 with Adaflight.CRSF_Telemetry;
@@ -37702,6 +37703,46 @@ procedure Vector_Check is
       end loop;
    end Check_DShot_Read_Line;
 
+   --  The bit-banged DShot output: a port's buffer set up for its pins, then
+   --  updates of cleared middles and frames.
+   BBO_Buffer : Adaflight.DShot_Bitbang.Port_Buffer := (others => 0);
+
+   procedure Check_BB_Out_Line is
+      package B renames Adaflight.DShot_Bitbang;
+      use type Interfaces.Unsigned_16;
+      Inverted : constant Boolean := Int (5) /= 0;
+      Mask     : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (6));
+      Frames   : constant String := Str (7);
+      Start    : Positive := Frames'First;
+   begin
+      if Int (4) = 0 then
+         BBO_Buffer := (others => 0);
+         for Pin in B.Pin_Number loop
+            if (Interfaces.Shift_Right (Mask, Pin) and 1) /= 0 then
+               B.Init (BBO_Buffer, Interfaces.Shift_Left (1, Pin), Inverted);
+            end if;
+         end loop;
+      end if;
+      B.Clear (BBO_Buffer);
+      for I in Frames'First .. Frames'Last + 1 loop
+         if I > Frames'Last or else Frames (I) = ' ' then
+            if I > Start then
+               declare
+                  Item  : constant String := Frames (Start .. I - 1);
+                  Colon : constant Positive := Ada.Strings.Fixed.Index (Item, ":");
+               begin
+                  B.Set (BBO_Buffer, B.Pin_Number'Value (Item (Item'First .. Colon - 1)),
+                         Interfaces.Unsigned_16'Value (Item (Colon + 1 .. Item'Last)), Inverted);
+               end;
+            end if;
+            Start := I + 1;
+         end if;
+      end loop;
+      for W in BBO_Buffer'Range loop
+         Record_Int ("bbout.word", Int (8 + W), Integer_64 (BBO_Buffer (W)));
+      end loop;
+   end Check_BB_Out_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39683,6 +39724,8 @@ procedure Vector_Check is
                   Check_DShot_Capture_Line;
                elsif Kind = "dshotread" then
                   Check_DShot_Read_Line;
+               elsif Kind = "bbout" then
+                  Check_BB_Out_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39781,6 +39824,7 @@ begin
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
    Run (Dir & "/dshotbb.csv", "dshot");
+   Run (Dir & "/bbout.csv", "bbout");
    Run (Dir & "/dshotcmd.csv", "dshotcmd");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");

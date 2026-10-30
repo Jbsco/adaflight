@@ -11926,3 +11926,14 @@ reference's F4 decode on a 32-bit host, as the board's pointers wrap, over an em
 the sample decode family, and the port's decode gives its results, preamble skips, margins and check times on all of
 them. Its unrolled reads past the edge in reach do not change a result, since an edge only counts with a sample after it
 within reach.
+
+## D531. Bit-banged DShot port buffers (2026-10-30)
+
+`Adaflight.DShot_Bitbang` builds a GPIO port's output buffer for the reference's bit-banged DShot driver: three words a
+bit, written by a timer paced DMA stream into the port's bit set and reset register, and three hold words after the
+frame. Each motor's pin adds its set word at every bit's start and its reset word at every bit's end, inverted output
+swapping the two halves, with the middles and the hold's last two words cleared. Each update clears the middles, then
+every motor's frame sets its pin's middle at each zero bit, so the pin falls a third of the way into a zero and two
+thirds into a one. SPARK proves the buffer indices. The output oracle takes the three builders out of the driver's
+source at build time and draws a port's pins and inversion with three updates of frames, and the family holds four seeds
+of 200 cases.
