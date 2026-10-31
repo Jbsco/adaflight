@@ -12128,3 +12128,11 @@ host without answering. F722 identifiers now read from 0x1FF07A10, as RM0431 giv
 written to flash by a fault hook in the run-time library's copy, after Renode runs on an F746 model, which returns zero
 for that address, showed nothing. D538's claim that an F722 image fits sector 0 stands; this image now boots there.
 
+## D547. Core coupled memory zeroed at start (2026-10-31)
+
+`Adaflight.STM32.CCM_Clear` zeroes the core coupled memory's `.bss.ccm` section before elaboration, from an
+`.init_array` entry that runs first. The run-time library's start clears main RAM's `.bss` alone, so objects placed in
+core coupled memory by section name, the USB controller's protected object and the menu's state, started with whatever
+that memory held since power-up. Both board images carry the unit, and the host image leaves it out, having no such
+section.
+
