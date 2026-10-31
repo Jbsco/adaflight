@@ -12101,3 +12101,19 @@ writes its vectors: 240 drawn inputs of random bytes, words, sparse data, record
 plus 60 malformed streams, each hex string in chunks the checker can hold. On a 512 KB F7 image this format takes cold
 tables from 38144 bytes to 19612. Betaflight's builds hold no compressed data, so this unit has no reference and its
 vectors come from its own encoder.
+
+## D545. Packed data in 512 KB STM32F7 builds (2026-10-31)
+
+A 512 KB STM32F7 build keeps cold tables and initialized data compressed in flash and unpacks them into RAM at start,
+second part of packed data. Its linker script places tables that command line, MSP, a configuration reset or a log start
+read, and that compress below 80 percent, in RAM by their input sections, with initialized data after them, both loading
+from a staging region that is never flashed. After its link, `tools/datapack.py` compresses that range with
+`tools/lzss.py`, checks that it decodes back and that it fits between `__rom_end` and flash's end, and writes
+`sector0.bin` and `code.bin` with the stream at `__rom_end`. `Adaflight.STM32.Data_Pack` decodes it with
+`Adaflight.LZSS` from an `.init_array` entry, which the run-time library calls once clocks run and before elaboration,
+and stops there on a bad stream. Ada constants and their proofs are unchanged, and the flight loop reads no packed
+table. A 512 KB set built for KAKUTEF7 moves 38148 bytes of tables and 4388 of data into a 20115-byte stream, and a
+CLRACINGF7 image now runs 11875 bytes over its room, from 33788, with RAM use 38148 bytes higher. Larger builds keep
+plain tables, with 20 bytes of unpacker beside them. `featuregen.py` chooses packing below 1024 KB and lists the tables,
+and a packed build reports its flash left or its overflow in place of ld's message. The target workflow builds a packed
+KAKUTEF7 image. Boot runs only on hardware, so a first F722 flash checks unpacking.
