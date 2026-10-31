@@ -1091,7 +1091,6 @@ package body Adaflight.STM32.Flight is
       Asked          : Adaflight.Arming.Outputs;
    begin
       Env.Now_Us := Now_Ms * 1000;
-      Env.Status.Uptime_Ms := Now_Ms;
       Adaflight.Stream_Buffers.Init (Stream, 0, Reply'Length);
       Ctx.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Ctx.Font_Write_Taken := Adaflight.STM32.OSD.Font_Write_Taken;
@@ -1319,6 +1318,7 @@ package body Adaflight.STM32.Flight is
    procedure Refresh_Views is
    begin
       Now_Ms := Adaflight.STM32.Time.Millis;
+      Env.Status.Uptime_Ms := Now_Ms;
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;

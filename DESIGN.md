@@ -12158,3 +12158,18 @@ and they nest two deep at an endpoint event, on a 2 KB interrupt stack. Overflow
 and the first USB suspend interrupt left a zero frame there: a usage fault for an invalid state on return, with every
 later interrupt masked, so a board attached and fell silent. The record is now one component of the `Controller`
 protected object, which runs its operations one at a time, so its handlers share it. The F4 body had the same locals.
+
+## D551. STM32F7 instruction cache (2026-10-31)
+
+The F7 run-time library leaves both Cortex-M7 caches off: its `setup_pll` writes F4 flash accelerator bits (ART enable
+sits in their place on an F7 and serves ITCM fetches alone) and nothing writes `CCR`. Code at 0x08000000 runs over AXI
+at seven wait states, uncached: on a Talon F7 BB, PID took 525 us per pass with its loop at 700 to 960 Hz against a
+125 us period. `Adaflight.STM32.Cache` invalidates and enables the instruction cache from an `.init_array` entry before
+elaboration, so unpacking and elaboration run cached too. The data cache stays off until DMA buffers move to DTCM,
+which no cache covers. The F4 run-time library enables its flash accelerator already.
+
+## D552. Uptime in the command line path (2026-10-31)
+
+`Status.Uptime_Ms` was set in `Process_Command` alone, so `status` on a port that had seen no MSP request printed
+"System Uptime: 0 seconds" at any uptime. `Refresh_Views` sets it now from the millisecond clock it reads for every
+pass, before MSP or command line replies read it.
