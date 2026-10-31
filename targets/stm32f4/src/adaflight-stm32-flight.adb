@@ -1965,20 +1965,36 @@ package body Adaflight.STM32.Flight is
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Rate_Bound : constant := Adaflight.Attitude.Rate_Bound;
    begin
-      Adaflight.Attitude.Update
-        (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
-         Use_Mag       => False,
-         Armed         => Adaflight.STM32.Pilot.Armed,
-         Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
-         Headfree_Mode => M (Adaflight.Arming.Headfree_Mode),
-         Course        =>
-           (Usable       =>
-              G.Present and then G.Fix and then Natural (G.Satellites) > Adaflight.Attitude.Min_Satellites,
-            Ground_Speed => Natural (G.Ground_Speed),
-            Course       => Natural'Min (3_599, Natural (G.Ground_Course)),
-            Yaw_Rate     =>
-              Float'Max (-Rate_Bound, Float'Min (Rate_Bound, Gyro_State.Filtered (Adaflight.Axes.Yaw))),
-            Fixed_Wing   => Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode)));
+      if Adaflight.STM32.MCU.Simulated then
+         declare
+            Fresh  : Boolean;
+            Q      : Adaflight.Attitude.Quaternion;
+            Legacy : Boolean;
+         begin
+            Adaflight.STM32.MCU.Simulator_Attitude (Fresh, Q, Legacy);
+            if Fresh then
+               Adaflight.Attitude.Set_From_Simulator (Att_State, Q, Legacy, M (Adaflight.Arming.Headfree_Mode));
+            end if;
+            Adaflight.Attitude.Update_Simulated
+              (Att_State, Att_Config, Adaflight.STM32.Pilot.Armed,
+               M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode));
+         end;
+      else
+         Adaflight.Attitude.Update
+           (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
+            Use_Mag       => False,
+            Armed         => Adaflight.STM32.Pilot.Armed,
+            Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
+            Headfree_Mode => M (Adaflight.Arming.Headfree_Mode),
+            Course        =>
+              (Usable       =>
+                 G.Present and then G.Fix and then Natural (G.Satellites) > Adaflight.Attitude.Min_Satellites,
+               Ground_Speed => Natural (G.Ground_Speed),
+               Course       => Natural'Min (3_599, Natural (G.Ground_Course)),
+               Yaw_Rate     =>
+                 Float'Max (-Rate_Bound, Float'Min (Rate_Bound, Gyro_State.Filtered (Adaflight.Axes.Yaw))),
+               Fixed_Wing   => Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode)));
+      end if;
       Ctx.Out_Views.State.Attitude :=
         (Roll  => Integer_16 (Att_State.Euler.Roll),
          Pitch => Integer_16 (Att_State.Euler.Pitch),
@@ -4283,6 +4299,7 @@ package body Adaflight.STM32.Flight is
       Now      : Unsigned_32;
       Start_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
    begin
+      Adaflight.STM32.MCU.Simulator_Poll;
       Now := (if Sched.Gyro_Enabled then Adaflight.STM32.Time.Cycle_Count else 0);
       Scheduler.Begin_Pass (Sched, Now, Poll);
       if Poll then

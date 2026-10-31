@@ -1,4 +1,5 @@
 with GNAT.OS_Lib;
+with Adaflight.Host_Simulator;
 package body Adaflight.STM32.MCU is
    --  A fixed identifier for the host image.
    function UID return Identifier is ((16#00AD_A000#, 16#4F57_4E00#, 16#0000_0001#));
@@ -21,4 +22,15 @@ package body Adaflight.STM32.MCU is
    end Reset_To_Bootloader;
 
    procedure Check_Bootloader_Request is null;
+
+   function Simulated return Boolean is (Adaflight.Host_Simulator.Enabled);
+
+   procedure Simulator_Poll renames Adaflight.Host_Simulator.Poll;
+
+   procedure Simulator_Attitude
+     (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean) is
+   begin
+      Adaflight.Host_Simulator.Take_Attitude (Fresh, Q);
+      Legacy_Bridge := Adaflight.Host_Simulator.Legacy_Bridge;
+   end Simulator_Attitude;
 end Adaflight.STM32.MCU;

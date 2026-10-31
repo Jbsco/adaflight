@@ -11,6 +11,7 @@ the screen with its arming hold.
 Usage: host-smoke.py <host image>
 """
 import calendar
+import math
 import os
 import re
 import select
@@ -3050,6 +3051,43 @@ def main():
             sock.close()
         with open(store, "rb") as f:
             check("the power-up bind writes the configuration", f.read() != stored_before_bind)
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        try:
+            time.sleep(2.5)
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            # A level craft at rest rolled ten degrees, in the Gazebo bridge's frames: no rates, gravity's
+            # reaction along the body's up axis, and the attitude quaternion as the plugin sends it.
+            half = math.radians(5.0)
+            def fdm(t):
+                return struct.pack("<18d", t, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, math.cos(half), math.sin(half),
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            motor_packet = None
+            for i in range(80):
+                sim.sendto(fdm(i * 0.01), ("127.0.0.1", 9003))
+                if motor_packet is None:
+                    try:
+                        motor_packet = sim.recv(256)
+                    except socket.timeout:
+                        pass
+                time.sleep(0.01)
+            check("simulator link answers the first flight dynamics packet with a motor packet",
+                  motor_packet is not None and len(motor_packet) == 16, repr(motor_packet))
+            attitude = msp(sock, 108)
+            angles = [int.from_bytes(attitude[i:i + 2], "little", signed=True) for i in range(0, 6, 2)] if attitude else []
+            check("simulator attitude gives ten degrees of roll", len(angles) == 3 and abs(angles[0] - 100) <= 5
+                  and abs(angles[1]) <= 5 and 0 <= angles[2] < 360, repr(angles))
+            imu = msp(sock, 102)
+            raw = [int.from_bytes(imu[i:i + 2], "little", signed=True) for i in range(0, 12, 2)] if imu else []
+            check("simulator feeds the virtual accelerometer one g up and a still gyro",
+                  len(raw) == 6 and abs(raw[2] - 512) <= 8 and abs(raw[0]) <= 8 and abs(raw[1]) <= 8
+                  and raw[3:6] == [0, 0, 0], repr(raw))
+            sim.close()
+        finally:
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

@@ -2,6 +2,7 @@
 --  the reset into the ROM bootloader through a request kept in the RTC
 --  backup registers, which a system reset leaves alone.
 with Interfaces;
+with Adaflight.Attitude;
 package Adaflight.STM32.MCU is
    type Identifier is array (1 .. 3) of Interfaces.Unsigned_32;
    --  The device's unique identifier, the three words the status prints.
@@ -23,4 +24,11 @@ package Adaflight.STM32.MCU is
    --  cleared, and the jump into the system memory's bootloader with the
    --  clocks and interrupts back as a reset leaves them.
    procedure Check_Bootloader_Request;
+   --  The host image's simulator link: whether the image runs against a
+   --  simulator, its packets read once a pass, and the attitude quaternion
+   --  of the latest packet, once. Board images have no link.
+   function Simulated return Boolean;
+   procedure Simulator_Poll;
+   procedure Simulator_Attitude
+     (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean);
 end Adaflight.STM32.MCU;

@@ -129,4 +129,16 @@ package body Adaflight.STM32.MCU is
          Inputs   => (Word'Asm_Input ("r", Stack_Top), Word'Asm_Input ("r", Entry_Point)),
          Volatile => True);
    end Check_Bootloader_Request;
+
+   function Simulated return Boolean is (False);
+
+   procedure Simulator_Poll is null;
+
+   procedure Simulator_Attitude
+     (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean) is
+   begin
+      Fresh := False;
+      Q := (others => <>);
+      Legacy_Bridge := False;
+   end Simulator_Attitude;
 end Adaflight.STM32.MCU;
