@@ -1,4 +1,5 @@
 with Interfaces.STM32.FLASH;
+with Adaflight.STM32.Cache;
 --  The STM32F7's flash: the F4's sequence with the ART accelerator's cache
 --  reset after programming in place of the data cache's.
 package body Adaflight.STM32.Flash is
@@ -52,6 +53,7 @@ package body Adaflight.STM32.Flash is
       Regs.CR.SER := 1;
       Regs.CR.STRT := 1;
       Wait;
+      Adaflight.STM32.Cache.Invalidate_Data (Config'Address, Config'Length);
       Regs.CR.SER := 0;
       Regs.CR.PG := 1;
       for I in 0 .. Count - 1 loop
@@ -78,5 +80,6 @@ package body Adaflight.STM32.Flash is
       ACR := ACR or ART_Reset;
       ACR := ACR and not ART_Reset;
       ACR := ACR or ART_Enable;
+      Adaflight.STM32.Cache.Invalidate_Data (Config'Address, Config'Length);
    end Write;
 end Adaflight.STM32.Flash;
