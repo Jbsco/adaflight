@@ -12117,3 +12117,44 @@ CLRACINGF7 image now runs 11875 bytes over its room, from 33788, with RAM use 38
 plain tables, with 20 bytes of unpacker beside them. `featuregen.py` chooses packing below 1024 KB and lists the tables,
 and a packed build reports its flash left or its overflow in place of ld's message. The target workflow builds a packed
 KAKUTEF7 image. Boot runs only on hardware, so a first F722 flash checks unpacking.
+
+## D546. F722 device identifier address (2026-10-31)
+
+`tools/memorygen.py` gave STM32F722 images the unique device identifier address of STM32F745 and F746, 0x1FF0F420, where
+an F722 maps nothing. Flight's elaboration reads that identifier for board identity, so a Talon F7 BB took a precise bus
+fault before `main`, and the run-time library's fault handler is an endless loop with every interrupt masked: its status
+LED stayed dark after unpacking, delays and tasks never ran, and its USB core, powered before the fault, attached to the
+host without answering. F722 identifiers now read from 0x1FF07A10, as RM0431 gives them. Found on the bench with a trace
+written to flash by a fault hook in the run-time library's copy, after Renode runs on an F746 model, which returns zero
+for that address, showed nothing. D538's claim that an F722 image fits sector 0 stands; this image now boots there.
+
+## D547. Core coupled memory zeroed at start (2026-10-31)
+
+`Adaflight.STM32.CCM_Clear` zeroes the core coupled memory's `.bss.ccm` section before elaboration, from an
+`.init_array` entry that runs first. The run-time library's start clears main RAM's `.bss` alone, so objects placed in
+core coupled memory by section name, the USB controller's protected object and the menu's state, started with whatever
+that memory held since power-up. Both board images carry the unit, and the host image leaves it out, having no such
+section.
+
+## D548. ADC calibration word addresses (2026-10-31)
+
+`Adaflight.STM32.ADC` read its reference voltage and temperature sensor calibration words at the STM32F405 addresses
+0x1FFF7A2A to 0x1FFF7A2E on every crate. No F7 maps them, so an F7 image took a precise bus fault at its first read of
+them, after the barometer's start. `tools/memorygen.py` now emits `Calibration_Address` in `Adaflight.STM32.Memory` per
+MCU, 0x1FFF7A2A on F405, 0x1FF07A2A on F722 and 0x1FF0F44A on F745 and F746, as their datasheets give them, and the ADC
+unit places its three words there.
+
+## D549. USB device attachment (2026-10-31)
+
+The STM32F7 OTG core resets with its soft disconnect bit set (`DCTL.SDIS`), and `Init` never cleared it, so an F7
+image's device stayed off the bus however complete its setup: a register snapshot in the bench trace showed `DCTL` at
+its reset value of 2 after `Init`. The F405 core resets with the bit clear, which is how F4 images attached without the
+step. `Init` now clears the bit after the global interrupt enable, on both crates; on an F405 the write changes nothing.
+
+## D550. USB handler stack (2026-10-31)
+
+`Handler`, `Out_Endpoints`, `In_Endpoints` and `Bus_Reset` each declared a `U.Actions` record of near 1 KB as a local,
+and they nest two deep at an endpoint event, on a 2 KB interrupt stack. Overflow ran into the idle task's stack below,
+and the first USB suspend interrupt left a zero frame there: a usage fault for an invalid state on return, with every
+later interrupt masked, so a board attached and fell silent. The record is now one component of the `Controller`
+protected object, which runs its operations one at a time, so its handlers share it. The F4 body had the same locals.

@@ -10,7 +10,8 @@ project Adaflight_Host is
    --  The board's hardware packages take their host bodies; the flight
    --  integration is the STM32F4 image's own.
    for Excluded_Source_Files use
-     ("adaflight-stm32-adc.adb", "adaflight-stm32-exti.adb", "adaflight-stm32-flash.ads",
+     ("adaflight-stm32-adc.adb", "adaflight-stm32-ccm_clear.ads", "adaflight-stm32-ccm_clear.adb",
+      "adaflight-stm32-exti.adb", "adaflight-stm32-flash.ads",
       "adaflight-stm32-flash.adb", "adaflight-stm32-gpio.adb", "adaflight-stm32-gyro.adb",
       "adaflight-stm32-led_strip.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-motors.adb",
       "adaflight-stm32-servos.adb",
