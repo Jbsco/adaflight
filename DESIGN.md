@@ -12075,3 +12075,16 @@ packet with a NaN, infinite or larger than 1e6 field, or an attitude component p
 coordinates, speeds and velocities (F313). Simfdm oracle extracts SITL's update from Betaflight's platform source,
 builds it once per bridge with its virtual GPS conversion included, and replays 48 sequences of 160 packets over
 scripted clocks. Host UDP link, sensor feeds and motor packets come next.
+
+## D543. Simulator attitude (2026-10-30)
+
+`Adaflight.Attitude` gains simulator target's attitude, second part of a simulator link for host target.
+`Set_From_Simulator` takes a packet's quaternion as it is, computes its rotation, negates west and up rows' body X
+entries for older bridges, whose pitch and yaw are mirrored, then marks attitude established and updates its angles.
+`Update_Simulated` runs in place of an estimate: it holds GPS heading usable, since a simulator's attitude is ground
+truth, and corrects throttle angle as an estimated attitude would. Where a quaternion is longer than unit length,
+pitch's cosine is clamped to [-1, 1] as for an estimated attitude, while Betaflight takes `acos_approx` of a value past
+one, NaN through `lrintf` (F314). `Sim_FDM`'s attitude bound tightens from 2 to 1.4, so Gazebo's turned attitude stays
+within attitude's component bound of 2. Imusim oracle builds Betaflight's IMU for its simulator target once per bridge,
+with that clamp behind a toggle, and replays 40 sequences of 160 quaternions near unit length or up to 1.98 a component,
+with arming, angle and headfree mode changes.

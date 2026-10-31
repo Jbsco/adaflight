@@ -150,6 +150,13 @@ package Adaflight.Attitude with SPARK_Mode is
                  and then Acc_Magnitude in 0.0 .. 1.0e3
                  and then Vectors.Bounded (Mag, Mag_Bound);
 
+   --  The simulator target's attitude: a packet's quaternion sets it, the
+   --  older bridges' rotation keeps two entries of mirrored sign, and the
+   --  update corrects the throttle angle and holds the GPS heading usable
+   --  with no estimate.
+   procedure Set_From_Simulator (S : in out State; Q : Quaternion; Legacy_Bridge : Boolean; Headfree_Mode : Boolean);
+   procedure Update_Simulated (S : in out State; C : Config; Armed : Boolean; Angle_Mode : Boolean);
+
    --  Sets the headfree offset to the current heading when roll and pitch are
    --  both within 45 degrees.
    procedure Set_Headfree_Offset (S : in out State; Set : out Boolean);

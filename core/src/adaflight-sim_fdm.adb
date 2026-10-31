@@ -19,7 +19,7 @@ package body Adaflight.Sim_FDM with SPARK_Mode is
 
    Half_Root_Two : constant Float := 0.70710678;
 
-   subtype Attitude_Value is Float range -3.0 .. 3.0;
+   subtype Attitude_Value is Float range -2.0 .. 2.0;
    subtype Rotation_Value is Float range -40.0 .. 40.0;
    Field_North   : constant Float := 2046.8;
    Field_West    : constant Float := -71.5;
