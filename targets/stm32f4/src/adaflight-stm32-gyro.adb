@@ -223,12 +223,14 @@ package body Adaflight.STM32.Gyro is
       null;
    end Wait;
 
+   --  The received bytes as the layer reads its buffer: the byte clocked
+   --  with the command at 1, the data from 2.
    procedure Fetch (D : in out Device; Data : out Byte_Array) is
    begin
       Data := (others => 0);
-      for I in Data'Range loop
-         exit when I - Data'First > D.Rx'Last;
-         Data (I) := D.Rx (I - Data'First);
+      for I in D.Rx'Range loop
+         exit when Data'First + I + 1 > Data'Last;
+         Data (Data'First + I + 1) := D.Rx (I);
       end loop;
    end Fetch;
 
