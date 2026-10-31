@@ -58,7 +58,9 @@ package body Adaflight.STM32.MCU is
 
    procedure Reset is
    begin
+      System.Machine_Code.Asm ("dsb", Volatile => True);
       AIRCR := System_Reset_Request;
+      System.Machine_Code.Asm ("dsb", Volatile => True);
       loop
          null;
       end loop;

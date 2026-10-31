@@ -12196,3 +12196,18 @@ bit-bang frames and samples, ADC results, LED strip) already sit in `Platform.DM
 `.bss.ccm` in DTCM, memory no cache covers, so DMA and core see one copy. Flash programming writes through (default
 attributes make code memory write-through), and a configuration store erase changes memory behind cached lines, so the
 F7 flash body drops lines of its configuration region after erase and after programming, before reading back.
+
+## D556. Gyro receive buffer offset (2026-10-31)
+
+Board gyro glue `Fetch` copied received bytes from index 0, command byte first, while `Adaflight.MPU_Gyro` reads each
+axis word from byte 2 on, as its reference lays out a receive buffer (one unused byte, one clocked with the command,
+then data). Every axis word so held one axis's low byte and the next axis's high byte: a Talon F7 BB at rest read
+0x0700 0x0300 0x0500 for gyro counts 7, 3 and 5, and calibration restarted without end on that apparent noise. `Fetch`
+now puts the command's byte at 1 and data from 2, on both crates. Vectors exercise the layer with the reference layout
+and the host image has its own gyro model, so only a bench run could show this.
+
+## D557. Barrier before system reset (2026-10-31)
+
+`MCU.Reset` wrote its reset request straight after other register writes, such as the backup register word that asks
+for the ROM bootloader, and a Cortex-M7 may still have such a posted write crossing an APB bridge when the core resets.
+`Reset` now issues a data synchronization barrier before and after the request, so pending writes complete first.
