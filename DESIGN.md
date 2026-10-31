@@ -12182,3 +12182,9 @@ beside its memory layout, "F405", "F722", "F745" or "F746", and `Flight` stores 
 under "F405" on an F7 board resets to defaults at its next start, and `Reset_Configuration` writes the board's
 identifier into a fresh configuration, since the core default stays "F405" for the host.
 
+## D554. Device counts and store sizes in status (2026-10-31)
+
+`status` and the board information reply gave zero SPI and I2C devices and a configuration of 0 bytes in 0 bytes of
+storage: `Flight` never filled those fields. `Count_Bus_Devices` counts gyro, barometer on its bus, flash chip, OSD
+chip and a configured card slot once devices have started. Storage size comes from `Adaflight.STM32.Memory.Config_Size`
+and configuration size from `Check_Structure`, after loading at boot and after every write.

@@ -269,6 +269,9 @@ package body Adaflight.STM32.Flight is
    Input    : Adaflight.Bytes.Byte_Array (0 .. 63);
    Count    : Natural;
    Now_Ms   : Unsigned_32;
+   --  The devices counted on the buses once they have started.
+   SPI_Devices : Unsigned_8 := 0;
+   I2C_Devices : Unsigned_8 := 0;
    Links    : Adaflight.MSP_Control_In.Link_State;
    --  The ports that serve the MSP and the command line, as the MSP
    --  allocation opens them after the other serial functions, each with its
@@ -488,6 +491,8 @@ package body Adaflight.STM32.Flight is
       V.Board.Board_Name := Text (Adaflight.Board.Board_Name);
       V.Board.Manufacturer := Text (Adaflight.Board.Manufacturer_ID);
       V.Board.Configuration_State := Config.System_Config.Configuration_State;
+      V.Board.SPI_Devices := SPI_Devices;
+      V.Board.I2C_Devices := I2C_Devices;
       V.Board.Motor_Protocol_Disabled := Config.Motor_Config.Dev.Motor_Protocol = 0;
       V.Beeper := True;
       V.Meters.Virtual := True;
@@ -920,6 +925,35 @@ package body Adaflight.STM32.Flight is
          end;
       end if;
    end Start_OSD;
+
+   --  The devices found on the buses, as the status report and the board
+   --  information count them: the gyro, the barometer on its bus, a flash
+   --  chip, an OSD chip and a configured card slot.
+   procedure Count_Bus_Devices is
+      SPI : Natural := (if Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Gyro) then 1 else 0);
+      I2C : Natural := 0;
+   begin
+      if Adaflight.STM32.Baro.Detected then
+         case Adaflight.STM32.Baro.Bus_Type is
+            when 1 => I2C := I2C + 1;
+            when 2 => SPI := SPI + 1;
+            when others => null;
+         end case;
+      end if;
+      if Adaflight.STM32.Flash_Chip.Supported then
+         SPI := SPI + 1;
+      end if;
+      if Adaflight.OSD_Task."=" (Adaflight.STM32.OSD.Device, Adaflight.OSD_Task.MAX7456) then
+         SPI := SPI + 1;
+      end if;
+      if Adaflight.STM32.SD.Configured then
+         SPI := SPI + 1;
+      end if;
+      SPI_Devices := Unsigned_8 (SPI);
+      I2C_Devices := Unsigned_8 (I2C);
+      Env.Status.SPI_Devices := SPI_Devices;
+      Env.Status.I2C_Devices := I2C_Devices;
+   end Count_Bus_Devices;
 
    procedure Start_Gyro is
       Inputs : Adaflight.Gyro_Selection.Inputs;
@@ -4133,6 +4167,7 @@ package body Adaflight.STM32.Flight is
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
+      Count_Bus_Devices;
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
