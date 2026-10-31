@@ -175,6 +175,9 @@ package body Adaflight.STM32.USB is
       Out_Kinds  : Kinds := (others => U.Control);
       In_Sizes   : Sizes := (others => U.Packet_Size);
       Out_Sizes  : Sizes := (others => U.Packet_Size);
+      --  The endpoint operations an event asks for, kept here: the interrupt
+      --  stack is 2 KB and this record is near 1 KB.
+      A          : U.Actions;
    end Controller;
 
    protected body Controller is
@@ -353,7 +356,6 @@ package body Adaflight.STM32.USB is
       procedure Out_Endpoints is
          Pending : constant Unsigned_32 := Shift_Right (DAINT and DAINTMSK, 16);
          Flags   : Unsigned_32;
-         A       : U.Actions;
       begin
          for N in Number loop
             if (Pending and Shift_Left (1, N)) /= 0 then
@@ -378,7 +380,6 @@ package body Adaflight.STM32.USB is
       procedure In_Endpoints is
          Pending : constant Unsigned_32 := DAINT and DAINTMSK and 16#FFFF#;
          Flags   : Unsigned_32;
-         A       : U.Actions;
       begin
          for N in Number loop
             if (Pending and Shift_Left (1, N)) /= 0 then
@@ -414,7 +415,6 @@ package body Adaflight.STM32.USB is
       --  address cleared and the control endpoint armed, then the device's
       --  reset.
       procedure Bus_Reset is
-         A : U.Actions;
       begin
          DCTL := DCTL and not RWUSIG;
          Flush_Tx (0);
@@ -445,7 +445,6 @@ package body Adaflight.STM32.USB is
 
       procedure Handler is
          Status : constant Unsigned_32 := GINTSTS and GINTMSK;
-         A      : U.Actions;
       begin
          if (GINTSTS and CMOD) /= 0 or else Status = 0 then
             return;

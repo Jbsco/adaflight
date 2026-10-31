@@ -12151,3 +12151,10 @@ image's device stayed off the bus however complete its setup: a register snapsho
 its reset value of 2 after `Init`. The F405 core resets with the bit clear, which is how F4 images attached without the
 step. `Init` now clears the bit after the global interrupt enable, on both crates; on an F405 the write changes nothing.
 
+## D550. USB handler stack (2026-10-31)
+
+`Handler`, `Out_Endpoints`, `In_Endpoints` and `Bus_Reset` each declared a `U.Actions` record of near 1 KB as a local,
+and they nest two deep at an endpoint event, on a 2 KB interrupt stack. Overflow ran into the idle task's stack below,
+and the first USB suspend interrupt left a zero frame there: a usage fault for an invalid state on return, with every
+later interrupt masked, so a board attached and fell silent. The record is now one component of the `Controller`
+protected object, which runs its operations one at a time, so its handlers share it. The F4 body had the same locals.
