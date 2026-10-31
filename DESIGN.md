@@ -12088,3 +12088,16 @@ one, NaN through `lrintf` (F314). `Sim_FDM`'s attitude bound tightens from 2 to 
 within attitude's component bound of 2. Imusim oracle builds Betaflight's IMU for its simulator target once per bridge,
 with that clamp behind a toggle, and replays 40 sequences of 160 quaternions near unit length or up to 1.98 a component,
 with arming, angle and headfree mode changes.
+
+## D544. LZSS decode (2026-10-31)
+
+`Adaflight.LZSS` decodes LZSS with no entropy stage, first part of packed data for 512 KB builds: a 32-bit big-endian
+length, then tokens read most significant bit first, each a flag bit and either an 8-bit literal or a 12-bit distance
+less one and a 4-bit count less three copied from output already written, so its window is 4096 bytes and its matches 3
+to 18 bytes. A stream that ends early, a header of another length, a copy from before output's start and a copy past its
+end each report their own status, with output written so far kept and rest zero. Its proof covers every read and copy
+index. `tools/lzss.py` encodes streams, taking longest match among last 64 positions with same three bytes ahead, and
+writes its vectors: 240 drawn inputs of random bytes, words, sparse data, records, runs and copies across a full window,
+plus 60 malformed streams, each hex string in chunks the checker can hold. On a 512 KB F7 image this format takes cold
+tables from 38144 bytes to 19612. Betaflight's builds hold no compressed data, so this unit has no reference and its
+vectors come from its own encoder.
