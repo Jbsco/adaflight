@@ -67,6 +67,8 @@ package Adaflight.STM32.Memory is
    UID_Address        : constant := {uid};
    --  The ADC's reference and temperature calibration words.
    Calibration_Address : constant := {cal};
+   --  The identifier stored with the configuration.
+   Board_Identifier    : constant String := "{mcu[5:]}";
 end Adaflight.STM32.Memory;
 """
     if not ada.exists() or ada.read_text() != text_ada:

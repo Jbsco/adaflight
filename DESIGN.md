@@ -12173,3 +12173,18 @@ which no cache covers. The F4 run-time library enables its flash accelerator alr
 `Status.Uptime_Ms` was set in `Process_Command` alone, so `status` on a port that had seen no MSP request printed
 "System Uptime: 0 seconds" at any uptime. `Refresh_Views` sets it now from the millisecond clock it reads for every
 pass, before MSP or command line replies read it.
+
+## D553. Board identifier per MCU (2026-10-31)
+
+The configuration's board identifier was the constant "F405" on every crate, so an F722 image printed "(F405)" in its
+version line and accepted a configuration stored by an F405 board. `tools/memorygen.py` now emits `Board_Identifier`
+beside its memory layout, "F405", "F722", "F745" or "F746", and `Flight` stores and checks that. A configuration stored
+under "F405" on an F7 board resets to defaults at its next start, and `Reset_Configuration` writes the board's
+identifier into a fresh configuration, since the core default stays "F405" for the host.
+
+## D554. Device counts and store sizes in status (2026-10-31)
+
+`status` and the board information reply gave zero SPI and I2C devices and a configuration of 0 bytes in 0 bytes of
+storage: `Flight` never filled those fields. `Count_Bus_Devices` counts gyro, barometer on its bus, flash chip, OSD
+chip and a configured card slot once devices have started. Storage size comes from `Adaflight.STM32.Memory.Config_Size`
+and configuration size from `Check_Structure`, after loading at boot and after every write.
