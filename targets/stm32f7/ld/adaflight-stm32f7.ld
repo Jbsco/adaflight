@@ -43,13 +43,16 @@
    the MCU's memory layout comes from gen/memory.ld (tools/memorygen.py), with the vector
    table and the code that fits beside it in flash sector 0, sector 1 kept for the
    configuration store, the rest of the code from sector 2, and the core coupled memory on
-   the data tightly coupled memory. */
+   the data tightly coupled memory. A packed build's tables and initialized data load from the staging region,
+   which is never flashed: tools/datapack.py stores them compressed after .rodata. */
 INCLUDE memory.ld
 REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
 REGION_ALIAS("sram_bs", sram12)
 REGION_ALIAS("sram_da", sram12)
 REGION_ALIAS("ccm_da", ccm)
+
+__flash_end = ORIGIN (flash) + LENGTH (flash);
 
 _DEFAULT_STACK_SIZE = 4*1024;
 
@@ -124,6 +127,8 @@ SECTIONS
      PROVIDE_HIDDEN (__fini_array_end = .);
   } > flash
 
+  INCLUDE packed_tables.ld
+
   .rodata :
   {
     *(.lit)
@@ -132,37 +137,7 @@ SECTIONS
     __rom_end = .;
   } > flash
 
-  __data_load = __rom_end;
-  .data : AT (__data_load)
-  {
-    __data_start = .;
-    *(.data .data.* .gnu.linkonce.d*)
-
-    /* Ensure that the end of the data section is always word aligned.
-       Initial values are stored in 4-bytes blocks so we must guarantee
-       that these blocks do not fall out the section (otherwise they are
-       truncated and the initial data for the last block are lost). */
-
-    . = ALIGN(0x4);
-    __data_end = .;
-  } > sram_da
-  __data_words = (__data_end - __data_start) >> 2;
-
-  __ccmdata_load = __rom_end + (__data_words << 2);
-  .ccmdata : AT (__ccmdata_load)
-  {
-    __ccmdata_start = .;
-    *(.ccmdata .ccmdata.*)
-
-    /* Ensure that the end of the data section is always word aligned.
-       Initial values are stored in 4-bytes blocks so we must guarantee
-       that these blocks do not fall out the section (otherwise they are
-       truncated and the initial data for the last block are lost). */
-
-    . = ALIGN(0x4);
-    __ccmdata_end = .;
-  } > ccm_da
-  __ccmdata_words = (__ccmdata_end - __ccmdata_start) >> 2;
+  INCLUDE data_section.ld
 
   /* Zeroed data placed in the core coupled memory by its section name: the
      menu's state and target, which the main RAM cannot hold. */

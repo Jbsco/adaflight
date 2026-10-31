@@ -62,3 +62,6 @@ jobs:
 
       - name: Build the STM32F7 image for the KAKUTEF7
         run: CRATE=stm32f7 BOARD=KAKUTEF7 bash target.do
+
+      - name: Build the packed 512 KB STM32F7 image
+        run: CRATE=stm32f7 BOARD=KAKUTEF7 FLASH_KB=512 bash target.do

@@ -45,6 +45,7 @@ MEMORY
   flash0  (rx) : ORIGIN = 0x08000000, LENGTH = {s0}
   config   (r) : ORIGIN = {cfg}, LENGTH = {s1}
   flash   (rx) : ORIGIN = {code}, LENGTH = {code_len}
+  staging  (r) : ORIGIN = 0xC0000000, LENGTH = 1M
   sram12 (rwx) : ORIGIN = {ram}, LENGTH = {ram_len}
   ccm     (rw) : ORIGIN = {ccm}, LENGTH = {ccm_len}
 }}

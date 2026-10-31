@@ -23,6 +23,12 @@ STM32F7 images also place code in sector 0 beside their vector table, so their f
     dfu-util -a 0 -s 0x08010000 -D code.bin
     dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
 
+A 512 KB STM32F7 build packs its cold tables and initialized data: they run from RAM, and their compressed stream follows the code in flash, unpacked at start. `target.do` writes both flash files beside the image and reports the flash left, or the overflow:
+
+    cd targets/stm32f7/bin
+    dfu-util -a 0 -s 0x08008000 -D code.bin
+    dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
+
 The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
 The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
