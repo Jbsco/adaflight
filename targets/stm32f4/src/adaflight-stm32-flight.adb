@@ -106,6 +106,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
 with Adaflight.GPS_Rescue;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.Memory;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
@@ -170,7 +171,7 @@ package body Adaflight.STM32.Flight is
    Failure_Gyro_Init_Failed     : constant := 6;
 
    --  The board identifier a stored configuration must name.
-   Board_Identifier : constant String := "F405";
+   Board_Identifier : constant String := Adaflight.STM32.Memory.Board_Identifier;
 
    --  The scheduler starts after the data ready interrupts of the gyro's
    --  start have passed the layer's detection count.
@@ -799,6 +800,9 @@ package body Adaflight.STM32.Flight is
       Unused_Success : Boolean;
    begin
       Config := Adaflight.Config_Reset.Reset (Board);
+      for I in Board_Identifier'Range loop
+         Config.System_Config.Board_Identifier (I - 1) := Character'Pos (Board_Identifier (I));
+      end loop;
       Write_Configuration;
       Load_Configuration (Unused_Success);
    end Reset_Configuration;
