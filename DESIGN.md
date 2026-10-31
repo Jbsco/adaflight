@@ -12206,3 +12206,8 @@ then data). Every axis word so held one axis's low byte and the next axis's high
 now puts the command's byte at 1 and data from 2, on both crates. Vectors exercise the layer with the reference layout
 and the host image has its own gyro model, so only a bench run could show this.
 
+## D557. Barrier before system reset (2026-10-31)
+
+`MCU.Reset` wrote its reset request straight after other register writes, such as the backup register word that asks
+for the ROM bootloader, and a Cortex-M7 may still have such a posted write crossing an APB bridge when the core resets.
+`Reset` now issues a data synchronization barrier before and after the request, so pending writes complete first.
