@@ -1483,13 +1483,12 @@ package body Adaflight.STM32.Flight is
                if Changes.Save then
                   Write_Configuration;
                end if;
-               if Changes.Reboot then
-                  Adaflight.STM32.Motors.Shutdown;
-                  Reset;
-               end if;
                if CLI."=" (Changes.Restart, CLI.ROM_Bootloader) then
                   Adaflight.STM32.Motors.Shutdown;
                   Adaflight.STM32.MCU.Reset_To_Bootloader;
+               elsif Changes.Reboot then
+                  Adaflight.STM32.Motors.Shutdown;
+                  Reset;
                end if;
                Changes := (others => <>);
             end if;
