@@ -12188,3 +12188,11 @@ identifier into a fresh configuration, since the core default stays "F405" for t
 storage: `Flight` never filled those fields. `Count_Bus_Devices` counts gyro, barometer on its bus, flash chip, OSD
 chip and a configured card slot once devices have started. Storage size comes from `Adaflight.STM32.Memory.Config_Size`
 and configuration size from `Check_Structure`, after loading at boot and after every write.
+
+## D555. STM32F7 data cache (2026-10-31)
+
+`Adaflight.STM32.Cache.Enable` invalidates and enables data cache beside instruction cache. DMA buffers (motor frames,
+bit-bang frames and samples, ADC results, LED strip) already sit in `Platform.DMA_Section`, which the F7 crate maps to
+`.bss.ccm` in DTCM, memory no cache covers, so DMA and core see one copy. Flash programming writes through (default
+attributes make code memory write-through), and a configuration store erase changes memory behind cached lines, so the
+F7 flash body drops lines of its configuration region after erase and after programming, before reading back.
