@@ -296,6 +296,7 @@ with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Frames;
 with Adaflight.MAVLink_Mission;
 with Adaflight.MAVLink_Telemetry;
+with Adaflight.LZSS;
 with Adaflight.Sim_FDM;
 
 procedure Vector_Check is
@@ -37588,6 +37589,48 @@ procedure Vector_Check is
       end if;
    end Check_IMU_Sim_Line;
 
+   --  The LZSS decode of drawn data's streams and of malformed streams: the
+   --  status and the bytes written.
+   --  Hex chunks First .. First + Count - 1 as one byte array.
+   function Joined (First : Positive; Count : Positive) return Byte_Array is
+      Total : Natural := 0;
+   begin
+      for K in 0 .. Count - 1 loop
+         Total := Total + FL (First + K) / 2;
+      end loop;
+      declare
+         R : Byte_Array (0 .. Total - 1);
+         P : Natural := 0;
+      begin
+         for K in 0 .. Count - 1 loop
+            declare
+               B : constant Byte_Array := Hex_Bytes (First + K);
+            begin
+               R (P .. P + B'Length - 1) := B;
+               P := P + B'Length;
+            end;
+         end loop;
+         return R;
+      end;
+   end Joined;
+
+   procedure Check_LZSS_Line is
+      package L renames Adaflight.LZSS;
+      Size   : constant Natural := Natural (Int (4));
+      Target : Byte_Array (0 .. Size - 1);
+      Result : L.Status;
+   begin
+      L.Decode (Joined (6, Positive (Int (5))), Target, Result);
+      Record_Text ("lzss.status", Str (3),
+                   (case Result is
+                       when L.Done         => "done",
+                       when L.Truncated    => "truncated",
+                       when L.Bad_Length   => "bad_length",
+                       when L.Bad_Distance => "bad_distance",
+                       when L.Overrun      => "overrun"));
+      Record_Bytes ("lzss.output", Joined (7 + Natural (Int (5)), Positive (Int (6 + Natural (Int (5))))), Target);
+   end Check_LZSS_Line;
+
    procedure Check_WS2811_Line is
       package W renames Adaflight.WS2811;
       Name : constant String := Str (1);
@@ -40145,6 +40188,8 @@ procedure Vector_Check is
                   Check_Timer_Alloc_Line;
                elsif Kind = "imusim" then
                   Check_IMU_Sim_Line;
+               elsif Kind = "lzss" then
+                  Check_LZSS_Line;
                elsif Kind = "simfdm" then
                   Check_Sim_FDM_Line;
                elsif Kind = "dshotcapture" then
@@ -40524,6 +40569,7 @@ begin
    Run (Dir & "/timeralloc.csv", "timeralloc");
    Run (Dir & "/dshotcapture.csv", "dshotcapture");
    Run (Dir & "/simfdm.csv", "simfdm");
+   Run (Dir & "/lzss.csv", "lzss");
    Run (Dir & "/imusim.csv", "imusim");
    Run (Dir & "/dshotread.csv", "dshotread");
    Check_Twiddles;
