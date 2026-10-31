@@ -603,6 +603,7 @@ package body Adaflight.STM32.Flight is
                           Core_Temp_C   => 0,
                           Stack_Total   => Stack_Size,
                           Stack_High    => 16#2002_0000#,
+                          Storage_Size  => Adaflight.STM32.Memory.Config_Size,
                           others        => <>));
 
    procedure Reset renames Adaflight.STM32.MCU.Reset;
@@ -656,6 +657,15 @@ package body Adaflight.STM32.Flight is
       return Stored = Board_Identifier and then Config.System_Config.Board_Identifier (Board_Identifier'Length) = 0;
    end Board_Matches;
 
+   --  The stored configuration's size, as the status report gives it.
+   procedure Note_Config_Size is
+      Valid : Boolean;
+      Size  : Natural;
+   begin
+      Adaflight.Config_Store.Check_Structure (Adaflight.STM32.Flash.Config, Valid, Size);
+      Env.Status.Config_Size := (if Valid then Unsigned_16 (Natural'Min (Size, 65_535)) else 0);
+   end Note_Config_Size;
+
    --  The configuration written to the store after its checks: the region
    --  as it reads, the image of every group when any changed, programmed
    --  and checked back, in up to three attempts; a store that still fails
@@ -682,6 +692,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Flash.Write (Image (0 .. Size - 1), OK);
          Adaflight.Config_Store.Check_Structure (Adaflight.STM32.Flash.Config, Valid, Size);
          if OK and then Valid and then Adaflight.Config_Store.Version_Valid (Adaflight.STM32.Flash.Config) then
+            Note_Config_Size;
             return;
          end if;
       end loop;
@@ -825,6 +836,7 @@ package body Adaflight.STM32.Flight is
       then
          Reset_Configuration;
       end if;
+      Note_Config_Size;
    end Init_Configuration;
 
    --  The gyro's interrupt mode as the status report names it.
