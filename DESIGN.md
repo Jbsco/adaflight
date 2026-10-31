@@ -12218,3 +12218,14 @@ The serial pass applied a session's effects in one place: a plain reboot first, 
 followed by `exit` in one batch set both, so `Reset` ran before `Reset_To_Bootloader` wrote its backup word, and the
 board came back as the application. The bootloader request now comes first and the plain reboot only without one; the
 reference resets inside its `bl` handler, so a later `exit` never reaches it.
+
+## D559. Simulator link of the host image (2026-10-31)
+
+`Adaflight.Host_Simulator` opens its link when `ADAFLIGHT_SIMULATOR` names a bridge, `gazebo` or `legacy`, with a
+simulator address after a comma: a UDP server on port 9003 for flight dynamics packets and senders to ports 9002 and
+9001 for motor packets. `Flight.Pass` polls it first through `MCU.Simulator_Poll`, so each packet that arrived goes
+through `Sim_FDM.Decode` and `Step` in the main loop with no thread: a timeout sends a motor packet, an update stores
+virtual gyro and accelerometer counts and an attitude quaternion. The host gyro body reads those counts in place of its
+resting craft, with the 2000 dps scale and the accelerometer's 256 counts per g raised to its 2048, and `Run_Attitude`
+sets the attitude from each fresh quaternion and runs `Update_Simulated`. Board images answer `Simulated` with False.
+The host smoke drives it with a fake simulator. Motor speeds in the packets, RC over UDP and time scaling follow.
