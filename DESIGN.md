@@ -12211,3 +12211,10 @@ and the host image has its own gyro model, so only a bench run could show this.
 `MCU.Reset` wrote its reset request straight after other register writes, such as the backup register word that asks
 for the ROM bootloader, and a Cortex-M7 may still have such a posted write crossing an APB bridge when the core resets.
 `Reset` now issues a data synchronization barrier before and after the request, so pending writes complete first.
+
+## D558. Bootloader request before plain reboot (2026-10-31)
+
+The serial pass applied a session's effects in one place: a plain reboot first, then a ROM bootloader request. A `bl`
+followed by `exit` in one batch set both, so `Reset` ran before `Reset_To_Bootloader` wrote its backup word, and the
+board came back as the application. The bootloader request now comes first and the plain reboot only without one; the
+reference resets inside its `bl` handler, so a later `exit` never reaches it.
