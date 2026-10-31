@@ -83,6 +83,7 @@ package body Adaflight.STM32.USB is
    IISOIXFR       : constant Unsigned_32 := 2 ** 20;
    IPXFR          : constant Unsigned_32 := 2 ** 21;
    WKUPINT        : constant Unsigned_32 := 2 ** 31;
+   SDIS           : constant Unsigned_32 := 2 ** 1;
    PWRDWN         : constant Unsigned_32 := 2 ** 16;
    NOVBUSSENS     : constant Unsigned_32 := 2 ** 21;
    DSPD_FULL      : constant Unsigned_32 := 3;
@@ -568,6 +569,7 @@ package body Adaflight.STM32.USB is
       GINTMSK := GINTMSK or RXFLVL or USBSUSP or USBRST or ENUMDNE or IEPINT or OEPINT or SOF or IISOIXFR or IPXFR;
       Controller.Start (Product);
       GAHBCFG := GAHBCFG or GINTMSK_GLOBAL;
+      DCTL := DCTL and not SDIS;
    end Init;
 
    function Configured return Boolean is (Controller.Configured);

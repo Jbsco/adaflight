@@ -12144,3 +12144,10 @@ them, after the barometer's start. `tools/memorygen.py` now emits `Calibration_A
 MCU, 0x1FFF7A2A on F405, 0x1FF07A2A on F722 and 0x1FF0F44A on F745 and F746, as their datasheets give them, and the ADC
 unit places its three words there.
 
+## D549. USB device attachment (2026-10-31)
+
+The STM32F7 OTG core resets with its soft disconnect bit set (`DCTL.SDIS`), and `Init` never cleared it, so an F7
+image's device stayed off the bus however complete its setup: a register snapshot in the bench trace showed `DCTL` at
+its reset value of 2 after `Init`. The F405 core resets with the bit clear, which is how F4 images attached without the
+step. `Init` now clears the bit after the global interrupt enable, on both crates; on an F405 the write changes nothing.
+
