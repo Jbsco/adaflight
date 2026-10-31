@@ -12168,3 +12168,8 @@ at seven wait states, uncached: on a Talon F7 BB, PID took 525 us per pass with 
 elaboration, so unpacking and elaboration run cached too. The data cache stays off until DMA buffers move to DTCM,
 which no cache covers. The F4 run-time library enables its flash accelerator already.
 
+## D552. Uptime in the command line path (2026-10-31)
+
+`Status.Uptime_Ms` was set in `Process_Command` alone, so `status` on a port that had seen no MSP request printed
+"System Uptime: 0 seconds" at any uptime. `Refresh_Views` sets it now from the millisecond clock it reads for every
+pass, before MSP or command line replies read it.
