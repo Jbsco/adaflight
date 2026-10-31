@@ -12136,3 +12136,11 @@ core coupled memory by section name, the USB controller's protected object and t
 that memory held since power-up. Both board images carry the unit, and the host image leaves it out, having no such
 section.
 
+## D548. ADC calibration word addresses (2026-10-31)
+
+`Adaflight.STM32.ADC` read its reference voltage and temperature sensor calibration words at the STM32F405 addresses
+0x1FFF7A2A to 0x1FFF7A2E on every crate. No F7 maps them, so an F7 image took a precise bus fault at its first read of
+them, after the barometer's start. `tools/memorygen.py` now emits `Calibration_Address` in `Adaflight.STM32.Memory` per
+MCU, 0x1FFF7A2A on F405, 0x1FF07A2A on F722 and 0x1FF0F44A on F745 and F746, as their datasheets give them, and the ADC
+unit places its three words there.
+

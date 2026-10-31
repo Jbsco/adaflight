@@ -1,3 +1,4 @@
+with Adaflight.STM32.Memory;
 with System;
 with System.Storage_Elements;
 with Adaflight.STM32.GPIO;
@@ -38,9 +39,12 @@ package body Adaflight.STM32.ADC is
    function Base (Device : Natural) return Unsigned_32 is (16#4001_2000# + 16#100# * Unsigned_32 (Device));
    CCR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4001_2304#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
-   Vrefint_Cal : Interfaces.Unsigned_16 with Volatile, Import, Address => System'To_Address (16#1FFF_7A2A#);
-   Ts_Cal1     : Interfaces.Unsigned_16 with Volatile, Import, Address => System'To_Address (16#1FFF_7A2C#);
-   Ts_Cal2     : Interfaces.Unsigned_16 with Volatile, Import, Address => System'To_Address (16#1FFF_7A2E#);
+   Vrefint_Cal : Interfaces.Unsigned_16
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.Calibration_Address);
+   Ts_Cal1     : Interfaces.Unsigned_16
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.Calibration_Address + 2);
+   Ts_Cal2     : Interfaces.Unsigned_16
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.Calibration_Address + 4);
 
    ADC1_Bit       : constant Unsigned_32 := 2 ** 8;
    Prescaler_Div8 : constant Unsigned_32 := 3 * 2 ** 16;
