@@ -12117,3 +12117,14 @@ CLRACINGF7 image now runs 11875 bytes over its room, from 33788, with RAM use 38
 plain tables, with 20 bytes of unpacker beside them. `featuregen.py` chooses packing below 1024 KB and lists the tables,
 and a packed build reports its flash left or its overflow in place of ld's message. The target workflow builds a packed
 KAKUTEF7 image. Boot runs only on hardware, so a first F722 flash checks unpacking.
+
+## D546. F722 device identifier address (2026-10-31)
+
+`tools/memorygen.py` gave STM32F722 images the unique device identifier address of STM32F745 and F746, 0x1FF0F420, where
+an F722 maps nothing. Flight's elaboration reads that identifier for board identity, so a Talon F7 BB took a precise bus
+fault before `main`, and the run-time library's fault handler is an endless loop with every interrupt masked: its status
+LED stayed dark after unpacking, delays and tasks never ran, and its USB core, powered before the fault, attached to the
+host without answering. F722 identifiers now read from 0x1FF07A10, as RM0431 gives them. Found on the bench with a trace
+written to flash by a fault hook in the run-time library's copy, after Renode runs on an F746 model, which returns zero
+for that address, showed nothing. D538's claim that an F722 image fits sector 0 stands; this image now boots there.
+
