@@ -12304,4 +12304,7 @@ press ENTER, LEFT, UP, RIGHT and DOWN with throttle centered and 150 ms of repea
 low; a build setting gates them so pin-less boards keep their stick behavior. MSP 98 presses a key while disarmed and
 errors while armed. Oracle gen_camera records duty, end time, hi time, pin levels and waits over random configurations
 in CLI ranges; gen_arming now builds with camera control and records key presses, so every arming vector family
-regenerated. Board unit, flight wiring, host log and smoke follow.
+regenerated. `STM32.Camera_Control` drives hardware PWM on its pin's timer channel at full timer clock over 128
+counts, or software PWM over 448 counts from TIM6 and TIM7 update interrupts toggling that pin, blocking its
+caller for its wait as upstream does; flight unit code presses keys from stick commands and MSP, ends any OSD
+refresh pause on a key, and runs its camera task while disarmed. Host logs setup, key and idle lines for its smoke.

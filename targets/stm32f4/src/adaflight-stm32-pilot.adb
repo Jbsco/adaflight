@@ -1,3 +1,4 @@
+with Adaflight.Board;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot_Command;
 with Adaflight.Vectors;
@@ -37,6 +38,7 @@ package body Adaflight.STM32.Pilot is
         (Config.Arming_Config, Config.System_Config, Config.Rx_Config, Config.Flight3_D_Config,
          Config.Mixer_Config, Config.Pid_Config, Config.Scheduler_Config, Config.Motor_Config,
          Config.Failsafe_Config, Config.Gps_Rescue_Config, Config.Pid_Profiles (P), Runtime_Features, F.Sensors);
+      Arm_Settings.Camera_Control := Adaflight.Board.Camera_Control_Tag /= 0;
       RC_Config := Adaflight.Config_Runtime.RC_Config_Of
         (Config.Rx_Config, Config.Rc_Controls_Config, Config.Control_Rate_Profiles (R), Config.Pid_Config, Sample,
          Config.Flight3_D_Config, Runtime_Features);

@@ -65,6 +65,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Modes;
+with Adaflight.Camera_Control;
 with Adaflight.Compass;
 with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
@@ -85,6 +86,7 @@ with Adaflight.Serial_Feature_Map;
 with Adaflight.Servo_Mixer;
 with Adaflight.STM32.ADC;
 with Adaflight.STM32.Baro;
+with Adaflight.STM32.Camera_Control;
 with Adaflight.STM32.Compass;
 with Adaflight.STM32.I2C;
 with Adaflight.STM32.Blackbox;
@@ -1070,7 +1072,8 @@ package body Adaflight.STM32.Flight is
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
          LED_Strip => Adaflight.Build_Features.LED_Strip,
-         Baro => Adaflight.STM32.Baro.Detected, Mag => True, others => False);
+         Baro => Adaflight.STM32.Baro.Detected, Mag => True,
+         Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1151,6 +1154,17 @@ package body Adaflight.STM32.Flight is
    --  One command through the processor with its request, the effects it
    --  asks for, and a requested write of the configuration with its read
    --  back; the reply stays in the stream.
+   --  A camera key from the sticks or MSP; the OSD's refresh pause ends so
+   --  the camera's menu has the screen.
+   procedure Press_Camera_Key (Code : Unsigned_8; Hold_Ms : Adaflight.Camera_Control.Hold_Time) is
+      OSD_Reset : Boolean;
+   begin
+      Adaflight.STM32.Camera_Control.Key_Press (Code, Hold_Ms, OSD_Reset);
+      if OSD_Reset then
+         Adaflight.STM32.OSD.Resume_Refresh;
+      end if;
+   end Press_Camera_Key;
+
    procedure Process_Command (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array) is
       Unused_Success : Boolean;
       Asked          : Adaflight.Arming.Outputs;
@@ -1196,6 +1210,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Control.Mag_Calibration then
          Adaflight.STM32.Compass.Start_Calibration;
+      end if;
+      if Effects.Control.Camera_Press then
+         Press_Camera_Key (Effects.Control.Camera_Key, 0);
       end if;
       if Effects.Motor.Set then
          Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
@@ -1948,7 +1965,7 @@ package body Adaflight.STM32.Flight is
       Optical_Flow_Process   => No_Step,
       Telemetry_Poll_Sensors => No_Step_At,
       Telemetry_Process      => Run_Telemetry,
-      Camera_Control_Process => No_Step_At);
+      Camera_Control_Process => Adaflight.STM32.Camera_Control.Process);
 
    --  The gyro task: one reading into the gyro filters' accumulation, and
    --  the core loop's cadence.
@@ -2229,6 +2246,19 @@ package body Adaflight.STM32.Flight is
       end if;
       if Step.Commands (Adaflight.Arming.Mag_Calibration) then
          Adaflight.STM32.Compass.Start_Calibration;
+      end if;
+      if Step.Commands (Adaflight.Arming.Camera_Enter) then
+         Press_Camera_Key (0, 0);
+      elsif Step.Commands (Adaflight.Arming.Camera_Left) then
+         Press_Camera_Key (1, 0);
+      elsif Step.Commands (Adaflight.Arming.Camera_Up) then
+         Press_Camera_Key (2, 0);
+      elsif Step.Commands (Adaflight.Arming.Camera_Right) then
+         Press_Camera_Key (3, 0);
+      elsif Step.Commands (Adaflight.Arming.Camera_Down) then
+         Press_Camera_Key (4, 0);
+      elsif Step.Commands (Adaflight.Arming.Camera_Up_Hold) then
+         Press_Camera_Key (2, 2_000);
       end if;
       for Profile in Adaflight.Arming.PID_Profile_1 .. Adaflight.Arming.PID_Profile_3 loop
          if Step.Commands (Profile) then
@@ -4200,6 +4230,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init
         (Config, Adaflight.STM32.Control.Motor_Count, (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0);
+      Adaflight.STM32.Camera_Control.Init (Config);
       Start_ADC_Scan;
       Adaflight.STM32.DShot_Output.Init (Config);
       if Config.Motor_Config.Dev.Use_Dshot_Telemetry /= 0

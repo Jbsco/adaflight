@@ -44,6 +44,8 @@ package Adaflight.STM32.OSD is
    --  its layer and background selected, redrawn while disarmed, its
    --  heartbeat run, and text written at a position; Grabbed while the
    --  menu holds it, which the OSD task waits out.
+   --  The refresh pause ends: a camera key wants the screen.
+   procedure Resume_Refresh;
    procedure Menu_Grab;
    procedure Menu_Release;
    function Grabbed return Boolean;
