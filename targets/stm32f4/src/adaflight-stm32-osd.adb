@@ -856,6 +856,7 @@ package body Adaflight.STM32.OSD is
       D.Use_3D_Speed := F.GPS.Use_3D_Speed;
       D.Altitude_Cm := F.Altitude_Cm;
       D.Pitot_Present := F.Pitot_Present;
+      D.Debug := F.Debug;
       D.Airspeed_Cm_S := F.Airspeed_Cm_S;
       D.Altitude_Asl_Cm :=
         Float (Interfaces.Integer_32'Max (-Adaflight.OSD_Render.Altitude_Bound,

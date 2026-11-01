@@ -127,6 +127,8 @@ with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
 with Adaflight.SmartAudio;
 with Adaflight.SmartPort_Telemetry;
+with Adaflight.Debug;
+with Adaflight.Gyro_Debug;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.Serial;
@@ -382,6 +384,7 @@ package body Adaflight.STM32.Flight is
    Sample_Us      : Scheduler.Period_Us := 125;
    Gyro_Settings  : Adaflight.Gyro_Filters.Settings;
    Gyro_State     : Adaflight.Gyro_Filters.State;
+   Debug_State    : Adaflight.Debug.State;
    Acc_Settings   : Adaflight.Accelerometer.Settings;
    Acc_State      : Adaflight.Accelerometer.State;
    Acc_Cal        : Adaflight.Acc_Inflight.State;
@@ -1046,6 +1049,7 @@ package body Adaflight.STM32.Flight is
          Scale => Selection.Scale, Motors => Motors, Overflow_Protected => Selection.Overflow_Protected);
       Gyro_Settings.Motor_Telemetry := Adaflight.STM32.Motors.Telemetry_Configured (Config);
       Adaflight.Gyro_Filters.Init (Gyro_State, Gyro_Settings);
+      Adaflight.Debug.Select_Mode (Debug_State, Config.System_Config.Debug_Mode);
       if Gyro_Report.Acc_Sample_Rate_Hz in 1 .. 10_000 then
          Acc_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       end if;
@@ -1427,6 +1431,7 @@ package body Adaflight.STM32.Flight is
       Env.Status.Uptime_Ms := Now_Ms;
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
+      Ctx.Out_Views.State.Debug := Adaflight.MSP_Out.Debug_Values (Debug_State.Data);
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
       Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
@@ -2013,6 +2018,7 @@ package body Adaflight.STM32.Flight is
         (Gyro_State, Gyro_Settings,
          (0 => (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), others => (0, 0, 0)),
          (0 => OK, others => False), Finished);
+      Adaflight.Gyro_Debug.Record_Calibration (Debug_State, Gyro_State);
       if Finished then
          Request_Beep (Adaflight.Beeper.Gyro_Calibrated);
       end if;
@@ -2044,6 +2050,8 @@ package body Adaflight.STM32.Flight is
       end;
       Adaflight.Gyro_Filters.Filter (Gyro_State, Gyro_Settings, Now_Us, Throttle_Percent => 0,
                                      Motor_Hz => Motor_Hz, Dt_Scale => Scale);
+      Adaflight.Gyro_Debug.Record_Filter
+        (Debug_State, Gyro_State, Gyro_Settings.Debug_Axis, Natural'Min (100, Sched.Average_Load_Percent));
       for I in Adaflight.MSP_Out.Axis loop
          Ctx.Out_Views.State.IMU.Gyro_Dps (I) := Counts (Gyro_State.Filtered (Adaflight.Axes.Axis'Val (I)));
       end loop;
@@ -2486,6 +2494,7 @@ package body Adaflight.STM32.Flight is
       F.Baro_Alt := Integer_32 (Float'Max (-2.0e9, Float'Min (2.0e9, Adaflight.STM32.Baro.Altitude_Cm)));
       F.Airspeed := Float'Max (-1.0e6, Float'Min (1.0e6, Adaflight.STM32.Pitot.Airspeed_Cm_S));
       F.Diff_Pressure := Float'Max (-1.0e6, Float'Min (1.0e6, Adaflight.STM32.Pitot.Diff_Pressure_Pa));
+      F.Debug := Adaflight.Blackbox.Debug_Values (Debug_State.Data);
       F.Conditions.RSSI_Configured := Adaflight.STM32.Radio.RSSI_Configured;
       F.Conditions.Debug_Active := Config.System_Config.Debug_Mode /= 0;
       F.Conditions.Voltage_Meter := Bat_Settings.Voltage_Meter;
@@ -2944,6 +2953,7 @@ package body Adaflight.STM32.Flight is
       F.Motors := Motors;
       F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
       F.Pitot_Present := Adaflight.STM32.Pitot.Detected;
+      F.Debug := Adaflight.OSD_Render.Debug_Values (Debug_State.Data);
       F.Airspeed_Cm_S := Float'Max (-200_000.0, Float'Min (200_000.0, Adaflight.STM32.Pitot.Airspeed_Cm_S));
       F.Rangefinder_Cm := Adaflight.STM32.Rangefinder.Altitude_Cm;
       F.Custom_Text := Adaflight.STM32.OSD_Custom_Text.Text;
@@ -3546,8 +3556,8 @@ package body Adaflight.STM32.Flight is
 
    --  What the EX Bus telemetry reads: the battery, the altitude estimate
    --  and its climb rate, the attitude, the GPS with its home, the
-   --  accelerometer, and the ESC sensor's readings of the mixer's motors.
-   --  The board keeps no debug values, so the debug sensors read zero.
+   --  accelerometer, the ESC sensor's readings of the mixer's motors, and
+   --  the debug values.
    function Jeti_Inputs return Adaflight.Jeti_Telemetry.Inputs is
       package JT renames Adaflight.Jeti_Telemetry;
       G      : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
@@ -3579,6 +3589,7 @@ package body Adaflight.STM32.Flight is
       Inp.Acc_ADC := (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z));
       Inp.One_G := Positive'Max (1, Natural'Min (65_535, Adaflight.STM32.Gyro.Acc_One_G));
       Inp.Motor_Count := Motors;
+      Inp.Debug := JT.Debug_Values (Debug_State.Data);
       for M in 0 .. Motors - 1 loop
          declare
             R : constant Adaflight.ESC_Sensor.Reading := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);

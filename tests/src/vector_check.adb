@@ -283,6 +283,8 @@ with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
+with Adaflight.Debug;
+with Adaflight.Gyro_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
 with Adaflight.VTX_RTC6705;
@@ -2249,6 +2251,8 @@ procedure Vector_Check is
    end Check_Pulse_Line;
 
    Gyro_State    : Adaflight.Gyro_Filters.State;
+   --  The debug values the oracle's gyro sequence records.
+   Gyro_Debug : Adaflight.Debug.State;
    Gyro_Settings : Adaflight.Gyro_Filters.Settings;
    Gyro_Denom    : Integer := 1;
    Gyro_Cal_Samples : Natural := 0;
@@ -2297,6 +2301,7 @@ procedure Vector_Check is
             C.Loop_Time_Us := Integer'Value (Str (3));
             C.Sample_Time_Us := Integer'Value (Str (4));
             Gyro_Denom := Integer'Value (Str (5));
+            Gyro_Debug := (others => <>);
             C.Scale := Flt (6);
             C.Sensors (0) := (Alignment     => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (7)),
                               Custom_Angles => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (8)),
@@ -2524,19 +2529,25 @@ procedure Vector_Check is
                                        Yaw   => Integer (Int (K + 2))),
                             others => (others => 0)),
                            (others => True), Finished);
+               Adaflight.Gyro_Debug.Record_Calibration (Gyro_Debug, Gyro_State);
                Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
                if Gyro_Cal_Samples mod Gyro_Denom = 0 then
                   Filter (Gyro_State, Gyro_Settings,
                           Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                           Gyro_Motor_Hz, Gyro_Dt_Scale);
+                  Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
                end if;
                K := K + 3;
             end loop;
          end;
+      elsif Name = "gyrodebug" then
+         Adaflight.Debug.Select_Mode (Gyro_Debug, Interfaces.Unsigned_8 (Int (3)));
+         Gyro_Settings.Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
       elsif Name = "gyrocaldone" then
          Filter (Gyro_State, Gyro_Settings,
                  Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                  Gyro_Motor_Hz, Gyro_Dt_Scale);
+         Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)),
@@ -2546,6 +2557,9 @@ procedure Vector_Check is
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.imu", Bits (8 + Adaflight.Axes.Axis'Pos (A)),
                            To_Bits (Gyro_State.Downsampled (A)));
+         end loop;
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("gyrocaldone.debug", Int (11 + J), Integer_64 (Gyro_Debug.Data (J)));
          end loop;
          Gyro_Now_Us := Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us);
       elsif Name = "gyrostep" then
@@ -2575,10 +2589,12 @@ procedure Vector_Check is
                                        Yaw   => Integer (Int (K + 2))),
                             others => (others => 0)),
                            (others => True), Finished);
+               Adaflight.Gyro_Debug.Record_Calibration (Gyro_Debug, Gyro_State);
                K := K + 3;
             end loop;
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
             Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)), Gyro_Motor_Hz, Gyro_Dt_Scale);
+            Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("rate", Gyro_State.Rate (A));
             end loop;
@@ -2613,6 +2629,10 @@ procedure Vector_Check is
             else
                K := K + 4;
             end if;
+            for J in Adaflight.Debug.Index loop
+               Record_Int ("gyrostep.debug", Int (K), Integer_64 (Gyro_Debug.Data (J)));
+               K := K + 1;
+            end loop;
             if K /= NF + 1 then
                Put_Line ("gyrostep: consumed" & Integer'Image (K) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;

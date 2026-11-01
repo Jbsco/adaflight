@@ -1,4 +1,3 @@
-with Interfaces;
 package body Adaflight.Gyro_Filters with SPARK_Mode is
    use type Interfaces.Integer_32;
 
@@ -108,13 +107,16 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
    --  One calibration cycle: the counts join the sums and the deviation
    --  statistics, and the final cycle turns them into the zero offsets unless
    --  the deviation shows the craft moved, which restarts the calibration.
-   procedure Calibration_Cycle (G : in out Sensor_State; C : Settings; Sample : Raw_Vector; Finished : out Boolean)
+   procedure Calibration_Cycle
+     (G : in out Sensor_State; C : Settings; Sample : Raw_Vector; Taps : in out Debug_Taps; Finished : out Boolean)
      with Pre => G.Cycles_Remaining > 0
    is
       Cycles : constant Cycle_Count := Calibration_Cycles (C);
       Failed : Boolean := False;
    begin
       Finished := False;
+      G.Cal_Step := True;
+      G.Cal_Final := G.Cycles_Remaining = 1;
       for A in Axis loop
          if G.Cycles_Remaining = Cycles then
             G.Cal_Sum (A) := 0.0;
@@ -131,6 +133,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
             declare
                Deviation : constant Float := Stats_Standard_Deviation (G.Cal_Stats (A));
             begin
+               Taps.Cal_Deviation (A) := Float'Min (Deviation, 2.0 ** 20);
                if C.Movement_Threshold /= 0 and then Deviation > Float (C.Movement_Threshold) then
                   Failed := True;
                else
@@ -145,6 +148,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
             end;
          end if;
       end loop;
+      G.Cal_Failed := Failed;
       if Failed then
          G.Cycles_Remaining := Cycles;
          return;
@@ -196,12 +200,18 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       for I in Gyro_Index loop
          pragma Loop_Invariant (Active <= I);
          pragma Loop_Invariant (for all A in Axis => abs Sum (A) <= Float (I) * 2.0 ** 22);
+         S.Sensors (I).Cal_Step := False;
          if S.Enabled (I) then
             if Ready (I) then
+               if (for all J in Gyro_Index range 0 .. I - 1 => not S.Enabled (J)) then
+                  S.Taps.Raw_Last := (Roll  => Interfaces.Integer_16 (Samples (I) (Roll)),
+                                      Pitch => Interfaces.Integer_16 (Samples (I) (Pitch)),
+                                      Yaw   => Interfaces.Integer_16 (Samples (I) (Yaw)));
+               end if;
                if Sensor_Calibrated (S, I) then
                   Align (S.Sensors (I), C, C.Sensors (I), S.Board_Rotation, Samples (I));
                else
-                  Calibration_Cycle (S.Sensors (I), C, Samples (I), Done);
+                  Calibration_Cycle (S.Sensors (I), C, Samples (I), S.Taps, Done);
                   Finished := Finished or else Done;
                end if;
             end if;
@@ -320,7 +330,10 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
             S.Sample_Sum (A) := 0.0;
          end if;
       end loop;
+      S.Taps.Downsampled := Values (C.Debug_Axis);
       RPM_Filter.Run (S.RPM, Motor_Hz, Dt_Scale, Values);
+      S.Taps.After_RPM := Values (C.Debug_Axis);
+      S.Taps.Dyn_Ran := S.Dyn.Active;
       for A in Axis loop
          declare
             Value : Signal := Values (A);
@@ -336,9 +349,18 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
             end if;
             PID_Filters.Apply_Stage (S.Lowpass1 (A), Value, Stage_Out);
             Value := Stage_Out;
+            if A = C.Debug_Axis then
+               S.Taps.After_Static := Value;
+            end if;
             if S.Dyn.Active then
+               if A = C.Debug_Axis then
+                  S.Taps.Dyn_In := Value;
+               end if;
                Dyn_Notch.Push (S.Dyn, A, Value);
                Dyn_Notch.Filter (S.Dyn, A, Value);
+               if A = C.Debug_Axis then
+                  S.Taps.Dyn_Out := Value;
+               end if;
             end if;
             S.Filtered (A) := Value;
          end;
@@ -419,6 +441,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
          Cutoff := Float'Max (PID_Filters.Dynamic_Throttle (Throttle) * Float (S.Dyn_LPF_Max), Float (S.Dyn_LPF_Min));
       end if;
       Cutoff := Constrain_F (Cutoff, 0.0, 2300.0);
+      S.Taps.LPF_Cutoff := Cutoff;
       case S.Dyn_LPF is
          when None => null;
          when PID_Config.PT1 =>

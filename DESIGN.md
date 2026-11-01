@@ -12389,3 +12389,19 @@ telemetry runs, routes those actions and writes to it by display index, leaves l
 to OSD alone, and reports when a menu shows on it. Flight unit registers it at init and feeds that report to SRXL
 telemetry, whose user slot then sends only text frames. Host smoke opens a menu with its stick gesture twice over DSM
 frames, so it lands on SRXL display behind OSD, and reads its title in text frames.
+
+## D574. Debug values (2026-11-01)
+
+Blackbox logged eight debug fields, MSP 254 replied them, OSD drew two elements of them and EX Bus carried them as
+sensors, all at zero: no module recorded a value. Core `Debug` now holds eight sixteen-bit values and a selected mode
+number, with a mode enumeration in upstream order, a store that keeps a value only while its mode is selected, and
+conversions that wrap into sixteen bits after rounding half to even or truncation as C stores a float. Core
+`Gyro_Filters` keeps taps of its loop: raw source counts, rates after downsampling, after RPM notches, after static
+filters, before and after dynamic notches while they run, its dynamic lowpass cutoff, and each sensor's calibration
+cycle with its deviations and whether it failed; `Dyn_Notch` marks its average and its center frequency step with its
+axis. Core `Gyro_Debug` records those as upstream's filter loop, dynamic notch and calibration do, for raw, filtered,
+sample, FFT, FFT frequency, dynamic lowpass and calibration modes, gated by its debug axis. Vectors draw a mode and a
+debug axis per gyro sequence and read eight values after every loop and calibration end. Flight unit selects its mode
+from configuration at init, records after each gyro sample and filter loop, and hands values to blackbox, MSP, OSD and
+EX Bus. F4 main RAM had about two hundred bytes free, so taps hold one axis's rates and counts as sixteen bits and
+one calibration's deviations. Other modules' sites follow in later increments.

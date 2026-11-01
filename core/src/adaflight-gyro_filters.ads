@@ -6,6 +6,7 @@
 --  and the lowpass that feeds the attitude estimate, in the operation order
 --  of the reference.
 
+with Interfaces;
 with Adaflight.Clock;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Maths; use Adaflight.Maths;
@@ -80,6 +81,8 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Motor_Telemetry      : Boolean := False;
       Simplified_Filter    : Boolean := True;
       Simplified_Filter_Multiplier : Natural range 10 .. 200 := 100;
+      --  The axis whose samples the debug values follow through the stages.
+      Debug_Axis           : Axis := Roll;
    end record
      with Dynamic_Predicate =>
        (Settings.LPF1_Dyn_Min_Hz = 0 or else Settings.LPF1_Dyn_Min_Hz <= Settings.LPF1_Dyn_Max_Hz)
@@ -111,6 +114,10 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
      with Dynamic_Predicate => Vectors.Bounded (Rotation_Matrix, 2.0);
    subtype Aligned_Count is Float range -2.0 ** 22 .. 2.0 ** 22;
    type Aligned_Counts is array (Axis) of Aligned_Count;
+   --  A calibration cycle's deviation, bounded for the debug values.
+   subtype Deviation is Float range 0.0 .. 2.0 ** 20;
+   type Deviations is array (Axis) of Deviation;
+
    type Sensor_State is record
       Rotation         : Rotation_Matrix := Vectors.Identity;
       Zero             : Offsets := (others => 0.0);
@@ -118,8 +125,32 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Cal_Stats        : Axis_Stats;
       Cycles_Remaining : Cycle_Count := 0;
       Aligned          : Aligned_Counts := (others => 0.0);
+      --  The debug values' view of the last accumulation: whether a
+      --  calibration cycle ran, whether it was the final one, and whether it
+      --  failed the movement check.
+      Cal_Step         : Boolean := False;
+      Cal_Final        : Boolean := False;
+      Cal_Failed       : Boolean := False;
    end record;
    type Sensor_States is array (Gyro_Index) of Sensor_State;
+
+   --  What the debug values read of the last loop: the raw source sensor's
+   --  counts, the debug axis's rate after downsampling, after the RPM notches,
+   --  after the static filters, and before and after the dynamic notches while
+   --  they ran, the dynamic lowpass's last cutoff, and the last calibration
+   --  cycle's deviations.
+   type Raw_Counts is array (Axis) of Interfaces.Integer_16;
+   type Debug_Taps is record
+      Raw_Last      : Raw_Counts := (others => 0);
+      Downsampled   : Signal := 0.0;
+      After_RPM     : Signal := 0.0;
+      After_Static  : Signal := 0.0;
+      Dyn_In        : Signal := 0.0;
+      Dyn_Out       : Signal := 0.0;
+      Dyn_Ran       : Boolean := False;
+      LPF_Cutoff    : Float range 0.0 .. 2_300.0 := 0.0;
+      Cal_Deviation : Deviations := (others => 0.0);
+   end record;
 
    type State is record
       Lowpass1          : Axis_Stage;
@@ -151,6 +182,7 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Yaw_Spin_Time_Us  : Time_Us := 0;
       Dyn               : Dyn_Notch.State;
       RPM               : RPM_Filter.State;
+      Taps              : Debug_Taps;
    end record
      with Dynamic_Predicate => Vectors.Bounded (State.Board_Rotation, 2.0);
 
