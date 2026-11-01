@@ -128,6 +128,7 @@ with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
 with Adaflight.Pitot;
 with Adaflight.RTC;
+with Adaflight.Camera_Control;
 with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
@@ -8766,6 +8767,80 @@ procedure Vector_Check is
    RTC_Seq    : Integer_64 := -1;
    RTC_Config : Adaflight.RTC.Settings;
    RTC_Clock  : Adaflight.RTC.Clock;
+
+   --  The camera control lines: the control from a configuration with its
+   --  pin and timer, each key press with its duty, end time, software hi
+   --  time and wait, and the process calls.
+   Camera_State    : Adaflight.Camera_Control.State;
+   Camera_Settings : Adaflight.Camera_Control.Settings;
+   Camera_Seq      : Integer_64 := -1;
+
+   procedure Check_Camera_Line is
+      use Adaflight.Camera_Control;
+      Name     : constant String := Str (1);
+      Software : constant Boolean := Camera_State.Enabled and then Camera_State.Output = Software_PWM;
+   begin
+      if Name = "caminit" then
+         Camera_Seq := Int (2);
+         Camera_Settings :=
+           (Output              => Mode_Of (Interfaces.Unsigned_8 (Int (3))),
+            Ref_Voltage         => Natural (Int (4)),
+            Key_Delay_Ms        => Natural (Int (5)),
+            Internal_Resistance => Natural (Int (6)),
+            Inverted            => Int (8) /= 0,
+            Buttons             =>
+              (Enter => Natural (Int (9)), Left => Natural (Int (10)), Up => Natural (Int (11)),
+               Right => Natural (Int (12)), Down => Natural (Int (13))));
+         Init (Camera_State, Camera_Settings, Has_Pin => Int (7) /= 0, Timer_Found => Int (14) /= 0);
+         Record_Int ("caminit.enabled", Int (15), Boolean'Pos (Camera_State.Enabled));
+         Record_Int ("caminit.period", Int (16), Integer_64 (Camera_State.Period));
+         Record_Int ("caminit.ccr", Int (18), Integer_64 (Camera_State.Pulse));
+         if Camera_State.Enabled and then Camera_State.Output = Software_PWM then
+            Record_Int ("caminit.level", Int (22), Boolean'Pos (Idle_High (Camera_State)));
+         end if;
+         if Int (7) /= 0 then
+            Record_Int ("caminit.inverted", Int (23), Boolean'Pos (Camera_State.Inverted));
+         end if;
+      elsif Name = "camkey" then
+         if Int (2) /= Camera_Seq then
+            Put_Line ("camera key without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            P : Press;
+         begin
+            Key_Press (Camera_State, Camera_Settings, Interfaces.Unsigned_8 (Int (5)), Natural (Int (6)),
+                       Interfaces.Unsigned_32 (Int (4)), P);
+            Record_Int ("camkey.ccr", Int (8), Integer_64 (Camera_State.Pulse));
+            Record_Int ("camkey.end", Int (9), Integer_64 (Camera_State.End_Ms));
+            Record_Int ("camkey.sw_enable", Int (10),
+                        Boolean'Pos (P.Taken and then Software and then not P.Low_Only));
+            Record_Int ("camkey.hi_time", Int (11), Integer_64 (P.Hi_Time));
+            --  The oracle counts the pin levels, which the inversion swaps.
+            Record_Int ("camkey.lo", Int (13),
+                        Boolean'Pos (P.Taken and then Software and then (P.Low_Only or else Camera_State.Inverted)));
+            Record_Int ("camkey.hi", Int (14),
+                        Boolean'Pos (P.Taken and then Software
+                                     and then (P.Low_Only or else not Camera_State.Inverted)));
+            Record_Int ("camkey.sw_disable", Int (15),
+                        Boolean'Pos (P.Taken and then Software and then not P.Low_Only));
+            if Software then
+               Record_Int ("camkey.level", Int (16), Boolean'Pos (Idle_High (Camera_State)));
+            end if;
+            Record_Int ("camkey.wait", Int (17), Integer_64 (if Software then P.Wait_Ms else 0));
+            Record_Int ("camkey.osd_reset", Int (18), Boolean'Pos (P.OSD_Reset or else Int (7) = 0));
+         end;
+      elsif Name = "camproc" then
+         declare
+            Idle : Boolean;
+         begin
+            Process (Camera_State, Interfaces.Unsigned_32 (Int (4)), Idle);
+            Record_Int ("camproc.ccr", Int (5), Integer_64 (Camera_State.Pulse));
+            Record_Int ("camproc.end", Int (6), Integer_64 (Camera_State.End_Ms));
+         end;
+      end if;
+   end Check_Camera_Line;
 
    procedure Check_RTC_Line is
       use Adaflight.RTC;
@@ -39888,6 +39963,8 @@ procedure Vector_Check is
                   Check_Pitot_Line;
                elsif Kind = "rtc" then
                   Check_RTC_Line;
+               elsif Kind = "camera" then
+                  Check_Camera_Line;
                elsif Kind = "adcint" then
                   Check_Internal_ADC_Line;
                elsif Kind = "stats" then
@@ -40361,6 +40438,7 @@ begin
    Run (Dir & "/opticalflow.csv", "opticalflow");
    Run (Dir & "/pitot.csv", "pitot");
    Run (Dir & "/rtc.csv", "rtc");
+   Run (Dir & "/camera.csv", "camera");
    Run (Dir & "/adcint.csv", "adcint");
    Run (Dir & "/stats.csv", "stats");
    Run (Dir & "/wlaunch.csv", "wlaunch");
