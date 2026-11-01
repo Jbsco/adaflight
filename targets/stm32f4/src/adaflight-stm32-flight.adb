@@ -89,6 +89,8 @@ with Adaflight.STM32.Baro;
 with Adaflight.STM32.Camera_Control;
 with Adaflight.STM32.Pitot;
 with Adaflight.STM32.Compass;
+with Adaflight.STM32.MT;
+with Adaflight.STM32.Optical_Flow;
 with Adaflight.STM32.I2C;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
@@ -1073,10 +1075,11 @@ package body Adaflight.STM32.Flight is
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
          LED_Strip => Adaflight.Build_Features.LED_Strip,
-         Baro => Adaflight.STM32.Baro.Detected, Mag => True, Pitot => True,
+         Baro => Adaflight.STM32.Baro.Detected, Mag => True, Pitot => True, Optical_Flow => True,
          Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
+      Feature_Optical_Flow : constant Unsigned_32 := 16#0000_0100#;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
         (Config.Scheduler_Config, Cycles_Per_Us => Adaflight.STM32.Time.Cycles_Per_Us,
@@ -1105,6 +1108,8 @@ package body Adaflight.STM32.Flight is
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
       Inputs.Baro_Detected := Adaflight.STM32.Baro.Detected;
       Inputs.Pitot_Configured := Adaflight.STM32.Pitot.Configured;
+      Inputs.Optical_Flow_Detected := Adaflight.STM32.Optical_Flow.Detected;
+      Inputs.Feature_Optical_Flow := (Runtime_Features and Feature_Optical_Flow) /= 0;
       Inputs.Mag_Detected := Adaflight.STM32.Compass.Detected;
       Inputs.Mag_Mode_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Mag);
       Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
@@ -1117,6 +1122,11 @@ package body Adaflight.STM32.Flight is
          Scheduler.Reschedule
            (Sched, Sched_Settings, Scheduler.Rangefinder,
             Scheduler.Time_Delta (1_000 * Natural'Min (1_000, Adaflight.STM32.Rangefinder.Period_Ms)));
+      end if;
+      if Adaflight.STM32.Optical_Flow.Detected and then Adaflight.STM32.Optical_Flow.Period_Us > 0 then
+         Scheduler.Reschedule
+           (Sched, Sched_Settings, Scheduler.Optical_Flow,
+            Scheduler.Time_Delta (Natural'Min (1_000_000, Adaflight.STM32.Optical_Flow.Period_Us)));
       end if;
    end Init_Scheduler;
 
@@ -1192,6 +1202,14 @@ package body Adaflight.STM32.Flight is
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
+      end if;
+      if Effects.Runtime.MT_Range then
+         Adaflight.STM32.MT.Receive_Range (Effects.Runtime.MT_Distance_Mm, Adaflight.STM32.Time.Micros);
+      end if;
+      if Effects.Runtime.MT_Flow then
+         Adaflight.STM32.MT.Receive_Flow
+           (Effects.Runtime.MT_Quality, Effects.Runtime.MT_Motion_X, Effects.Runtime.MT_Motion_Y,
+            Adaflight.STM32.Time.Micros);
       end if;
       if Effects.VTX.Pit_Mode_Set then
          Adaflight.STM32.VTX.Set_Pit_Mode (Effects.VTX.Pit_Mode_Value);
@@ -1976,8 +1994,8 @@ package body Adaflight.STM32.Flight is
       Position_Update        => No_Step,
       Rangefinder_Update     => Adaflight.STM32.Rangefinder.Update,
       Rangefinder_Process    => Adaflight.STM32.Rangefinder.Process,
-      Optical_Flow_Update    => No_Step,
-      Optical_Flow_Process   => No_Step,
+      Optical_Flow_Update    => Adaflight.STM32.Optical_Flow.Update,
+      Optical_Flow_Process   => Adaflight.STM32.Optical_Flow.Process,
       Telemetry_Poll_Sensors => No_Step_At,
       Telemetry_Process      => Run_Telemetry,
       Camera_Control_Process => Adaflight.STM32.Camera_Control.Process);
@@ -3991,6 +4009,7 @@ package body Adaflight.STM32.Flight is
          Mag_Detected         => Adaflight.STM32.Compass.Detected,
          Rangefinder_Detected => Adaflight.STM32.Rangefinder.Detected,
          Pitot_Configured     => Adaflight.STM32.Pitot.Configured,
+         Optical_Flow_Detected => Adaflight.STM32.Optical_Flow.Detected,
          Cos_Tilt             => Adaflight.Attitude.Cos_Tilt (Att_State),
          others               => <>);
    begin
@@ -4054,6 +4073,10 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Pitot =>
             Tasks.Pitot (Sched, Sched_Settings, Inputs, Before);
             Pitot_Aftermath;
+         when Scheduler.Optical_Flow =>
+            Adaflight.STM32.Optical_Flow.Set_Gyro
+              (Gyro_State.Downsampled (Adaflight.Axes.Roll), -Gyro_State.Downsampled (Adaflight.Axes.Pitch));
+            Tasks.Optical_Flow (Inputs);
          when Scheduler.Rangefinder =>
             Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>
@@ -4212,7 +4235,13 @@ package body Adaflight.STM32.Flight is
                       Number  => Natural'Min (15, Adaflight.STM32.Compass.Bus_Number),
                       Address => Adaflight.STM32.Compass.Bus_Address));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Mag) := Adaflight.STM32.Compass.Detected;
+      Adaflight.STM32.MT.Init (Config.Rangefinder_Config.Rangefinder_Hardware);
       Adaflight.STM32.Rangefinder.Init (Config);
+      Adaflight.STM32.Optical_Flow.Init (Config, Adaflight.STM32.Time.Micros);
+      Env.Optical_Flow :=
+        (Detected => Adaflight.STM32.Optical_Flow.Detected, Hardware => Adaflight.STM32.Optical_Flow.Hardware,
+         Bus      => (Kind => CLI.No_Bus, Number => 0, Address => 0));
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Optical_Flow) := Adaflight.STM32.Optical_Flow.Detected;
       Adaflight.STM32.Pitot.Init (Config);
       Pitot_Aftermath;
       Init_Internal_ADC;

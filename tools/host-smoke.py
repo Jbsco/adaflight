@@ -2771,6 +2771,43 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        # An MT rangefinder and optical flow module over MSP: named by both hardware settings with both features on,
+        # its range and flow frames arrive as MSP2 sensor messages, so both sensor flags show and the rangefinder
+        # altitude follows the distance.
+        store = os.path.join(work, "mtflow.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rangefinder_hardware = MTF01")
+            check("rangefinder hardware set to MTF01", "rangefinder_hardware set to MTF01" in text, text[-120:])
+            text = cli(sock, "set opticalflow_hardware = MT")
+            check("optical flow hardware set to MT", "opticalflow_hardware set to MT" in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on", "Enabled RANGEFINDER" in text, text[-120:])
+            text = cli(sock, "feature OPTICALFLOW")
+            check("optical flow feature on", "Enabled OPTICALFLOW" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            for _ in range(4):
+                msp2(sock, 0x1F01, struct.pack("<Bi", 100, 1500))
+                msp2(sock, 0x1F02, struct.pack("<Bii", 200, 10, -5))
+            status = msp(sock, 101)
+            check("MSP status shows the MT rangefinder and optical flow", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x50 == 0x50, repr(status))
+            altitude = msp(sock, 58)
+            check("MT distance frames set the rangefinder altitude", altitude is not None and len(altitude) >= 4
+                  and abs(struct.unpack_from("<i", altitude, 0)[0] - 150) <= 2, repr(altitude))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "oneshot.bin")
         for protocol in ("ONESHOT125", "PWM"):
             proc, sock = start(image, store)
