@@ -57,6 +57,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 A change is finished when `verify.do` passes.
 
 Feature selection, board flashing and host image: [`docs/building.md`](docs/building.md).
+Host image simulator link (flight dynamics in, sticks in, motors out, clock rate): [`docs/building.md`](docs/building.md).
 
 ## Verification
 

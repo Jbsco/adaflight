@@ -3223,6 +3223,41 @@ def main():
             sock.close()
             sim.close()
             raw_sim.close()
+        # Simulator time scaling: flight dynamics packets whose timestamps advance 15 ms per 10 ms of real time set
+        # the image's clock to one and a half times real time, read from System Uptime over a real interval.
+        store = os.path.join(work, "simrate.bin")
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        stop_feed = threading.Event()
+        def feed_fast():
+            out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            i = 0
+            while not stop_feed.is_set():
+                out.sendto(struct.pack("<18d", i * 0.015, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                       0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                i += 1
+                time.sleep(0.01)
+            out.close()
+        feeder = threading.Thread(target=feed_fast, daemon=True)
+        try:
+            time.sleep(2.5)
+            feeder.start()
+            time.sleep(2.0)
+            def uptime():
+                text = cli(sock, "status", wait=1.0)
+                found = re.search(r"System Uptime: (\d+)", text)
+                return int(found.group(1)) if found else None, time.time()
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            first, t_first = uptime()
+            time.sleep(6.0)
+            second, t_second = uptime()
+            ratio = (second - first) / (t_second - t_first) if first is not None and second is not None else None
+            check("simulator timestamps at one and a half times real time scale the uptime",
+                  ratio is not None and 1.3 <= ratio <= 1.7, repr((first, second, round(t_second - t_first, 2), ratio)))
+        finally:
+            stop_feed.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

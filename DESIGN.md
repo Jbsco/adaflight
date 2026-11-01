@@ -12272,3 +12272,10 @@ as (pulse - idle) / 1000, or / 500 with the 3D feature, and a raw packet carries
 written. One pair goes out per flight dynamics packet received, when its motor write completes, and a link timeout
 sends its latest pair. Pulses exist only on analog protocols, so a simulated image runs `motor_pwm_protocol = PWM`,
 the one protocol the reference's simulator build has.
+
+## D564. Simulator time scaling (2026-10-31)
+
+`Host_Clock` accumulates real time times its link's rate, which `Sim_FDM.Rate_Of` finds per packet as in the reference;
+`Millis`, `Micros` and cycle counts follow it, and a delay sleeps its real share. A protected object holds base and
+rate and rebases on a rate change, since several host tasks read the clock. Link packet timing stays real, as in the
+reference. Smoke feeds timestamps at 1.5 times real time and reads uptime twice.
