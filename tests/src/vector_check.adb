@@ -285,6 +285,7 @@ with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
+with Adaflight.PID_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
 with Adaflight.VTX_RTC6705;
@@ -1367,6 +1368,9 @@ procedure Vector_Check is
    end Check_PID_Filters_Line;
 
    Step_State   : Adaflight.PID_Controller.State;
+   --  The debug values the oracle's controller sequence records, and its debug axis.
+   PID_Debug      : Adaflight.Debug.State;
+   PID_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    Step_Runtime : Adaflight.PID_Config.Runtime;
    Step_Profile : Adaflight.PID_Profile.Profile;
    Step_AP_Angle   : Adaflight.PID_Controller.Autopilot_Angles := (others => 0.0);
@@ -1483,6 +1487,7 @@ procedure Vector_Check is
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
       Update (Step_State, Step_Runtime, Step_Profile, Inp);
+      Adaflight.PID_Debug.Record_Loop (PID_Debug, Step_State, Step_Runtime, Inp, PID_Debug_Axis);
       Expect_Float ("iterm_accelerator", Step_State.Iterm_Accelerator);
       for A in Adaflight.Axes.Axis loop
          Expect_Float ("p", Step_State.Data (A).P); Expect_Float ("i", Step_State.Data (A).I);
@@ -5253,6 +5258,14 @@ procedure Vector_Check is
          Check_PID_Filters_Line;
       elsif Str (1) = "pidstep" then
          Check_PID_Step_Line;
+      elsif Str (1) = "piddebug" then
+         PID_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (PID_Debug, Interfaces.Unsigned_8 (Int (3)));
+         PID_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Str (1) = "piddbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("pidstep.debug", Int (4 + J), Integer_64 (PID_Debug.Data (J)));
+         end loop;
       elsif Str (1) = "pidland" then
          Step_Land := (Raised => Str (4) = "1", Below => Str (5) = "1", Defl => Flt (6), RC_Thr => Flt (7),
                        Jerk => Flt (8), Threshold => Integer (Int (9)));

@@ -21,8 +21,11 @@ package body Adaflight.Debug with SPARK_Mode is
       return (if Low >= 16#8000# then Integer_16 (Interfaces.Integer_32 (Low) - 16#1_0000#) else Integer_16 (Low));
    end Wrapped;
 
+   --  Past the half-even rounding's bound every float is an integer already.
    function Rounded (X : Float) return Integer_16 is
-     (Wrapped (Interfaces.Integer_32 (Adaflight.Maths.Round_Half_Even (X))));
+     (if abs X <= Float (Adaflight.Maths.Rounding_Bound) - 1.0
+      then Wrapped (Interfaces.Integer_32 (Adaflight.Maths.Round_Half_Even (X)))
+      else Wrapped (Interfaces.Integer_32 (X)));
 
    function Truncated (X : Float) return Integer_16 is
      (Wrapped (Interfaces.Integer_32 (Float'Truncation (X))));

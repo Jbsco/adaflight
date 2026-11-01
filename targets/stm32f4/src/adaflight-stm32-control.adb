@@ -1,3 +1,5 @@
+with Adaflight.PID_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot;
@@ -159,6 +161,8 @@ package body Adaflight.STM32.Control is
       Inp.Autopilot_In_Control := Current.Autopilot_Control;
       Inp.Below_Landing_Altitude := Current.Below_Landing;
       Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
+      Adaflight.PID_Debug.Record_Loop
+        (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Inp, Adaflight.STM32.Debug_Values.Axis);
    end Run_Controller;
 
    procedure Runaway_Check is

@@ -12405,3 +12405,20 @@ debug axis per gyro sequence and read eight values after every loop and calibrat
 from configuration at init, records after each gyro sample and filter loop, and hands values to blackbox, MSP, OSD and
 EX Bus. F4 main RAM had about two hundred bytes free, so taps hold one axis's rates and counts as sixteen bits and
 one calibration's deviations. Other modules' sites follow in later increments.
+
+## D575. Debug values, PID group (2026-11-01)
+
+Core `PID_Controller` now keeps taps of each loop and throttle update for the debug values: the wing speed model's
+attitude, throttle and argument when it ran, the throttle derivative raw and smoothed, the I term accelerator before yaw
+clears it, which level axes ran with roll's feedforward and earth reference sine, the attenuated yaw setpoint, roll's I
+term relax values, raw D deltas and D before TPA on roll and pitch, each axis's D max factors, S terms before and after
+their factor, wing setpoints before and after adjustment, and pitch's P boost. Core `PID_Debug` records them after a
+loop as upstream's controller does for TPA, anti-gravity, angle mode, angle target, current angle, I term relax, landing,
+S term, SPA, wing setpoint, D lowpass and D max modes, with current angles and landing inputs from the loop's inputs and
+D max on the debug axis; acro trainer and chirp have no port, so their modes stay silent. Vectors draw a controller mode
+and a debug axis per sequence from a hash of its index and read eight values after every step in five families. On the
+board, `STM32.Debug_Values` holds the state and debug axis every recorder writes, the flight unit selects its mode and
+axis at init and hands values on, and `STM32.Control` records after each controller loop. F4 main RAM gained room by
+placing the gyro filter state in core coupled memory through a linker pragma, since the aspect form stops the host
+compiler. Each recorder evaluates a mode's values only while that mode is selected, as upstream's macro compares before
+it computes, and rounded values wrap from their full 32-bit range as upstream's stores of a rounded long do.
