@@ -12308,3 +12308,14 @@ regenerated. `STM32.Camera_Control` drives hardware PWM on its pin's timer chann
 counts, or software PWM over 448 counts from TIM6 and TIM7 update interrupts toggling that pin, blocking its
 caller for its wait as upstream does; flight unit code presses keys from stick commands and MSP, ends any OSD
 refresh pause on a key, and runs its camera task while disarmed. Host logs setup, key and idle lines for its smoke.
+
+## D567. Pitot sensor on boards (2026-11-01)
+
+Core `Pitot` had vectors and a scheduler slot, with no board unit, driver or consumer. `MS4525` decodes its register-less
+four byte frame in single precision order: two status bits, stale or faulted voiding it, a 14 bit pressure count over
+10 to 90 percent of range to -1 to +1 psi in pascals, an 11 bit temperature count to kelvin; oracle gen_ms4525 records
+detection and decodes over random frames. `STM32.Pitot` follows `STM32.Baro`: when configuration names MS4525 or
+default on an I2C bus that started, one frame read at its address (0x28 when zero) detects it, and its task reads a frame
+each pass at 20 Hz into core `Pitot` with arming state, no DroneCAN frame. Flight init runs it after rangefinder as
+upstream orders; sensor flag and status entry follow samples after init and each task run; OSD airspeed element and
+blackbox airspeed fields take its readings. Host I2C answers an MS4525 frame at 0x28 for its smoke.
