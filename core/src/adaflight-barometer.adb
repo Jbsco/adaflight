@@ -107,6 +107,7 @@ package body Adaflight.Barometer with SPARK_Mode is
          end if;
       end Calibration_Cycle;
    begin
+      S.Taps.Sampled := True;
       S.Pressure := Pressure;
       S.Temperature := Temperature;
       if Pressure > 0 then
@@ -119,6 +120,8 @@ package body Adaflight.Barometer with SPARK_Mode is
                   subtype Drift_Product is Interfaces.Integer_64 range -200_000_000_000 .. 200_000_000_000;
                   Level : constant Level_Cm := Altitude - S.Ground_Altitude;
                begin
+                  S.Taps.Level_Set := True;
+                  S.Taps.Level_Cm := Level;
                   if C.Virtual_Device then
                      S.Altitude := Level;
                   else
@@ -151,6 +154,9 @@ package body Adaflight.Barometer with SPARK_Mode is
       elsif not S.Calibrated then
          S.Altitude := 0.0;
       end if;
+      S.Taps.Pressure := Pressure;
+      S.Taps.Temperature := Temperature;
+      S.Taps.Altitude_Cm := S.Altitude;
    end Sample;
 
 end Adaflight.Barometer;

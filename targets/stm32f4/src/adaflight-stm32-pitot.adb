@@ -1,3 +1,5 @@
+with Adaflight.Sensor_Debug;
+with Adaflight.STM32.Debug_Values;
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Runtime;
@@ -75,6 +77,7 @@ package body Adaflight.STM32.Pitot is
           Can_Pressure    => 0.0,
           Can_Temperature => 0.0,
           Can_Update_Us   => 0));
+      Adaflight.Sensor_Debug.Record_Pitot (Adaflight.STM32.Debug_Values.State, Sensor);
    end Update;
 
    procedure Start_Calibration is

@@ -17,6 +17,8 @@ package body Adaflight.Barometer_Task with SPARK_Mode is
       R           : out Report)
    is
    begin
+      T.Taps.Stepped := True;
+      T.Taps.Entry_Phase := T.Current;
       R := (Ran => T.Current, Sleep_Us => Default_Sleep_Us, others => False);
       if Bus_Busy then
          R.Ignore_State_Time := True;

@@ -176,7 +176,8 @@ package body Adaflight.Attitude with SPARK_Mode is
             Course_Set          => False,
             Yaw_Suppression     => 0.0,
             Heading_Confidence  => 0.0,
-            GPS_Heading         => False);
+            GPS_Heading         => False,
+            Taps                => <>);
       Compute_Rotation (S);
    end Init;
 
@@ -533,6 +534,8 @@ package body Adaflight.Attitude with SPARK_Mode is
       else
          S.Heading_Confidence := 0.0;
       end if;
+      S.Taps.Confidence := S.Heading_Confidence;
+      S.Taps.Usable := S.GPS_Heading;
    end Update_Heading_Usable;
 
    -------------------------
@@ -596,6 +599,8 @@ package body Adaflight.Attitude with SPARK_Mode is
                Error : constant Float := Course_Error_Of (S.Rotation (X, X), S.Rotation (Y, X), Course.Course);
                Gain  : Course_Gain;
             begin
+               S.Taps.Course_Err_Set := True;
+               S.Taps.Course_Error := Error;
                Groundspeed_Gain (S, Course, Use_Mag, Dt, Gain);
                Cog_Err := Float'Max (-Course_Error_Bound, Float'Min (Course_Error_Bound, Error * Gain));
                Update_Heading_Usable (S, Gain, Error, Dt);

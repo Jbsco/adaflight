@@ -54,7 +54,8 @@ package body Adaflight.Pitot with SPARK_Mode is
             Lpf_Initialised   => False,
             I2C_Ready         => Is_Configured (C) and then C.Hardware in MS4525 | Default and then I2C_Detected,
             Active            => None,
-            Last_Valid_Us     => 0);
+            Last_Valid_Us     => 0,
+            Taps              => <>);
    end Init;
 
    -----------------------
@@ -120,6 +121,8 @@ package body Adaflight.Pitot with SPARK_Mode is
       S.Temperature := (if Src = MS4525 then Inp.I2C_Temperature else Inp.Can_Temperature);
       S.Diff_Pressure := Filtered - S.Zeros (Src);
       S.Airspeed := Airspeed_From_Pressure (S.Diff_Pressure);
+      S.Taps := (Updated => True, Airspeed => S.Airspeed, Diff_Pressure => S.Diff_Pressure, Filtered => Filtered,
+                 Temperature => S.Temperature);
    end Update;
 
 end Adaflight.Pitot;

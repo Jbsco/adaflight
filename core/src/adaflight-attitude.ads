@@ -83,6 +83,15 @@ package Adaflight.Attitude with SPARK_Mode is
 
    --  Rotation rows are the earth axes north, west, and up as X, Y, and Z;
    --  columns are the body axes.
+   --  What the debug values read of the updates: whether the GPS course
+   --  weighed on the heading, and its error sine when it did.
+   type Debug_Taps is record
+      Course_Err_Set : Boolean := False;
+      Course_Error   : Float range -2.0 .. 2.0 := 0.0;
+      Confidence     : Float := 0.0;
+      Usable         : Boolean := False;
+   end record;
+
    type State is record
       Q                   : Quaternion := Identity;
       Rotation            : Vectors.Matrix33 := Vectors.Identity;
@@ -106,6 +115,7 @@ package Adaflight.Attitude with SPARK_Mode is
       Yaw_Suppression     : Suppression := 0.0;
       Heading_Confidence  : Confidence := 0.0;
       GPS_Heading         : Boolean := False;
+      Taps                : Debug_Taps;
    end record
      with Dynamic_Predicate =>
        Vectors.Bounded (State.Rotation, Matrix_Bound)

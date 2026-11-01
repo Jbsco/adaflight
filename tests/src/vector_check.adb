@@ -287,6 +287,7 @@ with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.PID_Debug;
 with Adaflight.Position_Debug;
+with Adaflight.Sensor_Debug;
 with Adaflight.RC_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
@@ -373,16 +374,21 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Result;
 
-   procedure Record_Int (Name : String; Expected, Actual : Integer_64) is
+   procedure Record_Int (Name : String; Expected, Actual : Integer_64; Tolerance : Integer_64 := 0) is
       T : Tally;
+      D : constant Integer_64 := abs (Expected - Actual);
    begin
       if Tallies.Contains (Name) then
          T := Tallies.Element (Name);
       end if;
       T.Cases := T.Cases + 1;
+      T.Tolerance := Integer_64'Max (T.Tolerance, Tolerance);
+      if D > T.Max_Ulp then
+         T.Max_Ulp := D;
+      end if;
       if Expected = Actual then
          T.Exact := T.Exact + 1;
-      else
+      elsif D > Tolerance then
          Failures := Failures + 1;
          if Failures <= 20 then
             Put_Line ("MISMATCH " & Name & " expected " & Integer_64'Image (Expected)
@@ -3951,6 +3957,7 @@ procedure Vector_Check is
    end Check_Compass_Line;
 
    IMU_State  : Adaflight.Attitude.State;
+   IMU_Debug  : Adaflight.Debug.State;
    IMU_Config : Adaflight.Attitude.Config;
    --  The GPS sequences' course inputs for the next step.
    IMU_Course : Adaflight.Attitude.Course_Inputs;
@@ -3976,6 +3983,14 @@ procedure Vector_Check is
                         Fixed_Wing   => Int (10) /= 0);
       elsif Name = "imugpsout" then
          Record_Int ("imugpsout.heading", Int (4), Boolean'Pos (IMU_State.GPS_Heading));
+      elsif Name = "imudebug" then
+         IMU_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (IMU_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "imudbg" then
+         Adaflight.Sensor_Debug.Record_Attitude (IMU_Debug, IMU_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("imustep.debug", Int (4 + J), Integer_64 (IMU_Debug.Data (J)));
+         end loop;
       elsif Name = "imustep" then
          declare
             K : Positive := 18;
@@ -8880,6 +8895,7 @@ procedure Vector_Check is
    PT_Seq    : Integer_64 := -1;
    PT_Config : Adaflight.Pitot.Settings;
    PT_Sensor : Adaflight.Pitot.Sensor;
+   PT_Debug  : Adaflight.Debug.State;
 
    procedure Check_Pitot_Line is
       use Adaflight.Pitot;
@@ -8890,6 +8906,14 @@ procedure Vector_Check is
          PT_Config := (Hardware => Source'Val (Int (3)));
          Init (PT_Sensor, PT_Config, Int (4) /= 0);
          Record_Int (Name & ".i2cready", Int (5), (if PT_Sensor.I2C_Ready then 1 else 0));
+      elsif Name = "ptdebug" then
+         PT_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (PT_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "ptdbg" then
+         Adaflight.Sensor_Debug.Record_Pitot (PT_Debug, PT_Sensor);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("ptstep.debug", Int (4 + J), Integer_64 (PT_Debug.Data (J)));
+         end loop;
       elsif Name = "ptstep" then
          if Int (2) /= PT_Seq then
             Put_Line ("pitot step without its start");
@@ -15233,6 +15257,7 @@ procedure Vector_Check is
 
    BT_Seq      : Integer_64 := -1;
    BT_Task     : Adaflight.Barometer_Task.State;
+   BT_Debug    : Adaflight.Debug.State;
    BT_Device   : Adaflight.Barometer_Task.Device;
    BT_Baro     : Adaflight.Barometer.State;
    BT_Settings : Adaflight.Barometer.Settings;
@@ -15250,9 +15275,19 @@ procedure Vector_Check is
          BT_Settings := (Temperature_Drift_Cm_Per_10C => Integer (Int (5)), Virtual_Device => Int (4) /= 0);
          Adaflight.Barometer.Init (BT_Baro);
          Adaflight.Barometer.Start_Calibration (BT_Baro, BT_Settings);
+      elsif Name = "btdebug" then
+         BT_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (BT_Debug, Interfaces.Unsigned_8 (Int (3)));
       elsif Int (2) /= BT_Seq then
          Put_Line ("barometer task line without its start");
          Failures := Failures + 1;
+      elsif Name = "btdbg" then
+         Adaflight.Sensor_Debug.Record_Baro (BT_Debug, BT_Task, BT_Baro);
+         for J in Adaflight.Debug.Index loop
+            --  The altitude values inherit the power's last-bit rounding, as the altitude case does.
+            Record_Int ("btstep.debug", Int (4 + J), Integer_64 (BT_Debug.Data (J)),
+                        Tolerance => (if J in 3 .. 4 then 3 else 0));
+         end loop;
       elsif Name = "btstep" then
          declare
             Bus_Busy : constant Boolean := Int (5) /= 0;
