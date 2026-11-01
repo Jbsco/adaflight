@@ -12279,3 +12279,15 @@ the one protocol the reference's simulator build has.
 `Millis`, `Micros` and cycle counts follow it, and a delay sleeps its real share. A protected object holds base and
 rate and rebases on a rate change, since several host tasks read the clock. Link packet timing stays real, as in the
 reference. Smoke feeds timestamps at 1.5 times real time and reads uptime twice.
+
+## D565. Board compass (2026-10-31)
+
+No image ran a compass: core compass state, its detection scan and nine drivers existed, a scheduler slot and a task
+hook sat at no step, and every flight unit reported no magnetometer. `STM32.Compass` now scans its configured bus
+through core detection, initializes whichever chip answers (HMC5883 over I2C or SPI, QMC5883L and P, IST8310, LIS3MDL,
+LIS2MDL, AK8975, AK9916, MMC560X, BMM350; AK8963 behind an MPU slave bus waits), builds compass settings with that
+chip's output rate, and runs its read cycle from its task with attitude gyro rates. Its field feeds attitude estimation
+and MSP IMU values, its presence sensor flags, status and task enables, and a calibration starts from a stick command
+or an MSP command, beeps at its start, at first movement, on success and on failure, and saves its zero. Board
+configurations gain compass bus, select, interrupt and alignment defaults from board defines. A simulated image takes
+a virtual compass whose field comes from packet attitude.

@@ -164,12 +164,14 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  motors', the LED strip's, the camera control and the ESC serial pins,")
     out.append("   --  and the ADC devices' DMA options, the host defaults where the board")
     out.append("   --  names none.")
+    ALIGNMENTS = {"ALIGN_DEFAULT": 0, "CW0_DEG": 1, "CW90_DEG": 2, "CW180_DEG": 3, "CW270_DEG": 4, "CW0_DEG_FLIP": 5,
+                  "CW90_DEG_FLIP": 6, "CW180_DEG_FLIP": 7, "CW270_DEG_FLIP": 8}
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
             ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN"),
             ("USB_Detect_Tag", "USB_DETECT_PIN"), ("Baro_CS_Tag", "BARO_CS_PIN"), ("Baro_EOC_Tag", "BARO_EOC_PIN"),
-            ("Baro_XCLR_Tag", "BARO_XCLR_PIN")] \
+            ("Baro_XCLR_Tag", "BARO_XCLR_PIN"), ("Mag_CS_Tag", "MAG_CS_PIN"), ("Mag_EXTI_Tag", "MAG_INT_EXTI")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
@@ -185,6 +187,9 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),
                 ("Baro_SPI_Device", spi_device(defines.get("BARO_SPI_INSTANCE", ""))),
                 ("Baro_BMP280", "True" if "USE_BARO_BMP280" in defines else "False"),
+                ("Mag_I2C_Device", i2c_device(defines.get("MAG_I2C_INSTANCE", ""))),
+                ("Mag_SPI_Device", spi_device(defines.get("MAG_SPI_INSTANCE", ""))),
+                ("Mag_Align", ALIGNMENTS.get(defines.get("MAG_ALIGN", "ALIGN_DEFAULT"), 0)),
                 ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),

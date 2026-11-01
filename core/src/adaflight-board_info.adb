@@ -104,6 +104,13 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Barometer_Config.Baro_Eoc_Tag := H.Baro_EOC_Tag;
       C.Barometer_Config.Baro_Xclr_Tag := H.Baro_XCLR_Tag;
       C.Barometer_Config.Baro_Hardware := H.Baro_Hardware;
+      C.Compass_Config.Mag_Bus_Type := H.Mag_Bus_Type;
+      C.Compass_Config.Mag_I2c_Device := H.Mag_I2C_Device;
+      C.Compass_Config.Mag_I2c_Address := H.Mag_I2C_Address;
+      C.Compass_Config.Mag_Spi_Device := H.Mag_SPI_Device;
+      C.Compass_Config.Mag_Spi_Csn := H.Mag_CS_Tag;
+      C.Compass_Config.Interrupt_Tag := H.Mag_EXTI_Tag;
+      C.Compass_Config.Mag_Alignment := H.Mag_Align;
       C.Timer_Io_Config := H.Timer_Map;
       C.Camera_Control_Config.Io_Tag := H.Camera_Control_Tag;
       C.Adc_Config.Dmaopt := H.ADC_DMA_Options;
