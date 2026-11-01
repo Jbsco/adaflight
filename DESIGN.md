@@ -12449,3 +12449,16 @@ of the return to home mode, with the debug axis mapped to north for pitch and ea
 flow fusion have no port yet, so their sites stay silent. Vectors select a mode and debug axis per sequence from a hash
 of its index before initialization and read eight values after every step in the estimator and altitude families. On
 the board, the flight unit records after each position task update.
+
+## D578. Debug values, sensor group (2026-11-01)
+
+Core `Barometer` and `Barometer_Task` now keep taps for the debug values: a completed sample with the altitude before
+its temperature correction when a calibrated sample computed it, and the phase each task step entered with, as upstream
+logs it before its bus check. Core `Pitot` keeps whether an update ran with a source and its filtered pressure before
+the zero offset. Core `Attitude` keeps whether the GPS course weighed on the heading and its error sine. Core
+`Sensor_Debug` records them after a barometer step, a pitot update and an attitude update as upstream's barometer, pitot
+and IMU do for the barometer, pitot and attitude modes; the attitude mode's autopilot and rescue values come with those
+groups. Vectors select a mode per sequence before initialization, the barometer task keeping its own mode, which its
+step lines already read, and read eight values after every step in the barometer task, pitot and three IMU families. On
+the board, the barometer and pitot units record after each step and update, and the flight unit after each attitude
+update.

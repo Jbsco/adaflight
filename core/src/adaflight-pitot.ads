@@ -55,6 +55,18 @@ package Adaflight.Pitot with SPARK_Mode is
    type Source_Zeros is array (Source) of Zero_Pressure;
    type Source_Flags is array (Source) of Boolean;
 
+   --  What the debug values read of the updates: whether one ran with a
+   --  source, with its airspeed, differential pressure, filtered pressure
+   --  before the zero offset, and temperature. Each tap holds what its site
+   --  last wrote.
+   type Debug_Taps is record
+      Updated       : Boolean := False;
+      Airspeed      : Float := 0.0;
+      Diff_Pressure : Float := 0.0;
+      Filtered      : Float := 0.0;
+      Temperature   : Float := 0.0;
+   end record;
+
    type Sensor is record
       Airspeed          : Float := 0.0;
       Diff_Pressure     : Float := 0.0;
@@ -69,6 +81,7 @@ package Adaflight.Pitot with SPARK_Mode is
       I2C_Ready         : Boolean := False;
       Active            : Source := None;
       Last_Valid_Us     : Unsigned_32 := 0;
+      Taps              : Debug_Taps;
    end record;
 
    --  The sensor after init: the I2C sensor counts as ready when the

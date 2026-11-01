@@ -34,6 +34,19 @@ package Adaflight.Barometer with SPARK_Mode is
    subtype Temperature_Sum is Integer_32 range -200_000_000 .. 200_000_000;
    subtype Altitude_Value is Float range -2.0e10 .. 2.0e10;
 
+   --  What the debug values read of the samples: whether one completed with
+   --  its pressure, temperature and altitude, and the altitude before its
+   --  temperature correction when the calibrated sample computed it. Each
+   --  tap holds what its site last wrote.
+   type Debug_Taps is record
+      Sampled     : Boolean := False;
+      Pressure    : Integer_32 := 0;
+      Temperature : Temperature_Centi := 0;
+      Altitude_Cm : Float := 0.0;
+      Level_Set   : Boolean := False;
+      Level_Cm    : Float := 0.0;
+   end record;
+
    type State is record
       Ground_Altitude            : Altitude_Sum := 0.0;
       Temperature_At_Calibration : Temperature_Sum := 0;
@@ -45,6 +58,7 @@ package Adaflight.Barometer with SPARK_Mode is
       Temperature                : Temperature_Centi := 0;
       Last_Data_Time_Us          : Time_Us := 0;
       Data_Interval_Us           : Integer_32 := 0;
+      Taps                       : Debug_Taps;
    end record;
 
    procedure Init (S : out State);

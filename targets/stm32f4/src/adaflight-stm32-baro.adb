@@ -2,6 +2,8 @@
 --  and written within a call: a started read or write runs at once and its
 --  bytes wait for the fetch, so the bus never reports busy. The detection
 --  scans the drivers the board names, the BMP280 alone so far.
+with Adaflight.Sensor_Debug;
+with Adaflight.STM32.Debug_Values;
 with Interfaces;
 with Adaflight.Barometer;
 with Adaflight.Barometer_Task;
@@ -266,6 +268,7 @@ package body Adaflight.STM32.Baro is
       Adaflight.Barometer_Task.Step
         (Task_State, Baro_State, Settings, Task_Device, Now_Us, Bus_Busy => False, Done => Done,
          Pressure => Pressure, Temperature => Temperature, R => Report);
+      Adaflight.Sensor_Debug.Record_Baro (Adaflight.STM32.Debug_Values.State, Task_State, Baro_State);
       Adaflight.Barometer_Task.Finish (Task_State, Report.Ran, Adaflight.STM32.Time.Micros - Started, Next_State);
       Next_Period_Us := Adaflight.Scheduler.Time_Delta (Unsigned_32'Min (Report.Sleep_Us, 2 ** 30));
    end Update;

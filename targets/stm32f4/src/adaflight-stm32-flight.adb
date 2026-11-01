@@ -130,6 +130,7 @@ with Adaflight.SmartPort_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
+with Adaflight.Sensor_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
@@ -2107,6 +2108,7 @@ package body Adaflight.STM32.Flight is
                Yaw_Rate     =>
                  Float'Max (-Rate_Bound, Float'Min (Rate_Bound, Gyro_State.Filtered (Adaflight.Axes.Yaw))),
                Fixed_Wing   => Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode)));
+         Adaflight.Sensor_Debug.Record_Attitude (Adaflight.STM32.Debug_Values.State, Att_State);
       end if;
       Ctx.Out_Views.State.Attitude :=
         (Roll  => Integer_16 (Att_State.Euler.Roll),

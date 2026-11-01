@@ -42,10 +42,18 @@ package Adaflight.Barometer_Task with SPARK_Mode is
 
    type Durations is array (Phase) of Unsigned_32;
 
+   --  What the debug values read of the steps: whether one ran, and the
+   --  phase it entered with, as the reference logs before its bus check.
+   type Debug_Taps is record
+      Stepped     : Boolean := False;
+      Entry_Phase : Phase := Pressure_Start;
+   end record;
+
    type State is record
       Current        : Phase := Pressure_Start;
       Cycle_Start_Us : Unsigned_32 := 0;
       Duration       : Durations := (others => 0);
+      Taps           : Debug_Taps;
    end record;
 
    --  The device call this phase makes when the bus is free.
@@ -83,7 +91,10 @@ package Adaflight.Barometer_Task with SPARK_Mode is
      with Global => null,
           Post   => R.Ran = T.Current'Old
                     and then R.Ignore_State_Time = Bus_Busy
-                    and then (if Bus_Busy then T = T'Old and then B = B'Old and then not R.Ignore_Exec_Rate)
+                    and then (if Bus_Busy then T.Current = T.Current'Old
+                                            and then T.Cycle_Start_Us = T.Cycle_Start_Us'Old
+                                            and then T.Duration = T.Duration'Old and then B = B'Old
+                                            and then not R.Ignore_Exec_Rate)
                     and then (if not Bus_Busy then R.Ignore_Exec_Rate = (T.Current /= Pressure_Start));
 
    --  After a call the bus let through: the phase that ran keeps its longest
