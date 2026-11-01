@@ -87,7 +87,9 @@ package body Adaflight.GPS_Link with SPARK_Mode is
    --  A frame goes out and the acknowledgement it names is awaited, or
    --  counted received at once.
    procedure Send (L : in out Link; R : in out Receiver; F : Frame; Tx : in out Transmission;
-                   Ignore_Ack : Boolean := False) is
+                   Ignore_Ack : Boolean := False)
+     with Global => null
+   is
    begin
       if Tx.Length + F.Length <= Max_Tx then
          for I in 0 .. F.Length - 1 loop
@@ -223,7 +225,11 @@ package body Adaflight.GPS_Link with SPARK_Mode is
 
    procedure Handle_Frame_Complete (L : in out Link; R : Receiver; C : Settings; Armed : Boolean) is
    begin
+      L.Taps.Conn1_Set := True;
+      L.Taps.Conn1 := R.Sol.Nav_Interval_Ms;
       if L.State = Receiving_Data then
+         L.Taps.Conn3_Set := True;
+         L.Taps.Conn3 := L.Now - L.Last_Nav_Message;
          L.Last_Nav_Message := L.Now;
          L.Sensor_Present := True;
       end if;
@@ -325,6 +331,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
          when Step_RMC =>
             Send (L, R, Message_Rate (Class_NMEA_Std, Msg_NMEA_RMC, 0), E.Tx);
          when Step_Model =>
+            L.Taps.Model_Set := True;
+            L.Taps.Model := UBX_Config.Dynamic_Model'Pos (C.Acquire_Model);
             Send (L, R, Model_Message (C.Acquire_Model, C.UTC, M9), E.Tx);
          when Step_Assistance =>
             if M7 and then C.Enable_Assistance then
@@ -399,6 +407,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
       end if;
       case L.State is
          when Detect_Baud =>
+            L.Taps.Conn3_Set := True;
+            L.Taps.Conn3 := Rate_Of (L.Temp_Baud) / 100;
             if R.UBX.Version /= Undefined then
                Send_Text (E.Tx, Baud_Sentence (L.User_Baud));
                L.Temp_Baud := L.User_Baud;
@@ -406,6 +416,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
                Set_State (L, R, Change_Baud);
                return;
             end if;
+            L.Taps.Conn2_Set := True;
+            L.Taps.Conn2 := Unsigned_32 (L.Sweep_Steps) * 100 + Unsigned_32 (L.Message_Counter);
             if L.Message_Counter < Baud_Test_Count then
                if not L.Message_Sent then
                   R.UBX.Version := Undefined;
@@ -433,6 +445,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
                return;
             end if;
             Set_Baud (L, L.User_Baud, E);
+            L.Taps.Conn3_Set := True;
+            L.Taps.Conn3 := Rate_Of (L.User_Baud) / 100;
             Set_State (L, R, Configure);
          when Configure =>
             if not C.Auto_Config then
@@ -536,6 +550,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
       case C.Source is
          when UBlox | NMEA =>
             if L.Port_Open then
+               L.Taps.Rx_Set := True;
+               L.Taps.Rx_Count := Rx'Length;
                for I in Rx'Range loop
                   pragma Loop_Invariant (E.Solutions <= I - Rx'First);
                   pragma Loop_Invariant (E.Clock_Sets <= I - Rx'First);
@@ -567,19 +583,26 @@ package body Adaflight.GPS_Link with SPARK_Mode is
          when MSP =>
             if L.Solution_Offered then
                if L.State in Initialized | Detect_Baud then
+                  L.Last_Nav_Message := L.Now;
                   L.State := Receiving_Data;
                   L.Position := 0;
                   L.State_Ts := L.Now;
                   R.UBX.Ack := Idle;
                end if;
+               L.Taps.Conn3_Set := True;
+               L.Taps.Conn3 := L.Now - L.Last_Nav_Message;
                L.Last_Nav_Message := L.Now;
                L.Sensor_Present := True;
                L.Tick := not L.Tick;
                Nav_Interval (R);
                On_New_Data (L, R, C, Armed);
                L.Solution_Offered := False;
-            elsif Elapsed (L.Now, L.Last_Nav_Message) > Timeout_Ms then
-               Set_State (L, R, Lost_Communication);
+            else
+               L.Taps.Conn2_Set := True;
+               L.Taps.Conn2 := L.Now - L.Last_Nav_Message;
+               if Elapsed (L.Now, L.Last_Nav_Message) > Timeout_Ms then
+                  Set_State (L, R, Lost_Communication);
+               end if;
             end if;
          when Virtual =>
             if Elapsed (L.Now, L.Virtual_Next_Update) > 0 then
@@ -630,12 +653,17 @@ package body Adaflight.GPS_Link with SPARK_Mode is
               and then R.Fix
             then
                L.Using_Flight_Model := True;
+               L.Taps.Model_Set := True;
+               L.Taps.Model := UBX_Config.Dynamic_Model'Pos (C.Flight_Model);
                Send (L, R, Model_Message (C.Flight_Model, C.UTC, R.UBX.M9_Or_Above), E.Tx);
             end if;
+            L.Taps.Conn2_Set := True;
+            L.Taps.Conn2 := L.Now - L.Last_Nav_Message;
             if Elapsed (L.Now, L.Last_Nav_Message) > Timeout_Ms then
                Set_State (L, R, Lost_Communication);
             end if;
       end case;
+      L.Taps.Updated := True;
       if L.Sensor_Present then
          Indicator (L, R, C, Now_Us, E);
       end if;

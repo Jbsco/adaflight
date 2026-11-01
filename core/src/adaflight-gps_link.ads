@@ -112,6 +112,26 @@ package Adaflight.GPS_Link with SPARK_Mode is
    subtype Wait_Count is Natural range 0 .. 2;
    subtype Centidegrees is Natural range 0 .. 35_999;
 
+   --  What the debug values read of the link: whether an update ran, the
+   --  bytes waiting when the port was read, the navigation interval at a
+   --  completed frame, the connection values the reference logs in its second
+   --  and third slots (baud detection progress or the navigation message age,
+   --  and the baud rate in hundreds or that age), and the dynamic model last
+   --  sent. Each tap holds what its site last wrote.
+   type Debug_Taps is record
+      Updated   : Boolean := False;
+      Rx_Set    : Boolean := False;
+      Rx_Count  : Natural := 0;
+      Conn1_Set : Boolean := False;
+      Conn1     : Unsigned_32 := 0;
+      Conn2_Set : Boolean := False;
+      Conn2     : Unsigned_32 := 0;
+      Conn3_Set : Boolean := False;
+      Conn3     : Unsigned_32 := 0;
+      Model_Set : Boolean := False;
+      Model     : Natural range 0 .. 7 := 0;
+   end record;
+
    type Link is record
       State               : Link_State := Unknown;
       Position            : Unsigned_32 := 0;
@@ -157,6 +177,7 @@ package Adaflight.GPS_Link with SPARK_Mode is
       Virtual_Last_Count  : Unsigned_32 := 0;
       Virtual_Last_Change : Unsigned_32 := 0;
       Virtual_Next_Update : Unsigned_32 := 0;
+      Taps                : Debug_Taps;
    end record;
 
    --  The start: the rate sweep begins at the configured rate once the port

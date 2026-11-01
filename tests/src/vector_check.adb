@@ -289,6 +289,7 @@ with Adaflight.PID_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
 with Adaflight.Autopilot_Debug;
+with Adaflight.GPS_Debug;
 with Adaflight.RC_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
@@ -9576,6 +9577,7 @@ procedure Vector_Check is
 
    GPSL_Seq      : Integer_64 := -1;
    GPSL_Link     : Adaflight.GPS_Link.Link;
+   GPSL_Debug    : Adaflight.Debug.State;
    GPSL_Receiver : Adaflight.GPS_Frames.Receiver;
    GPSL_Settings : Adaflight.GPS_Link.Settings;
    GPSL_Has_Time : Boolean := False;
@@ -9688,6 +9690,14 @@ procedure Vector_Check is
          Record_Int (Name & ".sensor", Int (32), Boolean'Pos (GPSL_Link.Sensor_Present));
          Record_Int (Name & ".sweep", Int (33), Integer_64 (GPSL_Link.Sweep_Steps));
          Record_Int (Name & ".lastsweep", Int (34), Integer_64 (GPSL_Link.Last_Sweep_Step));
+      elsif Name = "gpsldebug" then
+         GPSL_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (GPSL_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "gpsldbg" then
+         Adaflight.GPS_Debug.Record_Update (GPSL_Debug, GPSL_Link, GPSL_Receiver, 0);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("gpslstep.debug", Int (4 + J), Integer_64 (GPSL_Debug.Data (J)));
+         end loop;
       elsif Name = "gpslstep" then
          if Int (2) /= GPSL_Seq then
             Put_Line ("gps link step without its start");
