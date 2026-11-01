@@ -12241,3 +12241,12 @@ every combined read with a 10 ms delay and 25 degrees. The oracle's link generat
 gap, replayed through new offer columns of the checker. Host smoke checks a virtual fix at a fed position and, with
 `altitude_source` BARO_ONLY, an estimate at a fed 1600 m that follows a twenty metre climb. No magnetometer pipeline
 exists yet, so the feed's field vector waits.
+
+## D561. Barometer task chain (2026-10-31)
+
+No barometer ever ran on any image: `Run_Body` had no arm for its task, which fell into a null default, and neither
+`Task_Init` nor `Task_Functions` inputs carried `Baro_Detected`, so enable and guard stayed false. A host simulator
+probe showed it: virtual device detected, pressure fed, no sample. `Run_Body` now runs `Tasks.Baro`, both inputs carry
+detection, and position inputs carry sample time and interval for the estimator's gate, which had let one reading
+through and then none. The smoke's GPS climb check had passed only because no barometer ran: that phase now sets
+`altitude_source` to GPS_ONLY, and the simulator phase checks the barometer alone.

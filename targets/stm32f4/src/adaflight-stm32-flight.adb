@@ -1087,6 +1087,7 @@ package body Adaflight.STM32.Flight is
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
+      Inputs.Baro_Detected := Adaflight.STM32.Baro.Detected;
       Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
       Inputs.Feature_LED_Strip := (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0;
       Inputs.OSD_Framerate_Hz :=
@@ -3115,6 +3116,8 @@ package body Adaflight.STM32.Flight is
          Rescue_Mode        => M (Adaflight.Arming.GPS_Rescue_Mode),
          Baro_Present       => Adaflight.STM32.Baro.Detected,
          Baro_Altitude_Cm   => Adaflight.STM32.Baro.Altitude_Cm,
+         Baro_Sample_Time_Us => Adaflight.STM32.Baro.Sample_Time_Us,
+         Baro_Interval_Us   => Adaflight.STM32.Baro.Interval_Us,
          others             => <>);
    end Position_Inputs;
 
@@ -3883,6 +3886,7 @@ package body Adaflight.STM32.Flight is
          CLI_Open          => Session.Open,
          Feature_Telemetry => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
          Rescue_Configured    => Rescue_Configured,
+         Baro_Detected        => Adaflight.STM32.Baro.Detected,
          Rangefinder_Detected => Adaflight.STM32.Rangefinder.Detected,
          Cos_Tilt             => Adaflight.Attitude.Cos_Tilt (Att_State),
          others               => <>);
@@ -3939,6 +3943,8 @@ package body Adaflight.STM32.Flight is
             end if;
          when Scheduler.OSD_Custom_Text =>
             Adaflight.STM32.OSD_Custom_Text.Update (Config.Osd_Custom_Text_Config.Terminator);
+         when Scheduler.Baro =>
+            Tasks.Baro (Sched, Sched_Settings, Inputs, Before);
          when Scheduler.Rangefinder =>
             Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>

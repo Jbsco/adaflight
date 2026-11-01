@@ -286,4 +286,6 @@ package body Adaflight.STM32.Baro is
    function Altitude_Cm return Float is
      (Float'Max (-4.0e7, Float'Min (4.0e7, Baro_State.Altitude)));
    function Temperature_Centi return Integer_32 is (Baro_State.Temperature);
+   function Sample_Time_Us return Unsigned_32 is (Unsigned_32 (Baro_State.Last_Data_Time_Us));
+   function Interval_Us return Integer_32 is (Baro_State.Data_Interval_Us);
 end Adaflight.STM32.Baro;
