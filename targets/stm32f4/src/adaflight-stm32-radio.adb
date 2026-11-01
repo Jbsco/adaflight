@@ -781,8 +781,10 @@ package body Adaflight.STM32.Radio is
       end Answer_GHST_MSP;
 
       --  The FPORT reply window: while it is open the SmartPort telemetry
-      --  writes its next value as the reply, and the receiver's processing
-      --  sends the empty reply when the window went unused.
+      --  writes its next value, or a chunk of the MSP reply it has pending,
+      --  as the reply, with the MSP payload the frame kept handed to it and a
+      --  request it completes answered through Answer; the receiver's
+      --  processing sends the empty reply when the window went unused.
       procedure Answer_FPort is
          use type Interfaces.Integer_32;
          Open_Window : constant Boolean :=
@@ -793,13 +795,30 @@ package body Adaflight.STM32.Radio is
          Empty   : Adaflight.SmartPort_Telemetry.Output;
          Handled : Boolean := False;
          Result  : Adaflight.FPort.Process_Outputs;
+         Count   : Natural;
+         Failed  : Boolean;
       begin
          if Open_Window then
-            Adaflight.SmartPort_Telemetry.Process (FP_Stream, SmartPort_Values, 1, True, O, FPort => True);
+            if FPort_State.Has_MSP then
+               O.Received := (Valid    => True,
+                              Frame_Id => Interfaces.Unsigned_8 (FPort_State.MSP.Frame_Id),
+                              Value_Id => Interfaces.Unsigned_16 (FPort_State.MSP.Value_Id),
+                              Data     => FPort_State.MSP.Data);
+            end if;
+            Adaflight.SmartPort_Telemetry.Process (FP_Stream, SmartPort_Values, 1, True, O, MSP_Link, FPort => True);
+            if O.MSP_Request then
+               Answer (MSP_Link.Request_Command, Adaflight.MSP_Telemetry.Request_Data (MSP_Link), MSP_Answer, Count,
+                       Failed);
+               Adaflight.MSP_Telemetry.Prepare_Reply
+                 (MSP_Link, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack),
+                  MSP_Answer (0 .. Count - 1));
+               Adaflight.SmartPort_Telemetry.Process (FP_Stream, SmartPort_Values, 1, O.Clear_To_Send, O, MSP_Link,
+                                                      FPort => True, Resume => True);
+            end if;
+            Handled := not O.Clear_To_Send;
             if O.Count > 0 then
                Adaflight.FPort.Begin_Reply (FPort_State);
                USART.Put (Port, O.Tx (0 .. O.Count - 1));
-               Handled := True;
             end if;
          end if;
          Adaflight.FPort.Process_Frame (FPort_State, Now_Us, Handled, Result);

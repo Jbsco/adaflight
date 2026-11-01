@@ -7526,6 +7526,15 @@ procedure Vector_Check is
    SP_Pending : Byte_Array (0 .. 4095) := (others => 0);
    SP_Count   : Natural := 0;
    SP_ESC     : Boolean := False;
+   SP_Tunnel  : Adaflight.MSP_Telemetry.Tunnel;
+   --  The oracle's scripted MSP reply for the request its next step completes,
+   --  and the FPORT payload its next step receives.
+   SP_Script_Set    : Boolean := False;
+   SP_Script_Cmd    : Integer_64 := 0;
+   SP_Script_Result : Integer_64 := 0;
+   SP_Script_Len    : Natural := 0;
+   SP_Script        : Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) := (others => 0);
+   SP_FP_Payload    : Adaflight.SmartPort_Telemetry.Payload;
 
    procedure Check_SmartPort_Line is
       use Adaflight.SmartPort_Telemetry;
@@ -7539,6 +7548,9 @@ procedure Vector_Check is
             SP_Seq := Int (2);
             SP_Stream := (others => <>);
             SP_Count := 0;
+            SP_Tunnel := (others => <>);
+            SP_Script_Set := False;
+            SP_FP_Payload := (others => <>);
             for Se in Sensor loop
                B.Enabled (Se) := (Disabled / 2 ** Sensor'Pos (Se)) mod 2 = 0;
             end loop;
@@ -7640,18 +7652,60 @@ procedure Vector_Check is
                                  Temperature => Interfaces.Unsigned_8 (Int (66)),
                                  Rpm         => Interfaces.Integer_16 (Int (67)));
             if Name = "sportfpstep" then
-               Process (SP_Stream, Inp, 1, True, O, FPort => True);
-               Record_Int (Name & ".clear", Int (75), (if O.Count = 0 then 1 else 0));
+               O.Received := SP_FP_Payload;
+               SP_FP_Payload := (others => <>);
+               Process (SP_Stream, Inp, 1, True, O, SP_Tunnel, FPort => True);
             else
-               Update (SP_Stream, Inp, Rx, 9, O, Consumed);
+               Update (SP_Stream, Inp, Rx, 9, O, Consumed, SP_Tunnel);
                Record_Int (Name & ".consumed", Int (70), Integer_64 (Consumed));
                SP_Count := Rx'Length - Consumed;
                SP_Pending (0 .. SP_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
+            end if;
+            if O.MSP_Request then
+               if not SP_Script_Set then
+                  Put_Line ("smartport msp request without its script");
+                  Failures := Failures + 1;
+                  return;
+               end if;
+               Record_Int (Name & ".mspcmd", SP_Script_Cmd, Integer_64 (SP_Tunnel.Request_Command));
+               Adaflight.MSP_Telemetry.Prepare_Reply
+                 (SP_Tunnel, Adaflight.MSP_Telemetry.Result_Code (SP_Script_Result),
+                  SP_Script (0 .. SP_Script_Len - 1));
+               SP_Script_Set := False;
+               Process (SP_Stream, Inp, (if Name = "sportfpstep" then 1 else 9), O.Clear_To_Send, O, SP_Tunnel,
+                        FPort => Name = "sportfpstep", Resume => True);
+            end if;
+            if SP_Script_Set then
+               Put_Line ("smartport msp script unused by its step");
+               Failures := Failures + 1;
+               SP_Script_Set := False;
+            end if;
+            if Name = "sportfpstep" then
+               Record_Int (Name & ".clear", Int (75), (if O.Clear_To_Send then 1 else 0));
             end if;
             Record_Int (Name & ".index", Int (71), Integer_64 (SP_Stream.Index));
             Record_Int (Name & ".escindex", Int (72), Integer_64 (SP_Stream.ESC_Index));
             Record_Bytes (Name & ".tx", Hex_Bytes (74), O.Tx (0 .. O.Count - 1));
          end;
+      elsif Name = "sportmsp" then
+         if SP_Script_Set then
+            Put_Line ("smartport msp script before its step was used");
+            Failures := Failures + 1;
+         end if;
+         declare
+            P : constant Byte_Array := (if NF >= 6 then Hex_Bytes (6) else Byte_Array'(1 .. 0 => 0));
+         begin
+            SP_Script_Cmd := Int (4);
+            SP_Script_Result := Int (5);
+            SP_Script_Len := P'Length;
+            SP_Script (0 .. P'Length - 1) := P;
+            SP_Script_Set := True;
+         end;
+      elsif Name = "sportfppayload" then
+         SP_FP_Payload := (Valid    => True,
+                           Frame_Id => Interfaces.Unsigned_8 (Int (4)),
+                           Value_Id => Interfaces.Unsigned_16 (Int (5)),
+                           Data     => Interfaces.Unsigned_32 (Int (6)));
       else
          Put_Line ("unknown smartport case " & Name);
          Failures := Failures + 1;

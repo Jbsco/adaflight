@@ -1498,6 +1498,7 @@ package body Adaflight.STM32.Flight is
    procedure Telemetry_Step is new Adaflight.STM32.Radio.Telemetry_Step (Telemetry_Request);
    function SmartPort_Inputs return Adaflight.SmartPort_Telemetry.Inputs;
    procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request, SmartPort_Inputs);
+   procedure SmartPort_Run is new Adaflight.STM32.SmartPort.Run (Telemetry_Request);
 
    --  The serial task: while the command line is open its port's bytes go to
    --  it, otherwise each port's bytes go to its MSP framing, UART1's while no
@@ -4087,7 +4088,7 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Telemetry =>
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
                Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
-               Adaflight.STM32.SmartPort.Run (SmartPort_Inputs);
+               SmartPort_Run (SmartPort_Inputs);
                if Adaflight.Build_Features.LTM_Telemetry then
                   Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
                end if;
