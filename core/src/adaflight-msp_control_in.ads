@@ -17,12 +17,13 @@ package Adaflight.MSP_Control_In with SPARK_Mode is
    Set_Arming_Disabled_Command : constant := 99;
    Acc_Calibration_Command     : constant := 205;
    Mag_Calibration_Command     : constant := 206;
+   Camera_Control_Command      : constant := 98;
    Write_Configuration_Command : constant := 250;
    DShot_Command_Command       : constant := 16#3003#;
 
    function Handles (Command : Interfaces.Unsigned_16) return Boolean is
      (Command in Reboot_Command | Erase_Flash_Command | Set_Arming_Disabled_Command | Acc_Calibration_Command
-        | Mag_Calibration_Command | Write_Configuration_Command | DShot_Command_Command);
+        | Mag_Calibration_Command | Write_Configuration_Command | DShot_Command_Command | Camera_Control_Command);
 
    type Result is (Ack, Error);
 
@@ -81,12 +82,16 @@ package Adaflight.MSP_Control_In with SPARK_Mode is
       DShot_Commands   : DShot_Count := 0;
       DShot_Values     : DShot_List := (others => 0);
       Motors_Off       : Boolean := False;
+      --  A camera key pressed, by its code.
+      Camera_Press     : Boolean := False;
+      Camera_Key       : Byte := 0;
    end record;
 
    No_Effects : constant Effects :=
      (Erase_Flash | Acc_Calibration | Mag_Calibration | Ignore_Task_Time | Save | Deferred_Save | Disarm
-        | Runaway_Set | Reboot | Deferred_Reboot | DShot | Motors_Off => False,
-      MSP_Arming => Unchanged, Runaway_Value | Reboot_Mode | DShot_Type | DShot_Motor => 0, Reply_Length => 0,
+        | Runaway_Set | Reboot | Deferred_Reboot | DShot | Motors_Off | Camera_Press => False,
+      MSP_Arming => Unchanged, Runaway_Value | Reboot_Mode | DShot_Type | DShot_Motor | Camera_Key => 0,
+      Reply_Length => 0,
       Reply => (others => 0), DShot_Commands => 0, DShot_Values => (others => 0));
 
    Max_Request : constant := MSP_Write_Plans.Max_Request;
