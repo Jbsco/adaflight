@@ -286,6 +286,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.PID_Debug;
+with Adaflight.Position_Debug;
 with Adaflight.RC_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
@@ -3739,6 +3740,8 @@ procedure Vector_Check is
    end Check_SBUS_Line;
 
    Alt_State    : Adaflight.Position_Estimator.State;
+   Alt_Debug      : Adaflight.Debug.State;
+   Alt_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    Alt_Settings : Adaflight.Position_Estimator.Settings;
    Alt_Present  : Boolean := False;
    Alt_One_G_Reciprocal : Adaflight.Position_Estimator.Acc_Scale := 1.0 / 4_096.0;
@@ -3758,6 +3761,15 @@ procedure Vector_Check is
          Init (Alt_State, Alt_Settings, Armed => False);
          Record_Result ("altinit.altitude_k", Bits (9), To_Bits (Alt_State.Altitude_Filter.K));
          Record_Result ("altinit.derivative_k", Bits (10), To_Bits (Alt_State.Derivative_Filter.K));
+      elsif Name = "posdebug" then
+         Alt_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (Alt_Debug, Interfaces.Unsigned_8 (Int (3)));
+         Alt_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "posdbg" then
+         Adaflight.Position_Debug.Record_Update (Alt_Debug, Alt_State, Alt_Debug_Axis);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("altstep.debug", Int (4 + J), Integer_64 (Alt_Debug.Data (J)));
+         end loop;
       elsif Name = "altstep" then
          declare
             Inp : Inputs;
@@ -9712,6 +9724,8 @@ procedure Vector_Check is
    end Check_GPS_Link_Line;
 
    Pos_State            : Adaflight.Position_Estimator.State;
+   Pos_Debug      : Adaflight.Debug.State;
+   Pos_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    Pos_Settings         : Adaflight.Position_Estimator.Settings;
    Pos_Baro_Present     : Boolean := False;
    Pos_GPS_Present      : Boolean := False;
@@ -9733,6 +9747,15 @@ procedure Vector_Check is
          Init (Pos_State, Pos_Settings, Armed => False);
          Record_Result ("posinit.altitude_k", Bits (11), To_Bits (Pos_State.Altitude_Filter.K));
          Record_Result ("posinit.derivative_k", Bits (12), To_Bits (Pos_State.Derivative_Filter.K));
+      elsif Name = "posdebug" then
+         Pos_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (Pos_Debug, Interfaces.Unsigned_8 (Int (3)));
+         Pos_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "posdbg" then
+         Adaflight.Position_Debug.Record_Update (Pos_Debug, Pos_State, Pos_Debug_Axis);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("posstep.debug", Int (4 + J), Integer_64 (Pos_Debug.Data (J)));
+         end loop;
       elsif Name = "posstep" then
          declare
             Inp   : Inputs;

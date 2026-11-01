@@ -129,6 +129,7 @@ with Adaflight.SmartAudio;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
+with Adaflight.Position_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
@@ -4105,6 +4106,8 @@ package body Adaflight.STM32.Flight is
             Run_GPS (Before);
          when Scheduler.Position =>
             Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
+            Adaflight.Position_Debug.Record_Update
+              (Adaflight.STM32.Debug_Values.State, Pos_State, Adaflight.STM32.Debug_Values.Axis);
          when Scheduler.Alt_Hold =>
             Run_Altitude_Hold;
          when Scheduler.Pos_Hold =>

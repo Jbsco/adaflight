@@ -12437,3 +12437,15 @@ and feedforward terms on the debug axis. Vectors select a mode and debug axis pe
 before initialization, so the filter update at init lands as on a board, and read eight values with the receiver's
 quality and signal after every step in four families. On the board, the pilot unit records after each command pass with
 the radio's link quality and signal.
+
+## D577. Debug values, position estimate group (2026-11-01)
+
+Core `Position_Estimator` now keeps taps of its updates for the debug values: whether an update ran with its earth frame
+acceleration, the barometer's relative altitude as it fed before its step gate, the GPS measurement variances and east
+and north velocities as the horizontal plane fed, and the GPS relative altitude and climb rate as the vertical axis fed,
+each holding what its site last wrote. Core `Position_Debug` records them after an update as upstream's estimator and
+altitude presentation do for the altitude, position estimate and velocity estimate modes and for the displayed altitude
+of the return to home mode, with the debug axis mapped to north for pitch and east otherwise. Rangefinder and optical
+flow fusion have no port yet, so their sites stay silent. Vectors select a mode and debug axis per sequence from a hash
+of its index before initialization and read eight values after every step in the estimator and altitude families. On
+the board, the flight unit records after each position task update.
