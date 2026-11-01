@@ -127,6 +127,7 @@ with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
 with Adaflight.SmartAudio;
 with Adaflight.SmartPort_Telemetry;
+with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.Serial;
 with Adaflight.STM32.SPI;
@@ -3590,6 +3591,41 @@ package body Adaflight.STM32.Flight is
       return Inp;
    end Jeti_Inputs;
 
+   --  The SRXL telemetry's readings: the pack and cell voltage, the core
+   --  temperature, the combined ESC reading, the DShot average RPM, the
+   --  battery's current and the GPS.
+   function SRXL_Inputs return Adaflight.SRXL_Telemetry.Inputs is
+      package ST renames Adaflight.SRXL_Telemetry;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      ESC   : Adaflight.ESC_Sensor.Reading;
+      Inp   : ST.Inputs;
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+      function Held (V : Integer_32) return ST.Coordinate is (Integer_32'Max (-(2 ** 31 - 1), V));
+   begin
+      Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, ESC);
+      Inp.Now_Us := Adaflight.STM32.Time.Micros;
+      Inp.Voltage_Cv := Unsigned_16 (Volts);
+      Inp.Cell_Cv := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
+      Inp.Core_Temperature := Internal.Core_Temperature;
+      Inp.ESC_Valid := Adaflight.STM32.ESC_Sensor.Feature_On;
+      Inp.ESC_Rpm := ESC.Rpm;
+      Inp.Dshot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      Inp.Dshot_Rpm := Float'Min (1.6e7, Float (Adaflight.STM32.DShot_Output.Rpm_Average));
+      Inp.Amperage_Ca := Wide (Long_Integer (Bat.Current.Amperage));
+      Inp.Mah_Drawn := Wide (Long_Integer (Bat.Current.mAh_Drawn));
+      Inp.Fix := G.Fix;
+      Inp.Num_Sat := G.Satellites;
+      Inp.Lat := Held (G.Latitude);
+      Inp.Lon := Held (G.Longitude);
+      Inp.Alt_Cm := G.Altitude_Cm;
+      Inp.Ground_Speed := G.Ground_Speed;
+      Inp.Ground_Course := G.Ground_Course;
+      Inp.Pdop := G.PDOP;
+      return Inp;
+   end SRXL_Inputs;
+
    --  What the Ghost telemetry reads: the battery, the arming, the GPS with
    --  its home, the altitude estimate and the attitude's heading.
    function GHST_Inputs return Adaflight.GHST_Telemetry.Inputs is
@@ -4095,6 +4131,7 @@ package body Adaflight.STM32.Flight is
                if Adaflight.Build_Features.Jeti_EX_Bus then
                   Adaflight.STM32.Radio.Jeti_Telemetry_Step (Jeti_Inputs, Adaflight.STM32.Time.Micros);
                end if;
+               Adaflight.STM32.Radio.SRXL_Telemetry_Step (SRXL_Inputs);
                if Adaflight.Build_Features.MAVLink_Telemetry then
                   declare
                      Requests : Adaflight.MAVLink_Commands.Requests;
@@ -4384,6 +4421,9 @@ package body Adaflight.STM32.Flight is
                 Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected)),
             Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       end if;
+      Adaflight.STM32.Radio.Init_SRXL_Telemetry
+        ((Report_Cell_Voltage => Config.Telemetry_Config.Report_Cell_Voltage /= 0,
+          GPS_Feature         => Adaflight.STM32.GPS.Enabled));
       if Adaflight.Build_Features.MAVLink_Telemetry then
          Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
       end if;

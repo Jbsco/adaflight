@@ -19,6 +19,7 @@ with Adaflight.GHST_Telemetry;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.Receiver;
 with Adaflight.SmartPort_Telemetry;
+with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
@@ -50,6 +51,12 @@ package Adaflight.STM32.Radio is
    --  to a fresh telemetry request, sent on the bus.
    procedure Init_Jeti_Telemetry (Settings : Adaflight.Jeti_Telemetry.Settings; Feature_On : Boolean);
    procedure Jeti_Telemetry_Step (Inp : Adaflight.Jeti_Telemetry.Inputs; Now_Us : Time_Us);
+   --  The SRXL telemetry's settings, and one run of it in the telemetry
+   --  task with an SRXL receiver open and the telemetry feature on: the next
+   --  frame of its schedule queued as the receiver's reply once its buffer
+   --  is empty.
+   procedure Init_SRXL_Telemetry (Settings : Adaflight.SRXL_Telemetry.Settings);
+   procedure SRXL_Telemetry_Step (Inp : Adaflight.SRXL_Telemetry.Inputs);
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;

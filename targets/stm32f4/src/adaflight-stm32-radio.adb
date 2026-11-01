@@ -40,6 +40,7 @@ package body Adaflight.STM32.Radio is
    IBUS_Provider          : constant Interfaces.Unsigned_8 := 7;
    Jeti_Provider          : constant Interfaces.Unsigned_8 := 8;
    CRSF_Provider          : constant Interfaces.Unsigned_8 := 9;
+   SRXL_Provider          : constant Interfaces.Unsigned_8 := 10;
    FPort_Provider         : constant Interfaces.Unsigned_8 := 12;
    GHST_Provider          : constant Interfaces.Unsigned_8 := 14;
    Spektrum_1024_Provider : constant Interfaces.Unsigned_8 := 15;
@@ -78,6 +79,11 @@ package body Adaflight.STM32.Radio is
    Jeti_Tlm     : Adaflight.Jeti_Telemetry.State;
    Jeti_Tlm_Set : Adaflight.Jeti_Telemetry.Settings;
    Jeti_Tlm_On  : Boolean := False;
+   --  The SRXL telemetry: its schedule, its settings, and the frame queued
+   --  as the receiver's reply.
+   SRXL_Tlm     : Adaflight.SRXL_Telemetry.Stream;
+   SRXL_Tlm_Set : Adaflight.SRXL_Telemetry.Settings;
+   SRXL_Reply   : Adaflight.Bytes.Byte_Array (0 .. Adaflight.Spektrum.Telemetry_Max - 1) := (others => 0);
    Link        : USART.Number := USART.UART3;
    --  The link's line: inverted, and on its transmit pin alone.
    Inverted    : Boolean := False;
@@ -213,13 +219,16 @@ package body Adaflight.STM32.Radio is
       Rx_Features : constant Interfaces.Unsigned_32 :=
         (if Adaflight.STM32.MCU.UDP_Receiver_Available then Runtime_Features
          else Runtime_Features and not Adaflight.Config_Fix.Feature_RX_UDP);
+      --  An SRXL receiver carries the telemetry on its own line.
+      SRXL_Telemetry_On : constant Boolean :=
+        R.Serialrx_Provider = SRXL_Provider and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
    begin
       Open := False;
       Kind := (case R.Serialrx_Provider is
                   when SBUS_Provider => SBUS,
                   when IBUS_Provider => IBUS,
                   when SUMD_Provider => SUMD,
-                  when Spektrum_2048_Provider | Spektrum_1024_Provider => Spektrum,
+                  when Spektrum_2048_Provider | Spektrum_1024_Provider | SRXL_Provider => Spektrum,
                   when XBUS_B_Provider | XBUS_RJ01_Provider => XBUS,
                   when FPort_Provider => FPort,
                   when GHST_Provider => GHST,
@@ -246,7 +255,7 @@ package body Adaflight.STM32.Radio is
       if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
-                                      | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider
+                                      | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider | SRXL_Provider
         and then (R.Serialrx_Provider /= SUMD_Provider or else Adaflight.Build_Features.SUMD)
         and then (R.Serialrx_Provider /= Jeti_Provider or else Adaflight.Build_Features.Jeti_EX_Bus)
       then
@@ -292,7 +301,7 @@ package body Adaflight.STM32.Radio is
         (if Kind = GHST
          then (On => True, Push_Pull => True,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
-         elsif Kind = Jeti or else (Kind /= CRSF and then R.Half_Duplex /= 0)
+         elsif Kind = Jeti or else SRXL_Telemetry_On or else (Kind /= CRSF and then R.Half_Duplex /= 0)
          then (On => True, Push_Pull => Inverted,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
          else USART.Full_Duplex);
@@ -314,8 +323,9 @@ package body Adaflight.STM32.Radio is
                  (Spek_State,
                   (Kind         =>
                      (if R.Serialrx_Provider = Spektrum_1024_Provider then Adaflight.Spektrum.Spektrum_1024
+                      elsif R.Serialrx_Provider = SRXL_Provider then Adaflight.Spektrum.SRXL
                       else Adaflight.Spektrum.Spektrum_2048),
-                   Telemetry    => False,
+                   Telemetry    => SRXL_Telemetry_On,
                    RSSI_Channel => Natural (R.Rssi_Channel)));
                USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when XBUS =>
@@ -561,6 +571,27 @@ package body Adaflight.STM32.Radio is
          end;
       end if;
    end Jeti_Telemetry_Step;
+
+   procedure Init_SRXL_Telemetry (Settings : Adaflight.SRXL_Telemetry.Settings) is
+   begin
+      SRXL_Tlm_Set := Settings;
+      SRXL_Tlm := (others => <>);
+   end Init_SRXL_Telemetry;
+
+   procedure SRXL_Telemetry_Step (Inp : Adaflight.SRXL_Telemetry.Inputs) is
+      Seen : Adaflight.SRXL_Telemetry.Inputs := Inp;
+      O    : Adaflight.SRXL_Telemetry.Output;
+   begin
+      if not (Open and then Kind = Spektrum and then Spek_State.SRXL_Enabled) then
+         return;
+      end if;
+      Seen.Buffer_Empty := Adaflight.Spektrum.Telemetry_Buffer_Empty (Spek_State);
+      Adaflight.SRXL_Telemetry.Update (SRXL_Tlm, SRXL_Tlm_Set, Seen, O);
+      if O.Count > 0 then
+         SRXL_Reply (0 .. O.Count - 1) := O.Tx (0 .. O.Count - 1);
+         Adaflight.Spektrum.Queue_Telemetry (Spek_State, O.Count);
+      end if;
+   end SRXL_Telemetry_Step;
 
    function Linked return Boolean is (Open);
 
@@ -846,6 +877,19 @@ package body Adaflight.STM32.Radio is
       end if;
       if Open and then Kind = FPort and then Rx.Aux_Required then
          Answer_FPort;
+      end if;
+      --  The SRXL reply queued by the telemetry goes out once the frame's
+      --  delay has passed.
+      if Open and then Kind = Spektrum and then Rx.Aux_Required then
+         declare
+            Length  : constant Natural := Spek_State.Telemetry_Length;
+            Written : Boolean;
+         begin
+            Adaflight.Spektrum.Process_Frame (Spek_State, Written);
+            if Written then
+               USART.Put (Port, SRXL_Reply (0 .. Length - 1));
+            end if;
+         end;
       end if;
       if Open then
          case Kind is
