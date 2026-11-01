@@ -455,6 +455,17 @@ def tofsense_frame(distance_mm):
     return body + bytes([sum(body) & 0xFF])
 
 
+def upt1_frame(distance_mm, flow_x=100, flow_y=-50, span_us=10000, confidence=90):
+    """A UP-T1 frame: header, length, flow integrals in radians times ten thousand, integration span, distance
+    in millimetres, laser status available, confidence, exclusive-or of the ten data bytes and footer."""
+    data = (flow_x.to_bytes(2, "little", signed=True) + flow_y.to_bytes(2, "little", signed=True)
+            + span_us.to_bytes(2, "little") + distance_mm.to_bytes(2, "little") + bytes([0xF5, confidence]))
+    x = 0
+    for b in data:
+        x ^= b
+    return bytes([0xFE, 0x0A]) + data + bytes([x, 0x55])
+
+
 def gimbal_frame(roll, pitch, yaw, mode=0, sens=15):
     """A head tracker command frame: the opcode 0x5AA5, the mode and sensitivity, four padding bits, the
     12-bit roll, pitch and yaw, and the CRC16 of the first eight bytes, high byte first."""
@@ -487,10 +498,11 @@ class Lidar(threading.Thread):
     """A rangefinder on UART4's port sending a frame every 10 ms: by default a TFmini's two sync bytes, 150 cm,
     a strength of 500, the short integral time, a reserved byte and the checksum of the first eight bytes."""
 
-    def __init__(self, frame=None):
+    def __init__(self, frame=None, prefix=b""):
         super().__init__(daemon=True)
         self.stop = threading.Event()
         self.frame = frame
+        self.prefix = prefix
 
     def run(self):
         sock = None
@@ -502,6 +514,11 @@ class Lidar(threading.Thread):
                 time.sleep(0.1)
         body = bytes([0x59, 0x59]) + (150).to_bytes(2, "little") + (500).to_bytes(2, "little") + bytes([0x02, 0x00])
         frame = self.frame if self.frame is not None else body + bytes([sum(body) & 0xFF])
+        if sock is not None and self.prefix:
+            try:
+                sock.sendall(self.prefix)
+            except OSError:
+                sock = None
         while sock is not None and not self.stop.is_set():
             try:
                 sock.sendall(frame)
@@ -2110,6 +2127,43 @@ def main():
                       altitude is not None and abs(altitude - 123) <= 1, repr(altitude))
             finally:
                 tof.stop.set()
+                stop(proc)
+                sock.close()
+            # A UP-T1 module on UART4 for both readings: its startup text, then frames at 150 cm with flow integrals,
+            # so both sensor flags show and the sonar altitude follows the laser distance.
+            store = os.path.join(work, "upt1.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("set rangefinder_hardware = UPT1", "set rangefinder_uart = UART4",
+                             "set opticalflow_hardware = UPT1", "set opticalflow_uart = UART4"):
+                    text = cli(sock, line)
+                    check(f"UP-T1 {line[4:]}", line[4:].replace(" = ", " set to ") in text, text[-120:])
+                text = cli(sock, "feature RANGEFINDER")
+                check("rangefinder feature on for the UP-T1", "Enabled" in text, text[-120:])
+                text = cli(sock, "feature OPTICALFLOW")
+                check("optical flow feature on for the UP-T1", "Enabled" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            module = Lidar(upt1_frame(1500), prefix=b"UPIXELS UP-T1 READY.\r\n")
+            module.start()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                status = msp(sock, 101)
+                check("MSP status shows the UP-T1 rangefinder and optical flow", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x50 == 0x50, repr(status))
+                sonar = msp(sock, 58)
+                altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+                check("MSP sonar altitude reads the UP-T1's 150 cm", altitude is not None and abs(altitude - 150) <= 1,
+                      repr(altitude))
+            finally:
+                module.stop.set()
                 stop(proc)
                 sock.close()
         store = os.path.join(work, "fporttlm.bin")

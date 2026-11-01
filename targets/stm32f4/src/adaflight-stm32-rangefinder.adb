@@ -4,6 +4,7 @@ with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
 with Adaflight.Rangefinder;
 with Adaflight.Rangefinder_Detect;
+with Adaflight.UPT1;
 with Adaflight.MT_Sensor;
 with Adaflight.STM32.MT;
 with Adaflight.STM32.Time;
@@ -89,6 +90,20 @@ package body Adaflight.STM32.Rangefinder is
       Write_Bytes   => Write_Bytes,
       Millis        => Millis);
 
+   procedure Micros (D : in out Lidar_Port; Now : out Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Now := Adaflight.STM32.Time.Micros;
+   end Micros;
+
+   package Module is new Adaflight.UPT1
+     (Serial_Device => Lidar_Port,
+      Open_Port     => Open_Port,
+      Bytes_Waiting => Bytes_Waiting,
+      Read_Byte     => Read_Byte,
+      Write_Bytes   => Write_Bytes,
+      Micros        => Micros);
+
    package TOFSense is new Adaflight.Nooploop
      (Serial_Device => Lidar_Port,
       Open_Port     => Open_Port,
@@ -99,6 +114,7 @@ package body Adaflight.STM32.Rangefinder is
    Port       : Lidar_Port;
    State      : Lidar.State;
    TOF_State  : TOFSense.State;
+   UP_State   : Module.State;
    Sensor     : Core.Sensor;
    Found      : Boolean := False;
    Driver     : Adaflight.Rangefinder_Detect.Driver := Adaflight.Rangefinder_Detect.TF;
@@ -141,7 +157,16 @@ package body Adaflight.STM32.Rangefinder is
                Delay_Ms := Adaflight.STM32.MT.Delay_Ms;
                Range_Cm := Interfaces.Unsigned_16 (Natural'Min (65_535, Adaflight.STM32.MT.Max_Range_Cm));
                Cone := Adaflight.MT_Sensor.Detection_Cone_Decidegrees;
-            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.UPT1 =>
+            when Adaflight.Rangefinder_Detect.UPT1 =>
+               declare
+                  Dev : Module.Rangefinder_Device;
+               begin
+                  Module.Detect_Rangefinder (Port, UP_State, Uart, Found, Dev);
+                  Delay_Ms := Dev.Delay_Ms;
+                  Range_Cm := Dev.Max_Range_Cm;
+                  Cone := Dev.Cone_Extended_Decidegrees;
+               end;
+            when Adaflight.Rangefinder_Detect.HCSR04 =>
                null;
          end case;
       end if;
@@ -152,8 +177,9 @@ package body Adaflight.STM32.Rangefinder is
                Lidar.Init (State);
             when Adaflight.Rangefinder_Detect.Nooploop =>
                TOFSense.Init (TOF_State);
-            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
-               | Adaflight.Rangefinder_Detect.UPT1 =>
+            when Adaflight.Rangefinder_Detect.UPT1 =>
+               Module.Init (UP_State);
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT =>
                null;
          end case;
          Core.Init
@@ -179,8 +205,9 @@ package body Adaflight.STM32.Rangefinder is
                Lidar.Update (Port, State);
             when Adaflight.Rangefinder_Detect.Nooploop =>
                TOFSense.Update (Port, TOF_State);
-            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
-               | Adaflight.Rangefinder_Detect.UPT1 =>
+            when Adaflight.Rangefinder_Detect.UPT1 =>
+               Module.Update (Port, UP_State);
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT =>
                null;
          end case;
       end if;
@@ -214,7 +241,14 @@ package body Adaflight.STM32.Rangefinder is
                Adaflight.STM32.MT.Read_Range (R);
                Distance := R;
             end;
-         when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.UPT1 =>
+         when Adaflight.Rangefinder_Detect.UPT1 =>
+            declare
+               R : Module.Reading;
+            begin
+               Module.Read (UP_State, R);
+               Distance := Interfaces.Integer_32 (R);
+            end;
+         when Adaflight.Rangefinder_Detect.HCSR04 =>
             null;
       end case;
       Core.Process
@@ -226,4 +260,39 @@ package body Adaflight.STM32.Rangefinder is
    function Altitude_Cm return Interfaces.Integer_32 is (Sensor.Calculated_Altitude);
 
    function Raw_Altitude_Cm return Interfaces.Integer_32 is (Sensor.Raw_Altitude);
+   procedure Detect_UPT1_Flow
+     (Uart : Interfaces.Integer_8; Found : out Boolean; Delay_Ms : out Natural;
+      Gyro_Delay_Us : out Interfaces.Unsigned_32)
+   is
+      Dev : Module.Flow_Device;
+   begin
+      Found := False;
+      Delay_Ms := 0;
+      Gyro_Delay_Us := 0;
+      if not Adaflight.Build_Features.Rangefinder then
+         return;
+      end if;
+      Module.Detect_Flow (Port, UP_State, Uart, Found, Dev);
+      if Found then
+         Module.Init (UP_State);
+         Delay_Ms := Dev.Delay_Ms;
+         Gyro_Delay_Us := Dev.Gyro_Delay_Us;
+      end if;
+   end Detect_UPT1_Flow;
+
+   procedure Update_UPT1 is
+   begin
+      if Adaflight.Build_Features.Rangefinder then
+         Module.Update (Port, UP_State);
+      end if;
+   end Update_UPT1;
+
+   function UPT1_Flow return Adaflight.Optical_Flow.Sample is
+      F : constant Module.Flow_Data := Module.Flow (UP_State);
+      function Held (R : Module.Rate) return Adaflight.Optical_Flow.Flow_Rate is
+        (Float'Max (Adaflight.Optical_Flow.Flow_Rate'First, Float'Min (Adaflight.Optical_Flow.Flow_Rate'Last, R)));
+   begin
+      return (Time_Stamp_Us => F.Time_Stamp_Us, Quality => F.Quality, Flow_X => Held (F.Rate_X), Flow_Y => Held (F.Rate_Y));
+   end UPT1_Flow;
+
 end Adaflight.STM32.Rangefinder;
