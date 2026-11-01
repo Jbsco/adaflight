@@ -115,4 +115,11 @@ package Adaflight.STM32.Control is
    --  Whether the controller's crash recovery runs, which the failsafe reads.
    function Crash_Recovery_Active return Boolean;
    function PID_Sums return Adaflight.Arming.Axis_Sums;
+   --  The last pass's controller, motor update and subprocess times, and
+   --  the motor update interval, in microseconds, for the debug values.
+   function Controller_Us return Interfaces.Unsigned_32;
+   function Motor_Us return Interfaces.Unsigned_32;
+   function Subprocess_Us return Interfaces.Unsigned_32;
+   function Motor_Interval_Us return Interfaces.Unsigned_32;
+
 end Adaflight.STM32.Control;

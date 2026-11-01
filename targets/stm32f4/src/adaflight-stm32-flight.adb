@@ -128,6 +128,7 @@ with Adaflight.SD_Card_Types;
 with Adaflight.SmartAudio;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.Debug;
+with Adaflight.Loop_Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
@@ -4100,7 +4101,17 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Rx =>
             Run_Receiver (Before);
          when Scheduler.PID =>
-            Run_Control (Before);
+            declare
+               Gyro_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros - Before;
+            begin
+               Run_Control (Before);
+               Adaflight.Loop_Debug.Record_PID_Loop
+                 (Adaflight.STM32.Debug_Values.State, Gyro_Us, Adaflight.STM32.Control.Controller_Us,
+                  Adaflight.STM32.Control.Motor_Us, Adaflight.STM32.Control.Subprocess_Us);
+            end;
+            Adaflight.Loop_Debug.Record_Cycle
+              (Adaflight.STM32.Debug_Values.State, Scheduler.Task_Delta_Time (Sched, Scheduler.PID),
+               Sched.Average_Load_Percent, Adaflight.STM32.Control.Motor_Interval_Us, Unsigned_32 (Loop_Time_Us));
          when Scheduler.Battery_Voltage =>
             Run_Battery_Voltage;
          when Scheduler.Battery_Current =>
@@ -4591,6 +4602,7 @@ package body Adaflight.STM32.Flight is
          end if;
       end if;
       Scheduler.End_Pass (Sched, Sched_Settings, Start_Us, Adaflight.STM32.Time.Micros);
+      Adaflight.Loop_Debug.Record_Scheduler (Adaflight.STM32.Debug_Values.State, Sched);
       if Ada.Real_Time.Clock >= Blink then
          Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
          Blink := Blink + Milliseconds (500);

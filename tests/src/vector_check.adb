@@ -53,6 +53,7 @@ with Adaflight.Position_Estimator;
 with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
 with Adaflight.Scheduler;
+with Adaflight.Loop_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -2963,6 +2964,17 @@ procedure Vector_Check is
    Sched_Clock    : Unsigned_32 := 0;
    Sched_Tasks    : array (0 .. 63) of Adaflight.Scheduler.Task_Id := (others => Adaflight.Scheduler.System);
    Sched_Task_Count : Natural := 0;
+   --  The PID task's parts under the core timing debug modes, its recorder
+   --  state and the previous motor update time.
+   Loop_Dbg        : Adaflight.Debug.State;
+   type Loop_Parts is record
+      Set    : Boolean := False;
+      Ctrl   : Unsigned_32 := 0;
+      Motor  : Unsigned_32 := 0;
+      Target : Unsigned_32 := 0;
+   end record;
+   Loop_Part       : Loop_Parts;
+   Loop_Prev_Motor : Unsigned_32 := 0;
 
    procedure Check_Sched_Line is
       use Adaflight.Scheduler;
@@ -3075,7 +3087,36 @@ procedure Vector_Check is
          Before : constant Unsigned_32 := Micros;
          E      : constant Event := Take (True, T);
       begin
-         Sched_Clock := Sched_Clock + E.Duration;
+         if T = PID and then Loop_Part.Set then
+            declare
+               Gyro_Us  : constant Unsigned_32 := Micros - Before;
+               Start    : Unsigned_32 := Micros;
+               Ctrl_Us  : Unsigned_32;
+               Motor_Us : Unsigned_32;
+               Sub_Us   : Unsigned_32;
+               Interval : Unsigned_32 := 0;
+            begin
+               Sched_Clock := Sched_Clock + Loop_Part.Ctrl;
+               Ctrl_Us := Micros - Start;
+               Start := Micros;
+               if Adaflight.Debug.Selected (Loop_Dbg, Adaflight.Debug.Cycle_Time) then
+                  Interval := Start - Loop_Prev_Motor;
+                  Loop_Prev_Motor := Start;
+               end if;
+               Sched_Clock := Sched_Clock + Loop_Part.Motor;
+               Motor_Us := Micros - Start;
+               Start := Micros;
+               Sched_Clock := Sched_Clock + (E.Duration - Loop_Part.Ctrl - Loop_Part.Motor);
+               Sub_Us := Micros - Start;
+               Adaflight.Loop_Debug.Record_PID_Loop (Loop_Dbg, Gyro_Us, Ctrl_Us, Motor_Us, Sub_Us);
+               Adaflight.Loop_Debug.Record_Cycle
+                 (Loop_Dbg, Task_Delta_Time (Sched_State, PID), Sched_State.Average_Load_Percent, Interval,
+                  Loop_Part.Target);
+            end;
+            Loop_Part.Set := False;
+         else
+            Sched_Clock := Sched_Clock + E.Duration;
+         end if;
          if T = System then
             System_Load (Sched_State, Before);
          end if;
@@ -3265,11 +3306,23 @@ procedure Vector_Check is
          Sched_Settings.Debug_Mode := Interfaces.Unsigned_8 (Next);
          Sched_Settings.Debug_Task := Interfaces.Unsigned_8 (Task_Id'Pos (Next_Task));
          Sched_Short := Next /= 0;
+         Loop_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Loop_Dbg, Sched_Settings.Debug_Mode);
+         Loop_Prev_Motor := 0;
+         Loop_Part.Set := False;
+         Check_Fields;
+      elsif Name = "schedloop" then
+         K := 4;
+         Loop_Part.Set := True;
+         Loop_Part.Ctrl := Unsigned_32 (Next);
+         Loop_Part.Motor := Unsigned_32 (Next);
+         Loop_Part.Target := Unsigned_32 (Next);
          Check_Fields;
       elsif Name = "scheddbg" then
          --  The task numbers count the reference build's tasks, which leaves
          --  out some of the full table; they compare through its task list.
          K := 4;
+         Adaflight.Loop_Debug.Record_Scheduler (Loop_Dbg, Sched_State);
          for D in Debug_Index loop
             declare
                use type Interfaces.Unsigned_8;
@@ -3277,11 +3330,14 @@ procedure Vector_Check is
                Numbering : constant Boolean :=
                  (Sched_Settings.Debug_Mode = Determinism_Debug and then D = 1)
                  or else (Sched_Settings.Debug_Mode = Task_Debug and then D = 0);
+               Mapped    : constant Integer_64 :=
+                 (if Numbering and then Expected in 0 .. Integer_64 (Sched_Task_Count - 1)
+                  then Integer_64 (Task_Id'Pos (Sched_Tasks (Integer (Expected)))) else Expected);
             begin
-               Expect ("debug",
-                       (if Numbering and then Expected in 0 .. Integer_64 (Sched_Task_Count - 1)
-                        then Integer_64 (Task_Id'Pos (Sched_Tasks (Integer (Expected)))) else Expected),
-                       Integer_64 (Sched_State.Debug (D)));
+               Expect ("debug", Mapped, Integer_64 (Loop_Dbg.Data (D)));
+               if Sched_Settings.Debug_Mode not in 1 | 5 then
+                  Expect ("debug.sched", Mapped, Integer_64 (Sched_State.Debug (D)));
+               end if;
             end;
          end loop;
          Check_Fields;

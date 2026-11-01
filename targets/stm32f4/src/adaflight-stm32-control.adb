@@ -1,3 +1,4 @@
+with Adaflight.Debug;
 with Adaflight.PID_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.Config_Fix;
@@ -15,6 +16,19 @@ with Adaflight.STM32.Radio;
 with Adaflight.STM32.Servos;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Control is
+   use type Interfaces.Unsigned_32;
+
+   Controller_Us_Last      : Interfaces.Unsigned_32 := 0;
+   Motor_Start_Us          : Interfaces.Unsigned_32 := 0;
+   Previous_Motor_Start_Us : Interfaces.Unsigned_32 := 0;
+   Motor_Us_Last           : Interfaces.Unsigned_32 := 0;
+   Motor_Interval_Last     : Interfaces.Unsigned_32 := 0;
+   Subprocess_Us_Last      : Interfaces.Unsigned_32 := 0;
+
+   function Controller_Us return Interfaces.Unsigned_32 is (Controller_Us_Last);
+   function Motor_Us return Interfaces.Unsigned_32 is (Motor_Us_Last);
+   function Subprocess_Us return Interfaces.Unsigned_32 is (Subprocess_Us_Last);
+   function Motor_Interval_Us return Interfaces.Unsigned_32 is (Motor_Interval_Last);
    Ctl          : Adaflight.PID_Controller.State;
    Mix          : Adaflight.Mixer.State;
    Mix_Config   : Adaflight.Mixer.Config;
@@ -74,7 +88,6 @@ package body Adaflight.STM32.Control is
      (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
       Channel_Count : Natural; Loop_Time_Us : Positive)
    is
-      use type Interfaces.Unsigned_32;
       Servo_Tilt         : constant Interfaces.Unsigned_32 := 16#0000_0020#;
       Channel_Forwarding : constant Interfaces.Unsigned_32 := 16#0010_0000#;
    begin
@@ -119,6 +132,7 @@ package body Adaflight.STM32.Control is
    --  The controller's loop over the rates, the RC command's setpoints and
    --  feedforward, the modes and the attitude.
    procedure Run_Controller is
+      Controller_Start : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Micros;
       Inp   : Adaflight.PID_Controller.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
@@ -164,6 +178,7 @@ package body Adaflight.STM32.Control is
       Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
       Adaflight.PID_Debug.Record_Loop
         (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Inp, Adaflight.STM32.Debug_Values.Axis);
+      Controller_Us_Last := Adaflight.STM32.Time.Micros - Controller_Start;
    end Run_Controller;
 
    procedure Runaway_Check is
@@ -180,6 +195,11 @@ package body Adaflight.STM32.Control is
       Inp   : Adaflight.Mixer.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
+      Motor_Start_Us := Adaflight.STM32.Time.Micros;
+      if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.Cycle_Time) then
+         Motor_Interval_Last := Motor_Start_Us - Previous_Motor_Start_Us;
+         Previous_Motor_Start_Us := Motor_Start_Us;
+      end if;
       Inp.RC_Throttle := Float'Max (1_000.0, Float'Min (2_000.0, Adaflight.STM32.Pilot.Throttle_Command));
       Inp.RC_Data_Throttle := Float'Max (750.0, Float'Min (2_250.0, Current.RC_Data_Throttle));
       Inp.Box_3D := Current.Box_3D;
@@ -233,6 +253,7 @@ package body Adaflight.STM32.Control is
    procedure Write_Motors is
    begin
       Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
+      Motor_Us_Last := Adaflight.STM32.Time.Micros - Motor_Start_Us;
    end Write_Motors;
 
    --  The servo mixer's loop over the arming, the passthrough, the servo
@@ -273,6 +294,13 @@ package body Adaflight.STM32.Control is
       end loop;
    end Write_Servos;
 
+   procedure Run_Blackbox is
+      Start : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Micros;
+   begin
+      Adaflight.STM32.Blackbox.Update;
+      Subprocess_Us_Last := Adaflight.STM32.Time.Micros - Start;
+   end Run_Blackbox;
+
    package Loop_Pass is new Adaflight.Main_Loop
      (Reset_Yaw       => Adaflight.STM32.Pilot.Reset_Yaw,
       RC_Command      => Adaflight.STM32.Pilot.Process_Commands,
@@ -283,7 +311,7 @@ package body Adaflight.STM32.Control is
       Mix_Table       => Run_Mixer,
       Write_Servos    => Write_Servos,
       Write_Motors    => Write_Motors,
-      Blackbox_Update => Adaflight.STM32.Blackbox.Update);
+      Blackbox_Update => Run_Blackbox);
 
    procedure Pass
      (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
@@ -294,6 +322,7 @@ package body Adaflight.STM32.Control is
       Control.Channels := Channels;
       Step := (others => <>);
       Step_Changed := False;
+      Subprocess_Us_Last := 0;
       Loop_Pass.PID_Loop
         ((Wing_Launch => False),
          (Resets_Yaw => Resets_Yaw, Uses_Servos => Servo_State.Uses_Servos, Log_Device => Log_Device,
