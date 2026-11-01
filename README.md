@@ -35,7 +35,7 @@ Flight software is ported and runs on host, where each ported function replays i
 - **Configuration**: parameter groups and settings of a board build, command line with Betaflight's setting names, dump and diff, resource, timer and dma commands, MSP with the messages Betaflight Configurator uses, configuration storage image
 - **OSD and menus**: MAX7456, MSP display port, FrSky OSD and OLED dashboard, OSD elements, warnings, statistics and navigation map, menus over the OSD and CRSF
 - **Flight log**: blackbox to SPI flash, to an SD card over SPI or SDIO with its FAT file system, or to a serial port
-- **Peripherals**: video transmitter control over SmartAudio, Tramp, MSP and RTC6705, LED strip, beeper and DShot beacon, ESC sensor, BLHeli passthrough, RunCam, gimbal, PINIO, race transponder, GPS lap timer, real-time clock, USB virtual serial port and joystick
+- **Peripherals**: video transmitter control over SmartAudio, Tramp, MSP and RTC6705, LED strip, beeper and DShot beacon, ESC sensor, BLHeli passthrough, RunCam, camera control keys, gimbal, PINIO, race transponder, GPS lap timer, real-time clock, USB virtual serial port and joystick
 - **Scheduler**: cooperative scheduler with Betaflight's task set
 
 ## Differences from Betaflight
