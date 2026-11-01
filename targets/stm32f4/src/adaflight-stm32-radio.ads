@@ -57,6 +57,14 @@ package Adaflight.STM32.Radio is
    --  is empty.
    procedure Init_SRXL_Telemetry (Settings : Adaflight.SRXL_Telemetry.Settings);
    procedure SRXL_Telemetry_Step (Inp : Adaflight.SRXL_Telemetry.Inputs);
+   --  Whether an SRXL receiver carries the telemetry, and its display for the
+   --  menu: the text generator's lines sent over that telemetry.
+   function SRXL_Telemetry_On return Boolean;
+   procedure SRXL_Display_Grab;
+   procedure SRXL_Display_Release;
+   procedure SRXL_Display_Clear;
+   procedure SRXL_Display_Write (Col, Row : Interfaces.Unsigned_8; Text : String);
+   procedure SRXL_Display_Write_Char (Col, Row : Interfaces.Unsigned_8; C : Interfaces.Unsigned_8);
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;

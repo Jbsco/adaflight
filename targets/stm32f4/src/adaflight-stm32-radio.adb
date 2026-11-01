@@ -22,6 +22,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
 with Adaflight.UDP_Receiver;
 with Adaflight.STM32.Time;
+with Adaflight.SRXL_Display_Port;
 package body Adaflight.STM32.Radio is
    use type Adaflight.STM32.USART.Number;
    package SFM renames Adaflight.Serial_Feature_Map;
@@ -84,6 +85,8 @@ package body Adaflight.STM32.Radio is
    SRXL_Tlm     : Adaflight.SRXL_Telemetry.Stream;
    SRXL_Tlm_Set : Adaflight.SRXL_Telemetry.Settings;
    SRXL_Reply   : Adaflight.Bytes.Byte_Array (0 .. Adaflight.Spektrum.Telemetry_Max - 1) := (others => 0);
+   SRXL_Screen  : Adaflight.SRXL_Display_Port.Display;
+   Firmware_Name : constant String := "ADAFLIGHT";
    Link        : USART.Number := USART.UART3;
    --  The link's line: inverted, and on its transmit pin alone.
    Inverted    : Boolean := False;
@@ -576,13 +579,16 @@ package body Adaflight.STM32.Radio is
    begin
       SRXL_Tlm_Set := Settings;
       SRXL_Tlm := (others => <>);
+      if SRXL_Telemetry_On then
+         Adaflight.SRXL_Display_Port.Register (SRXL_Screen, SRXL_Tlm, Firmware_Name);
+      end if;
    end Init_SRXL_Telemetry;
 
    procedure SRXL_Telemetry_Step (Inp : Adaflight.SRXL_Telemetry.Inputs) is
       Seen : Adaflight.SRXL_Telemetry.Inputs := Inp;
       O    : Adaflight.SRXL_Telemetry.Output;
    begin
-      if not (Open and then Kind = Spektrum and then Spek_State.SRXL_Enabled) then
+      if not SRXL_Telemetry_On then
          return;
       end if;
       Seen.Buffer_Empty := Adaflight.Spektrum.Telemetry_Buffer_Empty (Spek_State);
@@ -592,6 +598,33 @@ package body Adaflight.STM32.Radio is
          Adaflight.Spektrum.Queue_Telemetry (Spek_State, O.Count);
       end if;
    end SRXL_Telemetry_Step;
+
+   function SRXL_Telemetry_On return Boolean is (Open and then Kind = Spektrum and then Spek_State.SRXL_Enabled);
+
+   procedure SRXL_Display_Grab is
+   begin
+      Adaflight.SRXL_Display_Port.Grab (SRXL_Screen);
+   end SRXL_Display_Grab;
+
+   procedure SRXL_Display_Release is
+   begin
+      Adaflight.SRXL_Display_Port.Release (SRXL_Screen, SRXL_Tlm, Firmware_Name);
+   end SRXL_Display_Release;
+
+   procedure SRXL_Display_Clear is
+   begin
+      Adaflight.SRXL_Display_Port.Clear (SRXL_Screen, SRXL_Tlm, Firmware_Name);
+   end SRXL_Display_Clear;
+
+   procedure SRXL_Display_Write (Col, Row : Interfaces.Unsigned_8; Text : String) is
+   begin
+      Adaflight.SRXL_Display_Port.Write_String (SRXL_Tlm, Col, Row, Text);
+   end SRXL_Display_Write;
+
+   procedure SRXL_Display_Write_Char (Col, Row : Interfaces.Unsigned_8; C : Interfaces.Unsigned_8) is
+   begin
+      Adaflight.SRXL_Display_Port.Write_Char (SRXL_Tlm, Col, Row, C);
+   end SRXL_Display_Write_Char;
 
    function Linked return Boolean is (Open);
 

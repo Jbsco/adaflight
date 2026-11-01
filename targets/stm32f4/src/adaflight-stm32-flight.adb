@@ -3606,6 +3606,7 @@ package body Adaflight.STM32.Flight is
    begin
       Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, ESC);
       Inp.Now_Us := Adaflight.STM32.Time.Micros;
+      Inp.Menu_On_Display := Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.On_SRXL;
       Inp.Voltage_Cv := Unsigned_16 (Volts);
       Inp.Cell_Cv := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
       Inp.Core_Temperature := Internal.Core_Temperature;
@@ -4443,6 +4444,9 @@ package body Adaflight.STM32.Flight is
         and then Adaflight.STM32.Radio.Is_CRSF
       then
          Adaflight.STM32.Menu.Register_CRSF (Adaflight.STM32.Radio.Display_Columns, Adaflight.STM32.Radio.Display_Rows);
+      end if;
+      if Adaflight.Build_Features.Menus and then Adaflight.STM32.Radio.SRXL_Telemetry_On then
+         Adaflight.STM32.Menu.Register_SRXL;
       end if;
       Check_Telemetry;
       Offered := Available_Boxes;
