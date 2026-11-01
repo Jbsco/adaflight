@@ -134,6 +134,50 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
 
    type Axis_Attenuations is array (Axis) of Unit_Interval;
 
+   --  What the debug values read of the last loop and throttle update: the
+   --  wing's attitude, throttle and TPA argument when its speed model ran,
+   --  the throttle derivative raw and smoothed, the I term accelerator before
+   --  yaw clears it, which level axes ran with
+   --  roll's feedforward and earth reference sine, the attenuated yaw
+   --  setpoint, roll's I term relax values, the raw D deltas and the D before
+   --  TPA on roll and pitch, each axis's D max factors, the S terms before
+   --  and after their factor, the wing setpoints before and after adjustment,
+   --  and pitch's P boost.
+   type Level_Flags is array (Level_Axis) of Boolean;
+   type Level_Taps is array (Level_Axis) of Float;
+   type Axis_Taps is array (Axis) of Float;
+   type Debug_Taps is record
+      Wing_TPA_Ran          : Boolean := False;
+      Wing_Roll             : Float := 0.0;
+      Wing_Pitch            : Float := 0.0;
+      Wing_Throttle         : Float := 0.0;
+      Wing_Argument         : Unit_Interval := 0.0;
+      Throttle_D_Raw        : Float := 0.0;
+      Throttle_D_Smooth     : Signal := 0.0;
+      Iterm_Accelerator     : Float := 0.0;
+      Level_Ran             : Level_Flags := (others => False);
+      Angle_Feedforward     : Signal := 0.0;
+      Sin_Angle             : Cosine := 0.0;
+      Yaw_Attenuated_Set    : Boolean := False;
+      Yaw_Attenuated        : Rate := 0.0;
+      Relax_Set             : Boolean := False;
+      Relax_Hpf             : Signal := 0.0;
+      Relax_Factor          : Unit_Interval := 0.0;
+      Relax_Error           : Signal := 0.0;
+      Previous_Raw_Gyro     : Axis_Rates := (others => 0.0);
+      D_Raw_Delta           : Level_Taps := (others => 0.0);
+      D_Pre_TPA             : Level_Taps := (others => 0.0);
+      D_Max_Set             : Axis_Flags := (others => False);
+      D_Max_Gyro_Factor     : Axis_Taps := (others => 0.0);
+      D_Max_Setpoint_Factor : Axis_Taps := (others => 0.0);
+      D_Max_Multiplier      : Axis_Taps := (others => 0.0);
+      S_Base                : Axis_Signals := (others => 0.0);
+      S_After               : Axis_Signals := (others => 0.0);
+      Wing_Setpoint_In      : Axis_Rates := (others => 0.0);
+      Wing_Setpoint_Out     : Axis_Rates := (others => 0.0);
+      P_Boost               : Float := 0.0;
+   end record;
+
    type State is record
       Data                    : Axis_Terms;
       Filters                 : PID_Filters.State;
@@ -160,6 +204,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Crash_Beep              : Boolean := False;
       Crash_Disarm_Requested  : Boolean := False;
       Landing_Disarm_Requested : Boolean := False;
+      Taps                    : Debug_Taps;
    end record;
 
    --  Prepares the controller from a profile and its runtime constants.

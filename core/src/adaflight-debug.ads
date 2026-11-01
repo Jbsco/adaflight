@@ -53,13 +53,15 @@ package Adaflight.Debug with SPARK_Mode is
                   and then (for all J in Index => (if J /= I then S.Data (J) = S.Data'Old (J)));
 
    --  An integer wrapped into sixteen bits, and a float rounded half to even
-   --  then wrapped, as the reference stores lrintf results.
+   --  then wrapped from the range a 32-bit integer holds, as the reference
+   --  stores lrintf results.
+   Conversion_Bound : constant := 2.0 ** 31 - 2.0 ** 7;
    function Wrapped (V : Interfaces.Integer_32) return Integer_16;
    function Rounded (X : Float) return Integer_16
-     with Pre => abs X <= 2.0 ** 24 - 1.0;
+     with Pre => abs X <= Conversion_Bound;
    --  A float truncated toward zero then wrapped, as the reference stores a
    --  float without rounding.
    function Truncated (X : Float) return Integer_16
-     with Pre => abs X <= 2.0 ** 24 - 1.0;
+     with Pre => abs X <= Conversion_Bound;
 
 end Adaflight.Debug;

@@ -102,6 +102,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
          Battery_Factor := Constrain_F (Float (Wing.Battery_Latest) / 100.0 / M.Max_Voltage, 0.0, 1.0);
       end if;
       Throttle := Wing.Motor_Output_RMS * Battery_Factor;
+      S.Taps.Wing_Roll := Float (Wing.Roll);
+      S.Taps.Wing_Pitch := Float (Wing.Pitch);
+      S.Taps.Wing_Throttle := Throttle;
       Corrected := Pitch_Radians + Cos_Approx (Pitch_Radians) * Cos_Approx (Roll_Radians) * M.Pitch_Offset;
       Thrust := (Throttle * Throttle - Throttle * S.Wing_Speed * M.Inverse_Prop_Speed) * M.Thrust_Weight
         * G_Acceleration;
@@ -113,6 +116,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
       S.Wing_Speed := (if Speed > Wing_Speed_Bound then Wing_Speed_Bound else Speed);
       Argument := Constrain_F (S.Wing_Speed / M.Max_Speed, 0.0, 1.0);
+      S.Taps.Wing_Argument := Argument;
    end Wing_TPA_Argument;
 
    --  The S term's factor per axis: the TPA factor, the yaw factor for the
@@ -148,15 +152,19 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Argument     : Unit_Interval := Throttle;
    begin
       pragma Assert (Derivative in 0.0 .. 1.0e6);
+      S.Taps.Throttle_D_Raw := Derivative;
+      S.Taps.Wing_TPA_Ran := False;
       Derivative := Derivative * (Throttle_Inv * Throttle_Inv);
       if Throttle > S.Previous_Throttle then
          Derivative := Derivative * (Throttle_Inv * 0.5);
       end if;
       S.Previous_Throttle := Throttle;
       PT2_Apply (S.Filters.Anti_Gravity, Derivative, Filtered);
+      S.Taps.Throttle_D_Smooth := Filtered;
       S.Anti_Gravity_Throttle_D := Constrain_F (Filtered, 0.0, Throttle_D_Bound);
       if R.Wing_Build and then R.Fixed_Wing then
          Wing_TPA_Argument (S, R, Wing, Argument);
+         S.Taps.Wing_TPA_Ran := True;
       end if;
       case R.TPA_Curve_Type is
          when Hyperbolic =>
@@ -282,6 +290,12 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                else
                   Iterm_Error_Rate :=
                     Apply_Deadband_F (Saturate (Setpoint_Lpf - Gyro_Rate), Setpoint_Hpf);
+               end if;
+               if A = Roll then
+                  S.Taps.Relax_Set := True;
+                  S.Taps.Relax_Hpf := Setpoint_Hpf;
+                  S.Taps.Relax_Factor := Factor;
+                  S.Taps.Relax_Error := Iterm_Error_Rate;
                end if;
             end;
          end if;
@@ -420,6 +434,11 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
       Angle_Rate := Saturate (Angle_Rate + S.Angle_Yaw_Setpoint * Sin_Angle * Earth_Gain);
       S.Angle_Target (A) := Target;
+      S.Taps.Level_Ran (A) := True;
+      if A = Roll then
+         S.Taps.Angle_Feedforward := Feedforward;
+         S.Taps.Sin_Angle := Sin_Angle;
+      end if;
       PT3_Apply (S.Filters.Attitude (A), Angle_Rate, Filtered);
       if Inp.Angle_Mode or else Inp.GPS_Rescue_Mode or else Inp.Pos_Hold_Mode or else Inp.Launch_Mode then
          Setpoint := Constrain_F (Filtered, -Rate_Bound, Rate_Bound);
@@ -459,6 +478,8 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             end if;
             Setpoint := Setpoint * Cos_Approx (Largest * Rad_Per_Degree);
          end;
+         S.Taps.Yaw_Attenuated := Setpoint;
+         S.Taps.Yaw_Attenuated_Set := True;
       end if;
    end Attenuate_Yaw;
 
@@ -716,8 +737,17 @@ package body Adaflight.PID_Controller with SPARK_Mode is
          S.Anti_Gravity_Throttle_D := 0.0;
          S.Iterm_Accelerator := 0.0;
       end if;
+      S.Taps.Iterm_Accelerator := S.Iterm_Accelerator;
+      S.Taps.Level_Ran := (others => False);
+      S.Taps.Yaw_Attenuated_Set := False;
+      S.Taps.Relax_Set := False;
+      S.Taps.D_Max_Set := (others => False);
       for A in Axis loop
          PID_Filters.Apply_Dterm (S.Filters, A, Inp.Gyro (A), Gyro_Dterm (A));
+         if A /= Yaw then
+            S.Taps.D_Raw_Delta (A) := (S.Taps.Previous_Raw_Gyro (A) - Inp.Gyro (A)) * R.PID_Frequency / 25.0;
+            S.Taps.Previous_Raw_Gyro (A) := Inp.Gyro (A);
+         end if;
       end loop;
       if R.Iterm_Rotation then
          Rotate_Iterm (S, R, Inp.Gyro);
@@ -752,12 +782,14 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                Attenuate_Yaw (S, R, Inp, H, Setpoint);
             end if;
             Unscaled_Setpoint := Setpoint;
+            S.Taps.Wing_Setpoint_In (A) := Setpoint;
             if R.Wing_Build and then not S.Axis_In_Angle_Mode (A)
               and then S.TPA_Factor_S (A) > 0.0 and then S.TPA_Factor > 0.0
               and then not (A = Yaw and then P.Yaw_Type = Diff_Thrust)
             then
                Setpoint := Wing_Setpoint (Setpoint, S.TPA_Factor_S (A), S.TPA_Factor);
             end if;
+            S.Taps.Wing_Setpoint_Out (A) := Setpoint;
             if Inp.Angle_Mode and then S.Axis_In_Angle_Mode (A) then
                Setpoint_Delta := 0.0;
             end if;
@@ -822,13 +854,23 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                         Multiplier := Multiplier + (R.D_Max_Percent (A) - 1.0) * Boost;
                         PT2_Apply (S.Filters.D_Max_Lowpass (A), Saturate (Multiplier), Smoothed);
                         Multiplier := Float'Min (Smoothed, R.D_Max_Percent (A));
+                        S.Taps.D_Max_Set (A) := True;
+                        S.Taps.D_Max_Gyro_Factor (A) := Gyro_Factor;
+                        S.Taps.D_Max_Setpoint_Factor (A) := Setpoint_Factor;
+                        S.Taps.D_Max_Multiplier (A) := Multiplier;
                      end;
                   end if;
                   Pre_TPA_D := Pre_TPA_D * Multiplier;
+                  if A /= Yaw then
+                     S.Taps.D_Pre_TPA (A) := Pre_TPA_D;
+                  end if;
                   S.Data (A).D := Saturate (Pre_TPA_D * TPA_Factor_Of (S, R, P.TPA_Terms, A, Term_D));
                end;
             else
                S.Data (A).D := 0.0;
+               if A /= Yaw then
+                  S.Taps.D_Pre_TPA (A) := 0.0;
+               end if;
             end if;
             S.Previous_Gyro_Dterm (A) := Gyro_Dterm (A);
             S.Data (A).F := (if Inp.Launch_Control_Active then 0.0 else R.Coefficient (A).Kf) * Setpoint_Delta;
@@ -850,12 +892,17 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                     1.0 + (S.Anti_Gravity_Throttle_D / Attenuator) * R.Anti_Gravity_P_Gain;
                begin
                   S.Data (A).P := Saturate (S.Data (A).P * Boost);
+                  if A = Pitch then
+                     S.Taps.P_Boost := Boost;
+                  end if;
                end;
             end if;
             if R.Wing_Build then
                S.Data (A).S := S_Term_Of
                  (Unscaled_Setpoint, Inp.Max_RC_Rate (A), P.Gains (A).S,
                   (if P.TPA_Terms = PDS then S.TPA_Factor_S (A) else 1.0));
+               S.Taps.S_Base (A) := S_Term_Of (Unscaled_Setpoint, Inp.Max_RC_Rate (A), P.Gains (A).S, 1.0);
+               S.Taps.S_After (A) := S.Data (A).S;
                Apply_SPA (S.Data (A), (if S.Axis_In_Angle_Mode (A) then Off else P.SPA_Mode (A)), S.SPA (A));
             else
                S.Data (A).S := 0.0;
