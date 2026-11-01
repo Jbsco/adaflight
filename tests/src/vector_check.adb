@@ -58,6 +58,7 @@ with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
 with Adaflight.CRSF;
+with Adaflight.CRSF_Debug;
 with Adaflight.Clock;
 with Adaflight.VTX;
 with Adaflight.Tramp;
@@ -5482,6 +5483,7 @@ procedure Vector_Check is
    CRSF_Rx       : Adaflight.Receiver.State;
    CRSF_Settings : Adaflight.Receiver.Settings;
    CRSF_Clock    : Unsigned_32 := 0;
+   CRSF_Dbg      : Adaflight.Debug.State;
 
    procedure Check_CRSF_Line is
       use Adaflight.CRSF;
@@ -5606,6 +5608,14 @@ procedure Vector_Check is
             Expect_Next ("msp_first", MSP_First);
             Check_Fields;
          end;
+      elsif Name = "crsfdebug" then
+         CRSF_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (CRSF_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "crsfdbg" then
+         Adaflight.CRSF_Debug.Record_Statistics (CRSF_Dbg, CRSF_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("crsfstep.debug", Int (4 + J), Integer_64 (CRSF_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown crsf case " & Name);
          Failures := Failures + 1;

@@ -3,6 +3,8 @@ with Adaflight.Clock;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
+with Adaflight.CRSF_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
@@ -713,6 +715,7 @@ package body Adaflight.STM32.Radio is
                if not Task_In_Progress then
                   Adaflight.CRSF.Frame_Status (Proto, Rx, Now_Us, Status);
                end if;
+               Adaflight.CRSF_Debug.Record_Statistics (Adaflight.STM32.Debug_Values.State, Proto);
             when SBUS =>
                for I in 0 .. Count - 1 loop
                   Adaflight.SBUS.Receive_Byte (SBUS_State, Natural (Input (I)), Times (I));

@@ -78,6 +78,17 @@ package body Adaflight.CRSF with SPARK_Mode is
          Receiver.Set_RF_Mode (Rx, RF_Mode);
       end if;
       Receiver.Set_Uplink_Power (Rx, Uplink_Power_mW (if Power < 9 then Power else 0));
+      S.Taps.Stats_Set := True;
+      S.Taps.Uplink_RSSI_1 := RSSI_1;
+      S.Taps.Uplink_RSSI_2 := RSSI_2;
+      S.Taps.Uplink_Quality := Quality;
+      S.Taps.Uplink_SNR := SNR;
+      S.Taps.Active_Antenna := Antenna;
+      S.Taps.RF_Mode := RF_Mode;
+      S.Taps.Uplink_Power := Power;
+      S.Taps.Downlink_RSSI := S.Frame (10);
+      S.Taps.Downlink_Quality := S.Frame (11);
+      S.Taps.Downlink_SNR := Signed_8 (S.Frame (12));
    end Handle_Statistics;
 
    --  The transmitter's statistics of the third protocol version: the
@@ -103,6 +114,11 @@ package body Adaflight.CRSF with SPARK_Mode is
       if Rx.Quality_From = Receiver.CRSF then
          Receiver.Set_Link_Quality_Direct (Rx, Quality);
       end if;
+      S.Taps.Tx_Set := True;
+      S.Taps.Tx_RSSI := RSSI;
+      S.Taps.Tx_SNR := SNR;
+      S.Taps.Tx_Quality := Quality;
+      S.Taps.Tx_Percent := Percent;
    end Handle_Statistics_Tx;
 
    ------------------
