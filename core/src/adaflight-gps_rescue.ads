@@ -129,6 +129,20 @@ package Adaflight.GPS_Rescue with SPARK_Mode is
       Current_Altitude_Cm   : Cm := 0.0;
    end record;
 
+   --  What the debug values read of the rescue: the phase, failure and
+   --  second counts as the sanity check last logged them, the phase it logged
+   --  again past its failure handling, and the phase at the end of the last
+   --  update. Each tap holds what its site last wrote.
+   type Debug_Taps is record
+      Checked          : Boolean := False;
+      Check_Phase      : Natural range 0 .. 9 := 0;
+      Check_Failure    : Natural range 0 .. 9 := 0;
+      Seconds_Failing  : Natural range 0 .. 255 := 0;
+      Seconds_Low_Sats : Natural range 0 .. 255 := 0;
+      Updated          : Boolean := False;
+      Phase_At_End     : Natural range 0 .. 9 := 0;
+   end record;
+
    type State is record
       Phase                 : Rescue_Phase := Idle;
       Failure               : Failure_State := Healthy;
@@ -144,6 +158,7 @@ package Adaflight.GPS_Rescue with SPARK_Mode is
       Seconds_Doing_Nothing : Seconds_Count := 0;
       Last_Sanity_Check_Us  : Unsigned_32 := 0;
       Return_Altitude_Low   : Boolean := True;
+      Taps                  : Debug_Taps;
    end record;
 
    --  The distances from the settings; the rescue is available and healthy

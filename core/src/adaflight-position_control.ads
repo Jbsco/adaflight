@@ -147,8 +147,9 @@ package Adaflight.Position_Control with SPARK_Mode is
    --  its error, the five terms per axis after the buildup clamp, the sums,
    --  the lean angles, the distance error, the target velocity and speed,
    --  the ground speed, the distance from the origin, the anchor and clamp
-   --  flags), and the status flags as last written. Each tap holds what its
-   --  site last wrote.
+   --  flags), the status flags as last written, the ground speed at each
+   --  pass's start, and the yaw attitude at the yaw pass. Each tap holds what
+   --  its site last wrote.
    type Debug_Taps is record
       Yaw_Ran         : Boolean := False;
       Heading_Deg     : Float := 0.0;
@@ -172,6 +173,9 @@ package Adaflight.Position_Control with SPARK_Mode is
       Buildup_Clamped : Boolean := False;
       Status_Set      : Boolean := False;
       Status          : Natural range 0 .. 255 := 0;
+      Speed_Set       : Boolean := False;
+      Speed_Early     : Float := 0.0;
+      Yaw_Decideg     : Natural range 0 .. 3_599 := 0;
    end record;
 
    type State is record

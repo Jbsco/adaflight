@@ -369,6 +369,7 @@ package body Adaflight.Position_Control with SPARK_Mode is
       S.Taps.Error_Deg := Error;
       S.Taps.Yaw_P := Error * S.Yaw_Kp;
       S.Taps.Yaw_Rate := S.Yaw_Rate_Dps;
+      S.Taps.Yaw_Decideg := Inp.Yaw;
       S.Yaw_Active := True;
    end Update_Yaw_Control;
 
@@ -809,6 +810,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
       end if;
       S.Nav_Active := Position_Nav.Has_Active_Target (N) and then not Position_Nav.Target_Reached (N);
       S.Speed_XY := Held (Length_Of (Inp.Velocity));
+      S.Taps.Speed_Set := True;
+      S.Taps.Speed_Early := S.Speed_XY;
       S.Speed_Slowing := S.Speed_XY < S.Speed_Trend - 20.0;
       S.Speed_Trend := Held (S.Speed_Trend + (Dt / (0.5 + Dt)) * (S.Speed_XY - S.Speed_Trend));
       Nav_Starting := S.Nav_Active and then not S.Was_Nav_Active;

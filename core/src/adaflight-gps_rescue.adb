@@ -153,6 +153,11 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
          S.Failure := Healthy;
          return;
       end if;
+      S.Taps.Checked := True;
+      S.Taps.Check_Phase := Rescue_Phase'Pos (S.Phase);
+      S.Taps.Check_Failure := Failure_State'Pos (S.Failure);
+      S.Taps.Seconds_Failing := Natural (S.Want.Seconds_Failing);
+      S.Taps.Seconds_Low_Sats := Natural (S.Seconds_Low_Sats);
       if S.Phase = Initialize then
          if S.Sense.Distance_To_Home_Cm < Accept_Radius_Cm and then Below_Landing_Altitude (C, Inp) then
             Disarm_Now (S, Position, Disarm, Arming_Disabled);
@@ -189,6 +194,7 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
                end if;
          end case;
       end if;
+      S.Taps.Check_Phase := Rescue_Phase'Pos (S.Phase);
       if Inp.Now_Us - S.Last_Sanity_Check_Us < 1_000_000 then
          return;
       end if;
@@ -481,6 +487,8 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
             Clear_Target_Velocity (S, Position);
             S.Want.Target_Altitude_Vel := 0.0;
       end case;
+      S.Taps.Updated := True;
+      S.Taps.Phase_At_End := Rescue_Phase'Pos (S.Phase);
       if S.Phase > Initialize then
          S.Want.Target_Altitude_Cm := Held (S.Want.Target_Altitude_Cm + S.Want.Target_Altitude_Vel * Task_Interval_S);
          Altitude_Control.Control

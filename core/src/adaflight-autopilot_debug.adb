@@ -23,6 +23,10 @@ package body Adaflight.Autopilot_Debug with SPARK_Mode is
          Debug.Set (D, Debug.Autopilot_Altitude, 6, R1 (S.Taps.A));
          Debug.Set (D, Debug.Autopilot_Altitude, 7, R1 (S.Taps.F));
       end if;
+      if S.Taps.Controlled and then Debug.Selected (D, Debug.GPS_Rescue_Tracking) then
+         Debug.Set (D, Debug.GPS_Rescue_Tracking, 2, R1 (S.Taps.Current_Cm));
+         Debug.Set (D, Debug.GPS_Rescue_Tracking, 3, R1 (S.Taps.Target_Cm));
+      end if;
    end Record_Altitude;
 
    procedure Record_Heading (D : in out Debug.State; S : Position_Control.State) is
@@ -93,6 +97,56 @@ package body Adaflight.Autopilot_Debug with SPARK_Mode is
       if T.Yaw_Ran and then Debug.Selected (D, Debug.Attitude) then
          Debug.Set (D, Debug.Attitude, 0, R1 (T.Heading_Deg));
       end if;
+      if Debug.Selected (D, Debug.GPS_Rescue_Tracking) then
+         if T.Speed_Set then
+            Debug.Set (D, Debug.GPS_Rescue_Tracking, 0, R1 (T.Speed_Early));
+         end if;
+         if T.Terms_Set then
+            Debug.Set (D, Debug.GPS_Rescue_Tracking, 1, R1 (T.Target_Speed));
+            Debug.Set (D, Debug.GPS_Rescue_Tracking, 6, R1 (T.Distance_Home));
+         end if;
+         if T.Yaw_Ran then
+            Debug.Set (D, Debug.GPS_Rescue_Tracking, 4, R1 (T.Desired_Deg));
+            Debug.Set (D, Debug.GPS_Rescue_Tracking, 5, R1 (T.Heading_Deg));
+         end if;
+      end if;
+      if Debug.Selected (D, Debug.GPS_Rescue_Heading) then
+         if T.Terms_Set then
+            Debug.Set (D, Debug.GPS_Rescue_Heading, 0, R1 (T.Speed));
+         end if;
+         if T.Yaw_Ran then
+            Debug.Set (D, Debug.GPS_Rescue_Heading, 2, Debug.Wrapped (Interfaces.Integer_32 (T.Yaw_Decideg)));
+            Debug.Set (D, Debug.GPS_Rescue_Heading, 3, R1 (T.Desired_Deg));
+            Debug.Set (D, Debug.GPS_Rescue_Heading, 4, R1 (T.Heading_Deg));
+         end if;
+      end if;
+      if T.Terms_Set and then Debug.Selected (D, Debug.GPS_Rescue_Velocity) then
+         Debug.Set (D, Debug.GPS_Rescue_Velocity, 0, R1 (T.Target_Speed));
+         Debug.Set (D, Debug.GPS_Rescue_Velocity, 1, R1 (T.Speed));
+         Debug.Set (D, Debug.GPS_Rescue_Velocity, 2, R1 (T.Target_Velocity.X));
+         Debug.Set (D, Debug.GPS_Rescue_Velocity, 3, R1 (T.Target_Velocity.Y));
+      end if;
+      if T.Terms_Set and then Debug.Selected (D, Debug.RTH) then
+         Debug.Set (D, Debug.RTH, 0, R1 (T.Speed));
+         Debug.Set (D, Debug.RTH, 6, R1 (T.Distance_Home));
+         Debug.Set (D, Debug.RTH, 7, R1 (T.Target_Speed));
+      end if;
    end Record_Position;
+
+   procedure Record_Rescue (D : in out Debug.State; R : GPS_Rescue.State) is
+      T : GPS_Rescue.Debug_Taps renames R.Taps;
+   begin
+      if T.Checked and then Debug.Selected (D, Debug.RTH) then
+         Debug.Set (D, Debug.RTH, 2, Debug.Wrapped (Interfaces.Integer_32 (T.Check_Phase)));
+         Debug.Set (D, Debug.RTH, 3, Debug.Wrapped (Interfaces.Integer_32 (T.Check_Failure)));
+         Debug.Set (D, Debug.RTH, 4, Debug.Wrapped (Interfaces.Integer_32 (T.Seconds_Failing)));
+         Debug.Set (D, Debug.RTH, 5, Debug.Wrapped (Interfaces.Integer_32 (T.Seconds_Low_Sats)));
+      end if;
+      if T.Updated then
+         Debug.Set (D, Debug.GPS_Rescue_Velocity, 4, Debug.Wrapped (Interfaces.Integer_32 (T.Phase_At_End)));
+         Debug.Set (D, Debug.Attitude, 5, Debug.Wrapped (Interfaces.Integer_32 (T.Phase_At_End)));
+         Debug.Set (D, Debug.GPS_Rescue_Tracking, 7, Debug.Wrapped (Interfaces.Integer_32 (T.Phase_At_End)));
+      end if;
+   end Record_Rescue;
 
 end Adaflight.Autopilot_Debug;

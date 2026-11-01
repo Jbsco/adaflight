@@ -12486,3 +12486,15 @@ navigation modes and for the attitude mode's heading, ground speed and target sp
 for pitch and east otherwise. Vectors in the position hold and navigation families select among these modes before
 initialization with a drawn debug axis. On the board, the flight unit records after the position hold and rescue
 updates.
+
+## D581. Debug values, GPS rescue group (2026-11-01)
+
+Core `GPS_Rescue` now keeps taps for debug values: phase, failure and second counts as its sanity check last logged
+them, phase logged again past failure handling, and phase at each update's end. Core `Position_Control` adds ground
+speed at each pass's start and yaw attitude at its yaw pass. Core `Autopilot_Debug` records return to home, rescue
+tracking, rescue heading and rescue velocity modes and attitude mode's rescue phase from these taps and from altitude,
+yaw and position taps already kept, as upstream's rescue, altitude and position controllers do; GPS course logged by
+rescue heading has no input in position control, and IMU's magnetic heading value is computed only under that mode, so
+both stay silent. Vectors in the rescue family select among rescue, autopilot and attitude modes before initialization
+with a drawn debug axis, and position hold and navigation families add rescue modes to their draws. On the board, the
+flight unit records the rescue after its update.
