@@ -2,12 +2,15 @@ with Ada.Environment_Variables;
 with Ada.Strings.Fixed;
 with Ada.Real_Time;
 with Ada.Streams;
+with Ada.Unchecked_Conversion;
 with GNAT.Sockets;
 with Adaflight.Bytes;
 package body Adaflight.Host_Simulator is
    use type Ada.Real_Time.Time;
    use type Ada.Streams.Stream_Element_Offset;
    use type Interfaces.Integer_64;
+   use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_16;
 
    State_Port   : constant := 9003;
    PWM_Port     : constant := 9002;
@@ -29,6 +32,18 @@ package body Adaflight.Host_Simulator is
    PWM_Socket   : GNAT.Sockets.Socket_Type;
    PWM_To       : GNAT.Sockets.Sock_Addr_Type;
    PWM_Raw_To   : GNAT.Sockets.Sock_Addr_Type;
+   RC_Port      : constant := 9004;
+   RC_Socket    : GNAT.Sockets.Socket_Type;
+   Latest_RC    : Adaflight.STM32.MCU.RC_Pulses := (others => 0);
+   Fresh_RC     : Boolean := False;
+   --  The motor outputs: each speed numerator (the pulse less the idle
+   --  pulse, whole), the raw pulses, the driven count, the speed scale of
+   --  the last write, and whether a packet since the last pair allows one.
+   Speed_Num    : array (0 .. 3) of Float := (others => 0.0);
+   Raw_Pulses   : array (0 .. 15) of Float := (others => 0.0);
+   Driven       : Natural range 0 .. 16 := Motor_Count;
+   Speed_Scale  : Float := 1000.0;
+   Send_Due     : Boolean := True;
    FDM          : Adaflight.Sim_FDM.State;
    Feed_Gyro    : Adaflight.Sim_FDM.Axes := (others => 0);
    Feed_Acc     : Adaflight.Sim_FDM.Axes := (others => 0);
@@ -69,19 +84,41 @@ package body Adaflight.Host_Simulator is
       Create_Socket (PWM_Socket, Family_Inet, Socket_Datagram);
       PWM_To := (Family_Inet, Inet_Addr (Address), PWM_Port);
       PWM_Raw_To := (Family_Inet, Inet_Addr (Address), PWM_Raw_Port);
+      Create_Socket (RC_Socket, Family_Inet, Socket_Datagram);
+      Set_Socket_Option (RC_Socket, Socket_Level, (Reuse_Address, True));
+      Bind_Socket (RC_Socket, (Family_Inet, Any_Inet_Addr, RC_Port));
+      Control_Socket (RC_Socket, Non_Blocking);
       Opened := True;
    end Open;
 
-   --  The motor packets: four speeds as 32-bit floats, and the raw packet
-   --  with its motor count and sixteen outputs, all at zero until the motor
-   --  output feeds them.
+   function Bits is new Ada.Unchecked_Conversion (Float, Interfaces.Unsigned_32);
+
+   procedure Put_Float (Buffer : in out Ada.Streams.Stream_Element_Array; First : Ada.Streams.Stream_Element_Offset;
+                        Value : Float) is
+      B : constant Interfaces.Unsigned_32 := Bits (Value);
+   begin
+      for K in 0 .. 3 loop
+         Buffer (First + Ada.Streams.Stream_Element_Offset (K)) :=
+           Ada.Streams.Stream_Element (Interfaces.Shift_Right (B, 8 * K) and 16#FF#);
+      end loop;
+   end Put_Float;
+
+   --  The motor packets: four speeds as 32-bit floats, each numerator over
+   --  the scale, and the raw packet with the driven count and sixteen pulses.
    procedure Send_Motor_Packets is
       use GNAT.Sockets;
-      Speeds : constant Ada.Streams.Stream_Element_Array (1 .. 4 * Motor_Count) := (others => 0);
+      Speeds : Ada.Streams.Stream_Element_Array (1 .. 4 * Motor_Count) := (others => 0);
       Raw    : Ada.Streams.Stream_Element_Array (1 .. 2 + 4 * 16) := (others => 0);
       Sent   : Ada.Streams.Stream_Element_Offset;
    begin
-      Raw (1) := Motor_Count;
+      for I in Speed_Num'Range loop
+         Put_Float (Speeds, Ada.Streams.Stream_Element_Offset (1 + 4 * I), Speed_Num (I) / Speed_Scale);
+      end loop;
+      Raw (1) := Ada.Streams.Stream_Element (Driven mod 256);
+      Raw (2) := Ada.Streams.Stream_Element (Driven / 256);
+      for I in Raw_Pulses'Range loop
+         Put_Float (Raw, Ada.Streams.Stream_Element_Offset (3 + 4 * I), Raw_Pulses (I));
+      end loop;
       Send_Socket (PWM_Socket, Speeds, Sent, PWM_To);
       if Sent >= 0 then
          Send_Socket (PWM_Socket, Raw, Sent, PWM_Raw_To);
@@ -132,6 +169,7 @@ package body Adaflight.Host_Simulator is
                   Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
                   Fresh_Q := True;
                   Pressure_Pa := F.Pressure;
+                  Send_Due := True;
                   if F.GPS_Set then
                      Latest_GPS := F.GPS;
                      Fresh_GPS := True;
@@ -141,7 +179,60 @@ package body Adaflight.Host_Simulator is
             end case;
          end if;
       end loop;
+      loop
+         declare
+            RC_Item : Ada.Streams.Stream_Element_Array (1 .. 40);
+            RC_Last : Ada.Streams.Stream_Element_Offset;
+         begin
+            Receive_Socket (RC_Socket, RC_Item, RC_Last, From);
+            exit when RC_Last < RC_Item'Last;
+            for I in Latest_RC'Range loop
+               declare
+                  Low : constant Ada.Streams.Stream_Element_Offset :=
+                    RC_Item'First + 8 + Ada.Streams.Stream_Element_Offset (2 * I);
+               begin
+                  Latest_RC (I) := Interfaces.Unsigned_16 (RC_Item (Low))
+                    + 256 * Interfaces.Unsigned_16 (RC_Item (Low + 1));
+               end;
+            end loop;
+            Fresh_RC := True;
+         exception
+            when Socket_Error =>
+               exit;
+         end;
+      end loop;
    end Poll;
+
+   procedure Take_RC (Fresh : out Boolean; Pulses : out Adaflight.STM32.MCU.RC_Pulses) is
+   begin
+      Fresh := Fresh_RC;
+      Pulses := Latest_RC;
+      Fresh_RC := False;
+   end Take_RC;
+
+   procedure Set_Motor_Count (N : Natural) is
+   begin
+      Driven := Natural'Min (N, 16);
+   end Set_Motor_Count;
+
+   procedure Set_Motor (Index : Natural; Pulse, Idle : Float) is
+   begin
+      if Index in Speed_Num'Range then
+         Speed_Num (Index) := Float'Max (-32_768.0, Float'Min (32_767.0, Float'Truncation (Pulse - Idle)));
+      end if;
+      if Index < Driven then
+         Raw_Pulses (Index) := Pulse;
+      end if;
+   end Set_Motor;
+
+   procedure Complete_Motors (Three_D : Boolean) is
+   begin
+      Speed_Scale := (if Three_D then 500.0 else 1000.0);
+      if On and then Opened and then Send_Due then
+         Send_Due := False;
+         Send_Motor_Packets;
+      end if;
+   end Complete_Motors;
 
    procedure Take_GPS (Fresh : out Boolean; Fix : out Adaflight.Sim_FDM.GPS_Fix) is
    begin

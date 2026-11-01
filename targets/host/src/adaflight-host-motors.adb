@@ -19,6 +19,8 @@ with Adaflight.CLI_Resources;
 with Adaflight.PWM_Output;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers;
+with Adaflight.STM32.MCU;
+with Adaflight.Host_Simulator;
 package body Adaflight.STM32.Motors is
    use type Interfaces.Integer_32;
    use type Interfaces.Unsigned_8;
@@ -28,6 +30,8 @@ package body Adaflight.STM32.Motors is
    Bidir  : Boolean := False;
    Deadtime_Us : Interfaces.Integer_32 := 0;
    Kind   : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
+   Idle_Us    : Float := 1000.0;
+   Three_D_On : Boolean := False;
 
    function Telemetry_Configured (C : Adaflight.Config_Groups.Configuration) return Boolean is
      (C.Motor_Config.Dev.Use_Dshot_Telemetry /= 0 and then C.Motor_Config.Dev.Motor_Protocol in 5 .. 7);
@@ -62,6 +66,8 @@ package body Adaflight.STM32.Motors is
    begin
       Driven := 0;
       Bidir := Telemetry_Configured (C);
+      Idle_Us := Float (Idle);
+      Three_D_On := Three_D;
       Kind := Adaflight.MSP_Motor_In.No_Device;
       if not Analog and then Dev.Motor_Protocol not in 5 .. 7 then
          return;
@@ -90,6 +96,9 @@ package body Adaflight.STM32.Motors is
             Driven := M + 1;
          end;
       end loop;
+      if Adaflight.STM32.MCU.Simulated then
+         Adaflight.Host_Simulator.Set_Motor_Count (Driven);
+      end if;
       Kind :=
         (if Driven = 0 then Adaflight.MSP_Motor_In.No_Device
          elsif Analog then Adaflight.MSP_Motor_In.PWM
@@ -107,6 +116,9 @@ package body Adaflight.STM32.Motors is
    procedure Write_Pulse (Index : Natural; Value : Float) is
    begin
       if Index < Driven then
+         if Adaflight.STM32.MCU.Simulated then
+            Adaflight.Host_Simulator.Set_Motor (Index, Value, Idle_Us);
+         end if;
          declare
             P : constant Interfaces.Unsigned_32 := Adaflight.PWM_Output.Motor_Pulse
               (Timings (Index), Float'Max (Adaflight.PWM_Output.Write_Value'First,
@@ -120,7 +132,12 @@ package body Adaflight.STM32.Motors is
       end if;
    end Write_Pulse;
 
-   procedure Complete_Pulses is null;
+   procedure Complete_Pulses is
+   begin
+      if Adaflight.STM32.MCU.Simulated then
+         Adaflight.Host_Simulator.Complete_Motors (Three_D_On);
+      end if;
+   end Complete_Pulses;
 
    procedure Enable is
    begin

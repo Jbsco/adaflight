@@ -554,13 +554,14 @@ package body Adaflight.Config_Fix with SPARK_Mode is
 
    --  One receiver feature at most: the serial receiver when none is set,
    --  and the first of PPM, MSP, serial, SPI and parallel PWM set clears
-   --  the others.
-   procedure Fix_Receiver_Features (Features : in out Unsigned_32; Runtime : in out Unsigned_32) is
+   --  the others. A build with the UDP receiver counts it as set and lets
+   --  it clear the others last.
+   procedure Fix_Receiver_Features (Features : in out Unsigned_32; Runtime : in out Unsigned_32; UDP : Boolean) is
       All_RX : constant Unsigned_32 :=
         Feature_RX_PPM or Feature_RX_UDP or Feature_RX_Serial or Feature_RX_Parallel_PWM or Feature_RX_MSP
         or Feature_RX_SPI;
    begin
-      if (Features and (All_RX and not Feature_RX_UDP)) = 0 then
+      if (Features and (if UDP then All_RX else All_RX and not Feature_RX_UDP)) = 0 then
          Enable (Features, Runtime, Feature_RX_Serial);
       end if;
       if (Features and Feature_RX_PPM) /= 0 then
@@ -577,6 +578,9 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       end if;
       if (Features and Feature_RX_Parallel_PWM) /= 0 then
          Disable (Features, Runtime, All_RX and not Feature_RX_Parallel_PWM);
+      end if;
+      if UDP and then (Features and Feature_RX_UDP) /= 0 then
+         Disable (Features, Runtime, All_RX and not Feature_RX_UDP);
       end if;
    end Fix_Receiver_Features;
 
@@ -654,16 +658,17 @@ package body Adaflight.Config_Fix with SPARK_Mode is
    --  Features the build lacks are cleared, and an unconfigured board turns
    --  on telemetry, the OSD, the LED strip and, with a pin, soft serial.
    procedure Fix_Features
-     (Features : in out Unsigned_32; Runtime : in out Unsigned_32; State : Unsigned_8; Pins : Serial_Pin_Config_Record)
+     (Features : in out Unsigned_32; Runtime : in out Unsigned_32; State : Unsigned_8; Pins : Serial_Pin_Config_Record;
+      Supported : Unsigned_32)
    is
    begin
-      Disable (Features, Runtime, not Supported_Features);
+      Disable (Features, Runtime, not Supported);
       if State = 0 then
          Enable
            (Features, Runtime,
             (Feature_Telemetry or Feature_OSD or Feature_LED_Strip
              or (if Soft_Serial_Pinned (Pins) then Feature_Soft_Serial else 0))
-            and Supported_Features);
+            and Supported);
       end if;
    end Fix_Features;
 
@@ -928,7 +933,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       Align_From_Standard (C.Compass_Config.Mag_Custom_Alignment, C.Compass_Config.Mag_Alignment);
       Align_Gyros (C.Gyro_Device_Config);
       Fix_Acc_Zero (C.Accelerometer_Config.Acc_Zero);
-      Fix_Receiver_Features (C.Feature_Config.Enabled_Features, Runtime_Features);
+      Fix_Receiver_Features (C.Feature_Config.Enabled_Features, Runtime_Features, H.UDP_Receiver);
       Fix_RSSI (C.Rx_Config, C.Feature_Config.Enabled_Features);
       Fix_GPS_Rescue
         (C.Feature_Config.Enabled_Features, C.Mixer_Config.Mixer_Mode, C.Failsafe_Config, C.Mode_Activation_Conditions);
@@ -939,7 +944,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       Fix_Hardware_LPF (C.Gyro_Config.Gyro_Hardware_Lpf);
       Fix_Features
         (C.Feature_Config.Enabled_Features, Runtime_Features, C.System_Config.Configuration_State,
-         C.Serial_Pin_Config);
+         C.Serial_Pin_Config, Supported_Features or (if H.UDP_Receiver then Feature_RX_UDP else 0));
       Fix_Beeper (C.Beeper_Dev_Config, C.Beeper_Config, H.Timers);
       Fix_DShot (C.Motor_Config.Dev, H);
       Fix_OSD_Timers (C.Osd_Config.Timers);

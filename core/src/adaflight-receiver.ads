@@ -206,6 +206,11 @@ package Adaflight.Receiver with SPARK_Mode is
       Protocol_Quality : Link_Quality_Source
    );
 
+   --  The channel count of a UDP frame, bounded by the configured aux
+   --  channels like the count at init.
+   procedure Set_Frame_Channels (S : in out State; C : Settings; Count : Natural)
+     with Pre => Count <= Channel_Count;
+
    --  The arming switch's aux channel starts just outside its range.
    procedure Init_Arm_Switch (S : in out State; Aux : Modes.Aux_Channel; Span : Modes.Channel_Range)
      with Pre => Modes.Usable (Span);

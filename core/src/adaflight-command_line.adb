@@ -2,7 +2,6 @@ with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
 with Adaflight.Timer_Tables;
 with Adaflight.Config_Codec;
-with Adaflight.Config_Fix;
 with Adaflight.Config_Reset;
 with Adaflight.LED_Strip;
 with Adaflight.Maths;
@@ -766,11 +765,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  disabled in the configuration. A text that starts two or more names
    --  is the multiple match error, which the reference's first-match loop
    --  can never print (finding F154).
-   procedure Feature_Command (Into : in out Output; C : in out Configuration; Arguments : String)
+   procedure Feature_Command
+     (Into : in out Output; C : in out Configuration; Supported : Unsigned_32; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
       Mask      : constant Unsigned_32 := C.Feature_Config.Enabled_Features;
-      Supported : constant Unsigned_32 := Config_Fix.Supported_Features;
    begin
       if Arguments'Length = 0 or else Starts (Arguments, "list") then
          Put_Features (Into, "Enabled: ", Mask);
@@ -8326,7 +8325,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Dump_Command =>
                Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
             when Feature_Command_Word =>
-               Feature_Command (Into, C, Args);
+               Feature_Command (Into, C, Env.Supported_Features, Args);
             when Get_Command =>
                Get (Into, C, "get", Args, Ports);
             when Help_Command_Word =>

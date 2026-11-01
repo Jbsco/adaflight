@@ -119,6 +119,11 @@ package body Adaflight.Receiver with SPARK_Mode is
    -- Init_Arm_Switch --
    ---------------------
 
+   procedure Set_Frame_Channels (S : in out State; C : Settings; Count : Natural) is
+   begin
+      S.Channels := Natural'Min (C.Max_Aux + Flight_Channel_Count, Count);
+   end Set_Frame_Channels;
+
    procedure Init_Arm_Switch (S : in out State; Aux : Modes.Aux_Channel; Span : Modes.Channel_Range) is
       Value : constant Natural :=
         (if Span.Start_Step > 0 then 900 + 25 * (Span.Start_Step - 1) else 900 + 25 * (Span.End_Step + 1));

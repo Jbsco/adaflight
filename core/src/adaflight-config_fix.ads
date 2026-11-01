@@ -49,6 +49,7 @@ package Adaflight.Config_Fix with SPARK_Mode is
       Gyro_Sample_Rate_Hz : Gyro_Rate := 0;
       Motors              : Motor_Count := 0;
       Timers              : Pin_Timers := (others => No_Timer);
+      UDP_Receiver        : Boolean := False;
    end record;
 
    --  A port setting outside the serial map's identifiers stands for this

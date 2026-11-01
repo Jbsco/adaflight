@@ -578,6 +578,8 @@ package body Adaflight.STM32.Flight is
       ESC_Sensor      => False,
       Build_Options   => CLI.Build_Option_List (Image_Options.Numbers),
       Option_Count    => Image_Options.Length,
+      Supported_Features => Adaflight.Config_Fix.Supported_Features
+        or (if Adaflight.STM32.MCU.UDP_Receiver_Available then Adaflight.Config_Fix.Feature_RX_UDP else 0),
       Soft_Serial     => False,
       Serial_Ports    => <>,
       Timer_Owners    => <>,
@@ -641,7 +643,8 @@ package body Adaflight.STM32.Flight is
    --  gyro's sample rate once it runs, no motors and no timers yet.
    procedure Fix_Configuration is
       Hardware : constant Adaflight.Config_Fix.Hardware :=
-        (Gyro_Sample_Rate_Hz => Ctx.Gyro_Sample_Rate_Hz, others => <>);
+        (Gyro_Sample_Rate_Hz => Ctx.Gyro_Sample_Rate_Hz, UDP_Receiver => Adaflight.STM32.MCU.UDP_Receiver_Available,
+         others => <>);
       Results  : Adaflight.Config_Fix.Results;
    begin
       Adaflight.Config_Fix.Fix (Config, Hardware, Ports, Runtime_Features, Results);
@@ -3117,8 +3120,7 @@ package body Adaflight.STM32.Flight is
          Baro_Present       => Adaflight.STM32.Baro.Detected,
          Baro_Altitude_Cm   => Adaflight.STM32.Baro.Altitude_Cm,
          Baro_Sample_Time_Us => Adaflight.STM32.Baro.Sample_Time_Us,
-         Baro_Interval_Us   => Adaflight.STM32.Baro.Interval_Us,
-         others             => <>);
+         Baro_Interval_Us   => Adaflight.STM32.Baro.Interval_Us);
    end Position_Inputs;
 
    --  The altitude hold task over the estimate's control values, at the

@@ -20,6 +20,7 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.UDP_Receiver;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Radio is
    use type Adaflight.STM32.USART.Number;
@@ -83,6 +84,7 @@ package body Adaflight.STM32.Radio is
    Line        : USART.Half_Duplex := USART.Full_Duplex;
    Rx          : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
+   UDP_Rx      : Adaflight.UDP_Receiver.State;
    Proto       : Adaflight.CRSF.State;
    FS          : Adaflight.Failsafe.State;
    FS_Settings : Adaflight.Failsafe.Settings;
@@ -208,6 +210,9 @@ package body Adaflight.STM32.Radio is
       Conditions : constant Adaflight.Modes.Conditions :=
         Adaflight.Config_Runtime.Conditions_Of (Config.Mode_Activation_Conditions);
       R : Adaflight.Config_Groups.Rx_Config_Record renames Config.Rx_Config;
+      Rx_Features : constant Interfaces.Unsigned_32 :=
+        (if Adaflight.STM32.MCU.UDP_Receiver_Available then Runtime_Features
+         else Runtime_Features and not Adaflight.Config_Fix.Feature_RX_UDP);
    begin
       Open := False;
       Kind := (case R.Serialrx_Provider is
@@ -222,8 +227,9 @@ package body Adaflight.STM32.Radio is
                   when others        => CRSF);
       Rx_Settings := Adaflight.Config_Runtime.Receiver_Settings_Of
         (Config.Rx_Config, Config.Rx_Channel_Range_Configs, Config.Rx_Failsafe_Channel_Configs,
-         Config.Flight3_D_Config, Config.Failsafe_Config, Runtime_Features,
-         Reported_Channels => (case Kind is
+         Config.Flight3_D_Config, Config.Failsafe_Config, Rx_Features,
+         Reported_Channels => (if (Rx_Features and Adaflight.Config_Fix.Feature_RX_UDP) /= 0 then 0
+                              else (case Kind is
                                   when CRSF => Adaflight.CRSF.Channel_Count,
                                   when SBUS => Adaflight.SBUS.Channel_Count,
                                   when IBUS => Adaflight.IBUS.Channel_Count,
@@ -234,7 +240,7 @@ package body Adaflight.STM32.Radio is
                                   when XBUS => Adaflight.XBUS.Channel_Count,
                                   when FPort => Adaflight.SBUS.Channel_Count,
                                   when GHST => Adaflight.GHST.Channel_Count,
-                                  when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count));
+                                  when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count)));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
@@ -258,6 +264,7 @@ package body Adaflight.STM32.Radio is
             end loop;
          end;
       end if;
+      Adaflight.UDP_Receiver.Init (UDP_Rx);
       Adaflight.Receiver.Init
         (Rx, Rx_Settings, Now_Ms,
          Protocol_RSSI    =>
@@ -712,6 +719,27 @@ package body Adaflight.STM32.Radio is
                end if;
          end case;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.UDP then
+         declare
+            Fresh  : Boolean;
+            Pulses : Adaflight.STM32.MCU.RC_Pulses;
+            Frame  : Adaflight.UDP_Receiver.Channel_Data := (others => 0);
+         begin
+            Adaflight.STM32.MCU.Simulator_RC (Fresh, Pulses);
+            if Fresh then
+               for I in Pulses'Range loop
+                  Frame (I) := Natural (Pulses (I));
+               end loop;
+               Adaflight.UDP_Receiver.Update_Channels (UDP_Rx, Frame, Pulses'Length);
+            end if;
+         end;
+         if not Task_In_Progress then
+            Adaflight.UDP_Receiver.Frame_Status (UDP_Rx, Status);
+            if Status.Complete then
+               Adaflight.Receiver.Set_Frame_Channels (Rx, Rx_Settings, Adaflight.UDP_Receiver.Count (UDP_Rx));
+            end if;
+         end if;
+      end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
    end Frame_Check;
 
@@ -844,6 +872,11 @@ package body Adaflight.STM32.Radio is
                   end loop;
                end if;
          end case;
+      end if;
+      if Rx_Settings.Source in Adaflight.Receiver.UDP then
+         for Ch in Adaflight.UDP_Receiver.Channel loop
+            Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.UDP_Receiver.Read_Raw (UDP_Rx, Ch)));
+         end loop;
       end if;
       Adaflight.Receiver.Calculate_Channels
         (Rx, Rx_Settings, Now_Us, Now_Ms, Raw, Override, Box_Failsafe => False, Box_3D => False,
