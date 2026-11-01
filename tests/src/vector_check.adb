@@ -126,6 +126,7 @@ with Adaflight.LED_Strip;
 with Adaflight.Color;
 with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
+with Adaflight.MS4525;
 with Adaflight.Pitot;
 with Adaflight.RTC;
 with Adaflight.Camera_Control;
@@ -8723,6 +8724,46 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Optical_Flow_Line;
+
+   --  The MS4525 lines: detection by one frame read with the default address
+   --  for a zero, then each frame's decode.
+   MS_Seq : Integer_64 := -1;
+
+   procedure Check_MS4525_Line is
+      use Adaflight.MS4525;
+      Name : constant String := Str (1);
+      function Frame_Of (First : Positive) return Frame is
+        ((Interfaces.Unsigned_8 (Int (First)), Interfaces.Unsigned_8 (Int (First + 1)),
+          Interfaces.Unsigned_8 (Int (First + 2)), Interfaces.Unsigned_8 (Int (First + 3))));
+   begin
+      if Name = "msinit" then
+         MS_Seq := Int (2);
+         Record_Int ("msinit.address", Int (9), (if Int (3) = 0 then Integer_64 (Default_Address) else Int (3)));
+         Record_Int ("msinit.reads", Int (10), 1);
+         Record_Int ("msinit.detected", Int (11), Boolean'Pos (Int (4) /= 0));
+      elsif Name = "msread" then
+         if Int (2) /= MS_Seq then
+            Put_Line ("ms4525 read without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Valid       : Boolean;
+            Pressure    : Pressure_Pa;
+            Temperature : Kelvin;
+            Transferred : constant Boolean := Int (4) /= 0;
+         begin
+            Decode (Frame_Of (5), Valid, Pressure, Temperature);
+            Record_Int ("msread.ok", Int (9), Boolean'Pos (Transferred and then Valid));
+            Record_Int ("msread.register", Int (10), 255);
+            Record_Int ("msread.length", Int (11), Frame_Length);
+            if Transferred and then Valid then
+               Record_Result ("msread.pressure", Bits (12), To_Bits (Pressure));
+               Record_Result ("msread.temperature", Bits (13), To_Bits (Temperature));
+            end if;
+         end;
+      end if;
+   end Check_MS4525_Line;
 
    PT_Seq    : Integer_64 := -1;
    PT_Config : Adaflight.Pitot.Settings;
@@ -39968,6 +40009,8 @@ procedure Vector_Check is
                   Check_Rangefinder_Line;
                elsif Kind = "opticalflow" then
                   Check_Optical_Flow_Line;
+               elsif Kind = "ms4525" then
+                  Check_MS4525_Line;
                elsif Kind = "pitot" then
                   Check_Pitot_Line;
                elsif Kind = "rtc" then
@@ -40446,6 +40489,7 @@ begin
    Run (Dir & "/rangefinder.csv", "rangefinder");
    Run (Dir & "/opticalflow.csv", "opticalflow");
    Run (Dir & "/pitot.csv", "pitot");
+   Run (Dir & "/ms4525.csv", "ms4525");
    Run (Dir & "/rtc.csv", "rtc");
    Run (Dir & "/camera.csv", "camera");
    Run (Dir & "/adcint.csv", "adcint");
