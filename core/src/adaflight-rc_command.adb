@@ -65,6 +65,9 @@ package body Adaflight.RC_Command with SPARK_Mode is
          PT1_Update_Cutoff (S.Speed_Filters (A), K);
          PT1_Update_Cutoff (S.Delta_Filters (A), K);
       end loop;
+      S.Taps.FF_Filters_Set := True;
+      S.Taps.FF_Gain := K;
+      S.Taps.FF_Rate_Hz := S.Smoothed_Rate_Hz;
    end Update_Feedforward_Filters;
 
    ----------
@@ -119,6 +122,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
    is
       Delta_Us : Integer := 0;
    begin
+      S.Taps.Refreshed := True;
       if Receiving then
          S.Previous_Interval_Us := S.Current_Interval_Us;
          declare
@@ -128,10 +132,13 @@ package body Adaflight.RC_Command with SPARK_Mode is
                Delta_Us := Integer (Clock.Elapsed (Rx_Time, S.Last_Rx_Time_Us));
             end if;
             S.Last_Rx_Time_Us := Rx_Time;
+            S.Taps.Rx_Time_Set := True;
+            S.Taps.Rx_Time_Us := Rx_Time;
          end;
       elsif S.Last_Rx_Time_Us /= 0 then
          Delta_Us := Integer (Clock.Elapsed (Time_Us, S.Last_Rx_Time_Us));
       end if;
+      S.Taps.Delta_Us := Delta_Us;
       S.Current_Interval_Us := Integer'Max (Interval_Us'First, Integer'Min (Interval_Us'Last, Delta_Us));
       S.Current_Rate_Hz := 1.0e6 / Float (S.Current_Interval_Us);
       S.Rate_Valid := Delta_Us = S.Current_Interval_Us;
@@ -278,6 +285,9 @@ package body Adaflight.RC_Command with SPARK_Mode is
                S.Valid_Count := Natural'Min (3, S.Valid_Count + 1);
                S.Outlier_Count := 0;
             end if;
+            S.Taps.Counts_Set := True;
+            S.Taps.Outliers := S.Outlier_Count;
+            S.Taps.Valids := S.Valid_Count;
             if S.Valid_Count = 3 then
                S.Valid_Count := 0;
                Update := True;
@@ -291,6 +301,9 @@ package body Adaflight.RC_Command with SPARK_Mode is
       else
          S.Valid_Count := 0;
          S.Outlier_Count := 0;
+         S.Taps.Counts_Set := True;
+         S.Taps.Outliers := 0;
+         S.Taps.Valids := 0;
       end if;
    end Should_Update_Smoothing;
 
@@ -322,6 +335,8 @@ package body Adaflight.RC_Command with SPARK_Mode is
             PT3_Update_Cutoff (S.Deflection_Filters (A), K_Setpoint);
          end loop;
       end;
+      S.Taps.Cutoffs_Set := True;
+      S.Taps.Cutoff_Rate_Hz := S.Smoothed_Rate_Hz;
    end Set_Filter_Cutoffs;
 
    subtype Frame_Rate is Float range 5.0 .. 1250.0;
@@ -369,6 +384,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
          Speed := Setpoint_Delta * S.Current_Rate_Hz;
       end if;
       S.Prev_Duplicate (A) := Duplicate;
+      S.Taps.Speed_Unsmoothed (A) := Speed;
       declare
          Jitter : Float :=
            ((Delta_Abs + S.Prev_Delta_Abs (A)) * 0.5 + 1.0) * R.Feedforward_Jitter_Factor_Inv;
@@ -376,6 +392,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
          Filtered_Delta : Signal;
       begin
          Jitter := Float'Min (Jitter, 1.0);
+         S.Taps.Jitter (A) := Jitter;
          S.Prev_Delta_Abs (A) := Saturate_Signal (Delta_Abs);
          PT1_Apply (S.Speed_Filters (A), Saturate_Signal (Speed), Filtered_Speed);
          Speed_Delta := Filtered_Speed - S.Prev_Speed (A);
@@ -383,6 +400,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
          PT1_Apply (S.Delta_Filters (A), Saturate_Signal (Speed_Delta), Filtered_Delta);
          S.Prev_Speed_Delta (A) := Filtered_Delta;
          Boost := Saturate_Signal (Filtered_Delta * Rx_Rate * R.Feedforward_Boost_Factor);
+         S.Taps.Boost (A) := Boost;
          Feedforward := Filtered_Speed;
          if A /= Yaw then
             Feedforward := Saturate_Signal (Feedforward + Boost);
@@ -403,12 +421,15 @@ package body Adaflight.RC_Command with SPARK_Mode is
             begin
                PT1_Update_Cutoff (S.Yaw_Hold_Filter, Gain);
                PT1_Apply (S.Yaw_Hold_Filter, Setpoint, Lowpassed);
+               S.Taps.Yaw_FF_No_Hold := Feedforward;
+               S.Taps.Yaw_Hold := R.Feedforward_Yaw_Hold_Gain * (Setpoint - Lowpassed);
                Feedforward := Saturate_Signal (Feedforward + R.Feedforward_Yaw_Hold_Gain * (Setpoint - Lowpassed));
             end;
          end if;
          if R.Feedforward_Transition /= 0.0 and then S.Deflection_Abs (A) < R.Feedforward_Transition then
             Feedforward := Saturate_Signal (Feedforward * (S.Deflection_Abs (A) * R.Feedforward_Transition_Inv));
          end if;
+         S.Taps.FF_Before_Average (A) := Feedforward;
          if S.Averaging > 0 then
             declare
                Averaged : Signal;
@@ -454,10 +475,13 @@ package body Adaflight.RC_Command with SPARK_Mode is
    procedure Process (S : in out State; C : Config; R : Runtime; Autopilot : Autopilot_Yaw := (others => <>)) is
    begin
       if S.Data_New then
+         S.Taps.Passed := True;
+         S.Taps.Pass_Interval_Us := S.Current_Interval_Us;
          declare
             Update_Smoothing : Boolean;
          begin
             Should_Update_Smoothing (S, Update_Smoothing);
+            S.Taps.Smoothing_Updated := Update_Smoothing;
             if Update_Smoothing then
                Update_Feedforward_Filters (S, R);
                if C.Receiver.Smoothing then
@@ -475,6 +499,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
                then
                   S.Deflection (A) := 0.0;
                   S.Deflection_Abs (A) := 0.0;
+                  S.Taps.Angle_Rate (A) := Autopilot.Rate_Dps;
                   S.Raw_Setpoint (A) := Constrain_F (Autopilot.Rate_Dps, -1.0 * Limit, 1.0 * Limit);
                else
                   declare
@@ -483,12 +508,13 @@ package body Adaflight.RC_Command with SPARK_Mode is
                         else S.Command (Axis'Pos (A)) / S.Command_Divider);
                      Deflection : constant Float := Constrain_F (Command_F, -1.0, 1.0);
                      Magnitude  : constant Float := abs Deflection;
+                     Rate_Value : constant Float := Adaflight.Rates.Apply (C.Rates, A, Deflection, Magnitude);
                   begin
                      S.Deflection (A) := Deflection;
                      S.Deflection_Abs (A) := Magnitude;
                      S.Max_Deflection_Abs := Float'Max (S.Max_Deflection_Abs, Magnitude);
-                     S.Raw_Setpoint (A) := Constrain_F
-                       (Adaflight.Rates.Apply (C.Rates, A, Deflection, Magnitude), -1.0 * Limit, 1.0 * Limit);
+                     S.Taps.Angle_Rate (A) := Rate_Value;
+                     S.Raw_Setpoint (A) := Constrain_F (Rate_Value, -1.0 * Limit, 1.0 * Limit);
                   end;
                end if;
                Calculate_Feedforward (S, R, A);

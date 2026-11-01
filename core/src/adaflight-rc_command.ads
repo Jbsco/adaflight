@@ -82,6 +82,41 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
    type Axis_Flags is array (Axis) of Boolean;
    type Axis_Intervals is array (Axis) of Float range 0.0 .. 0.1;
 
+   --  What the debug values read of the refreshes and command passes: whether
+   --  a refresh ran with its raw interval and the frame time when one arrived,
+   --  the outlier and valid counts as the smoothing decision took them, the
+   --  smoothed rate at the last cutoff update and at the last feedforward
+   --  filter update with its gain, whether a pass with new data ran with its
+   --  interval and its smoothing decision, each axis's rate before its limit,
+   --  and each axis's feedforward terms: speed before smoothing, boost, jitter
+   --  attenuation, value before averaging, and yaw's value without and with
+   --  its hold. Each tap holds what its site last wrote.
+   type Axis_Taps is array (Axis) of Float;
+   type Debug_Taps is record
+      Refreshed         : Boolean := False;
+      Delta_Us          : Integer := 0;
+      Rx_Time_Set       : Boolean := False;
+      Rx_Time_Us        : Unsigned_32 := 0;
+      Counts_Set        : Boolean := False;
+      Outliers          : Natural range 0 .. 3 := 0;
+      Valids            : Natural range 0 .. 3 := 0;
+      Cutoffs_Set       : Boolean := False;
+      Cutoff_Rate_Hz    : Rate_Hz := 100.0;
+      FF_Filters_Set    : Boolean := False;
+      FF_Gain           : Unit_Interval := 0.0;
+      FF_Rate_Hz        : Rate_Hz := 100.0;
+      Passed            : Boolean := False;
+      Pass_Interval_Us  : Interval_Us := 800;
+      Smoothing_Updated : Boolean := False;
+      Angle_Rate        : Axis_Taps := (others => 0.0);
+      Speed_Unsmoothed  : Axis_Taps := (others => 0.0);
+      Boost             : Axis_Taps := (others => 0.0);
+      Jitter            : Axis_Taps := (others => 0.0);
+      FF_Before_Average : Axis_Taps := (others => 0.0);
+      Yaw_FF_No_Hold    : Float := 0.0;
+      Yaw_Hold          : Float := 0.0;
+   end record;
+
    type State is record
       Table                 : Throttle_Table := (others => 1000);
       Command_Divider       : Divider := 500.0;
@@ -129,6 +164,7 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
       Prev_Outlier_Negative : Boolean := False;
       --  The switched 3D mode's motor reversal.
       Motors_Reversed       : Boolean := False;
+      Taps                  : Debug_Taps;
    end record;
 
    --  Prepares the throttle table, the dividers, the rate maxima, and the

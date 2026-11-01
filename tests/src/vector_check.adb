@@ -286,6 +286,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.PID_Debug;
+with Adaflight.RC_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
 with Adaflight.VTX_RTC6705;
@@ -2013,6 +2014,9 @@ procedure Vector_Check is
    RC_Inputs  : Adaflight.RC_Command.Command_Inputs;
    RC_Runtime : Adaflight.PID_Config.Runtime;
    RC_Time    : Interfaces.Unsigned_32 := 0;
+   --  The debug values the oracle's RC sequence records, and its debug axis.
+   RC_Debug      : Adaflight.Debug.State;
+   RC_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    --  The headfree sequences' step: the mode, a level or hold mode, the turned
    --  vector the oracle's stand-in hands back, and the stick vector the port
    --  turned.
@@ -2121,6 +2125,15 @@ procedure Vector_Check is
             Record_Result ("rchf.stick_y", Bits (6), To_Bits (RC_Stick.Y));
             Record_Result ("rchf.stick_z", Bits (7), To_Bits (RC_Stick.Z));
          end if;
+      elsif Name = "rcdebug" then
+         RC_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (RC_Debug, Interfaces.Unsigned_8 (Int (3)));
+         RC_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "rcdbg" then
+         Adaflight.RC_Debug.Record_Pass (RC_Debug, RC_State, RC_Debug_Axis, Natural (Int (12)), Int (13) /= 0);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("rcstep.debug", Int (4 + J), Integer_64 (RC_Debug.Data (J)));
+         end loop;
       elsif Name = "rcstep" then
          declare
             Interval : constant Integer := Integer'Value (Str (4));
