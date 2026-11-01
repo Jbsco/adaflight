@@ -158,6 +158,7 @@ package Adaflight.STM32.OSD is
       Messages          : Adaflight.Config_Groups.Bytes_17_List_4 := (others => (others => 0));
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Pitot_Present     : Boolean := False;
+      Debug             : Adaflight.OSD_Render.Debug_Values := (others => 0);
       Airspeed_Cm_S     : Float range -200_000.0 .. 200_000.0 := 0.0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;

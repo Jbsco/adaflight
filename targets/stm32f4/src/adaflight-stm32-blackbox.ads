@@ -25,6 +25,7 @@ package Adaflight.STM32.Blackbox is
       Baro_Alt        : Interfaces.Integer_32 := 0;
       Airspeed        : Float range -1.0e6 .. 1.0e6 := 0.0;
       Diff_Pressure   : Float range -1.0e6 .. 1.0e6 := 0.0;
+      Debug           : Adaflight.Blackbox.Debug_Values := (others => 0);
       Gyro_Filtered   : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Gyro_Raw        : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Acc             : Adaflight.Blackbox.Axis_Floats := (others => 0.0);

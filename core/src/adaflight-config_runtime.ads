@@ -1389,6 +1389,7 @@ private
       Motors             => Motors,
       Motor_Telemetry    => Motor.Dev.Use_Dshot_Telemetry /= 0,
       Simplified_Filter  => G.Simplified_Gyro_Filter /= 0,
-      Simplified_Filter_Multiplier => Held (Integer (G.Simplified_Gyro_Filter_Multiplier), 10, 200));
+      Simplified_Filter_Multiplier => Held (Integer (G.Simplified_Gyro_Filter_Multiplier), 10, 200),
+      Debug_Axis         => Gyro_Filters.Axis'Val (Held (Integer (G.Gyro_Filter_Debug_Axis), 0, 2)));
 
 end Adaflight.Config_Runtime;

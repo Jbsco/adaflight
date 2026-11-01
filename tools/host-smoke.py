@@ -3369,6 +3369,8 @@ def main():
             cli(sock, "set altitude_source = BARO_ONLY")
             text = cli(sock, "set gps_provider = VIRTUAL")
             check("virtual GPS provider set", "gps_provider set to VIRTUAL" in text, text[-120:])
+            text = cli(sock, "set debug_mode = GYRO_FILTERED")
+            check("debug mode set to the filtered gyro", "debug_mode set to GYRO_FILTERED" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
             sim.close()
@@ -3404,6 +3406,18 @@ def main():
             alt_cm = int.from_bytes(altitude[0:4], "little", signed=True) if altitude and len(altitude) >= 4 else None
             check("virtual barometer altitude follows a fed twenty metre climb", alt_cm is not None and abs(alt_cm - 162000) <= 500,
                   repr(alt_cm))
+            # A roll rate of one radian per second: the filtered gyro's debug values show it on roll alone.
+            def fdm_rolling(t):
+                return struct.pack("<18d", t, 1.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   -105.25, 40.0, 1620.0, 0.0)
+            for i in range(950, 1030):
+                sim.sendto(fdm_rolling(i * 0.01), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            reply = msp(sock, 254)
+            debug = list(struct.unpack("<8h", reply[:16])) if reply and len(reply) >= 16 else None
+            check("filtered gyro debug values show the fed roll rate on roll alone",
+                  debug is not None and 45 <= abs(debug[0]) <= 70 and abs(debug[1]) <= 5 and abs(debug[2]) <= 5
+                  and debug[3:] == [0, 0, 0, 0, 0], repr(debug))
             sim.close()
         finally:
             stop(proc)

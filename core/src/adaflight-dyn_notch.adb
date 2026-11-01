@@ -241,6 +241,8 @@ package body Adaflight.Dyn_Notch with SPARK_Mode is
             end if;
          end loop;
       end if;
+      S.Freq_Step := True;
+      S.Freq_Axis := S.Current_Axis;
    end Step_Calc_Frequencies;
 
    --  The notches of the peaks that moved their centers, then the next axis.
@@ -277,8 +279,11 @@ package body Adaflight.Dyn_Notch with SPARK_Mode is
 
    procedure Update (S : in out State; Throttle_Percent : Natural) is
    begin
+      S.Average_Fresh := False;
+      S.Freq_Step := False;
       if S.Sample_Index = S.Sample_Count then
          S.Sample_Index := 0;
+         S.Average_Fresh := True;
          for A in Axis loop
             S.Average (A) := Saturate (S.Accumulator (A) * S.Sample_Count_Rcp);
             S.Accumulator (A) := 0.0;

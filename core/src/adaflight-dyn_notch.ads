@@ -68,6 +68,11 @@ package Adaflight.Dyn_Notch with SPARK_Mode, Pure is
       Sample_Count_Rcp : Float range 0.0 .. 1.0 := 1.0;
       Accumulator      : Axis_Signals := (others => 0.0);
       Average          : Axis_Signals := (others => 0.0);
+      --  What the debug values read of the last update: whether the average
+      --  was taken, and whether a center frequency step ran and on which axis.
+      Average_Fresh    : Boolean := False;
+      Freq_Step        : Boolean := False;
+      Freq_Axis        : Axis := Roll;
       Tick             : Natural range 0 .. Calc_Ticks := 0;
       Current_Step     : Step := Window;
       Current_Axis     : Axis := Roll;
