@@ -48,6 +48,7 @@ with Adaflight.Flight_Plan_Capture;
 with Adaflight.Flight_Plan_Nav;
 with Adaflight.Arming;
 with Adaflight.Compass;
+with Adaflight.Compass_Debug;
 with Adaflight.Position_Filter;
 with Adaflight.Position_Estimator;
 with Adaflight.Altitude_Hold;
@@ -3931,6 +3932,7 @@ procedure Vector_Check is
    Comp_Ready    : Boolean := True;
    Comp_Period   : Integer_64 := 0;
    Comp_Read_Set : Boolean := False;
+   Comp_Dbg      : Adaflight.Debug.State;
 
    procedure Check_Compass_Line is
       use Adaflight.Compass;
@@ -4031,6 +4033,14 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "compdebug" then
+         Comp_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Comp_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "compdbg" then
+         Adaflight.Compass_Debug.Record_Cycle (Comp_Dbg, Comp_State, 0);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("compstep.debug", Int (4 + J), Integer_64 (Comp_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown compass case " & Name);
          Failures := Failures + 1;

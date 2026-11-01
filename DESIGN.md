@@ -12547,3 +12547,16 @@ SNR, link quality and RSSI percentage. Core `CRSF_Debug` records uplink, power a
 upstream's handlers do, signed bytes kept signed. Vectors in the receiver family select among those modes after
 initialization and read eight values after every step. On the board, the radio task records after each pass of
 receiver bytes.
+
+## D586. Debug values, compass group (2026-11-01)
+
+Core `Compass` now keeps taps at its read cycle (interval since its previous cycle, bus busy, read without data) and at
+each new sample (its time, with a pending interval). Core `Compass_Debug` records calibration mode from state after a
+sample (aligned field per axis and its length, estimated bias per axis, and a forgetting factor gain while calibrating
+with movement under way, zero otherwise) and task rate mode from taps (task interval, bus and read checks, task rate
+of forty hertz, data rate as a million over data interval truncated, data interval, and an execution time its caller
+passes). Upstream keeps that mode's previous sample time inside its mode block, so it moves only while selected; the
+recorder moves the matching tap only then, which is why it takes compass state in out. Vectors in both compass
+families select among these modes after initialization and read eight values after every step, with a zero execution
+time as their clock stands still inside a step. On the board, the compass task records after each read cycle with the
+time the cycle took.

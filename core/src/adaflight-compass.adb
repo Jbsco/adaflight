@@ -273,6 +273,9 @@ package body Adaflight.Compass with SPARK_Mode is
       for A in Coordinate loop
          S.Field (A) := V (A) - Float (S.Zero (A));
       end loop;
+      S.Taps.Updated := True;
+      S.Taps.Update_Us := Now_Us;
+      S.Taps.Data_Pending := True;
    end Update;
 
    ----------------
@@ -290,6 +293,14 @@ package body Adaflight.Compass with SPARK_Mode is
       Next_Period_Us : out Natural)
    is
    begin
+      S.Taps.Cycle_Set := True;
+      S.Taps.Task_Interval_Us := Now_Us - S.Taps.Previous_Task_Us;
+      S.Taps.Previous_Task_Us := Now_Us;
+      S.Taps.Bus_Busy := Bus_Busy;
+      if not Bus_Busy then
+         S.Taps.Read_Checked := True;
+         S.Taps.No_Data := not Data_Ready;
+      end if;
       if Bus_Busy then
          S.Beeper := Silence;
          S.Save_Requested := False;
