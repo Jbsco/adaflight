@@ -12378,3 +12378,14 @@ unit feeds that step from the telemetry task with pack and cell voltage, core te
 DShot average RPM, battery current and GPS, and inits its settings from the telemetry configuration. Menu text frames
 wait on an SRXL display port. Host smoke sets SRXL with telemetry on UART3, sends DSM frames with the request bit clear
 and reads checked link quality and RPM frames back.
+
+## D573. Menu on the SRXL display port (2026-11-01)
+
+Core `SRXL_Display_Port` wrote menu characters into SRXL text generator rows, while board menu knew only its OSD and
+CRSF displays and SRXL telemetry never saw a menu on its display. `STM32.Radio` now registers that display port over
+its SRXL stream when SRXL telemetry inits, with firmware name as title, and exposes grab, release, clear, string and
+character writes to it. `STM32.Menu` registers an SRXL display of nine rows and twelve columns after CRSF's when SRXL
+telemetry runs, routes those actions and writes to it by display index, leaves layers, background, redraw and heartbeat
+to OSD alone, and reports when a menu shows on it. Flight unit registers it at init and feeds that report to SRXL
+telemetry, whose user slot then sends only text frames. Host smoke opens a menu with its stick gesture twice over DSM
+frames, so it lands on SRXL display behind OSD, and reads its title in text frames.

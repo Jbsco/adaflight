@@ -1,3 +1,4 @@
+with Adaflight.SRXL_Telemetry;
 with Adaflight.Menu;
 with Adaflight.Menu_Content;
 with Adaflight.Menu_Nav;
@@ -18,44 +19,54 @@ package body Adaflight.STM32.Menu is
    Save_Asked  : Boolean := False;
    Reset_Asked : Boolean := False;
    Armed_Now   : Boolean := False;
-   --  The CRSF transmitter's display among the registered ones, when it is.
+   --  The CRSF and SRXL transmitters' displays among the registered ones,
+   --  when they are.
    CRSF_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
+   SRXL_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
 
    --  A write costs the bytes it queues on the MSP display port and nothing on
    --  the MAX7456 or the CRSF display, which has no layers, background or
    --  heartbeat.
    procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer) is
-      CRSF : constant Boolean := On = CRSF_Display;
+      CRSF   : constant Boolean := On = CRSF_Display;
+      SRXL   : constant Boolean := On = SRXL_Display;
+      Remote : constant Boolean := CRSF or else SRXL;
    begin
       case A is
          when Adaflight.Menu.Grab =>
             if CRSF then
                Adaflight.STM32.Radio.Display_Grab;
+            elsif SRXL then
+               Adaflight.STM32.Radio.SRXL_Display_Grab;
             else
                Adaflight.STM32.OSD.Menu_Grab;
             end if;
          when Adaflight.Menu.Release =>
             if CRSF then
                Adaflight.STM32.Radio.Display_Release (Adaflight.STM32.Time.Millis);
+            elsif SRXL then
+               Adaflight.STM32.Radio.SRXL_Display_Release;
             else
                Adaflight.STM32.OSD.Menu_Release;
             end if;
          when Adaflight.Menu.Clear =>
             if CRSF then
                Adaflight.STM32.Radio.Display_Clear (Adaflight.STM32.Time.Millis);
+            elsif SRXL then
+               Adaflight.STM32.Radio.SRXL_Display_Clear;
             else
                Adaflight.STM32.OSD.Menu_Clear;
             end if;
          when Adaflight.Menu.Layer_Select =>
-            if not CRSF then
+            if not Remote then
                Adaflight.STM32.OSD.Menu_Layer_Select (Natural'Max (0, Arg));
             end if;
          when Adaflight.Menu.Background =>
-            if not CRSF then
+            if not Remote then
                Adaflight.STM32.OSD.Menu_Background (Natural'Max (0, Arg));
             end if;
          when Adaflight.Menu.Redraw =>
-            if not CRSF then
+            if not Remote then
                Adaflight.STM32.OSD.Menu_Redraw (Armed_Now);
             end if;
          when Adaflight.Menu.Save_Config =>
@@ -73,7 +84,7 @@ package body Adaflight.STM32.Menu is
          when Adaflight.Menu.Set_Reboot_Required =>
             Reboot_Flag := True;
          when Adaflight.Menu.Heartbeat =>
-            if not CRSF then
+            if not Remote then
                Adaflight.STM32.OSD.Menu_Heartbeat;
             end if;
          when Adaflight.Menu.Begin_Transaction | Adaflight.Menu.Commit_Transaction =>
@@ -90,6 +101,9 @@ package body Adaflight.STM32.Menu is
       if On = CRSF_Display then
          Adaflight.STM32.Radio.Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
          Cost := 0;
+      elsif On = SRXL_Display then
+         Adaflight.STM32.Radio.SRXL_Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
+         Cost := 0;
       else
          Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text, Cost);
       end if;
@@ -104,6 +118,8 @@ package body Adaflight.STM32.Menu is
    begin
       if On = CRSF_Display then
          Adaflight.STM32.Radio.Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
+      elsif On = SRXL_Display then
+         Adaflight.STM32.Radio.SRXL_Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
       else
          Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C), Unused_Cost);
       end if;
@@ -219,7 +235,9 @@ package body Adaflight.STM32.Menu is
                  Joystick_Active         => False);
       Nav.Update
         (State, T, Keys, Sliders (C), Sticks, Reboot_Flag, Now_Us, Now_Ms,
-         (if CRSF_Display >= 0 and then State.Port = CRSF_Display then Unsigned_32'Last
+         (if (CRSF_Display >= 0 and then State.Port = CRSF_Display)
+            or else (SRXL_Display >= 0 and then State.Port = SRXL_Display)
+          then Unsigned_32'Last
           else Adaflight.STM32.OSD.Menu_Room));
       if Was_Open or else State.In_Menu then
          C := T.Config;
@@ -257,6 +275,19 @@ package body Adaflight.STM32.Menu is
          CRSF_Display := State.Port_Count - 1;
       end if;
    end Register_CRSF;
+
+   procedure Register_SRXL is
+   begin
+      if State.Port_Count < Adaflight.Menu.Max_Displays then
+         Nav.Register_Display
+           (State, Display_Of (Adaflight.SRXL_Telemetry.Input_Columns, Adaflight.SRXL_Telemetry.Rows));
+         SRXL_Display := State.Port_Count - 1;
+      end if;
+   end Register_SRXL;
+
+   function SRXL_Registered return Boolean is (SRXL_Display >= 0);
+
+   function On_SRXL return Boolean is (State.In_Menu and then SRXL_Display >= 0 and then State.Port = SRXL_Display);
 
    procedure Resize_CRSF (Columns, Rows : Interfaces.Unsigned_8) is
       D : constant Adaflight.Menu.Display := Display_Of (Columns, Rows);

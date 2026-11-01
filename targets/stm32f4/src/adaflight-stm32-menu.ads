@@ -83,4 +83,10 @@ package Adaflight.STM32.Menu is
    --  the menu left without saving on the display it shows on.
    procedure Open_On_CRSF (C : Adaflight.Config_Groups.Configuration; Opened : out Boolean);
    procedure Leave;
+   --  The SRXL transmitter's display, registered after the CRSF one when the
+   --  SRXL telemetry runs, at the text generator's size; whether it is
+   --  registered, and whether the menu shows on it.
+   procedure Register_SRXL;
+   function SRXL_Registered return Boolean;
+   function On_SRXL return Boolean;
 end Adaflight.STM32.Menu;
