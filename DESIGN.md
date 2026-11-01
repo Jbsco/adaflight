@@ -12366,3 +12366,15 @@ processor, and `STM32.Radio` feeds the FPORT payload kept by `FPORT` into its wi
 tunnel. Host smoke sends an API version request over both links and reads two server frames back. Host UART sockets now
 send without Nagle's delay: merged feeder frames shared one receive stamp, so FPORT lost half its reply windows and
 an MSP frame behind a data request lost its window to that request's reply.
+
+## D572. SRXL telemetry on the receiver line (2026-11-01)
+
+Core `Spektrum` already opened an SRXL receiver's telemetry request from each frame and asked for processing after its
+delay, and core `SRXL_Telemetry` built the frames, while `STM32.Radio` mapped an SRXL receiver to Spektrum 2048 with
+telemetry off. Radio now inits Spektrum as SRXL with telemetry on when that provider meets the telemetry feature, opens
+its line half duplex as upstream opens it bidirectional, keeps the frame queued by `SRXL_Telemetry_Step` in a reply
+buffer sized to the core's limit, and writes it on the receiver line when a frame's processing falls due. The flight
+unit feeds that step from the telemetry task with pack and cell voltage, core temperature, the combined ESC reading,
+DShot average RPM, battery current and GPS, and inits its settings from the telemetry configuration. Menu text frames
+wait on an SRXL display port. Host smoke sets SRXL with telemetry on UART3, sends DSM frames with the request bit clear
+and reads checked link quality and RPM frames back.
