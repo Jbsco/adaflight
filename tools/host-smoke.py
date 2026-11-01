@@ -1187,6 +1187,8 @@ def main():
             check("GPS provider set", "gps_provider set to NMEA" in text, text[-120:])
             text = cli(sock, "set gps_uart = UART4")
             check("GPS port assigned", "gps_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "set altitude_source = GPS_ONLY")
+            check("altitude from GPS alone for its checks", "altitude_source set to GPS_ONLY" in text, text[-120:])
             text = cli(sock, "feature GPS")
             check("GPS feature on", "Enabled GPS" in text, text[-120:])
             text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
@@ -3084,6 +3086,55 @@ def main():
             check("simulator feeds the virtual accelerometer one g up and a still gyro",
                   len(raw) == 6 and abs(raw[2] - 512) <= 8 and abs(raw[0]) <= 8 and abs(raw[1]) <= 8
                   and raw[3:6] == [0, 0, 0], repr(raw))
+            status = msp(sock, 101)
+            check("simulator status shows the virtual barometer", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x02 != 0, repr(status))
+            # A position in the Gazebo bridge's order (longitude, latitude, altitude); the virtual barometer takes
+            # its pressure from the altitude and the virtual GPS its solution from all three.
+            def fdm_at(t, lon, lat, alt):
+                return struct.pack("<18d", t, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   lon, lat, alt, 0.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            cli(sock, "feature GPS")
+            cli(sock, "set altitude_source = BARO_ONLY")
+            text = cli(sock, "set gps_provider = VIRTUAL")
+            check("virtual GPS provider set", "gps_provider set to VIRTUAL" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+            sim.close()
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        try:
+            time.sleep(2.5)
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            for i in range(0, 600):
+                sim.sendto(fdm_at(i * 0.01, -105.25, 40.0, 1600.0), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            gps = msp(sock, 106)
+            fix = gps[0] if gps else None
+            sats = gps[1] if gps and len(gps) > 1 else None
+            lat = int.from_bytes(gps[2:6], "little", signed=True) if gps and len(gps) >= 10 else None
+            lon = int.from_bytes(gps[6:10], "little", signed=True) if gps and len(gps) >= 10 else None
+            check("virtual GPS gives a fix with twelve satellites at the fed position",
+                  fix not in (None, 0) and sats == 12 and lat is not None and abs(lat - 400000000) <= 2000
+                  and abs(lon + 1052500000) <= 2000, repr((fix, sats, lat, lon)))
+            altitude = msp(sock, 109)
+            alt_cm = int.from_bytes(altitude[0:4], "little", signed=True) if altitude and len(altitude) >= 4 else None
+            check("virtual barometer altitude settles at a fed 1600 m", alt_cm is not None and abs(alt_cm - 160000) <= 500,
+                  repr(alt_cm))
+            for i in range(600, 950):
+                sim.sendto(fdm_at(i * 0.01, -105.25, 40.0, 1620.0), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            altitude = msp(sock, 109)
+            alt_cm = int.from_bytes(altitude[0:4], "little", signed=True) if altitude and len(altitude) >= 4 else None
+            check("virtual barometer altitude follows a fed twenty metre climb", alt_cm is not None and abs(alt_cm - 162000) <= 500,
+                  repr(alt_cm))
             sim.close()
         finally:
             stop(proc)

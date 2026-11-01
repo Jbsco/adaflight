@@ -7,6 +7,7 @@ with Adaflight.Barometer;
 with Adaflight.Barometer_Task;
 with Adaflight.Baro_Detect;
 with Adaflight.Baro_Detect.Scan;
+with Adaflight.STM32.MCU;
 with Adaflight.BMP280;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -143,6 +144,7 @@ package body Adaflight.STM32.Baro is
    Baro_State  : Adaflight.Barometer.State;
    Settings    : Adaflight.Barometer.Settings;
    Found       : Boolean := False;
+   Virtual     : Boolean := False;
    Hardware_Id : Byte := Adaflight.Baro_Detect.Hardware_None;
 
    --  The scan's bus selection over the board's buses, and the chip probe
@@ -209,6 +211,14 @@ package body Adaflight.STM32.Baro is
       Adaflight.Barometer.Init (Baro_State);
       Settings := (Temperature_Drift_Cm_Per_10C => Integer'Max (-500, Integer'Min (500, Drift)),
                    Virtual_Device => False);
+      if Adaflight.STM32.MCU.Simulated then
+         Found := True;
+         Virtual := True;
+         Settings.Virtual_Device := True;
+         Hardware_Id := Adaflight.Baro_Detect.Named (Adaflight.Baro_Detect.Virtual, 0, False);
+         Task_Device := (Combined_Read => True, Temperature_Delay_Us => 10_000, Pressure_Delay_Us => 10_000);
+         return;
+      end if;
       if Adaflight.Board.Baro_I2C_Device = 0 and then Adaflight.Board.Baro_SPI_Device = 0 then
          return;
       end if;
@@ -221,9 +231,9 @@ package body Adaflight.STM32.Baro is
    function Detected return Boolean is (Found);
    function Hardware return Unsigned_8 is (Hardware_Id);
    function Bus_Type return Unsigned_8 is
-     (if not Found then 0 elsif Dev.Use_I2C then Adaflight.Baro_Detect.Bus_I2C else Adaflight.Baro_Detect.Bus_SPI);
+     (if not Found or else Virtual then 0 elsif Dev.Use_I2C then Adaflight.Baro_Detect.Bus_I2C else Adaflight.Baro_Detect.Bus_SPI);
    function Bus_Number return Natural is
-     (if not Found then 0 elsif Dev.Use_I2C then I2C.Bus'Pos (Dev.I2C_Bus) + 1 else SPI.Bus'Pos (Dev.SPI_Bus) + 1);
+     (if not Found or else Virtual then 0 elsif Dev.Use_I2C then I2C.Bus'Pos (Dev.I2C_Bus) + 1 else SPI.Bus'Pos (Dev.SPI_Bus) + 1);
    function Bus_Address return Unsigned_8 is (if Found and then Dev.Use_I2C then Dev.Address else 0);
 
    procedure Update (Now_Us : Adaflight.Scheduler.Time_Us; Next_Period_Us : out Adaflight.Scheduler.Time_Delta) is
@@ -238,12 +248,20 @@ package body Adaflight.STM32.Baro is
       if not Found then
          return;
       end if;
-      BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
-      if Adaflight.Barometer_Task.Takes_Sample (Task_State, Done) then
-         BMP280.Calculate (Chip, Pressure, Temperature);
-         Temperature := Adaflight.Barometer.Temperature_Centi'Max
-           (Adaflight.Barometer.Temperature_Centi'First,
-            Adaflight.Barometer.Temperature_Centi'Min (Adaflight.Barometer.Temperature_Centi'Last, Temperature));
+      if Virtual then
+         Done := True;
+         if Adaflight.Barometer_Task.Takes_Sample (Task_State, Done) then
+            Adaflight.STM32.MCU.Simulator_Pressure (Pressure);
+            Temperature := 2_500;
+         end if;
+      else
+         BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
+         if Adaflight.Barometer_Task.Takes_Sample (Task_State, Done) then
+            BMP280.Calculate (Chip, Pressure, Temperature);
+            Temperature := Adaflight.Barometer.Temperature_Centi'Max
+              (Adaflight.Barometer.Temperature_Centi'First,
+               Adaflight.Barometer.Temperature_Centi'Min (Adaflight.Barometer.Temperature_Centi'Last, Temperature));
+         end if;
       end if;
       Adaflight.Barometer_Task.Step
         (Task_State, Baro_State, Settings, Task_Device, Now_Us, Bus_Busy => False, Done => Done,
@@ -268,4 +286,6 @@ package body Adaflight.STM32.Baro is
    function Altitude_Cm return Float is
      (Float'Max (-4.0e7, Float'Min (4.0e7, Baro_State.Altitude)));
    function Temperature_Centi return Integer_32 is (Baro_State.Temperature);
+   function Sample_Time_Us return Unsigned_32 is (Unsigned_32 (Baro_State.Last_Data_Time_Us));
+   function Interval_Us return Integer_32 is (Baro_State.Data_Interval_Us);
 end Adaflight.STM32.Baro;

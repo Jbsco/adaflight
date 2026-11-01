@@ -20,5 +20,9 @@ package Adaflight.STM32.Baro is
    procedure Set_Ground_Level;
    function Calibrated return Boolean;
    function Altitude_Cm return Float;
+   --  The time of the last sample and the interval between samples, for the
+   --  position estimate's gate.
+   function Sample_Time_Us return Interfaces.Unsigned_32;
+   function Interval_Us return Interfaces.Integer_32;
    function Temperature_Centi return Interfaces.Integer_32;
 end Adaflight.STM32.Baro;

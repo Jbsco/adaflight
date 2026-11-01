@@ -504,7 +504,7 @@ package body Adaflight.GPS_Link with SPARK_Mode is
       L := (others => <>);
       R.UBX.Version := Undefined;
       Set_State (L, R, Unknown);
-      if C.Source = MSP then
+      if C.Source in MSP | Virtual then
          Set_State (L, R, Initialized);
          return;
       end if;
@@ -581,6 +581,33 @@ package body Adaflight.GPS_Link with SPARK_Mode is
             elsif Elapsed (L.Now, L.Last_Nav_Message) > Timeout_Ms then
                Set_State (L, R, Lost_Communication);
             end if;
+         when Virtual =>
+            if Elapsed (L.Now, L.Virtual_Next_Update) > 0 then
+               if L.Virtual_Count /= L.Virtual_Last_Count then
+                  L.Virtual_Last_Count := L.Virtual_Count;
+                  L.Virtual_Last_Change := L.Now;
+               end if;
+               if L.Virtual_Last_Change /= 0 and then Elapsed (L.Now, L.Virtual_Last_Change) < Timeout_Ms then
+                  if L.State in Initialized | Detect_Baud then
+                     L.State := Receiving_Data;
+                     L.Position := 0;
+                     L.State_Ts := L.Now;
+                     R.UBX.Ack := Idle;
+                  end if;
+                  R.Sol := L.Virtual_Sol;
+                  R.Sol.Time := L.Now;
+                  L.Last_Nav_Message := L.Now;
+                  L.Sensor_Present := True;
+                  R.Fix := R.Sol.Num_Sat > 3;
+                  if R.Fix then
+                     R.Fix_Ever := True;
+                  end if;
+                  L.Tick := not L.Tick;
+                  Nav_Interval (R);
+                  On_New_Data (L, R, C, Armed);
+               end if;
+               L.Virtual_Next_Update := L.Now + 100;
+            end if;
       end case;
       case L.State is
          when Unknown | Initialized =>
@@ -590,7 +617,7 @@ package body Adaflight.GPS_Link with SPARK_Mode is
                case C.Source is
                   when NMEA  => Configure_NMEA (L, R, C, Tx_Empty, E);
                   when UBlox => Configure_UBlox (L, R, C, Tx_Empty, E);
-                  when MSP   => null;
+                  when MSP | Virtual => null;
                end case;
             end if;
          when Lost_Communication =>
@@ -639,6 +666,28 @@ package body Adaflight.GPS_Link with SPARK_Mode is
       R.Sol.Ground_Speed := Ground_Speed;
       L.Solution_Offered := True;
    end Offer_Solution;
+
+   -------------------
+   -- Offer_Virtual --
+   -------------------
+
+   procedure Offer_Virtual (L : in out Link; Lat, Lon, Alt_Cm : Integer_32;
+                            Ground_Speed, Speed_3D, Course : Unsigned_16; Vel_North, Vel_East, Vel_Down : Integer_16) is
+   begin
+      L.Virtual_Sol :=
+        (Llh           => (Lat => Lat, Lon => Lon, Alt_Cm => Alt_Cm),
+         Dop           => (Pdop => 10, Hdop => 0, Vdop => 0),
+         Acc           => (Horizontal => 500, Vertical => 500, Speed => 400, Heading => 0),
+         Velned        => (North => Vel_North, East => Vel_East, Down => Vel_Down),
+         Speed_3d      => Speed_3D,
+         Ground_Speed  => Ground_Speed,
+         Ground_Course => Course,
+         Num_Sat       => 12,
+         Time          => 0,
+         Nav_Interval_Ms => 0,
+         Utc           => (others => <>));
+      L.Virtual_Count := L.Virtual_Count + 1;
+   end Offer_Virtual;
 
    ----------------
    -- Reset_Home --
