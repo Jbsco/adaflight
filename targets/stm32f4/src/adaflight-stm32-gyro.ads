@@ -2,6 +2,7 @@
 --  MPU6000 and MPU6500 family drivers the board family builds, the data ready
 --  line's interrupt, the start at boot, and the readings the main takes.
 with Interfaces;
+with Adaflight.Scheduler;
 with Adaflight.Acc_Detect;
 package Adaflight.STM32.Gyro is
    subtype Byte is Interfaces.Unsigned_8;
@@ -36,4 +37,8 @@ package Adaflight.STM32.Gyro is
    function Interrupt_Count return Interfaces.Unsigned_32;
    function Sync_Cycles return Interfaces.Unsigned_32;
    function Short_Period return Boolean;
+   --  The telemetry task's sensor poll: the chip temperature of the last
+   --  burst read in whole degrees, the least value without a gyro.
+   procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us);
+   function Temperature return Interfaces.Integer_16;
 end Adaflight.STM32.Gyro;

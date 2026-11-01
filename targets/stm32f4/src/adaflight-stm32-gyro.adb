@@ -86,6 +86,8 @@ package body Adaflight.STM32.Gyro is
 
    Bus   : Device;
    State : Layer.State;
+   Gyro_Found : Boolean := False;
+   Polled_Temperature : Interfaces.Integer_16 := Interfaces.Integer_16'First;
 
    --  The interrupt of a pin's external interrupt line.
    function Line_Interrupt (Line : Pin_Number) return Ada.Interrupts.Interrupt_ID is
@@ -308,6 +310,7 @@ package body Adaflight.STM32.Gyro is
       if not Found then
          return;
       end if;
+      Gyro_Found := True;
       State.Interrupt_Pin := True;
       State.Hardware_LPF := Hardware_LPF;
       State.Hardware := Hardware;
@@ -353,4 +356,12 @@ package body Adaflight.STM32.Gyro is
    function Sync_Cycles return Unsigned_32 is (State.Sync_EXTI);
 
    function Short_Period return Boolean is (State.Short_Period /= 0);
+   procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us) is
+      pragma Unreferenced (Now_Us);
+   begin
+      Polled_Temperature := (if Gyro_Found then State.Temperature else Interfaces.Integer_16'First);
+   end Poll_Temperature;
+
+   function Temperature return Interfaces.Integer_16 is (Polled_Temperature);
+
 end Adaflight.STM32.Gyro;

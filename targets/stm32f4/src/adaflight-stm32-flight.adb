@@ -1972,7 +1972,6 @@ package body Adaflight.STM32.Flight is
    procedure Run_Telemetry (Now_Us : Scheduler.Time_Us);
 
    procedure No_Step is null;
-   procedure No_Step_At (Now_Us : Scheduler.Time_Us) is null;
    procedure No_Step_Period (Now_Us : Scheduler.Time_Us; Next_Period_Us : out Scheduler.Time_Delta) is
       pragma Unreferenced (Now_Us);
    begin
@@ -1996,7 +1995,7 @@ package body Adaflight.STM32.Flight is
       Rangefinder_Process    => Adaflight.STM32.Rangefinder.Process,
       Optical_Flow_Update    => Adaflight.STM32.Optical_Flow.Update,
       Optical_Flow_Process   => Adaflight.STM32.Optical_Flow.Process,
-      Telemetry_Poll_Sensors => No_Step_At,
+      Telemetry_Poll_Sensors => Adaflight.STM32.Gyro.Poll_Temperature,
       Telemetry_Process      => Run_Telemetry,
       Camera_Control_Process => Adaflight.STM32.Camera_Control.Process);
 
@@ -3665,6 +3664,7 @@ package body Adaflight.STM32.Flight is
          Lon              => G.Longitude,
          Alt_Cm           => G.Altitude_Cm,
          Distance_Home    => G.Distance_To_Home_M,
+         Gyro_Temperature => Adaflight.STM32.Gyro.Temperature,
          others           => <>);
    end IBus_Inputs;
 
@@ -3868,6 +3868,7 @@ package body Adaflight.STM32.Flight is
                       1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
                       2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
       Src.IMU.Acc_1G_Reciprocal := 1.0 / Float (Natural'Max (1, Adaflight.STM32.Gyro.Acc_One_G));
+      Src.IMU.Temperature := Adaflight.STM32.Gyro.Temperature;
       for I in Config.Pilot_Config.Craft_Name'Range loop
          exit when Config.Pilot_Config.Craft_Name (I) = 0 or else Src.Name_Last = Adaflight.CRSF_Telemetry.Name_Length_Max;
          Src.Name_Last := Src.Name_Last + 1;
