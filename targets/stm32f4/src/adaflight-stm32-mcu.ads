@@ -31,4 +31,13 @@ package Adaflight.STM32.MCU is
    procedure Simulator_Poll;
    procedure Simulator_Attitude
      (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean);
+   --  The simulator's GPS solution as the virtual provider offers it, once
+   --  per packet, and its pressure in pascals for the virtual barometer.
+   type Simulator_Fix is record
+      Lat, Lon, Alt_Cm               : Interfaces.Integer_32 := 0;
+      Ground_Speed, Speed_3D, Course : Interfaces.Unsigned_16 := 0;
+      Vel_North, Vel_East, Vel_Down  : Interfaces.Integer_16 := 0;
+   end record;
+   procedure Simulator_GPS (Fresh : out Boolean; Fix : out Simulator_Fix);
+   procedure Simulator_Pressure (Pascals : out Interfaces.Integer_32);
 end Adaflight.STM32.MCU;

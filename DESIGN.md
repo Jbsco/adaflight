@@ -12229,3 +12229,15 @@ virtual gyro and accelerometer counts and an attitude quaternion. The host gyro 
 resting craft, with the 2000 dps scale and the accelerometer's 256 counts per g raised to its 2048, and `Run_Attitude`
 sets the attitude from each fresh quaternion and runs `Update_Simulated`. Board images answer `Simulated` with False.
 The host smoke drives it with a fake simulator. Motor speeds in the packets, RC over UDP and time scaling follow.
+
+## D560. Virtual GPS and barometer for the simulator (2026-10-31)
+
+`GPS_Link` gains a virtual provider: a simulator's solution offered through `Offer_Virtual` is taken at its next 100 ms
+step as long as offers keep arriving within 2.5 s, with twelve satellites and fixed accuracies, and the generic state
+machine times it out like a receiver gone dark. Board GPS runs its link without a port for MSP and virtual providers
+and feeds the virtual one from `MCU.Simulator_GPS`. Board barometer takes a virtual device when the image is simulated:
+no bus scan, calibrated at once at ground zero so its altitude is absolute, pressure from `MCU.Simulator_Pressure` on
+every combined read with a 10 ms delay and 25 degrees. The oracle's link generator gains a virtual case with a feed
+gap, replayed through new offer columns of the checker. Host smoke checks a virtual fix at a fed position and, with
+`altitude_source` BARO_ONLY, an estimate at a fed 1600 m that follows a twenty metre climb. No magnetometer pipeline
+exists yet, so the feed's field vector waits.

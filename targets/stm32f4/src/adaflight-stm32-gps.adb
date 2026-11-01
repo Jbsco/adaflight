@@ -1,6 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.RTC;
 package body Adaflight.STM32.GPS is
    use type Adaflight.STM32.USART.Number;
@@ -12,6 +13,7 @@ package body Adaflight.STM32.GPS is
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    Open     : Boolean := False;
+   Feature_On : Boolean := False;
    Which    : USART.Number := USART.UART4;
    Port     : USART.Port;
    Link     : Adaflight.GPS_Link.Link;
@@ -36,7 +38,8 @@ package body Adaflight.STM32.GPS is
       Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
    begin
       Open := False;
-      if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then
+      Feature_On := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
+      if Feature_On then
          for N of USART.Present_Set loop
             if (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Port_Ids (N))
                 and SFM.Function_GPS) /= 0
@@ -56,7 +59,9 @@ package body Adaflight.STM32.GPS is
       end if;
    end Init;
 
-   function Enabled return Boolean is (Open);
+   --  The feature with a port, or with a provider that needs none.
+   function Enabled return Boolean is
+     (Feature_On and then (Open or else Settings.Source in Adaflight.GPS_Link.MSP | Adaflight.GPS_Link.Virtual));
 
    function Holds (N : USART.Number) return Boolean is (Open and then N = Which);
 
@@ -76,15 +81,31 @@ package body Adaflight.STM32.GPS is
    end Send;
 
    procedure Run (Now_Ms, Now_Us : Interfaces.Unsigned_32; Armed : Boolean; R : out Report) is
+      use type Adaflight.GPS_Link.Provider;
       Count    : Natural := 0;
       E        : Adaflight.GPS_Link.Events;
       Has_Time : Boolean;
    begin
       R := (others => <>);
-      if not Open then
+      if not Open and then Settings.Source in Adaflight.GPS_Link.NMEA | Adaflight.GPS_Link.UBlox then
          return;
       end if;
-      USART.Take (Which, Input, Count);
+      if Open then
+         USART.Take (Which, Input, Count);
+      end if;
+      if Settings.Source = Adaflight.GPS_Link.Virtual then
+         declare
+            Fresh : Boolean;
+            Fix   : Adaflight.STM32.MCU.Simulator_Fix;
+         begin
+            Adaflight.STM32.MCU.Simulator_GPS (Fresh, Fix);
+            if Fresh then
+               Adaflight.GPS_Link.Offer_Virtual
+                 (Link, Fix.Lat, Fix.Lon, Fix.Alt_Cm, Fix.Ground_Speed, Fix.Speed_3D, Fix.Course, Fix.Vel_North,
+                  Fix.Vel_East, Fix.Vel_Down);
+            end if;
+         end;
+      end if;
       Has_Time := Adaflight.STM32.RTC.Has_Time;
       Adaflight.GPS_Link.Update
         (Link, Rx, Settings, Now_Ms, Now_Us, Input (0 .. Count - 1), Tx_Empty => True, Armed => Armed,
@@ -95,7 +116,7 @@ package body Adaflight.STM32.GPS is
              Minutes => E.Clock.Minutes, Seconds => E.Clock.Seconds, Millis => E.Clock.Millis));
       end if;
       Send (E.Tx);
-      if E.Baud_Changed then
+      if E.Baud_Changed and then Open then
          USART.Init (Which, Positive (Adaflight.GPS_Link.Rate_Of (E.New_Baud)));
       end if;
       if E.Solutions > 0 then

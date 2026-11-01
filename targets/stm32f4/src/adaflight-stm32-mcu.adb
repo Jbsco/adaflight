@@ -141,4 +141,15 @@ package body Adaflight.STM32.MCU is
       Q := (others => <>);
       Legacy_Bridge := False;
    end Simulator_Attitude;
+
+   procedure Simulator_GPS (Fresh : out Boolean; Fix : out Simulator_Fix) is
+   begin
+      Fresh := False;
+      Fix := (others => <>);
+   end Simulator_GPS;
+
+   procedure Simulator_Pressure (Pascals : out Interfaces.Integer_32) is
+   begin
+      Pascals := 101_325;
+   end Simulator_Pressure;
 end Adaflight.STM32.MCU;

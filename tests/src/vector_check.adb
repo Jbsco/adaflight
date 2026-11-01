@@ -9342,7 +9342,8 @@ procedure Vector_Check is
          GPSL_Has_Time := False;
          GPSL_Clock := (others => <>);
          GPSL_Settings := (others => <>);
-         GPSL_Settings.Source := (case Int (3) is when 0 => NMEA, when 1 => UBlox, when others => MSP);
+         GPSL_Settings.Source :=
+           (case Int (3) is when 0 => NMEA, when 1 => UBlox, when 3 => Virtual, when others => MSP);
          GPSL_Settings.Sbas := Adaflight.UBX_Config.Sbas_Mode'Val (Int (4));
          GPSL_Settings.Auto_Config := Int (5) = 1;
          GPSL_Settings.Acquire_Model := Adaflight.UBX_Config.Dynamic_Model'Val (Int (6));
@@ -9408,6 +9409,12 @@ procedure Vector_Check is
                Offer_Solution (GPSL_Link, GPSL_Receiver, Int (12) = 1, Interfaces.Unsigned_8 (Int (13)),
                                I32 (14), I32 (15), Interfaces.Unsigned_16 (Int (16)),
                                Interfaces.Unsigned_16 (Int (17)));
+            end if;
+            if Int (75) = 1 then
+               Offer_Virtual (GPSL_Link, I32 (76), I32 (77), I32 (78), Interfaces.Unsigned_16 (Int (79)),
+                              Interfaces.Unsigned_16 (Int (80)), Interfaces.Unsigned_16 (Int (81)),
+                              Interfaces.Integer_16 (Int (82)), Interfaces.Integer_16 (Int (83)),
+                              Interfaces.Integer_16 (Int (84)));
             end if;
             if Int (7) = 1 then
                Reset_Home (GPSL_Link, GPSL_Receiver, GPSL_Settings, Home_Tx);

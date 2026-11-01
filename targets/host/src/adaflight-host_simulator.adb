@@ -3,7 +3,6 @@ with Ada.Strings.Fixed;
 with Ada.Real_Time;
 with Ada.Streams;
 with GNAT.Sockets;
-with Interfaces;
 with Adaflight.Bytes;
 package body Adaflight.Host_Simulator is
    use type Ada.Real_Time.Time;
@@ -35,6 +34,9 @@ package body Adaflight.Host_Simulator is
    Feed_Acc     : Adaflight.Sim_FDM.Axes := (others => 0);
    Latest       : Adaflight.Attitude.Quaternion;
    Fresh_Q      : Boolean := False;
+   Latest_GPS   : Adaflight.Sim_FDM.GPS_Fix;
+   Fresh_GPS    : Boolean := False;
+   Pressure_Pa  : Interfaces.Integer_32 := 101_325;
    Epoch        : constant Ada.Real_Time.Time := Ada.Real_Time.Clock;
 
    function Enabled return Boolean is (On);
@@ -77,12 +79,13 @@ package body Adaflight.Host_Simulator is
       use GNAT.Sockets;
       Speeds : constant Ada.Streams.Stream_Element_Array (1 .. 4 * Motor_Count) := (others => 0);
       Raw    : Ada.Streams.Stream_Element_Array (1 .. 2 + 4 * 16) := (others => 0);
-      Sent_Speeds, Sent_Raw : Ada.Streams.Stream_Element_Offset;
-      pragma Unreferenced (Sent_Speeds, Sent_Raw);
+      Sent   : Ada.Streams.Stream_Element_Offset;
    begin
       Raw (1) := Motor_Count;
-      Send_Socket (PWM_Socket, Speeds, Sent_Speeds, PWM_To);
-      Send_Socket (PWM_Socket, Raw, Sent_Raw, PWM_Raw_To);
+      Send_Socket (PWM_Socket, Speeds, Sent, PWM_To);
+      if Sent >= 0 then
+         Send_Socket (PWM_Socket, Raw, Sent, PWM_Raw_To);
+      end if;
    exception
       when Socket_Error =>
          null;
@@ -128,12 +131,26 @@ package body Adaflight.Host_Simulator is
                   Feed_Acc := F.Acc;
                   Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
                   Fresh_Q := True;
+                  Pressure_Pa := F.Pressure;
+                  if F.GPS_Set then
+                     Latest_GPS := F.GPS;
+                     Fresh_GPS := True;
+                  end if;
                when Adaflight.Sim_FDM.Stale =>
                   null;
             end case;
          end if;
       end loop;
    end Poll;
+
+   procedure Take_GPS (Fresh : out Boolean; Fix : out Adaflight.Sim_FDM.GPS_Fix) is
+   begin
+      Fresh := Fresh_GPS;
+      Fix := Latest_GPS;
+      Fresh_GPS := False;
+   end Take_GPS;
+
+   function Pressure return Interfaces.Integer_32 is (Pressure_Pa);
 
    procedure Take_Attitude (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion) is
    begin

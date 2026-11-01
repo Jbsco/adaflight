@@ -28,7 +28,7 @@ package Adaflight.GPS_Link with SPARK_Mode is
    subtype Integer_32 is Interfaces.Integer_32;
    subtype Cosine is Adaflight.Maths.Cosine;
 
-   type Provider is (NMEA, UBlox, MSP);
+   type Provider is (NMEA, UBlox, MSP, Virtual);
 
    --  The rates of the detection sweep, fastest first.
    type Baud_Rate is (B_230400, B_115200, B_57600, B_38400, B_19200, B_9600);
@@ -150,6 +150,13 @@ package Adaflight.GPS_Link with SPARK_Mode is
       Has_Beeped          : Boolean := False;
       Wait                : Wait_Count := 0;
       Is_Fast             : Boolean := False;
+      --  The virtual provider: the solution a simulator offered, its offer
+      --  count with the count and the time last seen, and the next update.
+      Virtual_Sol         : GPS_Frames.Solution;
+      Virtual_Count       : Unsigned_32 := 0;
+      Virtual_Last_Count  : Unsigned_32 := 0;
+      Virtual_Last_Change : Unsigned_32 := 0;
+      Virtual_Next_Update : Unsigned_32 := 0;
    end record;
 
    --  The start: the rate sweep begins at the configured rate once the port
@@ -170,6 +177,11 @@ package Adaflight.GPS_Link with SPARK_Mode is
    procedure Offer_Solution (L : in out Link; R : in out GPS_Frames.Receiver; Fix : Boolean; Num_Sat : Unsigned_8;
                              Lat, Lon : Integer_32; Alt_M : Unsigned_16; Ground_Speed : Unsigned_16);
 
+   --  A solution from a simulator for the virtual provider: the position,
+   --  the speeds and the course as a solution carries them, taken at the
+   --  next update step with twelve satellites and fixed accuracies.
+   procedure Offer_Virtual (L : in out Link; Lat, Lon, Alt_Cm : Integer_32;
+                            Ground_Speed, Speed_3D, Course : Unsigned_16; Vel_North, Vel_East, Vel_Down : Integer_16);
    --  The home position from the current fix with enough satellites, unless
    --  it is kept once set. The satellite information is turned off on a
    --  u-blox module and the distance flown restarts.

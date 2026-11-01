@@ -4,6 +4,7 @@
 --  packets sent back. ADAFLIGHT_SIMULATOR names the bridge, gazebo or
 --  legacy, with the simulator's address after a comma; unset, the link is
 --  off and the virtual sensors read a craft at rest.
+with Interfaces;
 with Adaflight.Attitude;
 with Adaflight.Sim_FDM;
 package Adaflight.Host_Simulator is
@@ -16,4 +17,8 @@ package Adaflight.Host_Simulator is
    function Acc return Adaflight.Sim_FDM.Axes;
    --  The quaternion of the latest packet since the last take, once.
    procedure Take_Attitude (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion);
+   --  The GPS solution of the latest packet since the last take, once, and
+   --  the pressure of the latest update, sea level before any.
+   procedure Take_GPS (Fresh : out Boolean; Fix : out Adaflight.Sim_FDM.GPS_Fix);
+   function Pressure return Interfaces.Integer_32;
 end Adaflight.Host_Simulator;
