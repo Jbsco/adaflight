@@ -12333,3 +12333,11 @@ negated pitch rates set from flight loop state, as upstream reads them. UP-T1 wa
 runs bridge, rangefinder, optical flow then pitot as upstream orders; sensor flag and status entry follow detection;
 task runs need optical flow feature on, as upstream. Host smoke names MTF01 and MT, turns on both features, sends
 MSP2 range and flow frames, and sees both sensor flags and a rangefinder altitude.
+
+## D569. Telemetry sensor poll (2026-11-01)
+
+Upstream's telemetry task polls its sensors before each telemetry pass: gyro temperature as a maximum over enabled
+gyros, which only a DMA burst read fills (MPU6000 scale 1/340 and zero 36.53 ride in `MPU_Gyro`), and CRSF's ACCGYRO
+frame and iBus temperature take that value. Our hook stayed empty and both inputs read zero. `STM32.Gyro` now polls its
+layer's temperature into a held value, least integer without a gyro, and flight code feeds CRSF IMU samples and iBus
+inputs from it. Vectors already drive those inputs from a random temperature, so none change.

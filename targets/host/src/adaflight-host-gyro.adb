@@ -63,4 +63,13 @@ package body Adaflight.STM32.Gyro is
    function Sync_Cycles return Interfaces.Unsigned_32 is (0);
 
    function Short_Period return Boolean is (False);
+   --  The host's virtual gyro reports no temperature, as upstream's does.
+   procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us) is
+      pragma Unreferenced (Now_Us);
+   begin
+      null;
+   end Poll_Temperature;
+
+   function Temperature return Interfaces.Integer_16 is (0);
+
 end Adaflight.STM32.Gyro;
