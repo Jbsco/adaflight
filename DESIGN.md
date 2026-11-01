@@ -12341,3 +12341,14 @@ gyros, which only a DMA burst read fills (MPU6000 scale 1/340 and zero 36.53 rid
 frame and iBus temperature take that value. Our hook stayed empty and both inputs read zero. `STM32.Gyro` now polls its
 layer's temperature into a held value, least integer without a gyro, and flight code feeds CRSF IMU samples and iBus
 inputs from it. Vectors already drive those inputs from a random temperature, so none change.
+
+## D570. UP-T1 module on boards (2026-11-01)
+
+Core `UPT1` parsed one serial module's frames for a rangefinder and an optical flow sensor, with vectors, while both
+board units left their UP-T1 arms empty. `STM32.Rangefinder` now instantiates it over its serial port with a microsecond
+clock, detects it on rangefinder UART, inits, parses frames each update and reads distance each process pass, and
+exposes its flow side: detection on optical flow UART, which opens that port when rangefinder has not, as upstream's
+driver does; a shared frame update; and the last flow sample as a core sample with rates held in range.
+`STM32.Optical_Flow` takes UP-T1 through those with the driver's gyro delay, parses frames in its update as upstream's
+shared parser does, and processes by detected kind. Host smoke drives UART4 with startup text then frames at 150 cm
+and sees both sensor flags and the sonar altitude.

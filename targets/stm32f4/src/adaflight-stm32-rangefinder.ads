@@ -4,6 +4,7 @@
 --  altitude with the craft's tilt.
 with Interfaces;
 with Adaflight.Config_Groups;
+with Adaflight.Optical_Flow;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Rangefinder is
    --  The sensor the rangefinder hardware setting names, on its UART at
@@ -21,5 +22,13 @@ package Adaflight.STM32.Rangefinder is
    --  The last altitude in centimetres, or the out of range or failure code,
    --  and the last distance before the tilt correction.
    function Altitude_Cm return Interfaces.Integer_32;
+   --  The UP-T1 module's optical flow side: its detection on the optical
+   --  flow port, which opens that port when the rangefinder has not, the
+   --  frame parse the optical flow task shares, and the last flow sample.
+   procedure Detect_UPT1_Flow
+     (Uart : Interfaces.Integer_8; Found : out Boolean; Delay_Ms : out Natural;
+      Gyro_Delay_Us : out Interfaces.Unsigned_32);
+   procedure Update_UPT1;
+   function UPT1_Flow return Adaflight.Optical_Flow.Sample;
    function Raw_Altitude_Cm return Interfaces.Integer_32;
 end Adaflight.STM32.Rangefinder;
