@@ -48,6 +48,7 @@ package body Adaflight.Host_Simulator is
    FDM          : Adaflight.Sim_FDM.State;
    Feed_Gyro    : Adaflight.Sim_FDM.Axes := (others => 0);
    Feed_Acc     : Adaflight.Sim_FDM.Axes := (others => 0);
+   Feed_Mag     : Adaflight.Sim_FDM.Axes := (others => 0);
    Latest       : Adaflight.Attitude.Quaternion;
    Fresh_Q      : Boolean := False;
    Latest_GPS   : Adaflight.Sim_FDM.GPS_Fix;
@@ -59,6 +60,7 @@ package body Adaflight.Host_Simulator is
    function Legacy_Bridge return Boolean is (Legacy);
    function Gyro return Adaflight.Sim_FDM.Axes is (Feed_Gyro);
    function Acc return Adaflight.Sim_FDM.Axes is (Feed_Acc);
+   function Mag return Adaflight.Sim_FDM.Axes is (Feed_Mag);
 
    function Micros return Interfaces.Unsigned_64 is
      (Interfaces.Unsigned_64 (Ada.Real_Time.To_Duration (Ada.Real_Time.Clock - Epoch) * 1_000_000));
@@ -168,6 +170,7 @@ package body Adaflight.Host_Simulator is
                when Adaflight.Sim_FDM.Update =>
                   Feed_Gyro := F.Gyro;
                   Feed_Acc := F.Acc;
+                  Feed_Mag := F.Mag;
                   Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
                   Fresh_Q := True;
                   Pressure_Pa := F.Pressure;

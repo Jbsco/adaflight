@@ -54,4 +54,10 @@ package body Adaflight.STM32.MCU is
    begin
       Adaflight.Host_Simulator.Take_RC (Fresh, Pulses);
    end Simulator_RC;
+
+   procedure Simulator_Mag (Field : out Mag_Field) is
+      M : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Mag;
+   begin
+      Field := (M (1), M (2), M (3));
+   end Simulator_Mag;
 end Adaflight.STM32.MCU;

@@ -65,6 +65,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Modes;
+with Adaflight.Compass;
 with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
@@ -84,6 +85,7 @@ with Adaflight.Serial_Feature_Map;
 with Adaflight.Servo_Mixer;
 with Adaflight.STM32.ADC;
 with Adaflight.STM32.Baro;
+with Adaflight.STM32.Compass;
 with Adaflight.STM32.I2C;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
@@ -227,6 +229,13 @@ package body Adaflight.STM32.Flight is
       Baro_XCLR_Tag    => Adaflight.Board.Baro_XCLR_Tag,
       Baro_Hardware    => (if Adaflight.Board.Baro_SPI_Device /= 0 or else Adaflight.Board.Baro_I2C_Device /= 0
                            then 0 else 1),
+      Mag_Bus_Type     => (if Adaflight.Board.Mag_SPI_Device /= 0 then 2 else 1),
+      Mag_I2C_Device   => Adaflight.Board.Mag_I2C_Device,
+      Mag_I2C_Address  => 0,
+      Mag_SPI_Device   => Adaflight.Board.Mag_SPI_Device,
+      Mag_CS_Tag       => Adaflight.Board.Mag_CS_Tag,
+      Mag_EXTI_Tag     => Adaflight.Board.Mag_EXTI_Tag,
+      Mag_Align        => Adaflight.Board.Mag_Align,
       Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device,
       PINIO_Tags       => (Adaflight.Board.PINIO1_Tag, Adaflight.Board.PINIO2_Tag, Adaflight.Board.PINIO3_Tag,
                            Adaflight.Board.PINIO4_Tag),
@@ -1061,7 +1070,7 @@ package body Adaflight.STM32.Flight is
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
          LED_Strip => Adaflight.Build_Features.LED_Strip,
-         Baro => Adaflight.STM32.Baro.Detected, others => False);
+         Baro => Adaflight.STM32.Baro.Detected, Mag => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1091,6 +1100,8 @@ package body Adaflight.STM32.Flight is
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
       Inputs.Baro_Detected := Adaflight.STM32.Baro.Detected;
+      Inputs.Mag_Detected := Adaflight.STM32.Compass.Detected;
+      Inputs.Mag_Mode_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Mag);
       Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
       Inputs.Feature_LED_Strip := (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0;
       Inputs.OSD_Framerate_Hz :=
@@ -1182,6 +1193,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      if Effects.Control.Mag_Calibration then
+         Adaflight.STM32.Compass.Start_Calibration;
       end if;
       if Effects.Motor.Set then
          Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
@@ -1560,6 +1574,37 @@ package body Adaflight.STM32.Flight is
       Adaflight.Beeper.Request (Beep, Beep_Settings, Beep_Conditions, M);
    end Request_Beep;
 
+   --  After a compass task run: the field into the IMU reply, the beep the
+   --  read asked for, and the zero saved when a calibration ended.
+   procedure Compass_Aftermath is
+      Field : constant Adaflight.Vectors.Vector3 := Adaflight.STM32.Compass.Field;
+      B     : Adaflight.Compass.Beep;
+      Save  : Boolean;
+      Zero  : Adaflight.Compass.Zero_Offsets;
+   begin
+      Ctx.Out_Views.State.IMU.Mag := (Field.X, Field.Y, Field.Z);
+      Adaflight.STM32.Compass.Take_Beep (B);
+      case B is
+         when Adaflight.Compass.Silence =>
+            null;
+         when Adaflight.Compass.Calibration_Start =>
+            Request_Beep (Adaflight.Beeper.Acc_Calibration);
+         when Adaflight.Compass.Movement_Start =>
+            Request_Beep (Adaflight.Beeper.Ready);
+         when Adaflight.Compass.Calibrated =>
+            Request_Beep (Adaflight.Beeper.Gyro_Calibrated);
+         when Adaflight.Compass.Calibration_Failed =>
+            Request_Beep (Adaflight.Beeper.Acc_Calibration_Fail);
+      end case;
+      Adaflight.STM32.Compass.Take_Save (Save, Zero);
+      if Save then
+         for C in Adaflight.Vectors.Coordinate loop
+            Config.Compass_Config.Mag_Zero (Adaflight.Vectors.Coordinate'Pos (C)) := Interfaces.Integer_16 (Zero (C));
+         end loop;
+         Write_Configuration;
+      end if;
+   end Compass_Aftermath;
+
    procedure Confirmation_Beeps (Count : Adaflight.Beeper.Beep_Count) is
    begin
       Adaflight.Beeper.Confirmation_Beeps (Beep, Beep_Settings, Beep_Conditions, Count);
@@ -1895,7 +1940,7 @@ package body Adaflight.STM32.Flight is
       GPS_Rescue_Update      => Run_Rescue,
       Baro_Update            => Adaflight.STM32.Baro.Update,
       Pitot_Update           => No_Step_Period,
-      Compass_Update         => No_Step_Period,
+      Compass_Update         => Adaflight.STM32.Compass.Update,
       Position_Update        => No_Step,
       Rangefinder_Update     => Adaflight.STM32.Rangefinder.Update,
       Rangefinder_Process    => Adaflight.STM32.Rangefinder.Process,
@@ -1953,8 +1998,8 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Run_Filter;
 
-   --  The attitude task: the estimate from the attitude lowpass of the gyro
-   --  and the accelerometer, without a compass, over the arming, the angle
+   --  The attitude task: the estimate from the attitude lowpass of the gyro,
+   --  the accelerometer and a calibrated compass, over the arming, the angle
    --  or horizon mode that turns the throttle correction on, the headfree
    --  mode, and the GPS course with the filtered yaw rate, then the angles
    --  and the quaternion into the attitude replies.
@@ -1963,12 +2008,12 @@ package body Adaflight.STM32.Flight is
         (X => Gyro_State.Downsampled (Adaflight.Axes.Roll),
          Y => Gyro_State.Downsampled (Adaflight.Axes.Pitch),
          Z => Gyro_State.Downsampled (Adaflight.Axes.Yaw));
-      No_Mag : constant Adaflight.Vectors.Vector3 := (0.0, 0.0, 0.0);
       Magnitude : constant Float := Float'Max (0.0, Float'Min (1.0e3, Acc_State.Magnitude));
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Rate_Bound : constant := Adaflight.Attitude.Rate_Bound;
    begin
+      Adaflight.STM32.Compass.Set_Gyro (Rates);
       if Adaflight.STM32.MCU.Simulated then
          declare
             Fresh  : Boolean;
@@ -1985,8 +2030,8 @@ package body Adaflight.STM32.Flight is
          end;
       else
          Adaflight.Attitude.Update
-           (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
-            Use_Mag       => False,
+           (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, Adaflight.STM32.Compass.Field,
+            Use_Mag       => Adaflight.STM32.Compass.Enabled_And_Calibrated,
             Armed         => Adaflight.STM32.Pilot.Armed,
             Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
             Headfree_Mode => M (Adaflight.Arming.Headfree_Mode),
@@ -2181,6 +2226,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Step.Commands (Adaflight.Arming.Acc_Calibration) then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      if Step.Commands (Adaflight.Arming.Mag_Calibration) then
+         Adaflight.STM32.Compass.Start_Calibration;
       end if;
       for Profile in Adaflight.Arming.PID_Profile_1 .. Adaflight.Arming.PID_Profile_3 loop
          if Step.Commands (Profile) then
@@ -3060,7 +3108,7 @@ package body Adaflight.STM32.Flight is
       return
         (Acc_Present         => Gyro_Report.Acc_Found,
          Baro_Present        => Adaflight.STM32.Baro.Detected,
-         Mag_Present         => False,
+         Mag_Present         => Adaflight.STM32.Compass.Detected,
          Gyro_Present        => Selection.Found,
          Disabled_Kinds      => Config.Telemetry_Config.Disabled_Sensors,
          Voltage_Configured  => Meters.Voltage_Meter /= Adaflight.Battery.None,
@@ -3143,9 +3191,11 @@ package body Adaflight.STM32.Flight is
           Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State)))));
    end Run_Altitude_Hold;
 
-   --  Whether the attitude's heading is good to fly by: the board has no
-   --  compass, so only a GPS course the attitude has matched long enough.
-   function Heading_Valid return Boolean is (Adaflight.Attitude.Heading_Valid (Att_State, Compass_Calibrated => False));
+   --  Whether the attitude's heading is good to fly by: a calibrated compass,
+   --  or a GPS course the attitude has matched long enough.
+   function Heading_Valid return Boolean is
+     (Adaflight.Attitude.Heading_Valid
+        (Att_State, Compass_Calibrated => Adaflight.STM32.Compass.Enabled_And_Calibrated));
 
    --  What the position hold reads: the arming, the failsafe and the modes,
    --  the interval the scheduler measured since its last run, the estimate's
@@ -3889,6 +3939,7 @@ package body Adaflight.STM32.Flight is
          Feature_Telemetry => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
          Rescue_Configured    => Rescue_Configured,
          Baro_Detected        => Adaflight.STM32.Baro.Detected,
+         Mag_Detected         => Adaflight.STM32.Compass.Detected,
          Rangefinder_Detected => Adaflight.STM32.Rangefinder.Detected,
          Cos_Tilt             => Adaflight.Attitude.Cos_Tilt (Att_State),
          others               => <>);
@@ -3945,6 +3996,9 @@ package body Adaflight.STM32.Flight is
             end if;
          when Scheduler.OSD_Custom_Text =>
             Adaflight.STM32.OSD_Custom_Text.Update (Config.Osd_Custom_Text_Config.Terminator);
+         when Scheduler.Compass =>
+            Tasks.Compass (Sched, Sched_Settings, Inputs, Before);
+            Compass_Aftermath;
          when Scheduler.Baro =>
             Tasks.Baro (Sched, Sched_Settings, Inputs, Before);
          when Scheduler.Rangefinder =>
@@ -4097,6 +4151,14 @@ package body Adaflight.STM32.Flight is
                       Number  => Natural'Min (15, Adaflight.STM32.Baro.Bus_Number),
                       Address => Adaflight.STM32.Baro.Bus_Address));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Baro) := Adaflight.STM32.Baro.Detected;
+      Adaflight.STM32.Compass.Init (Config);
+      Env.Mag :=
+        (Detected => Adaflight.STM32.Compass.Detected, Hardware => Adaflight.STM32.Compass.Hardware,
+         Bus      => (Kind    => (case Adaflight.STM32.Compass.Bus_Type is
+                                    when 1 => CLI.I2C_Bus, when 2 => CLI.SPI_Bus, when others => CLI.No_Bus),
+                      Number  => Natural'Min (15, Adaflight.STM32.Compass.Bus_Number),
+                      Address => Adaflight.STM32.Compass.Bus_Address));
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Mag) := Adaflight.STM32.Compass.Detected;
       Adaflight.STM32.Rangefinder.Init (Config);
       Init_Internal_ADC;
       Boot_Beeps;
@@ -4216,7 +4278,8 @@ package body Adaflight.STM32.Flight is
         (Config, Runtime_Features,
          Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
            (Config.Telemetry_Config, Config.Motor_Config,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False),
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
+             Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected),
             Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
             GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
             Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
@@ -4230,7 +4293,8 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Radio.Init_Jeti_Telemetry
            (Adaflight.Config_Runtime.Jeti_Settings_Of
               (Config.Battery_Config, Config.System_Config, Runtime_Features,
-               (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False)),
+               (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
+                Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected)),
             Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       end if;
       if Adaflight.Build_Features.MAVLink_Telemetry then
@@ -4239,7 +4303,8 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init_GHST_Telemetry
         (Adaflight.Config_Runtime.GHST_Settings_Of
            (Config.Telemetry_Config, Config.Battery_Config, Runtime_Features,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => Adaflight.STM32.Baro.Detected, Mag => False)),
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
+             Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected)),
          Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       if Adaflight.Build_Features.IBus_Telemetry then
          Adaflight.STM32.IBus.Init

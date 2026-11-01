@@ -3089,6 +3089,16 @@ def main():
             status = msp(sock, 101)
             check("simulator status shows the virtual barometer", status is not None and len(status) > 5
                   and (status[4] | status[5] << 8) & 0x02 != 0, repr(status))
+            check("simulator status shows the virtual compass", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x04 != 0, repr(status))
+            imu = msp(sock, 102)
+            mag = list(struct.unpack_from("<3h", imu, 12)) if imu and len(imu) >= 18 else None
+            # The synthetic field (4096 counts, 60 degrees of inclination, 2 degrees of east declination) in the
+            # body frame of the rolled craft, after the bridge's quarter turn of yaw between the simulator frame
+            # and the flight frame.
+            check("virtual compass reads the fed field in the body frame",
+                  mag is not None and abs(mag[0] - (-72)) <= 2 and abs(mag[1] - (-2632)) <= 2
+                  and abs(mag[2] - (-3138)) <= 2, repr(mag))
             # A position in the Gazebo bridge's order (longitude, latitude, altitude); the virtual barometer takes
             # its pressure from the altitude and the virtual GPS its solution from all three.
             def fdm_at(t, lon, lat, alt):

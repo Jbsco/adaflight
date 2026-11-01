@@ -160,4 +160,9 @@ package body Adaflight.STM32.MCU is
       Fresh := False;
       Pulses := (others => 0);
    end Simulator_RC;
+
+   procedure Simulator_Mag (Field : out Mag_Field) is
+   begin
+      Field := (others => 0);
+   end Simulator_Mag;
 end Adaflight.STM32.MCU;

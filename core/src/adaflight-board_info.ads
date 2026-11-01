@@ -88,6 +88,15 @@ package Adaflight.Board_Info with SPARK_Mode is
       Baro_EOC_Tag     : Interfaces.Unsigned_8 := 0;
       Baro_XCLR_Tag    : Interfaces.Unsigned_8 := 0;
       Baro_Hardware    : Interfaces.Unsigned_8 := 0;
+      --  The compass's bus, device, address or select pin, interrupt pin and
+      --  alignment; the reference build's values when the board names none.
+      Mag_Bus_Type     : Interfaces.Unsigned_8 := 1;
+      Mag_I2C_Device   : Interfaces.Unsigned_8 := 0;
+      Mag_I2C_Address  : Interfaces.Unsigned_8 := 0;
+      Mag_SPI_Device   : Interfaces.Unsigned_8 := 0;
+      Mag_CS_Tag       : Interfaces.Unsigned_8 := 0;
+      Mag_EXTI_Tag     : Interfaces.Unsigned_8 := 0;
+      Mag_Align        : Interfaces.Unsigned_8 := 0;
       --  The timer pin map, the camera control pin, the ADC devices' DMA
       --  options and the ESC serial pin of the board; the reference build's
       --  values when unset.

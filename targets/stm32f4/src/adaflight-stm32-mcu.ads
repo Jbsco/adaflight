@@ -44,4 +44,7 @@ package Adaflight.STM32.MCU is
    function UDP_Receiver_Available return Boolean;
    type RC_Pulses is array (0 .. 15) of Interfaces.Unsigned_16;
    procedure Simulator_RC (Fresh : out Boolean; Pulses : out RC_Pulses);
+   type Mag_Field is array (0 .. 2) of Interfaces.Integer_16;
+   --  The simulator's magnetic field in the body frame, counts as the virtual compass reads them.
+   procedure Simulator_Mag (Field : out Mag_Field);
 end Adaflight.STM32.MCU;
