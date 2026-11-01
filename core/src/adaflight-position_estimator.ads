@@ -118,6 +118,28 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    --  base of two hundred seconds times the accuracy scale of up to ten.
    subtype Anchor_Tau_S is Float range 200.0 .. 2_000.0;
 
+   --  What the debug values read of the last update: whether one ran with its
+   --  earth frame acceleration, the barometer's relative altitude when it
+   --  fed, the GPS measurement variances and east and north velocities when
+   --  the horizontal plane fed, and the GPS relative altitude and climb rate
+   --  when the vertical axis fed. Each tap holds what its site last wrote.
+   type Debug_Taps is record
+      Updated        : Boolean := False;
+      Accel_East     : Float := 0.0;
+      Accel_North    : Float := 0.0;
+      Accel_Up       : Float := 0.0;
+      Baro_Fed       : Boolean := False;
+      Baro_Rel_Cm    : Altitude_Cm := 0.0;
+      GPS_XY_Fed     : Boolean := False;
+      GPS_R_Pos      : Position_Filter.Noise := 0.0;
+      GPS_R_Vel      : Position_Filter.Noise := 0.0;
+      GPS_Vel_East   : Integer_16 := 0;
+      GPS_Vel_North  : Integer_16 := 0;
+      GPS_Alt_Fed    : Boolean := False;
+      GPS_Rel_Alt_Cm : Altitude_Cm := 0.0;
+      GPS_Vel_Up     : Altitude_Cm := 0.0;
+   end record;
+
    type State is record
       Up                     : Position_Filter.Filter;
       East                   : Position_Filter.Filter;
@@ -166,6 +188,7 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Control_Derivative     : Altitude_Cm := 0.0;
       Control_Acceleration   : Altitude_Cm := 0.0;
       Was_Armed              : Boolean := False;
+      Taps                   : Debug_Taps;
    end record;
 
    procedure Init (S : out State; C : Settings; Armed : Boolean);

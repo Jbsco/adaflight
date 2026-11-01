@@ -290,6 +290,8 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          Noise    : constant Position_Filter.Noise := Baro_Noise / Trust;
          Relative : constant Altitude_Cm := Held (Inp.Baro_Altitude_Cm - S.Baro_Offset_Cm);
       begin
+         S.Taps.Baro_Fed := True;
+         S.Taps.Baro_Rel_Cm := Relative;
          Gate_Step (S.Baro_Gate, Relative, Inp.Baro_Interval_Us, Action);
          case Action is
             when Reject =>
@@ -388,6 +390,11 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
             R_Vel : constant Noise := Accuracy_R (Inp.GPS_S_Acc, Velocity_Accuracy_Denom, GPS_Velocity_Noise);
          begin
             Distance_2d (S.Origin, Inp.GPS_Location, Inp.Cos_Lat, East, North);
+            S.Taps.GPS_XY_Fed := True;
+            S.Taps.GPS_R_Pos := R_Pos;
+            S.Taps.GPS_R_Vel := R_Vel;
+            S.Taps.GPS_Vel_East := Inp.GPS_Velocity_East;
+            S.Taps.GPS_Vel_North := Inp.GPS_Velocity_North;
             Update_Velocity_To_Position (S.East, Float (Inp.GPS_Velocity_East), R_Vel);
             Update_Velocity_To_Position (S.North, Float (Inp.GPS_Velocity_North), R_Vel);
             Update_Position (S.East, Held (East), R_Pos);
@@ -406,6 +413,9 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
             Vel_Up   : constant Altitude_Cm := -Float (Inp.GPS_Velocity_Down);
             Rel_Alt  : constant Altitude_Cm := Held (Float (Inp.GPS_Location.Alt_Cm) - S.GPS_Alt_Offset_Cm);
          begin
+            S.Taps.GPS_Alt_Fed := True;
+            S.Taps.GPS_Rel_Alt_Cm := Rel_Alt;
+            S.Taps.GPS_Vel_Up := Vel_Up;
             Update_Velocity_To_Position (S.Up, Vel_Up, R_Vel_Up);
             Update_Position (S.Up, Rel_Alt, R_Alt);
             S.Last_Z_Measurement_Us := Inp.Now_Us;
@@ -471,6 +481,10 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          Start_XY (S, Inp, Want_XY);
       end if;
       A := Linear_Acceleration (Inp);
+      S.Taps.Updated := True;
+      S.Taps.Accel_East := A.East;
+      S.Taps.Accel_North := A.North;
+      S.Taps.Accel_Up := A.Up;
       Update_Acceleration (S.Up, (if Inp.Armed then A.Up else 0.0), Acceleration_Noise_Z);
       Predict (S.Up, Sample_Time_S);
       if S.XY_Enabled and then Inp.Armed then
