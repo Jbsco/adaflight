@@ -12264,3 +12264,11 @@ as the receiver feature, survives the fix-up's clearing of unsupported features,
 them is set (each of them clears it first), and the command line offers it; a board ignores a stored UDP bit as the
 reference's board builds do. Oracle receiver sequences 46 to 55 feed the reference's own UDP store with drawn
 counts.
+
+## D563. Motor packets to the simulator (2026-10-31)
+
+Simulated host motors hand each pulse to the simulator link instead of a timer: a speed packet carries four motors
+as (pulse - idle) / 1000, or / 500 with the 3D feature, and a raw packet carries a motor count with each pulse as
+written. One pair goes out per flight dynamics packet received, when its motor write completes, and a link timeout
+sends its latest pair. Pulses exist only on analog protocols, so a simulated image runs `motor_pwm_protocol = PWM`,
+the one protocol the reference's simulator build has.

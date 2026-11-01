@@ -3139,8 +3139,9 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        # Simulator sticks: the UDP receiver feature takes packets of sixteen pulses on port 9004, which a feeder
-        # keeps flowing beside the flight dynamics packets.
+        # Simulator sticks and motor packets: the UDP receiver feature with the analog motor protocol the reference's
+        # simulator build has. Packets of sixteen pulses arrive on port 9004, and a motor set over MSP returns as the
+        # speed and raw motor packets, one pair per flight dynamics packet, while a feeder keeps both packet kinds flowing.
         store = os.path.join(work, "simrc.bin")
         proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
         try:
@@ -3150,6 +3151,8 @@ def main():
             cli(sock, "feature -RX_SERIAL")
             text = cli(sock, "feature RX_UDP")
             check("UDP receiver feature set", "Enabled RX_UDP" in text, text[-120:])
+            text = cli(sock, "set motor_pwm_protocol = PWM")
+            check("analog motor protocol set for the simulator", "motor_pwm_protocol set to PWM" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -3169,12 +3172,45 @@ def main():
                 i += 1
                 time.sleep(0.01)
             out.close()
+        sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sim.bind(("127.0.0.1", 9002))
+        sim.settimeout(0.05)
+        raw_sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        raw_sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        raw_sim.bind(("127.0.0.1", 9001))
+        raw_sim.settimeout(0.05)
         feeder = threading.Thread(target=feed_simulator, daemon=True)
         try:
             time.sleep(2.5)
             feeder.start()
             passed, values = until(lambda: rc_values(sock), lambda v: v == [1500, 1600, 1700, 1000], wait=5.0)
             check("UDP receiver pulses reach MSP RC", passed, repr(values))
+            msp(sock, 214, struct.pack("<8H", 1500, 1000, 1000, 1000, 1000, 1000, 1000, 1000))
+            speeds = None
+            raw = None
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                try:
+                    data = sim.recv(64)
+                    if len(data) == 16:
+                        speeds = struct.unpack("<4f", data)
+                except socket.timeout:
+                    pass
+                try:
+                    data = raw_sim.recv(128)
+                    if len(data) == 66:
+                        raw = struct.unpack("<H16f", data)
+                except socket.timeout:
+                    pass
+                if speeds is not None and raw is not None and speeds[0] > 0.4:
+                    break
+            check("speed packet carries motor one at half throttle",
+                  speeds is not None and abs(speeds[0] - 0.5) <= 0.01 and all(abs(v) <= 0.01 for v in speeds[1:]),
+                  repr(speeds))
+            check("raw packet carries four motors with motor one at 1500",
+                  raw is not None and raw[0] == 4 and abs(raw[1] - 1500.0) <= 1.0
+                  and all(abs(v - 1000.0) <= 1.0 for v in raw[2:5]), repr(raw))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "status")
@@ -3185,6 +3221,8 @@ def main():
             stop_feed.set()
             stop(proc)
             sock.close()
+            sim.close()
+            raw_sim.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
