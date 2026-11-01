@@ -3395,6 +3395,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
       Adaflight.Autopilot_Debug.Record_Position
         (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control, Adaflight.STM32.Debug_Values.Axis);
+      Adaflight.Autopilot_Debug.Record_Rescue (Adaflight.STM32.Debug_Values.State, Rescue_State);
       if Arming_Disabled then
          Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Arm_Switch, True);
       end if;

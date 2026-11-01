@@ -10096,6 +10096,8 @@ procedure Vector_Check is
    end Check_Poshold_Line;
 
    RS_State    : Adaflight.GPS_Rescue.State;
+   RS_Debug    : Adaflight.Debug.State;
+   RS_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    RS_Settings : Adaflight.GPS_Rescue.Settings;
    RS_AC       : Adaflight.Altitude_Control.Settings;
    RS_Altitude : Adaflight.Altitude_Control.State;
@@ -10141,6 +10143,19 @@ procedure Vector_Check is
          Record_Result ("rsinit.initial_climb", Bits (26), To_Bits (RS_State.Want.Initial_Climb_Cm));
          Record_Result ("rsinit.descent_distance", Bits (27), To_Bits (RS_State.Want.Descent_Distance_Cm));
          Record_Result ("rsinit.slowdown", Bits (28), To_Bits (RS_State.Want.Slowdown_Distance_Cm));
+      elsif Name = "rsdebug" then
+         RS_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (RS_Debug, Interfaces.Unsigned_8 (Int (3)));
+         RS_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "rsdbg" then
+         Adaflight.Autopilot_Debug.Record_Altitude (RS_Debug, RS_Altitude);
+         Adaflight.Autopilot_Debug.Record_Heading (RS_Debug, RS_Hold.Control);
+         Adaflight.Autopilot_Debug.Record_Hold (RS_Debug, RS_Hold);
+         Adaflight.Autopilot_Debug.Record_Position (RS_Debug, RS_Hold.Control, RS_Debug_Axis);
+         Adaflight.Autopilot_Debug.Record_Rescue (RS_Debug, RS_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("rsstep.debug", Int (4 + J), Integer_64 (RS_Debug.Data (J)));
+         end loop;
       elsif Name = "rsstep" then
          declare
             Inp   : Inputs;
