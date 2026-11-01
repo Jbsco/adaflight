@@ -2297,6 +2297,17 @@ def main():
                   repr(sender.received[:40]))
             check("SRXL telemetry sends the link quality and the RPM frames", 0x7F in kinds and 0x7E in kinds,
                   repr(kinds))
+            if built("Menus"):
+                gesture = spektrum_frame([1500, 1950, 1500, 1000] + [1500] * 10)
+                for frame in (gesture, spektrum_frame(us), gesture, spektrum_frame(us)):
+                    sender.frames = [frame]
+                    time.sleep(0.4)
+                mark = len(sender.received)
+                time.sleep(2.0)
+                lines = [f[3:16].decode("ascii", "replace") for f in srxl_frames(sender.received[mark:])
+                         if f[0] == 0x0C]
+                check("stick gesture opens the menu on the SRXL display, whose text frames carry the title",
+                      any("MAIN" in line or "QUICK" in line for line in lines), repr(lines[:9]))
         finally:
             sender.stop.set()
             stop(proc)
