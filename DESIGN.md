@@ -12250,3 +12250,17 @@ probe showed it: virtual device detected, pressure fed, no sample. `Run_Body` no
 detection, and position inputs carry sample time and interval for the estimator's gate, which had let one reading
 through and then none. The smoke's GPS climb check had passed only because no barometer ran: that phase now sets
 `altitude_source` to GPS_ONLY, and the simulator phase checks the barometer alone.
+
+## D562. UDP receiver provider (2026-10-31)
+
+A simulator sends its sticks as one UDP packet: a timestamp and sixteen channel pulses. `UDP_Receiver` keeps each
+packet's channels, those a shorter packet leaves out staying as they were, and reports one complete frame per packet
+with its channel count. `Receiver` takes that count on a complete frame as its channel count, bounded by configured
+aux channels, and starts at zero channels until a packet arrives; `Source_Of` picks this provider ahead of every other
+when its feature is on. On a host, the simulator link opens port 9004 for these packets and offers them through
+`MCU.Simulator_RC`, which no board answers. The feature is available on the host image alone, where
+`MCU.UDP_Receiver_Available` holds as the reference's simulator build defines it: there a configured UDP receiver counts
+as the receiver feature, survives the fix-up's clearing of unsupported features, and clears the others when none of
+them is set (each of them clears it first), and the command line offers it; a board ignores a stored UDP bit as the
+reference's board builds do. Oracle receiver sequences 46 to 55 feed the reference's own UDP store with drawn
+counts.

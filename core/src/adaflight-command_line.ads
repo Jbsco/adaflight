@@ -26,6 +26,7 @@
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state and what the tasks command remembers.
 with Interfaces;
+with Adaflight.Config_Fix;
 with Adaflight.Arming;
 with Adaflight.Battery;
 with Adaflight.Beeper;
@@ -484,6 +485,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       ESC_Sensor      : Boolean := False;
       Build_Options   : Build_Option_List := (others => 0);
       Option_Count    : Natural range 0 .. Max_Build_Options := 0;
+      Supported_Features : Interfaces.Unsigned_32 := Config_Fix.Supported_Features;
       Soft_Serial     : Boolean := False;
       Serial_Ports    : Serial_Port_Statuses;
       CLI_Port        : Interfaces.Integer_32 := 20;

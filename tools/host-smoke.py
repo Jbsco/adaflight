@@ -3139,6 +3139,52 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        # Simulator sticks: the UDP receiver feature takes packets of sixteen pulses on port 9004, which a feeder
+        # keeps flowing beside the flight dynamics packets.
+        store = os.path.join(work, "simrc.bin")
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            cli(sock, "feature -RX_SERIAL")
+            text = cli(sock, "feature RX_UDP")
+            check("UDP receiver feature set", "Enabled RX_UDP" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        stop_feed = threading.Event()
+        def feed_simulator():
+            out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sticks = [1500, 1600, 1000, 1700] + [1000] * 12
+            i = 0
+            while not stop_feed.is_set():
+                out.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                       0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                if i % 2 == 0:
+                    out.sendto(struct.pack("<d16H", i * 0.01, *sticks), ("127.0.0.1", 9004))
+                i += 1
+                time.sleep(0.01)
+            out.close()
+        feeder = threading.Thread(target=feed_simulator, daemon=True)
+        try:
+            time.sleep(2.5)
+            feeder.start()
+            passed, values = until(lambda: rc_values(sock), lambda v: v == [1500, 1600, 1700, 1000], wait=5.0)
+            check("UDP receiver pulses reach MSP RC", passed, repr(values))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "status")
+            flags = text.split("Arming disable flags:")[-1]
+            check("UDP frames clear RXLOSS", "Arming disable flags:" in text and "RXLOSS" not in flags,
+                  flags.strip()[:80])
+        finally:
+            stop_feed.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

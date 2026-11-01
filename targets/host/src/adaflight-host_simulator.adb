@@ -8,6 +8,7 @@ package body Adaflight.Host_Simulator is
    use type Ada.Real_Time.Time;
    use type Ada.Streams.Stream_Element_Offset;
    use type Interfaces.Integer_64;
+   use type Interfaces.Unsigned_16;
 
    State_Port   : constant := 9003;
    PWM_Port     : constant := 9002;
@@ -29,6 +30,10 @@ package body Adaflight.Host_Simulator is
    PWM_Socket   : GNAT.Sockets.Socket_Type;
    PWM_To       : GNAT.Sockets.Sock_Addr_Type;
    PWM_Raw_To   : GNAT.Sockets.Sock_Addr_Type;
+   RC_Port      : constant := 9004;
+   RC_Socket    : GNAT.Sockets.Socket_Type;
+   Latest_RC    : Adaflight.STM32.MCU.RC_Pulses := (others => 0);
+   Fresh_RC     : Boolean := False;
    FDM          : Adaflight.Sim_FDM.State;
    Feed_Gyro    : Adaflight.Sim_FDM.Axes := (others => 0);
    Feed_Acc     : Adaflight.Sim_FDM.Axes := (others => 0);
@@ -69,6 +74,10 @@ package body Adaflight.Host_Simulator is
       Create_Socket (PWM_Socket, Family_Inet, Socket_Datagram);
       PWM_To := (Family_Inet, Inet_Addr (Address), PWM_Port);
       PWM_Raw_To := (Family_Inet, Inet_Addr (Address), PWM_Raw_Port);
+      Create_Socket (RC_Socket, Family_Inet, Socket_Datagram);
+      Set_Socket_Option (RC_Socket, Socket_Level, (Reuse_Address, True));
+      Bind_Socket (RC_Socket, (Family_Inet, Any_Inet_Addr, RC_Port));
+      Control_Socket (RC_Socket, Non_Blocking);
       Opened := True;
    end Open;
 
@@ -141,7 +150,36 @@ package body Adaflight.Host_Simulator is
             end case;
          end if;
       end loop;
+      loop
+         declare
+            RC_Item : Ada.Streams.Stream_Element_Array (1 .. 40);
+            RC_Last : Ada.Streams.Stream_Element_Offset;
+         begin
+            Receive_Socket (RC_Socket, RC_Item, RC_Last, From);
+            exit when RC_Last < RC_Item'Last;
+            for I in Latest_RC'Range loop
+               declare
+                  Low : constant Ada.Streams.Stream_Element_Offset :=
+                    RC_Item'First + 8 + Ada.Streams.Stream_Element_Offset (2 * I);
+               begin
+                  Latest_RC (I) := Interfaces.Unsigned_16 (RC_Item (Low))
+                    + 256 * Interfaces.Unsigned_16 (RC_Item (Low + 1));
+               end;
+            end loop;
+            Fresh_RC := True;
+         exception
+            when Socket_Error =>
+               exit;
+         end;
+      end loop;
    end Poll;
+
+   procedure Take_RC (Fresh : out Boolean; Pulses : out Adaflight.STM32.MCU.RC_Pulses) is
+   begin
+      Fresh := Fresh_RC;
+      Pulses := Latest_RC;
+      Fresh_RC := False;
+   end Take_RC;
 
    procedure Take_GPS (Fresh : out Boolean; Fix : out Adaflight.Sim_FDM.GPS_Fix) is
    begin

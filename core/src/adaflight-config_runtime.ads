@@ -610,7 +610,8 @@ private
    --  The receiver source the features name, in the setup's order of
    --  precedence; the UDP source needs a build the boards do not have.
    function Source_Of (Features : Unsigned_32) return Receiver.Provider is
-     (if (Features and Config_Fix.Feature_RX_Parallel_PWM) /= 0 then Receiver.Parallel_PWM
+     (if (Features and Config_Fix.Feature_RX_UDP) /= 0 then Receiver.UDP
+      elsif (Features and Config_Fix.Feature_RX_Parallel_PWM) /= 0 then Receiver.Parallel_PWM
       elsif (Features and Config_Fix.Feature_RX_PPM) /= 0 then Receiver.PPM
       elsif (Features and Config_Fix.Feature_RX_Serial) /= 0 then Receiver.Serial
       elsif (Features and Config_Fix.Feature_RX_MSP) /= 0 then Receiver.MSP

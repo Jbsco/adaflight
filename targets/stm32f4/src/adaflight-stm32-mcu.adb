@@ -152,4 +152,12 @@ package body Adaflight.STM32.MCU is
    begin
       Pascals := 101_325;
    end Simulator_Pressure;
+
+   function UDP_Receiver_Available return Boolean is (False);
+
+   procedure Simulator_RC (Fresh : out Boolean; Pulses : out RC_Pulses) is
+   begin
+      Fresh := False;
+      Pulses := (others => 0);
+   end Simulator_RC;
 end Adaflight.STM32.MCU;

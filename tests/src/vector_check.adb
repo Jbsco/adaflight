@@ -93,6 +93,7 @@ with Adaflight.RC_Stats;
 with Adaflight.RX_Task;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
+with Adaflight.UDP_Receiver;
 with Adaflight.SRXL2;
 with Adaflight.FPORT;
 with Adaflight.MAVLink;
@@ -3371,6 +3372,10 @@ procedure Vector_Check is
    --  The frame the driver holds until a frame check that is not skipped
    --  for a running task consumes it.
    Rx_Frame    : Adaflight.Receiver.Frame_Report;
+   --  The UDP provider's store and the channel count of the packet an
+   --  event fed, none when the step fed no packet.
+   Rx_Udp       : Adaflight.UDP_Receiver.State;
+   Rx_Udp_Count : Integer := -1;
 
    procedure Check_Rx_Line is
       use Adaflight.Receiver;
@@ -3442,6 +3447,7 @@ procedure Vector_Check is
             Arm_End := Integer (Next);
             Now_Ms := Unsigned_32 (Next);
             Init (Rx_State, Rx_Settings, Now_Ms, Protocol_RSSI, Protocol_Quality);
+            Adaflight.UDP_Receiver.Init (Rx_Udp);
             if Arm_Aux >= 0 then
                Init_Arm_Switch (Rx_State, Arm_Aux, (Start_Step => Arm_Start, End_Step => Arm_End));
             end if;
@@ -3515,6 +3521,8 @@ procedure Vector_Check is
                      Suspend (Rx_State, Rx_Settings, Now_Us);
                   elsif Kind = "u" then
                      Resume (Rx_State, Rx_Settings, Now_Us);
+                  elsif Kind = "c" then
+                     Rx_Udp_Count := A1;
                   else
                      Put_Line ("rxstep: unknown event " & Kind);
                      Failures := Failures + 1;
@@ -3539,6 +3547,28 @@ procedure Vector_Check is
                      Rx_Override.Fresh (Ch) := (Fresh / 2 ** Ch) mod 2 = 1;
                   end loop;
                end;
+            end if;
+            if Rx_Settings.Source = UDP then
+               if Rx_Udp_Count >= 0 then
+                  declare
+                     Frame : Adaflight.UDP_Receiver.Channel_Data;
+                  begin
+                     for Ch in Channel loop
+                        Frame (Ch) := Natural (Rx_Raw (Ch));
+                     end loop;
+                     Adaflight.UDP_Receiver.Update_Channels (Rx_Udp, Frame, Rx_Udp_Count);
+                  end;
+                  Rx_Udp_Count := -1;
+               end if;
+               if not Task_In_Progress then
+                  Adaflight.UDP_Receiver.Frame_Status (Rx_Udp, Rx_Frame);
+                  if Rx_Frame.Complete then
+                     Set_Frame_Channels (Rx_State, Rx_Settings, Adaflight.UDP_Receiver.Count (Rx_Udp));
+                  end if;
+               end if;
+               for Ch in Channel loop
+                  Rx_Raw (Ch) := Adaflight.UDP_Receiver.Read_Raw (Rx_Udp, Ch);
+               end loop;
             end if;
             Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame, Rx_Override);
             if not Task_In_Progress then
@@ -29905,6 +29935,7 @@ procedure Vector_Check is
       ESC_Sensor      => False,
       Build_Options   => <>,
       Option_Count    => 0,
+      Supported_Features => <>,
       Soft_Serial     => False,
       Serial_Ports    => <>,
       CLI_Port        => 20,

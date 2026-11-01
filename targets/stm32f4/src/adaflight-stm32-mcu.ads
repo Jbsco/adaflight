@@ -40,4 +40,8 @@ package Adaflight.STM32.MCU is
    end record;
    procedure Simulator_GPS (Fresh : out Boolean; Fix : out Simulator_Fix);
    procedure Simulator_Pressure (Pascals : out Interfaces.Integer_32);
+   --  Whether this image has the UDP receiver: the host image alone.
+   function UDP_Receiver_Available return Boolean;
+   type RC_Pulses is array (0 .. 15) of Interfaces.Unsigned_16;
+   procedure Simulator_RC (Fresh : out Boolean; Pulses : out RC_Pulses);
 end Adaflight.STM32.MCU;
