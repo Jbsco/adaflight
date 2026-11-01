@@ -97,6 +97,7 @@ package body Adaflight.STM32.USART is
       Listen_Socket (Server);
       loop
          Accept_Socket (Server, Client, Address);
+         Set_Socket_Option (Client, IP_Protocol_For_TCP_Level, (No_Delay, True));
          Lines (Which).Connect (Client);
          loop
             begin
