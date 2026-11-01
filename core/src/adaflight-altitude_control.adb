@@ -108,6 +108,8 @@ package body Adaflight.Altitude_Control with SPARK_Mode is
          Low_End      : constant Float := Float (Integer'Max (C.Min_Check, 1_000));
       begin
          S.Throttle_Out := Constrain_F (Scale_Range_F (Throttle, Low_End, Pwm_Max, 0.0, 1.0), 0.0, 1.0);
+         S.Taps := (Controlled => True, Throttle => Throttle, Target_Cm => Target_Altitude_Cm,
+                    Current_Cm => Inp.Altitude_Cm, P => P, I => S.Altitude_I, D => D, A => A, F => F);
       end;
    end Control;
 

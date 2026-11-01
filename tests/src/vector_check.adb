@@ -288,6 +288,7 @@ with Adaflight.Gyro_Debug;
 with Adaflight.PID_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
+with Adaflight.Autopilot_Debug;
 with Adaflight.RC_Debug;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
@@ -2723,6 +2724,7 @@ procedure Vector_Check is
    end Check_Position_Line;
 
    AH_State    : Adaflight.Altitude_Hold.State;
+   AH_Debug    : Adaflight.Debug.State;
    AH_Settings : Adaflight.Altitude_Hold.Settings;
 
    procedure Check_Alt_Hold_Line is
@@ -2751,6 +2753,14 @@ procedure Vector_Check is
          Record_Result ("ahinit.max_climb", Bits (20), To_Bits (AH_State.Max_Climb_Rate));
          Record_Int ("ahinit.allow_stick", Int (21), Boolean'Pos (AH_State.Allow_Stick));
          Record_Result ("ahinit.target", Bits (23), To_Bits (AH_State.Target_Altitude_Cm));
+      elsif Name = "ahdebug" then
+         AH_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (AH_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "ahdbg" then
+         Adaflight.Autopilot_Debug.Record_Altitude (AH_Debug, AH_State.Control);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("ahstep.debug", Int (4 + J), Integer_64 (AH_Debug.Data (J)));
+         end loop;
       elsif Name = "ahstep" then
          declare
             Inp : constant Inputs :=
@@ -9900,6 +9910,7 @@ procedure Vector_Check is
    end Check_Posest_Line;
 
    PH_State    : Adaflight.Position_Hold.State;
+   PH_Debug    : Adaflight.Debug.State;
    PH_Settings : Adaflight.Position_Hold.Settings;
    PC_Settings : Adaflight.Position_Control.Settings;
    PH_Nav      : Adaflight.Position_Nav.Navigator;
@@ -9938,6 +9949,15 @@ procedure Vector_Check is
          Record_Result ("phinit.maxangle", Bits (27), To_Bits (PH_State.Control.Max_Angle));
          Record_Result ("phinit.lpfdt", Bits (28), To_Bits (PH_State.Control.Lpf_Dt_S));
          Record_Result ("phinit.lpfk", Bits (29), To_Bits (PH_State.Control.F_East.K));
+      elsif Name = "phdebug" then
+         PH_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (PH_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "phdbg" then
+         Adaflight.Autopilot_Debug.Record_Heading (PH_Debug, PH_State.Control);
+         Adaflight.Autopilot_Debug.Record_Hold (PH_Debug, PH_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("phstep.debug", Int (4 + J), Integer_64 (PH_Debug.Data (J)));
+         end loop;
       elsif Name = "phstep" then
          declare
             Inp       : Inputs;
@@ -39588,6 +39608,7 @@ procedure Vector_Check is
    end Check_Task_Init_Line;
 
    AP_State    : Adaflight.Position_Hold.State;
+   AP_Debug    : Adaflight.Debug.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
 
@@ -39654,6 +39675,15 @@ procedure Vector_Check is
          Adaflight.Position_Hold.Init (AP_State, (Deadband => Integer (Int (17))), AP_Settings);
          AP_Nav := (others => <>);
          PN.Init (AP_Nav);
+      elsif Name = "apdebug" then
+         AP_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (AP_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "apdbg" then
+         Adaflight.Autopilot_Debug.Record_Heading (AP_Debug, AP_State.Control);
+         Adaflight.Autopilot_Debug.Record_Hold (AP_Debug, AP_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("apstep.debug", Int (4 + J), Integer_64 (AP_Debug.Data (J)));
+         end loop;
       elsif Name = "apstep" then
          declare
             Inp       : Inputs;

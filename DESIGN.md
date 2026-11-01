@@ -12462,3 +12462,15 @@ groups. Vectors select a mode per sequence before initialization, the barometer 
 step lines already read, and read eight values after every step in the barometer task, pitot and three IMU families. On
 the board, the barometer and pitot units record after each step and update, and the flight unit after each attitude
 update.
+
+## D579. Debug values, autopilot altitude and heading group (2026-11-01)
+
+Core `Altitude_Control` now keeps taps of each run for debug values: throttle before scaling, target and current
+altitudes, and proportional, derivative, acceleration and feedforward terms. Core `Position_Control` keeps taps of each
+yaw control pass: heading, desired heading, error, proportional term and yaw rate. Core `Position_Hold` keeps the sensor
+status its enabled update judged. Core `Autopilot_Debug` records them after an altitude controller run and after a
+position hold or rescue update as upstream's altitude and yaw controllers and its hold do for the autopilot altitude and
+autopilot heading modes, with the yaw disable reason as its last set value; rescue and attitude
+values those controllers also write come with their own groups. Vectors select a mode per sequence before
+initialization and read eight values after every step in the altitude hold, position hold and navigation families. On
+the board, the flight unit records after the altitude hold, position hold and rescue updates.
