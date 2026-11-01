@@ -103,6 +103,8 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Main.RSSI := F.RSSI;
       In_Flight.Main.Surface_Raw := F.Surface_Raw;
       In_Flight.Main.Baro_Alt := F.Baro_Alt;
+      In_Flight.Main.Airspeed := F.Airspeed;
+      In_Flight.Main.Diff_Pressure := F.Diff_Pressure;
       In_Flight.Slow := F.Slow;
       In_Flight.GPS := F.GPS;
       In_Flight.GPS_Feature := F.GPS_Feature;

@@ -87,6 +87,7 @@ with Adaflight.Servo_Mixer;
 with Adaflight.STM32.ADC;
 with Adaflight.STM32.Baro;
 with Adaflight.STM32.Camera_Control;
+with Adaflight.STM32.Pitot;
 with Adaflight.STM32.Compass;
 with Adaflight.STM32.I2C;
 with Adaflight.STM32.Blackbox;
@@ -1072,7 +1073,7 @@ package body Adaflight.STM32.Flight is
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
          LED_Strip => Adaflight.Build_Features.LED_Strip,
-         Baro => Adaflight.STM32.Baro.Detected, Mag => True,
+         Baro => Adaflight.STM32.Baro.Detected, Mag => True, Pitot => True,
          Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
@@ -1103,6 +1104,7 @@ package body Adaflight.STM32.Flight is
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
       Inputs.Baro_Detected := Adaflight.STM32.Baro.Detected;
+      Inputs.Pitot_Configured := Adaflight.STM32.Pitot.Configured;
       Inputs.Mag_Detected := Adaflight.STM32.Compass.Detected;
       Inputs.Mag_Mode_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Mag);
       Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
@@ -1591,6 +1593,19 @@ package body Adaflight.STM32.Flight is
       Adaflight.Beeper.Request (Beep, Beep_Settings, Beep_Conditions, M);
    end Request_Beep;
 
+   --  After a pitot init or task run: the sensor flag and the status entry
+   --  follow the source delivering samples.
+   procedure Pitot_Aftermath is
+   begin
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Pitot) := Adaflight.STM32.Pitot.Detected;
+      Env.Pitot :=
+        (Detected => Adaflight.STM32.Pitot.Detected, Hardware => Config.Pitot_Config.Pitot_Hardware,
+         Bus      => (Kind    => (if Adaflight.STM32.Pitot.Configured then CLI.I2C_Bus else CLI.No_Bus),
+                      Number  => Natural'Min (15, Natural (Config.Pitot_Config.Pitot_I2c_Device)),
+                      Address => (if Config.Pitot_Config.Pitot_I2c_Address = 0 then 16#28#
+                                  else Config.Pitot_Config.Pitot_I2c_Address)));
+   end Pitot_Aftermath;
+
    --  After a compass task run: the field into the IMU reply, the beep the
    --  read asked for, and the zero saved when a calibration ended.
    procedure Compass_Aftermath is
@@ -1956,7 +1971,7 @@ package body Adaflight.STM32.Flight is
       Acc_Update             => Acc_Update,
       GPS_Rescue_Update      => Run_Rescue,
       Baro_Update            => Adaflight.STM32.Baro.Update,
-      Pitot_Update           => No_Step_Period,
+      Pitot_Update           => Adaflight.STM32.Pitot.Update,
       Compass_Update         => Adaflight.STM32.Compass.Update,
       Position_Update        => No_Step,
       Rangefinder_Update     => Adaflight.STM32.Rangefinder.Update,
@@ -2450,6 +2465,8 @@ package body Adaflight.STM32.Flight is
       F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
       F.Surface_Raw := Adaflight.STM32.Rangefinder.Raw_Altitude_Cm;
       F.Baro_Alt := Integer_32 (Float'Max (-2.0e9, Float'Min (2.0e9, Adaflight.STM32.Baro.Altitude_Cm)));
+      F.Airspeed := Float'Max (-1.0e6, Float'Min (1.0e6, Adaflight.STM32.Pitot.Airspeed_Cm_S));
+      F.Diff_Pressure := Float'Max (-1.0e6, Float'Min (1.0e6, Adaflight.STM32.Pitot.Diff_Pressure_Pa));
       F.Conditions.RSSI_Configured := Adaflight.STM32.Radio.RSSI_Configured;
       F.Conditions.Debug_Active := Config.System_Config.Debug_Mode /= 0;
       F.Conditions.Voltage_Meter := Bat_Settings.Voltage_Meter;
@@ -2907,6 +2924,8 @@ package body Adaflight.STM32.Flight is
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
       F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
+      F.Pitot_Present := Adaflight.STM32.Pitot.Detected;
+      F.Airspeed_Cm_S := Float'Max (-200_000.0, Float'Min (200_000.0, Adaflight.STM32.Pitot.Airspeed_Cm_S));
       F.Rangefinder_Cm := Adaflight.STM32.Rangefinder.Altitude_Cm;
       F.Custom_Text := Adaflight.STM32.OSD_Custom_Text.Text;
       F.Lap := Lap;
@@ -3971,6 +3990,7 @@ package body Adaflight.STM32.Flight is
          Baro_Detected        => Adaflight.STM32.Baro.Detected,
          Mag_Detected         => Adaflight.STM32.Compass.Detected,
          Rangefinder_Detected => Adaflight.STM32.Rangefinder.Detected,
+         Pitot_Configured     => Adaflight.STM32.Pitot.Configured,
          Cos_Tilt             => Adaflight.Attitude.Cos_Tilt (Att_State),
          others               => <>);
    begin
@@ -4031,6 +4051,9 @@ package body Adaflight.STM32.Flight is
             Compass_Aftermath;
          when Scheduler.Baro =>
             Tasks.Baro (Sched, Sched_Settings, Inputs, Before);
+         when Scheduler.Pitot =>
+            Tasks.Pitot (Sched, Sched_Settings, Inputs, Before);
+            Pitot_Aftermath;
          when Scheduler.Rangefinder =>
             Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>
@@ -4190,6 +4213,8 @@ package body Adaflight.STM32.Flight is
                       Address => Adaflight.STM32.Compass.Bus_Address));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Mag) := Adaflight.STM32.Compass.Detected;
       Adaflight.STM32.Rangefinder.Init (Config);
+      Adaflight.STM32.Pitot.Init (Config);
+      Pitot_Aftermath;
       Init_Internal_ADC;
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);

@@ -157,6 +157,8 @@ package Adaflight.STM32.OSD is
       Pilot_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
       Messages          : Adaflight.Config_Groups.Bytes_17_List_4 := (others => (others => 0));
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
+      Pitot_Present     : Boolean := False;
+      Airspeed_Cm_S     : Float range -200_000.0 .. 200_000.0 := 0.0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;
       Lap               : Adaflight.GPS_Lap_Timer.Timer;

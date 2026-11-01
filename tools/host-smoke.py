@@ -2740,6 +2740,37 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        # The pitot: the host's I2C bus answers an MS4525 frame at 0x28, so naming the sensor finds it at the next
+        # start, its first sample sets the sensor flag, and twenty samples at rest zero it.
+        store = os.path.join(work, "pitot.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set pitot_hardware = MS4525")
+            check("pitot hardware set to MS4525", "pitot_hardware set to MS4525" in text, text[-120:])
+            # Boards without a default I2C device store bus zero, so the pilot names the bus as upstream needs.
+            text = cli(sock, "set pitot_i2c_device = 1")
+            check("pitot bus set to I2C1", "pitot_i2c_device set to 1" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            status = msp(sock, 101)
+            check("MSP status shows the pitot after its first sample", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x80 != 0, repr(status))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "status")
+            check("status lists the pitot as detected", "PITOT" in text.upper() or "MS4525" in text.upper(), text[-300:])
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "oneshot.bin")
         for protocol in ("ONESHOT125", "PWM"):
             proc, sock = start(image, store)
