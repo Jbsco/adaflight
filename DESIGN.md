@@ -12319,3 +12319,17 @@ default on an I2C bus that started, one frame read at its address (0x28 when zer
 each pass at 20 Hz into core `Pitot` with arming state, no DroneCAN frame. Flight init runs it after rangefinder as
 upstream orders; sensor flag and status entry follow samples after init and each task run; OSD airspeed element and
 blackbox airspeed fields take its readings. Host I2C answers an MS4525 frame at 0x28 for its smoke.
+
+## D568. MT rangefinder and optical flow over MSP (2026-11-01)
+
+Core `MT_Sensor` held an MT device's distance and flow from MSP sensor messages with no board user: MSP runtime effects
+MT_Range and MT_Flow went unread, optical flow task hooks stayed empty, and `STM32.Rangefinder` skipped its MT arm.
+`STM32.MT` now keeps one bridge state: init takes its device from rangefinder hardware, each MSP message lands in
+`Range_Receive` or `Flow_Receive` with its arrival time, and reads go to both tasks. `STM32.Rangefinder` takes an MT
+device's delay, range and detection cone and reads its distance each process pass. `STM32.Optical_Flow` detects through
+`Optical_Flow_Detect.Probe` with that bridge, inits core `Optical_Flow` with mounting rotation cosine and sine and
+MT gyro delay, records its reported period for scheduler init, and processes each pass with downsampled roll and
+negated pitch rates set from flight loop state, as upstream reads them. UP-T1 waits for its UART driver. Flight init
+runs bridge, rangefinder, optical flow then pitot as upstream orders; sensor flag and status entry follow detection;
+task runs need optical flow feature on, as upstream. Host smoke names MTF01 and MT, turns on both features, sends
+MSP2 range and flow frames, and sees both sensor flags and a rangefinder altitude.
