@@ -12522,3 +12522,18 @@ from limiter I term and scale and dynamic idle I term in mixer state, rounding w
 where upstream stores a float. Vectors in ten mixer families select among these modes after initialization and read
 eight values after every step. Wing families keep no debug lines. On the board, the control task records after each
 mixer loop.
+
+## D584. Debug values, core timing group (2026-11-01)
+
+Core `Loop_Debug` records three groups from values its callers measure or hold. PID loop mode takes four durations
+of one PID task run (gyro update, controller, motor update, subprocesses) as upstream stamps them around its
+subtasks. Cycle time mode takes that task's delta time and system load from scheduler state, and motor update
+interval with its error against loop period, which upstream measures only while that mode is selected. Scheduler
+mode, scheduler determinism, timing accuracy and task modes copy the scheduler's own debug array, which `Scheduler`
+already fills (D186) and which no output read until now. All stores keep low sixteen bits of an unsigned, as
+upstream's int16 array does. Board stamps come from the control task (controller, motor update from mixer start to
+motor write, blackbox update as subprocess) and from the flight task (PID task start against its call time, which
+upstream reads afresh before each task call, so this value stays near zero; scheduler copy at each pass end). Vectors extend the scheduler family: under cycle time and PID loop modes its PID
+task splits each drawn duration into controller, motor and subprocess parts and prints them, so the checker replays
+the same stamps against the same simulated clock and compares all eight values against the reference's task delta
+time and load.
