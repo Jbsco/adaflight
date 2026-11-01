@@ -167,6 +167,37 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Motor_Enabled             : Motor_Flags := (others => True);
    end record;
 
+   --  Values a debug recorder reads after a loop, each as its site last
+   --  wrote it: the slowest motor's frequency and the dynamic idle's P and D
+   --  terms, the sag compensation's goodness and attenuation, the RPM
+   --  limiter's average, offset, throttle, error and P and D terms, the EZ
+   --  landing's limits, factor, upper limit and ratio, and the throttle the
+   --  motors took.
+   type Debug_Taps is record
+      Dyn_Idle_Set        : Boolean := False;
+      Dyn_Idle_Hz         : Float range 0.0 .. 1.0e6 := 0.0;
+      Dyn_Idle_P          : Float := 0.0;
+      Dyn_Idle_D          : Float := 0.0;
+      Sag_Set             : Boolean := False;
+      Sag_Goodness        : Unit_Interval := 0.0;
+      Sag_Attenuation     : Float range 0.0 .. 1.2 := 0.0;
+      Limiter_Set         : Boolean := False;
+      Limiter_Average     : Signal := 0.0;
+      Limiter_Offset      : Signal := 0.0;
+      Limiter_Throttle    : Unit_Interval := 0.0;
+      Limiter_Error       : Float range -2.0 ** 33 .. 2.0 ** 33 := 0.0;
+      Limiter_P           : Float range -2.0 ** 24 .. 2.0 ** 24 := 0.0;
+      Limiter_D           : Float range -2.0 ** 40 .. 2.0 ** 40 := 0.0;
+      Ez_Set              : Boolean := False;
+      Ez_Deflection_Limit : Unit_Interval := 0.0;
+      Ez_Speed_Limit      : Unit_Interval := 0.0;
+      Ez_Factor           : Float := 0.0;
+      Ez_Upper            : Float range -65.0 .. 1.0 := 0.0;
+      Ez_Limit_Ratio      : Unit_Interval := 0.0;
+      Throttle_Set        : Boolean := False;
+      Final_Throttle      : Float range -100.0 .. 100.0 := 0.0;
+   end record;
+
    type State is record
       Motors                  : Motor_Outputs := (others => 0.0);
       Throttle                : Unit_Interval := 0.0;
@@ -208,6 +239,7 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       RC_Throttle_Previous    : Natural range 0 .. 65_535 := 0;
       Reversal_Time_Us        : Unsigned_32 := 0;
       Mix_Sign                : Integer range -1 .. 1 := 0;
+      Taps                    : Debug_Taps;
    end record;
 
    --  The sag compensation's full cell voltage in hundredths of a volt, its

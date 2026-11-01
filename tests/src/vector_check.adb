@@ -286,6 +286,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.PID_Debug;
+with Adaflight.Mixer_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
 with Adaflight.Autopilot_Debug;
@@ -1661,6 +1662,8 @@ procedure Vector_Check is
    Mix_Post_Low : Float := 1000.0;
    Mix_Min_Hz   : Float := 0.0;
    Mix_Raised   : Boolean := False;
+   Mix_Debug    : Adaflight.Debug.State;
+   Mix_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1755,6 +1758,7 @@ procedure Vector_Check is
             Inp.Max_RC_Rate := Mix_Max_Rate;
             Inp.Attitude := Mix_Attitude;
             Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
+            Adaflight.PID_Debug.Record_Loop (Mix_Debug, Mix_Ctl, Mix_Runtime, Inp, Mix_Debug_Axis);
             MInp.RC_Throttle := Flt (14);
             MInp.RC_Data_Throttle := (if Mix_Raw_Set then Mix_Raw else Flt (14));
             MInp.Box_3D := Mix_Box_3D;
@@ -1792,6 +1796,7 @@ procedure Vector_Check is
             Mix_Config.Motor_Stop := Mix_AP.Motor_Stop;
             Mix_Config.Min_Check := Mix_AP.Min_Check;
             Adaflight.Mixer.Update (Mix_State, Mix_Config, Mix_Ctl, Mix_Runtime, Mix_Profile, MInp);
+            Adaflight.Mixer_Debug.Record_Update (Mix_Debug, Mix_State);
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("p", Mix_Ctl.Data (A).P); Expect_Float ("i", Mix_Ctl.Data (A).I);
                Expect_Float ("d", Mix_Ctl.Data (A).D); Expect_Float ("f", Mix_Ctl.Data (A).F);
@@ -1813,6 +1818,14 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "mixdebug" then
+         Mix_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (Mix_Debug, Interfaces.Unsigned_8 (Int (3)));
+         Mix_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "mixdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("mixstep.debug", Int (4 + J), Integer_64 (Mix_Debug.Data (J)));
+         end loop;
       elsif Name = "mixrpminit" then
          Mix_Config.RPM_Limit := Str (3) = "1";
          Mix_Config.RPM_Limit_Value := Integer (Int (4));

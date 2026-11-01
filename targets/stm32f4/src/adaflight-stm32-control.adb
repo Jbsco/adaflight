@@ -4,6 +4,7 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot;
 with Adaflight.Main_Loop;
+with Adaflight.Mixer_Debug;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.STM32.Blackbox;
@@ -218,6 +219,7 @@ package body Adaflight.STM32.Control is
       end loop;
       Adaflight.Mixer.Update
         (Mix, Mix_Config, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
+      Adaflight.Mixer_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, Mix);
       if not Inp.Armed then
          for M in 0 .. Mix_Config.Count - 1 loop
             Mix.Motors (M) := Disarmed (M);

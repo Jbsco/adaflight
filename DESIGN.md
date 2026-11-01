@@ -12509,3 +12509,16 @@ and an execution time its caller passes, and GPS dilution mode from satellite co
 upstream's GPS task does. Vectors in the link family select among both modes before initialization and read eight
 values after every step, with a zero execution time as their clock stands still inside a step. On the board, the GPS
 driver records after each link update with the time the update took.
+
+## D583. Debug values, mixer group (2026-11-01)
+
+Core `Mixer` now keeps taps for debug values, each as its site last wrote it: slowest motor frequency with P and D
+terms from dynamic idle, battery goodness with range attenuation from sag compensation (its goodness and attenuation now come
+from two functions ahead of range top, so the mixer can tap them), average RPM, scale offset, throttle, error and P and D terms from
+RPM limiting, deflection and speed limits, held factor, upper limit and limit ratio from EZ landing, and throttle as
+motors took it after adjustments, which upstream logs in EZ landing's second slot on every loop that reaches its
+motors. Core `Mixer_Debug` records dynamic idle, sag compensation, RPM limit and EZ landing modes from these taps and
+from limiter I term and scale and dynamic idle I term in mixer state, rounding where upstream rounds and truncating
+where upstream stores a float. Vectors in ten mixer families select among these modes after initialization and read
+eight values after every step. Wing families keep no debug lines. On the board, the control task records after each
+mixer loop.

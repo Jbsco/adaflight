@@ -150,7 +150,7 @@ package body Adaflight.Mixer with SPARK_Mode is
    procedure Adjust_Ez_Landing
      (Mix : in out Mix_Values; C : Config; P : Profile; Mix_Min : Mix_Value; Mix_Max : Mix_Value;
       Mix_Range : Mix_Span; Range_Out : out Signal; Max_Deflection : Unit_Interval; Speed : Float;
-      Throttle : in out Float)
+      Throttle : in out Float; T : in out Debug_Taps)
      with Pre => Throttle in -1.0 .. 1.0 and then Speed in 0.0 .. 1000.0,
           Post => Throttle in Adjusted_Throttle
    is
@@ -178,6 +178,12 @@ package body Adaflight.Mixer with SPARK_Mode is
       Normalization := Base * Float'Min (1.0, Factor);
       pragma Assert (Norm_Min in -64.0 .. 64.0 and then Norm_Max in -64.0 .. 64.0);
       pragma Assert (Upper in -65.0 .. 1.0 and then Abs_Min in 0.0 .. 65.0 and then Lower in -65.0 .. 65.0);
+      T.Ez_Set := True;
+      T.Ez_Deflection_Limit := Deflection_Limit;
+      T.Ez_Speed_Limit := Speed_Limit;
+      T.Ez_Factor := Float'Min (1.0, Factor);
+      T.Ez_Upper := Upper;
+      T.Ez_Limit_Ratio := Float'Min (1.0, Ez_Land_Limit / Abs_Min);
       for M in 0 .. C.Count - 1 loop
          Mix (M) := Constrain_F (Mix (M) * Normalization, -64.0, 64.0);
       end loop;
@@ -290,6 +296,13 @@ package body Adaflight.Mixer with SPARK_Mode is
       Throttle := Throttle * Constrain_F (S.Limiter_Scale + Offset, 0.0, 1.0);
       Throttle := Constrain_F (Throttle - Float'Max (0.0, Output), 0.0, 1.0);
       S.Limiter_Previous_Error := Error;
+      S.Taps.Limiter_Set := True;
+      S.Taps.Limiter_Average := Average;
+      S.Taps.Limiter_Offset := Offset;
+      S.Taps.Limiter_Throttle := Throttle;
+      S.Taps.Limiter_Error := Error;
+      S.Taps.Limiter_P := P_Term;
+      S.Taps.Limiter_D := D_Term;
    end Apply_RPM_Limiter;
 
    Flip_Stick_Deadband : constant := 0.15;
@@ -405,26 +418,35 @@ package body Adaflight.Mixer with SPARK_Mode is
       end loop;
    end Apply_Crash_Flip;
 
+   --  The sag compensation's battery goodness, one at the full cell voltage
+   --  down to zero at the warning voltage, and its attenuation of the motor
+   --  range, the fuller the battery is.
+   subtype Attenuation_Value is Float range 0.0 .. 1.2;
+   function Sag_Goodness (C : Config; Inp : Inputs) return Unit_Interval
+     with Global => null, Pre => Sag_Factor (C) > 0.0
+   is
+   begin
+      return 1.0 - Constrain_F ((Float (Sag_Full_Cell_Voltage) - Float (Inp.Sag_Cell_Voltage)) / Sag_Range (C),
+                                0.0, 1.0);
+   end Sag_Goodness;
+
+   function Sag_Attenuation_Of (C : Config; Goodness : Unit_Interval) return Attenuation_Value
+     with Global => null, Pre => Sag_Factor (C) > 0.0
+   is
+   begin
+      return Sag_Range (C) / Float (Sag_Full_Cell_Voltage) * Goodness * Sag_Factor (C);
+   end Sag_Attenuation_Of;
+
    --  The top of the motor range: the high end, lowered by the sag
-   --  compensation the fuller the battery is, except in the crash flip. A
-   --  lowering past the low end holds at the low end (D6).
-   function Top_Of_Range (C : Config; Inp : Inputs) return Motor_Value
+   --  compensation's attenuation, except in the crash flip. A lowering past
+   --  the low end holds at the low end (D6).
+   function Top_Of_Range (C : Config; Inp : Inputs; Attenuation : Attenuation_Value) return Motor_Value
      with Global => null,
           Post   =>
             Top_Of_Range'Result in C.Output_Low .. C.Output_High
             and then (if Inp.Crash_Flip_Active then Top_Of_Range'Result = C.Output_High)
    is
-      Attenuation : Float range 0.0 .. 1.2 := 0.0;
    begin
-      if Sag_Factor (C) > 0.0 then
-         declare
-            Goodness : constant Unit_Interval :=
-              1.0 - Constrain_F ((Float (Sag_Full_Cell_Voltage) - Float (Inp.Sag_Cell_Voltage)) / Sag_Range (C),
-                                 0.0, 1.0);
-         begin
-            Attenuation := Sag_Range (C) / Float (Sag_Full_Cell_Voltage) * Goodness * Sag_Factor (C);
-         end;
-      end if;
       if Inp.Crash_Flip_Active then
          return C.Output_High;
       end if;
@@ -496,6 +518,10 @@ package body Adaflight.Mixer with SPARK_Mode is
       end if;
       S.Dyn_Idle_I := Constrain_F (S.Dyn_Idle_I + Error * S.Dyn_Idle_I_Gain, 0.0, Max_Increase);
       S.Range_Min_Increase := Constrain_F (P_Term + S.Dyn_Idle_I + D_Term, 0.0, Max_Increase);
+      S.Taps.Dyn_Idle_Set := True;
+      S.Taps.Dyn_Idle_Hz := Inp.Min_Motor_Frequency;
+      S.Taps.Dyn_Idle_P := P_Term;
+      S.Taps.Dyn_Idle_D := D_Term;
    end Update_Dyn_Idle;
 
    --  The low end of the motor range raised by the dynamic idle's share of the
@@ -597,6 +623,7 @@ package body Adaflight.Mixer with SPARK_Mode is
       Output_Far  : Motor_Value;
       Throttle_In : Float range -2000.0 .. 2000.0;
       Input_Range : Integer range -1000 .. 1000;
+      Attenuation : Attenuation_Value;
    begin
       if C.Feature_3D then
          Endpoints_3D (S, C, Ctl, Inp, Range_Min, Range_Max, Output_Min, Output_Far, Throttle_In, Input_Range);
@@ -607,17 +634,26 @@ package body Adaflight.Mixer with SPARK_Mode is
             S.Range_Min_Increase := 0.0;
          end if;
          Range_Min := Raised_Low (C, S.Range_Min_Increase);
-         Range_Max := Float'Max (Range_Min, Top_Of_Range (C, Inp));
+         if Sag_Factor (C) > 0.0 then
+            S.Taps.Sag_Set := True;
+            S.Taps.Sag_Goodness := Sag_Goodness (C, Inp);
+            S.Taps.Sag_Attenuation := Sag_Attenuation_Of (C, S.Taps.Sag_Goodness);
+            Attenuation := S.Taps.Sag_Attenuation;
+         else
+            Attenuation := 0.0;
+         end if;
+         Range_Max := Float'Max (Range_Min, Top_Of_Range (C, Inp, Attenuation));
          Output_Min := Range_Min;
          Output_Far := Range_Max;
          S.Mix_Sign := 1;
          Throttle_In := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
          Input_Range := 1000;
       end if;
-      pragma Assert
+      pragma Assert_And_Cut
         (if not C.Feature_3D
          then Range_Min >= C.Output_Low and then Range_Min < C.Output_High and then Range_Max >= Range_Min
-              and then Range_Max <= C.Output_High and then Output_Min = Range_Min and then Output_Far = Range_Max);
+              and then Range_Max <= C.Output_High and then Output_Min = Range_Min and then Output_Far = Range_Max
+              and then (if Inp.Crash_Flip_Active then Range_Max = C.Output_High));
       declare
          Airmode  : constant Boolean := Inp.Airmode or else Inp.Launch_Control_Active;
          Active   : constant Mix_Table :=
@@ -718,9 +754,16 @@ package body Adaflight.Mixer with SPARK_Mode is
                Adjust_Linear (Mix, C, Mix_Range, Airmode, Throttle);
             when Ez_Landing =>
                Adjust_Ez_Landing
-                 (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle);
+                 (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle, S.Taps);
          end case;
+         S.Taps.Throttle_Set := True;
+         S.Taps.Final_Throttle := Throttle;
          S.Mix_Range := Range_Out;
+         pragma Assert_And_Cut
+           (Throttle in Adjusted_Throttle and then Output_Range in -2048.0 .. 2048.0
+            and then (if not C.Feature_3D
+                      then Range_Min >= C.Output_Low and then Range_Max <= C.Output_High
+                           and then Output_Min = Range_Min and then Output_Far = Range_Max));
          if C.Motor_Stop and then Inp.Armed and then not C.Feature_3D and then not Airmode
            and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
                          or else Inp.Launch_Mode)
