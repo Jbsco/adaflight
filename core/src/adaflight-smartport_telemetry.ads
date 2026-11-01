@@ -10,6 +10,7 @@
 --  back as its telemetry reply instead, behind the reply's length and type,
 --  which the checksum counts.
 with Interfaces;
+with Adaflight.MSP_Telemetry;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
 package Adaflight.SmartPort_Telemetry with SPARK_Mode is
@@ -160,6 +161,10 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
       T1_Count    : Unsigned_8 := 0;
       T2_Count    : Unsigned_8 := 0;
       Receiver    : Receive_State;
+      --  MSP over telemetry: requests skipped after a configuration write, and
+      --  a reply waiting to go out in server frames.
+      Skip_Requests : Natural range 0 .. 255 := 0;
+      MSP_Pending   : Boolean := False;
    end record;
 
    --  A data frame is sixteen bytes at most once escaped, and an FPORT reply
@@ -173,6 +178,9 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
       Count         : Tx_Count := 0;
       Clear_To_Send : Boolean := False;
       Received      : Payload;
+      --  A complete MSP request waits for the processor; the caller prepares
+      --  the reply in the tunnel and resumes the pass.
+      MSP_Request   : Boolean := False;
    end record;
 
    --  The tables from the configuration and the sensors present.
@@ -191,13 +199,21 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
 
    --  The next value within the attempts allowed, once cleared to send, in
    --  the FPORT reply when FPort asks for it.
+   --  MSP over telemetry rides in client frames of either id and answers in
+   --  server frames of six bytes a chunk.
+   MSP_Client_Frame       : constant Unsigned_8 := 16#30#;
+   MSP_Client_FPort_Frame : constant Unsigned_8 := 16#31#;
+   MSP_Server_Frame       : constant Unsigned_8 := 16#32#;
+   MSP_Chunk              : constant := 6;
+
    procedure Process (S : in out Stream; Inp : Inputs; Attempts : Positive; Clear_To_Send : Boolean;
-                      O : in out Output; FPort : Boolean := False);
+                      O : in out Output; T : in out MSP_Telemetry.Tunnel; FPort : Boolean := False;
+                      Resume : Boolean := False);
 
    --  One task call: the bytes received are read up to the first complete
    --  payload, Consumed says how many were taken, then the reply goes out.
    procedure Update (S : in out Stream; Inp : Inputs; Rx : Byte_Array; Attempts : Positive; O : out Output;
-                     Consumed : out Natural)
+                     Consumed : out Natural; T : in out MSP_Telemetry.Tunnel)
      with Post => Consumed <= Rx'Length;
 
 end Adaflight.SmartPort_Telemetry;

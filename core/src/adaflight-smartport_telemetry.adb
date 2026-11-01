@@ -347,10 +347,30 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    -------------
 
    procedure Process (S : in out Stream; Inp : Inputs; Attempts : Positive; Clear_To_Send : Boolean;
-                      O : in out Output; FPort : Boolean := False) is
+                      O : in out Output; T : in out MSP_Telemetry.Tunnel; FPort : Boolean := False;
+                      Resume : Boolean := False) is
       Clear : Boolean := Clear_To_Send;
       Id    : Unsigned_16;
       Sent  : Boolean;
+
+      --  One reply chunk as a server frame, zero past its length.
+      procedure Send_MSP_Chunk with Pre => O.Count = 0 is
+         Chunk  : MSP_Telemetry.Chunk_Buffer;
+         Length : Natural;
+         More   : Boolean;
+         Value  : Unsigned_32 := 0;
+      begin
+         MSP_Telemetry.Send_Reply (T, MSP_Chunk, Chunk, Length, More);
+         for I in Length .. MSP_Chunk - 1 loop
+            Chunk (I) := 0;
+         end loop;
+         for I in reverse 2 .. MSP_Chunk - 1 loop
+            Value := Interfaces.Shift_Left (Value, 8) or Unsigned_32 (Chunk (I));
+         end loop;
+         Write_Frame (O, MSP_Server_Frame,
+                      Unsigned_16 (Chunk (0)) or Interfaces.Shift_Left (Unsigned_16 (Chunk (1)), 8), Value, FPort);
+         S.MSP_Pending := More;
+      end Send_MSP_Chunk;
 
       procedure Send (Id : Unsigned_16; Value : Unsigned_32) with Pre => O.Count = 0 is
       begin
@@ -370,8 +390,45 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
          end if;
       end Send_ESC_Value;
    begin
+      if Resume then
+         S.MSP_Pending := True;
+      elsif S.Skip_Requests > 0 then
+         S.Skip_Requests := S.Skip_Requests - 1;
+      elsif O.Received.Valid
+        and then O.Received.Frame_Id in MSP_Client_Frame | MSP_Client_FPort_Frame
+      then
+         declare
+            use type MSP_Telemetry.Outcome;
+            R       : constant Payload := O.Received;
+            Bytes   : constant Byte_Array (0 .. MSP_Chunk - 1) :=
+              (Byte (R.Value_Id and 16#FF#), Byte (Interfaces.Shift_Right (R.Value_Id, 8)),
+               Byte (R.Data and 16#FF#), Byte (Interfaces.Shift_Right (R.Data, 8) and 16#FF#),
+               Byte (Interfaces.Shift_Right (R.Data, 16) and 16#FF#), Byte (Interfaces.Shift_Right (R.Data, 24)));
+            Outcome : MSP_Telemetry.Outcome;
+            EEPROM  : Boolean;
+         begin
+            MSP_Telemetry.Handle_Frame (T, Bytes, Outcome, EEPROM);
+            if EEPROM then
+               S.Skip_Requests := MSP_Telemetry.Skips_After_EEPROM_Write;
+            end if;
+            S.MSP_Pending := Outcome = MSP_Telemetry.Error_Reply_Ready;
+            if S.Skip_Requests > 0 then
+               Clear := False;
+            end if;
+            if Outcome = MSP_Telemetry.Request_Ready then
+               O.MSP_Request := True;
+               O.Clear_To_Send := Clear;
+               return;
+            end if;
+         end;
+      end if;
       for Attempt in 1 .. Attempts loop
-         exit when not Clear or else O.Count /= 0;
+         exit when not Clear or else O.Count /= 0 or else S.Skip_Requests > 0;
+         if S.MSP_Pending then
+            Send_MSP_Chunk;
+            Clear := False;
+            exit;
+         end if;
          Sent := False;
          if S.Cycle >= ESC_Period then
             if Natural (S.ESC_Index) = S.ESC_Size then
@@ -481,6 +538,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
             Clear := False;
          end if;
       end loop;
+      O.Clear_To_Send := Clear;
    end Process;
 
    ------------
@@ -488,7 +546,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    ------------
 
    procedure Update (S : in out Stream; Inp : Inputs; Rx : Byte_Array; Attempts : Positive; O : out Output;
-                     Consumed : out Natural) is
+                     Consumed : out Natural; T : in out MSP_Telemetry.Tunnel) is
       Clear : Boolean := False;
       P     : Payload;
    begin
@@ -504,7 +562,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
          end if;
       end loop;
       O.Clear_To_Send := Clear;
-      Process (S, Inp, Attempts, Clear, O);
+      Process (S, Inp, Attempts, Clear, O, T);
    end Update;
 
 end Adaflight.SmartPort_Telemetry;

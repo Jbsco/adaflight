@@ -199,10 +199,11 @@ def fport_frame(sbus_channels, rssi=100):
     return bytes([0x7E]) + stuffed + bytes([0x7E])
 
 
-def fport_telemetry_request(frame_id=0x10):
-    """An FPORT telemetry request between the markers: the length, the request type, the frame id, a zero
-    value id and data, and the FrSky checksum, stuffed like a control frame."""
-    body = bytes([0x08, 0x01, frame_id]) + bytes(6)
+def fport_telemetry_request(frame_id=0x10, payload=bytes(6)):
+    """An FPORT telemetry request between the markers: the length, the request type, the frame id, the six
+    payload bytes of its value id and data, zero unless given, and the FrSky checksum, stuffed like a control
+    frame."""
+    body = bytes([0x08, 0x01, frame_id]) + payload
     total = sum(body)
     while total > 0xFF:
         total = (total & 0xFF) + (total >> 8)
@@ -246,9 +247,8 @@ def ibus_request(command, address):
     return body + ((0xFFFF - sum(body)) & 0xFFFF).to_bytes(2, "little")
 
 
-def sport_frames(data):
-    """The SmartPort data frames in the bytes the board sent, unescaped: the value id and the value of each
-    frame of the data frame id whose FrSky checksum agrees."""
+def sport_unescape(data):
+    """The bytes the board sent on a SmartPort line with their escapes undone."""
     raw = bytearray()
     escaped = False
     for b in data:
@@ -259,6 +259,13 @@ def sport_frames(data):
             escaped = True
         else:
             raw.append(b)
+    return raw
+
+
+def sport_checked_frames(data, frame_id):
+    """The eight-byte SmartPort frames of one frame id in the bytes the board sent, unescaped, whose FrSky
+    checksum agrees."""
+    raw = sport_unescape(data)
     frames = []
     i = 0
     while i + 8 <= len(raw):
@@ -266,12 +273,36 @@ def sport_frames(data):
         total = sum(frame[:7])
         while total > 0xFF:
             total = (total & 0xFF) + (total >> 8)
-        if frame[0] == 0x10 and frame[7] == 0xFF - total:
-            frames.append((frame[1] | frame[2] << 8, int.from_bytes(frame[3:7], "little")))
+        if frame[0] == frame_id and frame[7] == 0xFF - total:
+            frames.append(bytes(frame))
             i += 8
         else:
             i += 1
     return frames
+
+
+def sport_frames(data):
+    """The SmartPort data frames in the bytes the board sent: the value id and the value of each checked frame
+    of the data frame id."""
+    return [(f[1] | f[2] << 8, int.from_bytes(f[3:7], "little")) for f in sport_checked_frames(data, 0x10)]
+
+
+def sport_msp_frames(data):
+    """The MSP reply chunks in the bytes the board sent: the six bytes behind the server frame id of each
+    checked frame."""
+    return [f[1:7] for f in sport_checked_frames(data, 0x32)]
+
+
+def sport_request(payload):
+    """An MSP request from a SmartPort receiver: the start byte, the request sensor id, the client frame id,
+    the six payload bytes and the FrSky checksum, escaped past the sensor id."""
+    body = bytes([0x30]) + payload
+    total = sum(body)
+    while total > 0xFF:
+        total = (total & 0xFF) + (total >> 8)
+    body += bytes([0xFF - total])
+    stuffed = b"".join(bytes([0x7D, b ^ 0x20]) if b in (0x7D, 0x7E) else bytes([b]) for b in body)
+    return bytes([0x7E, 0x0D]) + stuffed
 
 
 def crc8_dvb_s2(data):
@@ -428,6 +459,7 @@ class SerialReceiver(threading.Thread):
         while sock is None and time.time() < deadline and not self.stop.is_set():
             try:
                 sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except OSError:
                 time.sleep(0.1)
         turn = 0
@@ -1749,6 +1781,7 @@ def main():
         try:
             time.sleep(2.5)
             line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            line.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             line.settimeout(0.01)
             data = b""
             for _ in range(80):
@@ -1758,11 +1791,27 @@ def main():
                     data += line.recv(4096)
                 except socket.timeout:
                     pass
+            line.sendall(sport_request(bytes([0x30, 0x00, 0x01, 0x00, 0x00, 0x00])))
+            msp_bytes = b""
+            for _ in range(12):
+                time.sleep(0.012)
+                line.sendall(bytes([0x7E, 0x1B]))
+                time.sleep(0.012)
+                try:
+                    msp_bytes += line.recv(4096)
+                except socket.timeout:
+                    pass
             line.close()
             frames = sport_frames(data)
             ids = sorted({i for i, _ in frames})
             check("SmartPort answers the polls with checked data frames", len(frames) >= 20, repr(ids))
             check("SmartPort sends the battery voltage", 0x0210 in ids, repr(ids))
+            chunks = sport_msp_frames(msp_bytes)
+            check("SmartPort answers an MSP request with server frames", len(chunks) >= 2, repr(chunks[:3]))
+            check("SmartPort MSP reply opens with its status, size, command and the API version",
+                  chunks[:1] == [bytes([0x30, 3, 1, 0, 1, 49])], repr(chunks[:1]))
+            check("SmartPort MSP reply pads its last chunk with zeros", chunks[1:2] == [bytes([0x21, 0, 0, 0, 0, 0])],
+                  repr(chunks[1:2]))
         finally:
             stop(proc)
             sock.close()
@@ -2186,13 +2235,21 @@ def main():
         sender = SerialReceiver([fport_frame([992, 1150, 172, 992] + [992] * 12), fport_telemetry_request()])
         sender.start()
         try:
-            time.sleep(4.0)
+            time.sleep(2.0)
+            sender.outbox.append(fport_telemetry_request(0x30, bytes([0x30, 0x00, 0x01, 0x00, 0x00, 0x00])))
+            time.sleep(2.0)
             replies = fport_replies(sender.received)
             data = [r for r in replies if r[0] == 0x10]
             check("FPORT telemetry answers the requests with checked SmartPort replies", len(data) >= 10,
                   repr(sender.received[:40]))
             check("FPORT telemetry replies carry the battery voltage among their values",
                   any(r[1] == 0x0210 for r in data), repr(sorted({r[1] for r in data})))
+            chunks = [r[1].to_bytes(2, "little") + r[2].to_bytes(4, "little") for r in replies if r[0] == 0x32]
+            check("FPORT answers an MSP request with server frames", len(chunks) >= 2, repr(chunks[:3]))
+            check("FPORT MSP reply opens with its status, size, command and the API version",
+                  chunks[:1] == [bytes([0x30, 3, 1, 0, 1, 49])], repr(chunks[:1]))
+            check("FPORT MSP reply pads its last chunk with zeros", chunks[1:2] == [bytes([0x21, 0, 0, 0, 0, 0])],
+                  repr(chunks[1:2]))
         finally:
             sender.stop.set()
             stop(proc)

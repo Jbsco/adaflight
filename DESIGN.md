@@ -12352,3 +12352,17 @@ driver does; a shared frame update; and the last flow sample as a core sample wi
 `STM32.Optical_Flow` takes UP-T1 through those with the driver's gyro delay, parses frames in its update as upstream's
 shared parser does, and processes by detected kind. Host smoke drives UART4 with startup text then frames at 150 cm
 and sees both sensor flags and the sonar altitude.
+
+## D571. MSP over SmartPort and FPORT (2026-11-01)
+
+Core `SmartPort_Telemetry` left MSP requests in client frames unread while `MSP_Telemetry` already tunneled them for
+CRSF and Ghost. Its pass now takes that tunnel. A received payload of either client frame id hands its six bytes to
+it before any value goes out, a configuration write sets five skipped requests and closes the window, a completed
+request returns as `MSP_Request` with nothing sent, and its caller resumes the pass after preparing the reply, where
+upstream processes it inline. While a reply is pending, a pass writes one six-byte chunk as a server frame instead of
+a value, zero past its length, and closes the window. Vectors drive scripted replies through `sportmsp` lines and
+FPORT payloads through `sportfppayload` lines. `STM32.SmartPort` runs through a generic over the flight unit's MSP
+processor, and `STM32.Radio` feeds the FPORT payload kept by `FPORT` into its window, both on the receiver link's
+tunnel. Host smoke sends an API version request over both links and reads two server frames back. Host UART sockets now
+send without Nagle's delay: merged feeder frames shared one receive stamp, so FPORT lost half its reply windows and
+an MSP frame behind a data request lost its window to that request's reply.
