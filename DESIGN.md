@@ -12498,3 +12498,14 @@ rescue heading has no input in position control, and IMU's magnetic heading valu
 both stay silent. Vectors in the rescue family select among rescue, autopilot and attitude modes before initialization
 with a drawn debug axis, and position hold and navigation families add rescue modes to their draws. On the board, the
 flight unit records the rescue after its update.
+
+## D582. Debug values, GPS group (2026-11-01)
+
+Core `GPS_Link` now keeps taps for debug values: bytes waiting when it read its port, navigation interval at a completed
+frame, connection values upstream logs in its second and third slots (baud detection progress or navigation message
+age, and baud rate in hundreds or that age, at upstream's write points), dynamic model last sent, and an update mark; its MSP path now resets the last message time as it enters receiving, as upstream's state
+setter does, so that first message age reads zero. Core `GPS_Debug` records GPS connection mode from these taps and from link state with position, acknowledgement state
+and an execution time its caller passes, and GPS dilution mode from satellite count and dilutions of the solution, as
+upstream's GPS task does. Vectors in the link family select among both modes before initialization and read eight
+values after every step, with a zero execution time as their clock stands still inside a step. On the board, the GPS
+driver records after each link update with the time the update took.
