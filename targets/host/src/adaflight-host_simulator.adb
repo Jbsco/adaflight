@@ -4,6 +4,7 @@ with Ada.Real_Time;
 with Ada.Streams;
 with Ada.Unchecked_Conversion;
 with GNAT.Sockets;
+with Adaflight.Host_Clock;
 with Adaflight.Bytes;
 package body Adaflight.Host_Simulator is
    use type Ada.Real_Time.Time;
@@ -160,6 +161,7 @@ package body Adaflight.Host_Simulator is
          if Valid then
             Start := Micros;
             Adaflight.Sim_FDM.Step (FDM, P, Bridge, Start, Micros, Now_Spec, F);
+            Adaflight.Host_Clock.Set_Rate (Float (FDM.Sim_Rate));
             case F.Kind is
                when Adaflight.Sim_FDM.Timeout =>
                   Send_Motor_Packets;
