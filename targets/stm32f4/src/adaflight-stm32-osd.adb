@@ -601,6 +601,11 @@ package body Adaflight.STM32.OSD is
    State_Us   : array (Adaflight.OSD_Task.Task_State) of Unsigned_32 := (others => 0);
    Element_Us : Unsigned_32 := 0;
 
+   procedure Resume_Refresh is
+   begin
+      Task_Data.Page.Resume_Refresh_At := 0;
+   end Resume_Refresh;
+
    function Name_Of (B : Adaflight.Config_Groups.Bytes) return Adaflight.OSD_Render.Name is
       N : Adaflight.OSD_Render.Name;
    begin

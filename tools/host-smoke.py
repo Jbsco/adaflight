@@ -946,7 +946,8 @@ def stop(proc):
 def start(image, store, extra=None, port=PORT):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
                ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt",
-               ADAFLIGHT_PWM_LOG=store + ".pwm.txt", ADAFLIGHT_LED_LOG=store + ".led.txt", **(extra or {}))
+               ADAFLIGHT_PWM_LOG=store + ".pwm.txt", ADAFLIGHT_LED_LOG=store + ".led.txt",
+               ADAFLIGHT_CAMERA_LOG=store + ".camera.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -1062,6 +1063,15 @@ def pwm_lines(store):
         return []
 
 
+def camera_lines(store):
+    """The setup, key and idle lines of the image's camera control log, as lists of their fields."""
+    try:
+        with open(store + ".camera.txt") as log:
+            return [line.split(",") for line in log.read().split()]
+    except OSError:
+        return []
+
+
 def led_lines(store):
     """The color lines of the image's LED strip log, as lists of their fields."""
     try:
@@ -1095,6 +1105,15 @@ def main():
             time.sleep(2.5)
             api = msp(sock, 1)
             check("MSP API version 1.x", api is not None and len(api) == 3 and api[1] == 1)
+            # The default camera control: hardware PWM on the board's camera pin, ENTER at 63 of 128 (1.61 V of
+            # 3.3 V through 4.5 k over 4.7 k), a key past the five ignored.
+            enter = msp(sock, 98, bytes([0]))
+            keys = [line for line in camera_lines(store) if line[0] == "key"]
+            check("camera control ENTER key sets the hardware PWM duty while disarmed",
+                  enter == b"" and len(keys) == 1 and keys[0][1:5] == ["0", "0", "63", "0"], repr(keys))
+            past = msp(sock, 98, bytes([7]))
+            check("camera control ignores a key past the five",
+                  past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
             info = msp(sock, 5)
@@ -2658,6 +2677,9 @@ def main():
             read_all(sock, 0.8)
             text = cli(sock, "mixer FLYING_WING")
             check("flying wing mixer set", "Mixer: FLYING_WING" in text, text[-120:])
+            # The camera control holds the board's B09 at every start, before the servos take their pins.
+            text = cli(sock, "resource CAMERA_CONTROL NONE")
+            check("camera control pin freed for the wing's second servo", "Resource is freed" in text, text[-120:])
             for line in ("resource SERVO 1 B08", "resource SERVO 2 B09"):
                 text = cli(sock, line)
                 check(f"wing {line}", "Resource is set to " + line[-3:] in text, text[-160:])
