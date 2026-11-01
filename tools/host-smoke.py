@@ -229,6 +229,21 @@ def fport_replies(data):
     return replies
 
 
+def srxl_frames(data):
+    """The SRXL telemetry frames in the bytes the board sent: the sixteen payload bytes behind the two address
+    bytes and the length of each frame whose CRC16 over its payload reads back little-endian."""
+    frames = []
+    i = data.find(bytes([0xA5, 0x80, 0x15]))
+    while i != -1 and i + 21 <= len(data):
+        frame = data[i:i + 21]
+        if crc16_xmodem(frame[3:19]) == int.from_bytes(frame[19:21], "little"):
+            frames.append(frame[3:19])
+            i = data.find(bytes([0xA5, 0x80, 0x15]), i + 21)
+        else:
+            i = data.find(bytes([0xA5, 0x80, 0x15]), i + 1)
+    return frames
+
+
 def hub_frames(data):
     """The FrSky hub frames in the bytes the board sent: the id and the unstuffed sixteen-bit value of each
     three-byte run between the header and tail bytes."""
@@ -2250,6 +2265,38 @@ def main():
                   chunks[:1] == [bytes([0x30, 3, 1, 0, 1, 49])], repr(chunks[:1]))
             check("FPORT MSP reply pads its last chunk with zeros", chunks[1:2] == [bytes([0x21, 0, 0, 0, 0, 0])],
                   repr(chunks[1:2]))
+        finally:
+            sender.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "srxltlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for SRXL", "Enabled" in text, text[-120:])
+            text = cli(sock, "set serialrx_provider = SRXL")
+            check("receiver protocol set to SRXL", "serialrx_provider set to SRXL" in text, text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("SRXL receiver port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sender = SerialReceiver(spektrum_frame(us))
+        sender.start()
+        try:
+            time.sleep(4.0)
+            frames = srxl_frames(sender.received)
+            kinds = sorted({f[0] for f in frames})
+            check("SRXL telemetry answers the receiver's frames with checked frames", len(frames) >= 10,
+                  repr(sender.received[:40]))
+            check("SRXL telemetry sends the link quality and the RPM frames", 0x7F in kinds and 0x7E in kinds,
+                  repr(kinds))
         finally:
             sender.stop.set()
             stop(proc)
