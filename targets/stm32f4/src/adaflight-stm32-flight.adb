@@ -3336,6 +3336,8 @@ package body Adaflight.STM32.Flight is
    begin
       Adaflight.Position_Hold.Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY);
       Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
+      Adaflight.Autopilot_Debug.Record_Position
+        (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control, Adaflight.STM32.Debug_Values.Axis);
       Adaflight.Autopilot_Debug.Record_Hold (Adaflight.STM32.Debug_Values.State, Pos_Hold_State);
       if Enable_XY then
          Adaflight.Position_Estimator.Enable_XY (Pos_State, Position_Inputs (Adaflight.STM32.Time.Micros), True);
@@ -3391,6 +3393,8 @@ package body Adaflight.STM32.Flight is
          Control_Settings, P_Inp, Pos_Hold_State.Control, Disarm, Arming_Disabled);
       Adaflight.Autopilot_Debug.Record_Altitude (Adaflight.STM32.Debug_Values.State, Alt_Hold_State.Control);
       Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
+      Adaflight.Autopilot_Debug.Record_Position
+        (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control, Adaflight.STM32.Debug_Values.Axis);
       if Arming_Disabled then
          Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Arm_Switch, True);
       end if;

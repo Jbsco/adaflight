@@ -9911,6 +9911,7 @@ procedure Vector_Check is
 
    PH_State    : Adaflight.Position_Hold.State;
    PH_Debug    : Adaflight.Debug.State;
+   PH_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    PH_Settings : Adaflight.Position_Hold.Settings;
    PC_Settings : Adaflight.Position_Control.Settings;
    PH_Nav      : Adaflight.Position_Nav.Navigator;
@@ -9952,8 +9953,10 @@ procedure Vector_Check is
       elsif Name = "phdebug" then
          PH_Debug := (others => <>);
          Adaflight.Debug.Select_Mode (PH_Debug, Interfaces.Unsigned_8 (Int (3)));
+         PH_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
       elsif Name = "phdbg" then
          Adaflight.Autopilot_Debug.Record_Heading (PH_Debug, PH_State.Control);
+         Adaflight.Autopilot_Debug.Record_Position (PH_Debug, PH_State.Control, PH_Debug_Axis);
          Adaflight.Autopilot_Debug.Record_Hold (PH_Debug, PH_State);
          for J in Adaflight.Debug.Index loop
             Record_Int ("phstep.debug", Int (4 + J), Integer_64 (PH_Debug.Data (J)));
@@ -39609,6 +39612,7 @@ procedure Vector_Check is
 
    AP_State    : Adaflight.Position_Hold.State;
    AP_Debug    : Adaflight.Debug.State;
+   AP_Debug_Axis : Adaflight.Axes.Axis := Adaflight.Axes.Roll;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
 
@@ -39678,8 +39682,10 @@ procedure Vector_Check is
       elsif Name = "apdebug" then
          AP_Debug := (others => <>);
          Adaflight.Debug.Select_Mode (AP_Debug, Interfaces.Unsigned_8 (Int (3)));
+         AP_Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
       elsif Name = "apdbg" then
          Adaflight.Autopilot_Debug.Record_Heading (AP_Debug, AP_State.Control);
+         Adaflight.Autopilot_Debug.Record_Position (AP_Debug, AP_State.Control, AP_Debug_Axis);
          Adaflight.Autopilot_Debug.Record_Hold (AP_Debug, AP_State);
          for J in Adaflight.Debug.Index loop
             Record_Int ("apstep.debug", Int (4 + J), Integer_64 (AP_Debug.Data (J)));
