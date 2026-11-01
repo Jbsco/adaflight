@@ -600,7 +600,8 @@ private
       Plane_Mixer                => Mixer.Mixer_Mode in 8 | 14,
       Telemetry_Feature          => (Features and Config_Fix.Feature_Telemetry) /= 0,
       Launch_Wing                => False,
-      Inflight_Acc_Cal           => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0);
+      Inflight_Acc_Cal           => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0,
+      Camera_Control             => False);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),

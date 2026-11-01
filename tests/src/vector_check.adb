@@ -4850,7 +4850,8 @@ procedure Vector_Check is
             Plane_Mixer                => Int (153) = 8 or else Int (153) = 14,
             Telemetry_Feature          => False,
             Launch_Wing                => False,
-            Inflight_Acc_Cal           => False);
+            Inflight_Acc_Cal           => False,
+            Camera_Control             => True);
          Arm_DShot_Mode := False;
          Arm_Wing_Mode := False;
          Arm_Hooks_Mode := False;
@@ -5003,25 +5004,25 @@ procedure Vector_Check is
             for Ch in 0 .. 5 loop
                Aux (Ch) := Flt (10 + Ch);
             end loop;
-            case Int (NF - 18) is
+            case Int (NF - 20) is
                when 1 =>
                   Clear_Mode_Overrides (Arming_State);
                when 2 =>
                   Clear_Mode_Overrides (Arming_State);
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), True);
                when 3 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), True);
                when 4 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), False);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), False);
                when others =>
                   null;
             end case;
-            Sensed_Before.Gyro_Calibrated := Int (NF - 9) /= 0;
-            Sensed_Before.Acc_Calibrated := Int (NF - 8) /= 0;
-            Sensed_Before.Baro_Calibrated := Int (NF - 7) /= 0;
-            Sensed_Before.Mag_Calibrated := Int (NF - 6) /= 0;
-            Sensed_Before.Acc_Has_Calibration := Int (NF - 5) /= 0;
-            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 4) /= 0;
+            Sensed_Before.Gyro_Calibrated := Int (NF - 11) /= 0;
+            Sensed_Before.Acc_Calibrated := Int (NF - 10) /= 0;
+            Sensed_Before.Baro_Calibrated := Int (NF - 9) /= 0;
+            Sensed_Before.Mag_Calibrated := Int (NF - 8) /= 0;
+            Sensed_Before.Acc_Has_Calibration := Int (NF - 7) /= 0;
+            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 6) /= 0;
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed_Before, Channels, Now_Us, Step);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed_Before,
                               Channels, Now_Us, Natural (Int (5)), Step);
@@ -5032,9 +5033,9 @@ procedure Vector_Check is
             Pass.PID_Loop
               ((Wing_Launch => Arming_Settings.Launch_Wing),
                (Resets_Yaw  => Yaw_Reset,
-                Uses_Servos => Int (NF - 1) /= 0,
-                Log_Device  => Int (NF - 2) /= 0,
-                CLI_Open    => Int (NF - 3) /= 0,
+                Uses_Servos => Int (NF - 3) /= 0,
+                Log_Device  => Int (NF - 4) /= 0,
+                CLI_Open    => Int (NF - 5) /= 0,
                 PID_Audio   => Adaflight.Modes.Condition_Present (Arming_Conditions, Adaflight.Modes.PID_Audio)));
             Update_Status
               (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us, Step);
@@ -5101,13 +5102,21 @@ procedure Vector_Check is
                K := K + 9;
                Record_Int ("armstep.pass", 1, Boolean'Pos (Str (K) = Pass_Log (1 .. Pass_Len)));
                K := K + 1;
+               Expect_Int ("camera_key",
+                           (if Step.Commands (Camera_Enter) then 0
+                            elsif Step.Commands (Camera_Left) then 1
+                            elsif Step.Commands (Camera_Up) or else Step.Commands (Camera_Up_Hold) then 2
+                            elsif Step.Commands (Camera_Right) then 3
+                            elsif Step.Commands (Camera_Down) then 4
+                            else -1));
+               Expect_Int ("camera_hold", (if Step.Commands (Camera_Up_Hold) then 2_000 else 0));
             end;
             if K /= NF + 1 then
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
             Arm_Last_Step := Step;
-            Arm_Prev_CLI := Int (NF - 3) /= 0;
+            Arm_Prev_CLI := Int (NF - 5) /= 0;
          end;
       elsif Name = "armdshotinit" then
          Arming_Settings.DShot := Int (3) /= 0;

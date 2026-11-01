@@ -66,7 +66,8 @@ package Adaflight.Arming with SPARK_Mode is
    type Stick_Command is
      (Gyro_Calibration, Baro_Ground_Level, PID_Profile_1, PID_Profile_2, PID_Profile_3, Acc_Calibration,
       Mag_Calibration, Rate_Profile_1, Rate_Profile_2, Rate_Profile_3, Rate_Profile_4,
-      Dashboard_Cycling_Off, Dashboard_Cycling_On, VTX_Band_Up, VTX_Band_Down, VTX_Channel_Up, VTX_Channel_Down);
+      Dashboard_Cycling_Off, Dashboard_Cycling_On, VTX_Band_Up, VTX_Band_Down, VTX_Channel_Up, VTX_Channel_Down,
+      Camera_Enter, Camera_Left, Camera_Up, Camera_Right, Camera_Down, Camera_Up_Hold);
    type Command_Set is array (Stick_Command) of Boolean;
 
    subtype Trim_Delta is Integer range -1 .. 1;
@@ -199,6 +200,8 @@ package Adaflight.Arming with SPARK_Mode is
       Launch_Wing                : Boolean := False;
       --  The in-flight accelerometer calibration feature.
       Inflight_Acc_Cal           : Boolean := False;
+      --  A build with the camera control, whose keys the sticks press.
+      Camera_Control             : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree

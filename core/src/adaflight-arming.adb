@@ -844,6 +844,28 @@ package body Adaflight.Arming with SPARK_Mode is
       if Current = Combo (Low, Center, High, High) then
          Out_Step.Commands (VTX_Channel_Down) := True;
       end if;
+      if C.Camera_Control then
+         if Current = Combo (Center, Center, High, Center) then
+            Out_Step.Commands (Camera_Enter) := True;
+         elsif Current = Combo (Low, Center, Center, Center) then
+            Out_Step.Commands (Camera_Left) := True;
+         elsif Current = Combo (Center, High, Center, Center) then
+            Out_Step.Commands (Camera_Up) := True;
+         elsif Current = Combo (High, Center, Center, Center) then
+            Out_Step.Commands (Camera_Right) := True;
+         elsif Current = Combo (Center, Low, Center, Center) then
+            Out_Step.Commands (Camera_Down) := True;
+         elsif Current = Combo (Center, High, Center, Low) then
+            Out_Step.Commands (Camera_Up_Hold) := True;
+         end if;
+         if Out_Step.Commands (Camera_Enter) or else Out_Step.Commands (Camera_Left)
+           or else Out_Step.Commands (Camera_Up) or else Out_Step.Commands (Camera_Right)
+           or else Out_Step.Commands (Camera_Down)
+         then
+            S.Hold_Ms := S.Hold_Ms - 3 * Stick_Delay_Ms;
+            S.Do_Not_Repeat := False;
+         end if;
+      end if;
    end Process_Sticks;
 
    -------------------------
