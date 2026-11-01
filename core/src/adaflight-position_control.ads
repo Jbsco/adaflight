@@ -141,6 +141,18 @@ package Adaflight.Position_Control with SPARK_Mode is
       X, Y : Velocity_Cm := 0.0;
    end record;
 
+   --  What the debug values read of the last yaw control pass: whether one
+   --  ran, with the heading, the desired heading, the error, the
+   --  proportional term and the yaw rate.
+   type Debug_Taps is record
+      Yaw_Ran     : Boolean := False;
+      Heading_Deg : Float := 0.0;
+      Desired_Deg : Float := 0.0;
+      Error_Deg   : Float := 0.0;
+      Yaw_P       : Float := 0.0;
+      Yaw_Rate    : Float := 0.0;
+   end record;
+
    type State is record
       Pid                     : Gains;
       Yaw_Kp                  : Float range 0.0 .. 12.0 := 1.8;
@@ -197,6 +209,7 @@ package Adaflight.Position_Control with SPARK_Mode is
       External_Yaw_Target     : Degrees := 0.0;
       Angle_Roll              : Float range -90.0 .. 90.0 := 0.0;
       Angle_Pitch             : Float range -90.0 .. 90.0 := 0.0;
+      Taps                    : Debug_Taps;
    end record;
 
    --  The gains from the settings, the feedforward filters at the nominal

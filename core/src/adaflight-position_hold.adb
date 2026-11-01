@@ -51,6 +51,11 @@ package body Adaflight.Position_Hold with SPARK_Mode is
             Sensors_Were_Ok : constant Boolean := S.Sensors_Ok;
          begin
             S.Sensors_Ok := Sensors_Ok_Now (Inp, S.Control.Heading_Recovery);
+            S.Taps.Status_Set := True;
+            S.Taps.Sensor_Status :=
+              (if not Inp.Valid_XY then 1
+               elsif Inp.Heading_Required and then not Inp.Heading_Valid and then not S.Control.Heading_Recovery then 2
+               else 0);
             if S.Sensors_Ok then
                if not Sensors_Were_Ok then
                   Position_Control.Reanchor (S.Control, PC, Inp);

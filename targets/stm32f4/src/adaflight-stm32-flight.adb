@@ -131,6 +131,7 @@ with Adaflight.Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
+with Adaflight.Autopilot_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
@@ -3274,6 +3275,7 @@ package body Adaflight.STM32.Flight is
           Vertical_Velocity     => Pos_State.Control_Derivative,
           Vertical_Acceleration => Pos_State.Control_Acceleration,
           Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State)))));
+      Adaflight.Autopilot_Debug.Record_Altitude (Adaflight.STM32.Debug_Values.State, Alt_Hold_State.Control);
    end Run_Altitude_Hold;
 
    --  Whether the attitude's heading is good to fly by: a calibrated compass,
@@ -3333,6 +3335,8 @@ package body Adaflight.STM32.Flight is
       Enable_XY : Boolean;
    begin
       Adaflight.Position_Hold.Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY);
+      Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
+      Adaflight.Autopilot_Debug.Record_Hold (Adaflight.STM32.Debug_Values.State, Pos_Hold_State);
       if Enable_XY then
          Adaflight.Position_Estimator.Enable_XY (Pos_State, Position_Inputs (Adaflight.STM32.Time.Micros), True);
       end if;
@@ -3385,6 +3389,8 @@ package body Adaflight.STM32.Flight is
         (Rescue_State, Rescue_Settings, Inp,
          Adaflight.Altitude_Hold.Control_Settings (Alt_Hold_Settings), Alt_Hold_State.Control,
          Control_Settings, P_Inp, Pos_Hold_State.Control, Disarm, Arming_Disabled);
+      Adaflight.Autopilot_Debug.Record_Altitude (Adaflight.STM32.Debug_Values.State, Alt_Hold_State.Control);
+      Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
       if Arming_Disabled then
          Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Arm_Switch, True);
       end if;

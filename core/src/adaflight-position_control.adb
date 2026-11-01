@@ -361,6 +361,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
       end if;
       Rate := Constrain_F (Rate, -Max_Rate, Max_Rate);
       S.Yaw_Rate_Dps := Rate * (if C.Yaw_Reversed then -1.0 else 1.0);
+      S.Taps := (Yaw_Ran => True, Heading_Deg => Heading, Desired_Deg => Desired, Error_Deg => Error,
+                 Yaw_P => Error * S.Yaw_Kp, Yaw_Rate => S.Yaw_Rate_Dps);
       S.Yaw_Active := True;
    end Update_Yaw_Control;
 

@@ -16,6 +16,15 @@ package Adaflight.Position_Hold with SPARK_Mode is
       Deadband : Natural range 0 .. 50 := 5;
    end record;
 
+   --  What the debug values read of the enabled updates: the sensor status
+   --  the last one judged, zero for good, one for no horizontal estimate and
+   --  two for a heading not good to fly by. The tap holds what its site last
+   --  wrote.
+   type Debug_Taps is record
+      Status_Set    : Boolean := False;
+      Sensor_Status : Natural range 0 .. 2 := 0;
+   end record;
+
    type State is record
       Enabled           : Boolean := False;
       Control_Ok        : Boolean := False;
@@ -23,6 +32,7 @@ package Adaflight.Position_Hold with SPARK_Mode is
       Rescue_Was_Active : Boolean := False;
       Deadband          : Unit_Interval := 0.05;
       Control           : Position_Control.State;
+      Taps              : Debug_Taps;
    end record;
 
    procedure Init (S : out State; C : Settings; PC : Position_Control.Settings);

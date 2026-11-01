@@ -51,6 +51,18 @@ package Adaflight.Altitude_Control with SPARK_Mode is
       Cos_Tilt              : Cosine := 1.0;
    end record;
 
+   --  What the debug values read of the last run: whether one ran, with its
+   --  throttle before scaling, the target and current altitudes, and the
+   --  proportional, integral, derivative, acceleration and feedforward
+   --  terms. Each tap holds what its site last wrote.
+   type Debug_Taps is record
+      Controlled : Boolean := False;
+      Throttle   : Float := 0.0;
+      Target_Cm  : Altitude_Cm := 0.0;
+      Current_Cm : Altitude_Cm := 0.0;
+      P, I, D, A, F : Float := 0.0;
+   end record;
+
    type State is record
       Kp             : Gain := 0.0;
       Ki             : Gain := 0.0;
@@ -60,6 +72,7 @@ package Adaflight.Altitude_Control with SPARK_Mode is
       Altitude_I     : Integral := 0.0;
       Throttle_Out   : Unit_Interval := 0.0;
       Captured_Hover : Captured_Throttle := 0;
+      Taps           : Debug_Taps;
    end record;
 
    --  The gains from their settings.
