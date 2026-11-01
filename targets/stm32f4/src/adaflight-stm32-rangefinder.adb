@@ -4,6 +4,8 @@ with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
 with Adaflight.Rangefinder;
 with Adaflight.Rangefinder_Detect;
+with Adaflight.MT_Sensor;
+with Adaflight.STM32.MT;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Rangefinder is
    use type Interfaces.Integer_8;
@@ -134,8 +136,12 @@ package body Adaflight.STM32.Rangefinder is
                   Range_Cm := Dev.Max_Range_Cm;
                   Cone := Dev.Cone_Extended_Decidegrees;
                end;
-            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
-               | Adaflight.Rangefinder_Detect.UPT1 =>
+            when Adaflight.Rangefinder_Detect.MT =>
+               Found := Adaflight.STM32.MT.Present;
+               Delay_Ms := Adaflight.STM32.MT.Delay_Ms;
+               Range_Cm := Interfaces.Unsigned_16 (Natural'Min (65_535, Adaflight.STM32.MT.Max_Range_Cm));
+               Cone := Adaflight.MT_Sensor.Detection_Cone_Decidegrees;
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.UPT1 =>
                null;
          end case;
       end if;
@@ -201,8 +207,14 @@ package body Adaflight.STM32.Rangefinder is
                TOFSense.Read (TOF_State, R);
                Distance := R;
             end;
-         when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
-            | Adaflight.Rangefinder_Detect.UPT1 =>
+         when Adaflight.Rangefinder_Detect.MT =>
+            declare
+               R : Core.Reading;
+            begin
+               Adaflight.STM32.MT.Read_Range (R);
+               Distance := R;
+            end;
+         when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.UPT1 =>
             null;
       end case;
       Core.Process
