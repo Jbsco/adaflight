@@ -11,6 +11,7 @@ with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Barometer;
+with Adaflight.Camera_Control;
 with Adaflight.Battery;
 with Adaflight.Beeper;
 with Adaflight.Blackbox;
@@ -175,6 +176,9 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The barometer settings from the stored barometer group; the virtual
    --  device is hardware code 13.
    function Barometer_Settings_Of (B : Barometer_Config_Record) return Barometer.Settings;
+
+   --  The camera control settings from the stored camera control group.
+   function Camera_Control_Settings_Of (K : Camera_Control_Config_Record) return Camera_Control.Settings;
 
    --  The compass settings from the stored compass and board alignment
    --  groups, with the detected device's output data rate.
@@ -596,7 +600,8 @@ private
       Plane_Mixer                => Mixer.Mixer_Mode in 8 | 14,
       Telemetry_Feature          => (Features and Config_Fix.Feature_Telemetry) /= 0,
       Launch_Wing                => False,
-      Inflight_Acc_Cal           => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0);
+      Inflight_Acc_Cal           => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0,
+      Camera_Control             => False);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),
@@ -714,6 +719,19 @@ private
    function Barometer_Settings_Of (B : Barometer_Config_Record) return Barometer.Settings is
      (Temperature_Drift_Cm_Per_10C => Held (Integer (B.Baro_Temp_Drift_Cm_Per10_C), -500, 500),
       Virtual_Device               => B.Baro_Hardware = 13);
+
+   function Camera_Control_Settings_Of (K : Camera_Control_Config_Record) return Camera_Control.Settings is
+     (Output              => Camera_Control.Mode_Of (K.Mode),
+      Ref_Voltage         => Integer (K.Ref_Voltage),
+      Key_Delay_Ms        => Integer (K.Key_Delay_Ms),
+      Internal_Resistance => Integer (K.Internal_Resistance),
+      Inverted            => K.Inverted /= 0,
+      Buttons             =>
+        (Camera_Control.Enter => Integer (K.Button_Resistance_Values (0)),
+         Camera_Control.Left  => Integer (K.Button_Resistance_Values (1)),
+         Camera_Control.Up    => Integer (K.Button_Resistance_Values (2)),
+         Camera_Control.Right => Integer (K.Button_Resistance_Values (3)),
+         Camera_Control.Down  => Integer (K.Button_Resistance_Values (4))));
 
    function Compass_Settings_Of
      (C : Compass_Config_Record; Board : Board_Alignment_Record; Odr_Hz : Compass.Output_Rate := 0)

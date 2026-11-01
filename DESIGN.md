@@ -12291,3 +12291,17 @@ and MSP IMU values, its presence sensor flags, status and task enables, and a ca
 or an MSP command, beeps at its start, at first movement, on success and on failure, and saves its zero. Board
 configurations gain compass bus, select, interrupt and alignment defaults from board defines. A simulated image takes
 a virtual compass whose field comes from packet attitude.
+
+## D566. Camera control (2026-11-01)
+
+A camera's OSD menu takes its keys over one pin: a resistor ladder voltage, made as a hardware PWM duty or a software
+PWM hi time, held for key delay plus hold, then idle. `Camera_Control` computes key voltage in single precision order
+(reference voltage times key resistance over internal plus key resistance), its duty of 3.3 V, and for hardware PWM a
+compare value rounded as the C library rounds with an end time in milliseconds, idle at full period from a process
+call once that time passes; for software PWM a hi time over 448 counts and a wait of key delay plus hold, low for that
+wait when hi time is zero. DAC output stays off, as upstream leaves it unwritten; an unknown mode too. Stick commands
+press ENTER, LEFT, UP, RIGHT and DOWN with throttle centered and 150 ms of repeat, or UP for two seconds with throttle
+low; a build setting gates them so pin-less boards keep their stick behavior. MSP 98 presses a key while disarmed and
+errors while armed. Oracle gen_camera records duty, end time, hi time, pin levels and waits over random configurations
+in CLI ranges; gen_arming now builds with camera control and records key presses, so every arming vector family
+regenerated. Board unit, flight wiring, host log and smoke follow.

@@ -128,6 +128,7 @@ with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
 with Adaflight.Pitot;
 with Adaflight.RTC;
+with Adaflight.Camera_Control;
 with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
@@ -4849,7 +4850,8 @@ procedure Vector_Check is
             Plane_Mixer                => Int (153) = 8 or else Int (153) = 14,
             Telemetry_Feature          => False,
             Launch_Wing                => False,
-            Inflight_Acc_Cal           => False);
+            Inflight_Acc_Cal           => False,
+            Camera_Control             => True);
          Arm_DShot_Mode := False;
          Arm_Wing_Mode := False;
          Arm_Hooks_Mode := False;
@@ -5002,25 +5004,25 @@ procedure Vector_Check is
             for Ch in 0 .. 5 loop
                Aux (Ch) := Flt (10 + Ch);
             end loop;
-            case Int (NF - 18) is
+            case Int (NF - 20) is
                when 1 =>
                   Clear_Mode_Overrides (Arming_State);
                when 2 =>
                   Clear_Mode_Overrides (Arming_State);
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), True);
                when 3 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), True);
                when 4 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), False);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 19)), False);
                when others =>
                   null;
             end case;
-            Sensed_Before.Gyro_Calibrated := Int (NF - 9) /= 0;
-            Sensed_Before.Acc_Calibrated := Int (NF - 8) /= 0;
-            Sensed_Before.Baro_Calibrated := Int (NF - 7) /= 0;
-            Sensed_Before.Mag_Calibrated := Int (NF - 6) /= 0;
-            Sensed_Before.Acc_Has_Calibration := Int (NF - 5) /= 0;
-            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 4) /= 0;
+            Sensed_Before.Gyro_Calibrated := Int (NF - 11) /= 0;
+            Sensed_Before.Acc_Calibrated := Int (NF - 10) /= 0;
+            Sensed_Before.Baro_Calibrated := Int (NF - 9) /= 0;
+            Sensed_Before.Mag_Calibrated := Int (NF - 8) /= 0;
+            Sensed_Before.Acc_Has_Calibration := Int (NF - 7) /= 0;
+            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 6) /= 0;
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed_Before, Channels, Now_Us, Step);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed_Before,
                               Channels, Now_Us, Natural (Int (5)), Step);
@@ -5031,9 +5033,9 @@ procedure Vector_Check is
             Pass.PID_Loop
               ((Wing_Launch => Arming_Settings.Launch_Wing),
                (Resets_Yaw  => Yaw_Reset,
-                Uses_Servos => Int (NF - 1) /= 0,
-                Log_Device  => Int (NF - 2) /= 0,
-                CLI_Open    => Int (NF - 3) /= 0,
+                Uses_Servos => Int (NF - 3) /= 0,
+                Log_Device  => Int (NF - 4) /= 0,
+                CLI_Open    => Int (NF - 5) /= 0,
                 PID_Audio   => Adaflight.Modes.Condition_Present (Arming_Conditions, Adaflight.Modes.PID_Audio)));
             Update_Status
               (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us, Step);
@@ -5100,13 +5102,21 @@ procedure Vector_Check is
                K := K + 9;
                Record_Int ("armstep.pass", 1, Boolean'Pos (Str (K) = Pass_Log (1 .. Pass_Len)));
                K := K + 1;
+               Expect_Int ("camera_key",
+                           (if Step.Commands (Camera_Enter) then 0
+                            elsif Step.Commands (Camera_Left) then 1
+                            elsif Step.Commands (Camera_Up) or else Step.Commands (Camera_Up_Hold) then 2
+                            elsif Step.Commands (Camera_Right) then 3
+                            elsif Step.Commands (Camera_Down) then 4
+                            else -1));
+               Expect_Int ("camera_hold", (if Step.Commands (Camera_Up_Hold) then 2_000 else 0));
             end;
             if K /= NF + 1 then
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
             Arm_Last_Step := Step;
-            Arm_Prev_CLI := Int (NF - 3) /= 0;
+            Arm_Prev_CLI := Int (NF - 5) /= 0;
          end;
       elsif Name = "armdshotinit" then
          Arming_Settings.DShot := Int (3) /= 0;
@@ -8766,6 +8776,80 @@ procedure Vector_Check is
    RTC_Seq    : Integer_64 := -1;
    RTC_Config : Adaflight.RTC.Settings;
    RTC_Clock  : Adaflight.RTC.Clock;
+
+   --  The camera control lines: the control from a configuration with its
+   --  pin and timer, each key press with its duty, end time, software hi
+   --  time and wait, and the process calls.
+   Camera_State    : Adaflight.Camera_Control.State;
+   Camera_Settings : Adaflight.Camera_Control.Settings;
+   Camera_Seq      : Integer_64 := -1;
+
+   procedure Check_Camera_Line is
+      use Adaflight.Camera_Control;
+      Name     : constant String := Str (1);
+      Software : constant Boolean := Camera_State.Enabled and then Camera_State.Output = Software_PWM;
+   begin
+      if Name = "caminit" then
+         Camera_Seq := Int (2);
+         Camera_Settings :=
+           (Output              => Mode_Of (Interfaces.Unsigned_8 (Int (3))),
+            Ref_Voltage         => Natural (Int (4)),
+            Key_Delay_Ms        => Natural (Int (5)),
+            Internal_Resistance => Natural (Int (6)),
+            Inverted            => Int (8) /= 0,
+            Buttons             =>
+              (Enter => Natural (Int (9)), Left => Natural (Int (10)), Up => Natural (Int (11)),
+               Right => Natural (Int (12)), Down => Natural (Int (13))));
+         Init (Camera_State, Camera_Settings, Has_Pin => Int (7) /= 0, Timer_Found => Int (14) /= 0);
+         Record_Int ("caminit.enabled", Int (15), Boolean'Pos (Camera_State.Enabled));
+         Record_Int ("caminit.period", Int (16), Integer_64 (Camera_State.Period));
+         Record_Int ("caminit.ccr", Int (18), Integer_64 (Camera_State.Pulse));
+         if Camera_State.Enabled and then Camera_State.Output = Software_PWM then
+            Record_Int ("caminit.level", Int (22), Boolean'Pos (Idle_High (Camera_State)));
+         end if;
+         if Int (7) /= 0 then
+            Record_Int ("caminit.inverted", Int (23), Boolean'Pos (Camera_State.Inverted));
+         end if;
+      elsif Name = "camkey" then
+         if Int (2) /= Camera_Seq then
+            Put_Line ("camera key without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            P : Press;
+         begin
+            Key_Press (Camera_State, Camera_Settings, Interfaces.Unsigned_8 (Int (5)), Natural (Int (6)),
+                       Interfaces.Unsigned_32 (Int (4)), P);
+            Record_Int ("camkey.ccr", Int (8), Integer_64 (Camera_State.Pulse));
+            Record_Int ("camkey.end", Int (9), Integer_64 (Camera_State.End_Ms));
+            Record_Int ("camkey.sw_enable", Int (10),
+                        Boolean'Pos (P.Taken and then Software and then not P.Low_Only));
+            Record_Int ("camkey.hi_time", Int (11), Integer_64 (P.Hi_Time));
+            --  The oracle counts the pin levels, which the inversion swaps.
+            Record_Int ("camkey.lo", Int (13),
+                        Boolean'Pos (P.Taken and then Software and then (P.Low_Only or else Camera_State.Inverted)));
+            Record_Int ("camkey.hi", Int (14),
+                        Boolean'Pos (P.Taken and then Software
+                                     and then (P.Low_Only or else not Camera_State.Inverted)));
+            Record_Int ("camkey.sw_disable", Int (15),
+                        Boolean'Pos (P.Taken and then Software and then not P.Low_Only));
+            if Software then
+               Record_Int ("camkey.level", Int (16), Boolean'Pos (Idle_High (Camera_State)));
+            end if;
+            Record_Int ("camkey.wait", Int (17), Integer_64 (if Software then P.Wait_Ms else 0));
+            Record_Int ("camkey.osd_reset", Int (18), Boolean'Pos (P.OSD_Reset or else Int (7) = 0));
+         end;
+      elsif Name = "camproc" then
+         declare
+            Idle : Boolean;
+         begin
+            Process (Camera_State, Interfaces.Unsigned_32 (Int (4)), Idle);
+            Record_Int ("camproc.ccr", Int (5), Integer_64 (Camera_State.Pulse));
+            Record_Int ("camproc.end", Int (6), Integer_64 (Camera_State.End_Ms));
+         end;
+      end if;
+   end Check_Camera_Line;
 
    procedure Check_RTC_Line is
       use Adaflight.RTC;
@@ -39888,6 +39972,8 @@ procedure Vector_Check is
                   Check_Pitot_Line;
                elsif Kind = "rtc" then
                   Check_RTC_Line;
+               elsif Kind = "camera" then
+                  Check_Camera_Line;
                elsif Kind = "adcint" then
                   Check_Internal_ADC_Line;
                elsif Kind = "stats" then
@@ -40361,6 +40447,7 @@ begin
    Run (Dir & "/opticalflow.csv", "opticalflow");
    Run (Dir & "/pitot.csv", "pitot");
    Run (Dir & "/rtc.csv", "rtc");
+   Run (Dir & "/camera.csv", "camera");
    Run (Dir & "/adcint.csv", "adcint");
    Run (Dir & "/stats.csv", "stats");
    Run (Dir & "/wlaunch.csv", "wlaunch");

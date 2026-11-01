@@ -106,6 +106,13 @@ package body Adaflight.MSP_Control_In with SPARK_Mode is
             E.Acc_Calibration := not B.Armed;
          when Mag_Calibration_Command =>
             E.Mag_Calibration := not B.Armed;
+         when Camera_Control_Command =>
+            if B.Armed then
+               R := Error;
+               return;
+            end if;
+            E.Camera_Press := True;
+            E.Camera_Key := (if Request'Length > 0 then Byte (U8 (Request, 0)) else 0);
          when Write_Configuration_Command =>
             if B.Armed then
                R := Error;
