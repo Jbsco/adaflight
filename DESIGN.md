@@ -12474,3 +12474,15 @@ autopilot heading modes, with the yaw disable reason as its last set value; resc
 values those controllers also write come with their own groups. Vectors select a mode per sequence before
 initialization and read eight values after every step in the altitude hold, position hold and navigation families. On
 the board, the flight unit records after the altitude hold, position hold and rescue updates.
+
+## D580. Debug values, position control group (2026-11-01)
+
+Core `Position_Control` now keeps taps of each completed position pass for debug values: velocity and its error,
+proportional, integral, derivative, acceleration and feedforward terms per axis after the buildup clamp, their sums, lean
+angles, distance error, target velocity and speed, ground speed, distance from the origin, anchor and clamp flags, and
+status flags as upstream's controller last wrote them, at a control failure and during heading recovery too. Core
+`Autopilot_Debug` records them after a position hold or rescue update for the autopilot PID, autopilot stop and position
+navigation modes and for the attitude mode's heading, ground speed and target speed, with the debug axis mapped to north
+for pitch and east otherwise. Vectors in the position hold and navigation families select among these modes before
+initialization with a drawn debug axis. On the board, the flight unit records after the position hold and rescue
+updates.

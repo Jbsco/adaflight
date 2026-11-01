@@ -213,6 +213,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
    begin
       Reset_Distance_Error (S);
       Reset_Distance_Integral (S);
+      S.Taps.Status_Set := True;
+      S.Taps.Status := 100;
    end Handle_Failure;
 
    --  Full stick commands the configured velocity; the sticks turn from the
@@ -361,8 +363,12 @@ package body Adaflight.Position_Control with SPARK_Mode is
       end if;
       Rate := Constrain_F (Rate, -Max_Rate, Max_Rate);
       S.Yaw_Rate_Dps := Rate * (if C.Yaw_Reversed then -1.0 else 1.0);
-      S.Taps := (Yaw_Ran => True, Heading_Deg => Heading, Desired_Deg => Desired, Error_Deg => Error,
-                 Yaw_P => Error * S.Yaw_Kp, Yaw_Rate => S.Yaw_Rate_Dps);
+      S.Taps.Yaw_Ran := True;
+      S.Taps.Heading_Deg := Heading;
+      S.Taps.Desired_Deg := Desired;
+      S.Taps.Error_Deg := Error;
+      S.Taps.Yaw_P := Error * S.Yaw_Kp;
+      S.Taps.Yaw_Rate := S.Yaw_Rate_Dps;
       S.Yaw_Active := True;
    end Update_Yaw_Control;
 
@@ -654,7 +660,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
      (Pid : Gains; I_Policy : Integral_Policy; Was_Angle_Saturated : Boolean;
       Target_Velocity : Velocity_Cm; Previous_Target : in out Velocity_Cm; Distance_Error, Integral : in out Cm;
       Previous_Velocity : out Cm; Position, Velocity, Acceleration : Cm; Dt : Interval_S; Anchor_Off : Boolean;
-      Target_Position : Target_Cm; Error_Limit : Float; PI_Term, D_Term, A_Term, F_Term : out Angle_Term)
+      Target_Position : Target_Cm; Error_Limit : Float; PI_Term, D_Term, A_Term, F_Term : out Angle_Term;
+      P_Term, I_Term : out Angle_Term; Vel_Error : out Velocity_Cm)
      with Pre  => Error_Limit in Nav_Error_Distance_Limit .. Error_Distance_Limit,
           Post => abs PI_Term <= 2.0 ** 15 and then abs D_Term <= 2.0 ** 45 and then abs A_Term <= 2.0 ** 45
                   and then abs F_Term <= 2.0 ** 45
@@ -703,6 +710,9 @@ package body Adaflight.Position_Control with SPARK_Mode is
       begin
          PI_Term := Sum;
       end;
+      P_Term := P;
+      I_Term := I;
+      Vel_Error := Velocity_Error;
    end Axis_Terms;
 
    --  The two axes' sums turned into the body frame by the heading and held
@@ -792,6 +802,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
          S.Yaw_Disable_Reason := 11;
          S.Angle_Roll := 0.0;
          S.Angle_Pitch := S.Heading_Recovery_Pitch;
+         S.Taps.Status_Set := True;
+         S.Taps.Status := 200;
          Ok := True;
          return;
       end if;
@@ -847,6 +859,8 @@ package body Adaflight.Position_Control with SPARK_Mode is
          Error_Limit : constant Float := (if S.Nav_Active then Nav_Error_Distance_Limit else Error_Distance_Limit);
          Seed_F      : Boolean := False;
          PI_East, PI_North, D_East, D_North, A_East, A_North, F_East, F_North : Angle_Term;
+         P_East, P_North, I_East, I_North : Angle_Term;
+         VE_East, VE_North : Velocity_Cm;
          Base_East, Base_North : Angle_Term;
          Smoothed_East, Smoothed_North : Signal;
          Heading_Rad : constant Float := Float (Inp.Yaw) / 10.0 * Degrees_To_Radians;
@@ -855,6 +869,7 @@ package body Adaflight.Position_Control with SPARK_Mode is
          Roll, Pitch : Float;
          Saturated   : Boolean;
       begin
+         S.Taps.Buildup_Clamped := False;
          if S.Nav_Active then
             Seed_F := N.Cmd.Velocity_From_Craft
                       and then (Nav_Starting or else N.Cmd.Sequence /= S.Nav_Feedforward_Seq);
@@ -866,11 +881,13 @@ package body Adaflight.Position_Control with SPARK_Mode is
          Axis_Terms (S.Pid, S.I_Policy, S.Was_Angle_Saturated,
                      S.Target_Velocity.X, S.Previous_Target.X, S.Distance_Error.X, S.Distance_Integral.X,
                      S.Previous_Velocity.X, Held (Inp.Position.X), Held (Inp.Velocity.X), Held (Inp.Acceleration.X),
-                     Dt, Anchor_Off, S.Target_Position.X, Error_Limit, PI_East, D_East, A_East, F_East);
+                     Dt, Anchor_Off, S.Target_Position.X, Error_Limit, PI_East, D_East, A_East, F_East,
+                     P_East, I_East, VE_East);
          Axis_Terms (S.Pid, S.I_Policy, S.Was_Angle_Saturated,
                      S.Target_Velocity.Y, S.Previous_Target.Y, S.Distance_Error.Y, S.Distance_Integral.Y,
                      S.Previous_Velocity.Y, Held (Inp.Position.Y), Held (Inp.Velocity.Y), Held (Inp.Acceleration.Y),
-                     Dt, Anchor_Off, S.Target_Position.Y, Error_Limit, PI_North, D_North, A_North, F_North);
+                     Dt, Anchor_Off, S.Target_Position.Y, Error_Limit, PI_North, D_North, A_North, F_North,
+                     P_North, I_North, VE_North);
          if S.Nav_Active and then Anchor_Off then
             declare
                Drive     : constant Vector2 := (X => D_East + F_East, Y => D_North + F_North);
@@ -882,6 +899,7 @@ package body Adaflight.Position_Control with SPARK_Mode is
                   declare
                      Scale : constant Float range 0.0 .. 1.0 := Constrain_F (Limit_Deg / Drive_Mag, 0.0, 1.0);
                   begin
+                     S.Taps.Buildup_Clamped := True;
                      D_East := D_East * Scale;
                      D_North := D_North * Scale;
                      F_East := F_East * Scale;
@@ -907,6 +925,28 @@ package body Adaflight.Position_Control with SPARK_Mode is
          S.Was_Angle_Saturated := Saturated;
          S.Angle_Roll := Constrain_F (Roll, -90.0, 90.0);
          S.Angle_Pitch := Constrain_F (Pitch, -90.0, 90.0);
+         S.Taps.Terms_Set := True;
+         S.Taps.Velocity := Inp.Velocity;
+         S.Taps.Velocity_Error := (X => VE_East, Y => VE_North);
+         S.Taps.P := (X => P_East, Y => P_North);
+         S.Taps.I := (X => I_East, Y => I_North);
+         S.Taps.D := (X => D_East, Y => D_North);
+         S.Taps.A := (X => A_East, Y => A_North);
+         S.Taps.F := (X => F_East, Y => F_North);
+         S.Taps.Sum := (X => Base_East + Smoothed_East, Y => Base_North + Smoothed_North);
+         S.Taps.Angle_Roll := S.Angle_Roll;
+         S.Taps.Angle_Pitch := S.Angle_Pitch;
+         S.Taps.Distance_Error := (X => S.Distance_Error.X, Y => S.Distance_Error.Y);
+         S.Taps.Target_Velocity := (X => S.Target_Velocity.X, Y => S.Target_Velocity.Y);
+         S.Taps.Target_Speed :=
+           Constrain_F (Norm (Vector2'(X => S.Target_Velocity.X, Y => S.Target_Velocity.Y)), 0.0, 2.0 ** 27);
+         S.Taps.Speed := S.Speed_XY;
+         S.Taps.Distance_Home := Length_Of (Inp.Position);
+         S.Taps.Anchor_Off := Anchor_Off;
+         S.Taps.Status_Set := True;
+         S.Taps.Status := (if S.Nav_Active then 10 else 0) + (if Anchor_Off then 20 else 0)
+           + (if S.Abort_Requested then 100 else 0) + (if S.Position_Held then 3 else 0)
+           + (if S.Sticks_Active then 5 else 0) + (if S.Braking then 1 else 0);
       end;
       Ok := True;
    end Finish_Step;

@@ -141,16 +141,37 @@ package Adaflight.Position_Control with SPARK_Mode is
       X, Y : Velocity_Cm := 0.0;
    end record;
 
-   --  What the debug values read of the last yaw control pass: whether one
-   --  ran, with the heading, the desired heading, the error, the
-   --  proportional term and the yaw rate.
+   --  What the debug values read of the last yaw control pass (whether one
+   --  ran, with the heading, the desired heading, the error and the
+   --  proportional term), of the last completed position pass (the velocity,
+   --  its error, the five terms per axis after the buildup clamp, the sums,
+   --  the lean angles, the distance error, the target velocity and speed,
+   --  the ground speed, the distance from the origin, the anchor and clamp
+   --  flags), and the status flags as last written. Each tap holds what its
+   --  site last wrote.
    type Debug_Taps is record
-      Yaw_Ran     : Boolean := False;
-      Heading_Deg : Float := 0.0;
-      Desired_Deg : Float := 0.0;
-      Error_Deg   : Float := 0.0;
-      Yaw_P       : Float := 0.0;
-      Yaw_Rate    : Float := 0.0;
+      Yaw_Ran         : Boolean := False;
+      Heading_Deg     : Float := 0.0;
+      Desired_Deg     : Float := 0.0;
+      Error_Deg       : Float := 0.0;
+      Yaw_P           : Float := 0.0;
+      Yaw_Rate        : Float := 0.0;
+      Terms_Set       : Boolean := False;
+      Velocity        : Vector2;
+      Velocity_Error  : Vector2;
+      P, I, D, A, F   : Vector2;
+      Sum             : Vector2;
+      Angle_Roll      : Float := 0.0;
+      Angle_Pitch     : Float := 0.0;
+      Distance_Error  : Vector2;
+      Target_Velocity : Vector2;
+      Target_Speed    : Float := 0.0;
+      Speed           : Float := 0.0;
+      Distance_Home   : Float := 0.0;
+      Anchor_Off      : Boolean := False;
+      Buildup_Clamped : Boolean := False;
+      Status_Set      : Boolean := False;
+      Status          : Natural range 0 .. 255 := 0;
    end record;
 
    type State is record
