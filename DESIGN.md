@@ -12422,3 +12422,18 @@ axis at init and hands values on, and `STM32.Control` records after each control
 placing the gyro filter state in core coupled memory through a linker pragma, since the aspect form stops the host
 compiler. Each recorder evaluates a mode's values only while that mode is selected, as upstream's macro compares before
 it computes, and rounded values wrap from their full 32-bit range as upstream's stores of a rounded long do.
+
+## D576. Debug values, RC group (2026-11-01)
+
+Core `RC_Command` now keeps taps of its refreshes and command passes for the debug values: whether a refresh ran with
+its raw frame interval and the frame time when one arrived, the outlier and valid frame counts as the smoothing decision
+took them, the smoothed rate at the last cutoff update and at the last feedforward filter update with its gain, whether
+a pass with new data ran with its interval and smoothing decision, each axis's rate before its limit, and each axis's
+feedforward terms: speed before smoothing, boost, jitter attenuation, value before averaging, and yaw's value without
+and with its hold. Each tap holds what its site last wrote, so a recorder after a pass restores every value as its site
+left it. Core `RC_Debug` records them as upstream's RC path does for its RX timing, RC smoothing, RC smoothing rate, RC
+interpolation, feedforward, feedforward limit and angle rate modes, with link quality and signal state from the receiver
+and feedforward terms on the debug axis. Vectors select a mode and debug axis per sequence from a hash of its index
+before initialization, so the filter update at init lands as on a board, and read eight values with the receiver's
+quality and signal after every step in four families. On the board, the pilot unit records after each command pass with
+the radio's link quality and signal.

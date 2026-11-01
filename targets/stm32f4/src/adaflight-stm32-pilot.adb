@@ -1,3 +1,6 @@
+with Adaflight.RC_Debug;
+with Adaflight.STM32.Debug_Values;
+with Adaflight.STM32.Radio;
 with Adaflight.Board;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot_Command;
@@ -134,6 +137,9 @@ package body Adaflight.STM32.Pilot is
       Adaflight.RC_Command.Process
         (RC, RC_Config, Runtime,
          (Active => AP_Yaw_Held and then Served, Rate_Dps => AP_Yaw_Rate, Deadband => AP_Deadband));
+      Adaflight.RC_Debug.Record_Pass
+        (Adaflight.STM32.Debug_Values.State, RC, Adaflight.STM32.Debug_Values.Axis,
+         Natural'Min (100, Natural (Adaflight.STM32.Radio.Link_Quality_Percent)), Adaflight.STM32.Radio.Receiving);
    end Process_Commands;
 
    procedure Set_Autopilot_Yaw (Held : Boolean; Rate_Dps : Float) is
