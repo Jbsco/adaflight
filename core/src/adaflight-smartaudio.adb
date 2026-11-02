@@ -121,6 +121,12 @@ package body Adaflight.SmartAudio with SPARK_Mode is
             D.Device.Power := Integer_8 (I);
          end if;
       end loop;
+      D.Taps := (Settings_Taken => True,
+                 Version_Mode   => Interfaces.Integer_16 (Version'Pos (D.Device.Version_Seen) * 100
+                                                         + Natural (D.Device.Mode)),
+                 Channel        => D.Device.Channel,
+                 Freq           => D.Device.Freq,
+                 Power          => D.Device.Power);
    end Process_Settings;
 
    --  A response: the outstanding command is cleared by its code or by a
@@ -324,6 +330,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
       Ignore_Processed : Boolean;
       Ignore_Changed   : Boolean;
    begin
+      D.Taps.Settings_Taken := False;
       if D.Port_Open then
          for I in Rx'Range loop
             Receive_Byte (D, T, Rx (I), Control_Disabled, Ignore_Processed, Ignore_Changed);

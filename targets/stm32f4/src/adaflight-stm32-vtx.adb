@@ -6,6 +6,8 @@ with Adaflight.STM32.GPS;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.Tramp;
+with Adaflight.VTX_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.VTX;
 with Adaflight.VTX_Table_Store;
 package body Adaflight.STM32.VTX is
@@ -129,6 +131,14 @@ package body Adaflight.STM32.VTX is
          Waiting := Waiting + Count;
       end if;
       Core.Update (V, S, T, Inp, Pending (0 .. Waiting - 1), E);
+      case V.Kind is
+         when Core.SmartAudio_Device =>
+            Adaflight.VTX_Debug.Record_SmartAudio (Adaflight.STM32.Debug_Values.State, V.SA);
+         when Core.Tramp_Device =>
+            Adaflight.VTX_Debug.Record_Tramp (Adaflight.STM32.Debug_Values.State, V.TR);
+         when others =>
+            null;
+      end case;
       if E.Consumed > 0 then
          Pending (0 .. Waiting - E.Consumed - 1) := Pending (E.Consumed .. Waiting - 1);
          Waiting := Waiting - E.Consumed;

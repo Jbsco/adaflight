@@ -115,6 +115,17 @@ package Adaflight.SmartAudio with SPARK_Mode is
    subtype Level_Count is Natural range 0 .. Max_Levels;
    type Level_Values is array (0 .. Max_Levels - 1) of Unsigned_16;
 
+   --  What a settings reply wrote where upstream records a debug value: that
+   --  a task call took one, and its version and mode, channel, frequency
+   --  and power index.
+   type Debug_Taps is record
+      Settings_Taken : Boolean := False;
+      Version_Mode   : Interfaces.Integer_16 := 0;
+      Channel        : Integer_8 := 0;
+      Freq           : Unsigned_16 := 0;
+      Power          : Integer_8 := 0;
+   end record;
+
    type Driver is record
       Device           : Report;
       Stat             : Stats;
@@ -136,6 +147,7 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Last_Command_Ms  : Unsigned_32 := 0;
       Port_Open        : Boolean := False;
       Prev_Device      : Report := No_Report;
+      Taps             : Debug_Taps;
    end record;
 
    --  The SmartAudio menu's status line, nulls included.
