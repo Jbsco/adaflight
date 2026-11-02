@@ -1,4 +1,6 @@
 with Adaflight.DShot_Bitbang;
+with Adaflight.DShot_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.DShot_Command.Blocking_Run;
 with Adaflight.MSP_Motor_In;
 with Adaflight.STM32.Motors;
@@ -128,6 +130,7 @@ package body Adaflight.STM32.DShot_Output is
       Adaflight.DShot_Bitbang.Read_Replies
         (Telemetry_State, Read_Counts, Quality, Decoder, Port_Inputs, Used, Pins, Configured,
          Adaflight.STM32.Motors.Telemetry_On, Commands, Adaflight.STM32.Time.Micros, Now_Ms);
+      Adaflight.DShot_Debug.Record_Decode (Adaflight.STM32.Debug_Values.State, Decoder);
    end Read_Ports;
 
    procedure Read_Telemetry (Done : out Boolean) is
@@ -156,6 +159,7 @@ package body Adaflight.STM32.DShot_Output is
    begin
       if Adaflight.STM32.Motors.Telemetry_On then
          Adaflight.DShot.Update (Telemetry_State);
+         Adaflight.DShot_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, Telemetry_State);
       end if;
    end Update_Telemetry;
 

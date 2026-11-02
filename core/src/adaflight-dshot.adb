@@ -158,6 +158,7 @@ package body Adaflight.DShot with SPARK_Mode is
       Remaining : Positive;
       Tail      : Integer;
    begin
+      D.Skip_Used := D.Preamble_Skip;
       --  The preamble ends at the first low sample.
       while P < Limit loop
          pragma Loop_Invariant (P in 0 .. Limit - 1);
@@ -360,15 +361,21 @@ package body Adaflight.DShot with SPARK_Mode is
       Kind    : Telemetry_Kind;
       Output  : Adaflight.Maths.Signal;
    begin
+      T.Taps := (others => <>);
       if T.State /= Not_Processed then
          return;
       end if;
+      T.Taps.Processed := True;
       for M in 0 .. T.Count - 1 loop
          pragma Loop_Invariant (Total <= Unsigned_32 (M) * Max_Period_Value);
          pragma Loop_Invariant (Samples <= M);
          pragma Loop_Invariant (T.Count = T.Count'Loop_Entry);
          Decode_Value (T.Motors (M).Raw, T.Decode_Extended or else (T.Motors (M).Received and 16#FE#) /= 0,
                        Value, Kind);
+         if Kind = Erpm then
+            T.Taps.Erpm_Seen (M) := True;
+            T.Taps.Erpm (M) := Value;
+         end if;
          if Value /= Invalid_Value then
             T.Motors (M).Values (Kind) := Unsigned_16 (Value and 16#FFFF#);
             T.Motors (M).Received := T.Motors (M).Received or Shift_Left (1, Telemetry_Kind'Pos (Kind));

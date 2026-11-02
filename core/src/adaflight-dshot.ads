@@ -88,11 +88,13 @@ package Adaflight.DShot with SPARK_Mode, Pure is
 
    --  The decoder's memory between replies: the samples skipped before the
    --  search for the first low sample, the smallest margin seen since the
-   --  last check, and the time of the next check.
+   --  last check, the time of the next check, and the skip the last decode
+   --  started from, which upstream records as a debug value.
    type Edge_Decoder is record
       Preamble_Skip     : Unsigned_8 := 0;
       Min_Margin        : Unsigned_32 := Unsigned_32'Last;
       Next_Margin_Check : Time_Us := 0;
+      Skip_Used         : Unsigned_8 := 0;
    end record;
 
    --  The reply sampled three times per bit on one line of a port: a high
@@ -162,6 +164,17 @@ package Adaflight.DShot with SPARK_Mode, Pure is
    subtype Cutoff_Setting is Natural range 0 .. 65535;
    subtype Looptime_Us is Positive range 1 .. 2 ** 20;
 
+   --  What a processing of the replies wrote where upstream records a debug
+   --  value: that it ran, and each motor's decoded period when its reply
+   --  decoded as a period.
+   type Erpm_Flags is array (Motor_Index) of Boolean;
+   type Erpm_Values is array (Motor_Index) of Unsigned_32;
+   type Telemetry_Taps is record
+      Processed : Boolean := False;
+      Erpm_Seen : Erpm_Flags := (others => False);
+      Erpm      : Erpm_Values := (others => 0);
+   end record;
+
    --  The decoded replies of every motor, the processing state of the raw
    --  values, and the rates derived from them.
    type Telemetry is record
@@ -175,6 +188,7 @@ package Adaflight.DShot with SPARK_Mode, Pure is
       Rpm_Average     : Rpm_Value := 0.0;
       Frequency       : Frequencies := (others => 0.0);
       Min_Frequency   : Float := 0.0;
+      Taps            : Telemetry_Taps;
    end record;
 
    --  Forgets every reply and the processing state; the rates stay.

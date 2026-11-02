@@ -4,6 +4,7 @@ with Adaflight.STM32.Debug_Values;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot;
+with Adaflight.DShot_Debug;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Debug;
 with Adaflight.Mixer_Init;
@@ -253,6 +254,11 @@ package body Adaflight.STM32.Control is
    procedure Write_Motors is
    begin
       Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
+      if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.DShot_RPM_Errors) then
+         Adaflight.DShot_Debug.Record_Errors
+           (Adaflight.STM32.Debug_Values.State, Adaflight.STM32.DShot_Output.Telemetry,
+            Adaflight.STM32.DShot_Output.Qualities, Mix_Config.Count, Adaflight.STM32.Motors.Telemetry_On);
+      end if;
       Motor_Us_Last := Adaflight.STM32.Time.Micros - Motor_Start_Us;
    end Write_Motors;
 

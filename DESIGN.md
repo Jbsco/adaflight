@@ -12619,3 +12619,19 @@ whose low sixteen bits remain.
 Vectors in the optical flow family select its mode, and those in the ESC sensor family a mode and a pole count,
 before initialization; both read eight values after every step, and ESC lines now check both counts. On the board,
 optical flow processing records after each sample and ESC polling after each pass and each combined reading.
+
+## D591. Debug values, DShot telemetry (2026-11-01)
+
+Core `DShot` telemetry now keeps taps from each processing of the replies: that it ran, and each motor's decoded
+period when its reply decoded as a period, which upstream records before testing the value. The edge decoder keeps
+the skip each decode started from, which upstream records on entry.
+
+Core `DShot_Debug` records RPM telemetry mode (decoded periods in hundreds of electrical revolutions per minute) and
+RPM filter mode (filtered frequencies in hertz) after each processing. It records preamble skip of telemetry counts
+mode after each bit-banged read, and RPM errors mode after each motor write: invalid share of the first four motors'
+replies in hundredths of a percent. Reception counts of telemetry counts mode wait for an oracle of the bit-banged read.
+
+Vectors in both DShot families select a mode before their steps and read eight values after every step. Their RPM
+errors loop runs after each telemetry processing and each
+quality update. On the board, telemetry processing and the bit-banged read record after their updates, and the motor
+write records errors only while that mode is selected, so the loop copies no telemetry state otherwise.
