@@ -12911,3 +12911,15 @@ profile commands, with wing defaults at each run's start. Wing families compare 
 configuration hash covers upstream's wing layouts and OSD element positions, which differ from our records after the
 nav map element, so we leave that hash to the multirotor families. Our oracle skips groups a build does not register
 when it takes that hash.
+
+## D615. Wing launch on board (2026-11-02)
+
+A wing build now runs core `Wing_Launch` on the board. Its settings come from the launch group of D613. Each PID loop
+pass runs it after the RC command, as upstream's loop does, on the autopilot's angle targets, which upstream's launch
+writes and our level controller reads. Our controller takes launch mode and handover, and our mixer takes launch mode,
+throttle and handover, where upstream reads them.
+
+Our board gathers what a launch reads from its sensors: accelerometer, filtered rates, attitude, tilt, altitude and
+its rate, GPS fix and ground speed, stick deflections, throttle and failsafe. Arming takes the same inputs to check
+that the airframe rests as it arms. Arming settings enable the launch, and a wing build with an accelerometer offers
+the launch box. Launch debug values follow as their own step.

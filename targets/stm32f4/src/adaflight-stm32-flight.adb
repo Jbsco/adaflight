@@ -71,6 +71,7 @@ with Adaflight.Compass;
 with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.VTX_MSP;
+with Adaflight.Wing_Launch;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile;
@@ -442,6 +443,38 @@ package body Adaflight.STM32.Flight is
      (Integer_32 (Integer'Max (-600_000_000, Integer'Min
         (600_000_000, Adaflight.Position_Estimator.Estimated_Altitude_Cm (Pos_State)))));
 
+   --  What the wing launch reads: the time, the failsafe, the throttle, the
+   --  stick deflections, the attitude, the accelerometer, the rates, the
+   --  tilt, the altitude and the GPS fix; the launch mode comes in its pass.
+   function Launch_Inputs (Channels : Adaflight.RC_Command.Channel_Values) return Adaflight.Wing_Launch.Inputs is
+      function Bound (V, Limit : Float) return Float is (Float'Max (-Limit, Float'Min (Limit, V)));
+      function Share (V : Float) return Float is (Float'Max (0.0, Float'Min (1.0, V)));
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+   begin
+      return (Now_Us              => Adaflight.STM32.Time.Micros,
+              Launch_Mode         => Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Launch_Mode),
+              Failsafe_Active     => Adaflight.STM32.Radio.Failsafe_Active,
+              Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Channels),
+              Roll_Deflection     => Share (Adaflight.STM32.Pilot.Deflection_Abs (Adaflight.Axes.Roll)),
+              Pitch_Deflection    => Share (Adaflight.STM32.Pilot.Deflection_Abs (Adaflight.Axes.Pitch)),
+              Attitude_Roll       => Integer_16 (Att_State.Euler.Roll),
+              Attitude_Pitch      => Integer_16 (Att_State.Euler.Pitch),
+              Acc_X               => Bound (Acc_State.Acc.X, 1.0e6),
+              Acc_Y               => Bound (Acc_State.Acc.Y, 1.0e6),
+              Acc_1G_Rec          => Acc_State.One_G_Reciprocal,
+              Acc_Magnitude       => Bound (Acc_State.Magnitude, 1.0e6),
+              Gyro_Roll           => Bound (Gyro_State.Filtered (Adaflight.Axes.Roll), 1.0e6),
+              Gyro_Pitch          => Bound (Gyro_State.Filtered (Adaflight.Axes.Pitch), 1.0e6),
+              Gyro_Yaw            => Bound (Gyro_State.Filtered (Adaflight.Axes.Yaw), 1.0e6),
+              Cos_Tilt            => Bound (Adaflight.Attitude.Cos_Tilt (Att_State), 1.0),
+              Altitude_Available  => Pos_State.Valid_Z,
+              Altitude_Cm         => Bound (Float (Estimated_Altitude_Cm), 1.0e7),
+              Altitude_Derivative => Bound (Pos_State.Filtered_Derivative, 1.0e6),
+              GPS_Fix             => G.Fix,
+              Num_Sat             => G.Satellites,
+              Ground_Speed_Cms    => G.Ground_Speed);
+   end Launch_Inputs;
+
    function Estimated_Vario return Integer_16 is
       Rate : constant Float := Float'Max (-1.0e6, Float'Min (1.0e6, Pos_State.Filtered_Derivative));
       V    : constant Integer_32 :=
@@ -777,6 +810,7 @@ package body Adaflight.STM32.Flight is
          M (Adaflight.Modes.Horizon) := True;
          M (Adaflight.Modes.Alt_Hold) := True;
          M (Adaflight.Modes.Pos_Hold) := True;
+         M (Adaflight.Modes.Launch) := Adaflight.Build_Features.Wing;
          M (Adaflight.Modes.Headfree) := True;
          M (Adaflight.Modes.Head_Adj) := True;
          M (Adaflight.Modes.FPV_Angle_Mix) := True;
@@ -2222,7 +2256,7 @@ package body Adaflight.STM32.Flight is
    --  motor protocol yet, the scheduler's late share, the filtered rates and
    --  the stick deflections, the command line, and the DShot streaming
    --  commands, asked only where the boot grace check asks for them.
-   function Sense return Adaflight.Arming.Inputs is
+   function Sense (Channels : Adaflight.RC_Command.Channel_Values) return Adaflight.Arming.Inputs is
       Sensed : Adaflight.Arming.Inputs;
    begin
       Sensed.Rx_Signal := Adaflight.STM32.Radio.Receiving;
@@ -2237,6 +2271,9 @@ package body Adaflight.STM32.Flight is
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
+      if Adaflight.Build_Features.Wing then
+         Sensed.Launch_Sensed := Launch_Inputs (Channels);
+      end if;
       Sensed.Motor_Protocol_Enabled := Adaflight.STM32.Motors.Count > 0;
       Sensed.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       Sensed.DShot_Telemetry_Active := Adaflight.STM32.DShot_Output.Telemetry_Active;
@@ -2639,11 +2676,14 @@ package body Adaflight.STM32.Flight is
       I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
       I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
       I.Battery_Latest := Bat.Voltage.Unfiltered;
+      if Adaflight.Build_Features.Wing then
+         I.Launch := Launch_Inputs (Channels);
+      end if;
       if Adaflight.STM32.Control.Uses_Servos then
          Adaflight.STM32.Control.Set_Servo_Config (Config);
       end if;
       Adaflight.STM32.Control.Pass
-        (I, Sense, Channels,
+        (I, Sense (Channels), Channels,
          Resets_Yaw  => Adaflight.Core_Loop.Resets_Yaw
                           (Adaflight.STM32.Pilot.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel),
                            Natural (Config.Rx_Config.Mincheck), Mode, Config.Servo_Config.Tri_Unarmed_Servo /= 0),
@@ -2922,11 +2962,11 @@ package body Adaflight.STM32.Flight is
             if Ready then
                Adaflight.STM32.Pilot.Update_Refresh_Rate
                  (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
-               Adaflight.STM32.Pilot.Receiver_Pass (Sense, Channels, Before, Asked);
+               Adaflight.STM32.Pilot.Receiver_Pass (Sense (Channels), Channels, Before, Asked);
                Adaflight.STM32.Control.Set_Stabilisation (Asked.Stabilisation_On, Asked.Iterm_Reset);
             end if;
          when Adaflight.RX_Task.Modes =>
-            Adaflight.STM32.Pilot.Modes_Pass (Sense, Channels, Aux, Before, Delta_Us, Asked);
+            Adaflight.STM32.Pilot.Modes_Pass (Sense (Channels), Channels, Aux, Before, Delta_Us, Asked);
             if Asked.Run_Adjustments then
                Run_Adjustments (Aux);
             end if;
@@ -2934,7 +2974,7 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Control.Set_Anti_Gravity (Asked.Anti_Gravity);
          when Adaflight.RX_Task.Update =>
             Adaflight.STM32.Pilot.Update_Pass
-              (Sense, Channels,
+              (Sense (Channels), Channels,
                (Box_3D => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D),
                 LVC_Enabled => Bat.LVC_Enabled, LVC_Percentage => Bat.LVC_Percentage,
                 Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active),

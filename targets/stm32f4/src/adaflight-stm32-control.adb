@@ -16,6 +16,7 @@ with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Servos;
 with Adaflight.STM32.Time;
+with Adaflight.Build_Features;
 package body Adaflight.STM32.Control is
    use type Interfaces.Unsigned_32;
 
@@ -130,6 +131,17 @@ package body Adaflight.STM32.Control is
 
    procedure Nothing is null;
 
+   --  The wing launch's pass, over the autopilot's angle targets the level
+   --  controller reads, as upstream's launch writes them.
+   procedure Run_Launch is
+      Roll  : Adaflight.Wing_Launch.Angle_Deg := Current.Autopilot_Angles (Adaflight.Axes.Roll);
+      Pitch : Adaflight.Wing_Launch.Angle_Deg := Current.Autopilot_Angles (Adaflight.Axes.Pitch);
+   begin
+      Current.Launch.Launch_Mode := Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Launch_Mode);
+      Adaflight.STM32.Pilot.Launch_Update (Current.Launch, Roll, Pitch);
+      Current.Autopilot_Angles := (Adaflight.Axes.Roll => Roll, Adaflight.Axes.Pitch => Pitch);
+   end Run_Launch;
+
    --  The controller's loop over the rates, the RC command's setpoints and
    --  feedforward, the modes and the attitude.
    procedure Run_Controller is
@@ -176,6 +188,8 @@ package body Adaflight.STM32.Control is
       Inp.Autopilot_Max_Angle := Current.Autopilot_Max_Angle;
       Inp.Autopilot_In_Control := Current.Autopilot_Control;
       Inp.Below_Landing_Altitude := Current.Below_Landing;
+      Inp.Launch_Mode := Modes (Adaflight.Arming.Launch_Mode);
+      Inp.Launch_Handover := Adaflight.STM32.Pilot.Launch.Handover;
       Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
       Adaflight.PID_Debug.Record_Loop
         (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Inp, Adaflight.STM32.Debug_Values.Axis);
@@ -219,6 +233,10 @@ package body Adaflight.STM32.Control is
       Inp.GPS_Rescue_Mode := Modes (Adaflight.Arming.GPS_Rescue_Mode);
       Inp.Autopilot_Throttle_Valid := True;
       Inp.Autopilot_Throttle := Current.Autopilot_Throttle;
+      Inp.Launch_Mode := Modes (Adaflight.Arming.Launch_Mode);
+      Inp.Launch_Throttle_Valid := Adaflight.Wing_Launch.Throttle_Valid (Adaflight.STM32.Pilot.Launch);
+      Inp.Launch_Throttle := Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Pilot.Launch.Throttle));
+      Inp.Launch_Handover := Adaflight.STM32.Pilot.Launch.Handover;
       for A in Adaflight.Axes.Axis loop
          Inp.Deflection (A) := Float'Max (-1.0, Float'Min (1.0, Adaflight.STM32.Pilot.Deflection (A)));
          Inp.Deflection_Abs (A) := Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Pilot.Deflection_Abs (A)));
@@ -310,7 +328,7 @@ package body Adaflight.STM32.Control is
    package Loop_Pass is new Adaflight.Main_Loop
      (Reset_Yaw       => Adaflight.STM32.Pilot.Reset_Yaw,
       RC_Command      => Adaflight.STM32.Pilot.Process_Commands,
-      Launch_Wing     => Nothing,
+      Launch_Wing     => Run_Launch,
       PID_Controller  => Run_Controller,
       Runaway_Check   => Runaway_Check,
       PID_Audio       => Nothing,
@@ -330,7 +348,7 @@ package body Adaflight.STM32.Control is
       Step_Changed := False;
       Subprocess_Us_Last := 0;
       Loop_Pass.PID_Loop
-        ((Wing_Launch => False),
+        ((Wing_Launch => Adaflight.Build_Features.Wing),
          (Resets_Yaw => Resets_Yaw, Uses_Servos => Servo_State.Uses_Servos, Log_Device => Log_Device,
           CLI_Open => CLI_Open, PID_Audio => PID_Audio));
       Asked := Step;

@@ -11,6 +11,7 @@ with Adaflight.MSP_Motor_In;
 with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 with Adaflight.Servo_Mixer;
+with Adaflight.Wing_Launch;
 package Adaflight.STM32.Control is
    subtype Time_Us is Interfaces.Unsigned_32;
    --  What the pass reads from the board: the time, the arming, the
@@ -45,6 +46,8 @@ package Adaflight.STM32.Control is
       Battery_Voltage     : Interfaces.Unsigned_16 := 0;
       Sag_Cell_Voltage    : Natural range 0 .. 65_535 := 0;
       Battery_Latest      : Natural range 0 .. 65_535 := 0;
+      --  What the wing launch reads in a wing build.
+      Launch              : Adaflight.Wing_Launch.Inputs;
    end record;
    --  The settings from the configuration over the pilot's selected
    --  profiles; the states start over.

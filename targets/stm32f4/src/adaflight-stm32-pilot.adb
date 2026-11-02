@@ -19,6 +19,7 @@ package body Adaflight.STM32.Pilot is
    Runtime      : Adaflight.PID_Config.Runtime;
    PID          : Adaflight.PID_Profile.Profile;
    Mode         : Adaflight.Mixer_Init.Mixer_Mode := Adaflight.Mixer_Init.Quad_X;
+   Launch_Set   : Adaflight.Wing_Launch.Settings;
    --  The position controller's yaw from its last run, and the stick
    --  deadband that hands the yaw back to the pilot.
    AP_Yaw_Held  : Boolean := False;
@@ -61,7 +62,20 @@ package body Adaflight.STM32.Pilot is
       Arm_Settings.Camera_Control := Adaflight.Board.Camera_Control_Tag /= 0;
       if Adaflight.Build_Features.Wing then
          Arm_Settings.Runaway_Prevention := False;
+         Arm_Settings.Launch_Wing := True;
       end if;
+      declare
+         L : Adaflight.Config_Groups.Launch_Wing_Config_Record renames Config.Launch_Wing_Config;
+      begin
+         Launch_Set :=
+           (Climb_Angle_Deg => L.Climb_Angle_Deg, Max_Angle_Deg => L.Max_Angle_Deg,
+            Detect_Accel_Decig => L.Detect_Accel_Decig, Detect_Velocity_Cms => L.Detect_Velocity_Cm_S,
+            Detect_Time_Ms => L.Detect_Time_Ms, Idle_Throttle_Percent => L.Idle_Throttle_Percent,
+            Idle_Delay_Ms => L.Idle_Delay_Ms, Throttle_Percent => L.Throttle_Percent,
+            Motor_Delay_Ms => L.Motor_Delay_Ms, Spinup_Time_Ms => L.Spinup_Time_Ms, Min_Time_Ms => L.Min_Time_Ms,
+            Timeout_Ms => L.Timeout_Ms, Max_Altitude_M => L.Max_Altitude_M, End_Time_Ms => L.End_Time_Ms,
+            Abort_Deadband_Percent => L.Abort_Deadband_Percent, Abort_Angle_Deg => L.Abort_Angle_Deg);
+      end;
       RC_Config := Adaflight.Config_Runtime.RC_Config_Of
         (Config.Rx_Config, Config.Rc_Controls_Config, Config.Control_Rate_Profiles (R), Config.Pid_Config, Sample,
          Config.Flight3_D_Config, Runtime_Features);
@@ -201,6 +215,14 @@ package body Adaflight.STM32.Pilot is
    function Crash_Flip_Active return Boolean is (Arm.Crash_Flip_Active);
 
    function Launch_Control_Active return Boolean is (Adaflight.Arming.Launch_Control_Active (Arm));
+
+   procedure Launch_Update
+     (Inp : Adaflight.Wing_Launch.Inputs; Angle_Roll, Angle_Pitch : in out Adaflight.Wing_Launch.Angle_Deg) is
+   begin
+      Adaflight.Wing_Launch.Update (Arm.Wing, Launch_Set, Inp, Angle_Roll, Angle_Pitch);
+   end Launch_Update;
+
+   function Launch return Adaflight.Wing_Launch.Launch is (Arm.Wing);
 
    function Airmode_Enabled return Boolean is (M.Airmode_Enabled);
 
