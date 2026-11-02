@@ -5,10 +5,12 @@
 --  the throttle channel after each signal loss pass. Under the failsafe
 --  mode: that signal verdict, the receiving verdict at the entry of each
 --  monitored pass, the switch flag and the phase. Under the receiver state
---  time mode: each step's estimate in microseconds. Each value comes from
+--  time mode: each step's estimate in microseconds. Under the RC statistics
+--  mode: the average throttle after each update. Each value comes from
 --  taps and state, so it stays as its site last wrote it.
 with Adaflight.Debug;
 with Adaflight.Failsafe;
+with Adaflight.RC_Stats;
 with Adaflight.Receiver;
 with Adaflight.RX_Task;
 
@@ -28,6 +30,10 @@ package Adaflight.Receiver_Debug with SPARK_Mode is
 
    --  After a receiver task step, with the step it left.
    procedure Record_State_Time (D : in out Debug.State; T : RX_Task.State; Left : RX_Task.Step)
+     with Global => null;
+
+   --  After an RC statistics update.
+   procedure Record_RC_Stats (D : in out Debug.State; S : RC_Stats.Stats)
      with Global => null;
 
 end Adaflight.Receiver_Debug;

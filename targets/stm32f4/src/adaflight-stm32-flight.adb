@@ -65,6 +65,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Modes;
+with Adaflight.RC_Stats;
 with Adaflight.Camera_Control;
 with Adaflight.Compass;
 with Adaflight.MSP_Out;
@@ -354,6 +355,7 @@ package body Adaflight.STM32.Flight is
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
    Adj_State        : Adaflight.Adjustments.State;
    Stats_Tracker    : Adaflight.Flight_Stats.Tracker;
+   RC_Stats_State   : Adaflight.RC_Stats.Stats;
    Stats_Save_Due   : Boolean := False;
    Stats_Save_At_Us : Unsigned_32 := 0;
    Adj_Ranges       : Adaflight.Adjustments.Ranges := (others => Adaflight.Adjustments.Unset);
@@ -2299,6 +2301,9 @@ package body Adaflight.STM32.Flight is
       for I in 1 .. Step.Stats_Disarms loop
          Stats_On_Disarm;
       end loop;
+      for I in 1 .. Step.RC_Stats_Arms loop
+         Adaflight.RC_Stats.Notify_Arming (RC_Stats_State);
+      end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
       end if;
@@ -2894,6 +2899,17 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Run_Receiver;
 
+   --  The RC statistics task: the throttle's share and the full throttle
+   --  time while armed after the throttle was raised.
+   procedure Run_RC_Stats (Now_Us : Unsigned_32) is
+   begin
+      Adaflight.RC_Stats.Update
+        (RC_Stats_State, Now_Us, Adaflight.STM32.Pilot.Armed,
+         Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Crash_Flip),
+         Adaflight.STM32.Pilot.Throttle_Percent (Flight_Channels));
+      Adaflight.Receiver_Debug.Record_RC_Stats (Adaflight.STM32.Debug_Values.State, RC_Stats_State);
+   end Run_RC_Stats;
+
    --  The OSD task: the flight's readings for the frame, then one state of
    --  the task on the display.
    procedure Run_OSD (Before : Unsigned_32) is
@@ -2902,7 +2918,6 @@ package body Adaflight.STM32.Flight is
       Outputs  : constant Adaflight.Mixer.Motor_Outputs := Adaflight.STM32.Control.Motors;
       Motors   : constant Natural := Natural'Max (1, Natural'Min (8, Adaflight.STM32.Control.Motor_Count));
       Volts    : constant Natural := Natural'Min (20_000, Bat.Voltage.Display_Filtered);
-      Throttle : constant Float := Adaflight.STM32.Pilot.Throttle_Command;
       Profile  : Adaflight.Config_Groups.Battery_Profile_Record renames
         Config.Battery_Profiles (Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile)));
    begin
@@ -2937,7 +2952,10 @@ package body Adaflight.STM32.Flight is
       F.Pitch := Integer_16 (Att_State.Euler.Pitch);
       F.Yaw :=
         Adaflight.OSD_Render.Yaw_Decidegrees (Integer'Max (0, Integer'Min (3_599, Integer (Att_State.Euler.Yaw))));
-      F.Throttle_Percent := Integer'Max (0, Integer'Min (100, (Integer (Float'Rounding (Throttle)) - 1_000) / 10));
+      F.Throttle_Percent := Adaflight.STM32.Pilot.Throttle_Percent (Channels);
+      F.Full_Throttle_Us := RC_Stats_State.Full_Throttle_Us;
+      F.Full_Throttles := RC_Stats_State.Full_Throttles;
+      F.Average_Throttle := Adaflight.RC_Stats.Average_Throttle (RC_Stats_State);
       declare
          Aux : constant Natural :=
            Natural (Config.Osd_Config.Aux_Channel) + Adaflight.Receiver.Flight_Channel_Count - 1;
@@ -4175,6 +4193,8 @@ package body Adaflight.STM32.Flight is
             Tasks.Optical_Flow (Inputs);
          when Scheduler.Rangefinder =>
             Tasks.Rangefinder (Inputs, Before);
+         when Scheduler.RC_Stats =>
+            Run_RC_Stats (Before);
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.ADC_Internal =>

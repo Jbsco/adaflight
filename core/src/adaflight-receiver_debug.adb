@@ -48,4 +48,9 @@ package body Adaflight.Receiver_Debug with SPARK_Mode is
                  Debug.Wrapped (if Estimate < 0 then -1 else Estimate / 64));
    end Record_State_Time;
 
+   procedure Record_RC_Stats (D : in out Debug.State; S : RC_Stats.Stats) is
+   begin
+      Debug.Set (D, Debug.RC_Stats, 0, Debug.Integer_16 (RC_Stats.Average_Throttle (S)));
+   end Record_RC_Stats;
+
 end Adaflight.Receiver_Debug;

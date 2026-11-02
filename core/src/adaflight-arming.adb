@@ -441,6 +441,7 @@ package body Adaflight.Arming with SPARK_Mode is
             Bump (Out_Step.TPA_Speed_Resets);
          end if;
          S.Armed := True;
+         Bump (Out_Step.RC_Stats_Arms);
          S.Trying := Not_Trying;
          S.Runaway_Deactivate_Us := 0;
          S.Runaway_Accumulated_Us := 0;

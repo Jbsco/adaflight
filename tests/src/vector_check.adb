@@ -5415,6 +5415,7 @@ procedure Vector_Check is
          Record_Int ("armwing.tpa_resets", Int (6), Integer_64 (Arm_Last_Step.TPA_Speed_Resets));
       elsif Name = "armstats" then
          Record_Int ("armstats.arms", Int (4), Integer_64 (Arm_Last_Step.Stats_Arms));
+         Record_Int ("armstats.rcstats", Int (7), Integer_64 (Arm_Last_Step.RC_Stats_Arms));
          Record_Int ("armstats.disarms", Int (5), Integer_64 (Arm_Last_Step.Stats_Disarms));
          Record_Int ("armstats.osd", Int (6),
                      (case Arm_Last_Step.OSD_Stats is
@@ -15437,6 +15438,10 @@ procedure Vector_Check is
    RS_Seq   : Integer_64 := -1;
    RS_Stats : Adaflight.RC_Stats.Stats;
    RS_Armed : Boolean := False;
+   RS_Dbg   : Adaflight.Debug.State;
+   --  Whether upstream's average of the last step is defined: no samples,
+   --  or a sum below 2**31, which its conversion to an 8-bit value needs.
+   RS_Defined : Boolean := True;
 
    procedure Check_RC_Stats_Line is
       Name : constant String := Str (1);
@@ -15458,6 +15463,8 @@ procedure Vector_Check is
             RS_Armed := Armed;
             Adaflight.RC_Stats.Update (RS_Stats, Interfaces.Unsigned_32 (Int (3)), Armed, Int (5) /= 0,
                                        Adaflight.RC_Stats.Throttle_Percent (Int (6)));
+            Adaflight.Receiver_Debug.Record_RC_Stats (RS_Dbg, RS_Stats);
+            RS_Defined := Str (14) /= "-" or else RS_Stats.Count = 0;
             Record_Int (Name & ".raised", Int (7), Boolean'Pos (RS_Stats.Throttle_Raised));
             Record_Int (Name & ".count", Int (8), Integer_64 (RS_Stats.Count));
             Record_Int (Name & ".total", Int (9), Integer_64 (RS_Stats.Total));
@@ -15469,6 +15476,15 @@ procedure Vector_Check is
                Record_Int (Name & ".average", Int (14), Integer_64 (Adaflight.RC_Stats.Average_Throttle (RS_Stats)));
             end if;
          end;
+      elsif Name = "rcsdebug" then
+         RS_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (RS_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "rcsdbg" then
+         for J in Adaflight.Debug.Index loop
+            if J /= 0 or else RS_Defined then
+               Record_Int ("rcsstep.debug", Int (4 + J), Integer_64 (RS_Dbg.Data (J)));
+            end if;
+         end loop;
       end if;
    end Check_RC_Stats_Line;
 

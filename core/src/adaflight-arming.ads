@@ -123,6 +123,8 @@ package Adaflight.Arming with SPARK_Mode is
       --  statistics screen.
       Stats_Arms                : Small_Count := 0;
       Stats_Disarms             : Small_Count := 0;
+      --  The RC statistics' arming notices.
+      RC_Stats_Arms             : Small_Count := 0;
       --  The wing launch's arming resets the controller's airspeed.
       TPA_Speed_Resets          : Small_Count := 0;
       OSD_Stats                 : Stats_Display := Unchanged;

@@ -111,6 +111,9 @@ package Adaflight.STM32.OSD is
       Pitch             : Interfaces.Integer_16 := 0;
       Yaw               : Adaflight.OSD_Render.Yaw_Decidegrees := 0;
       Throttle_Percent  : Integer range -100 .. 100 := 0;
+      Full_Throttle_Us  : Interfaces.Unsigned_32 := 0;
+      Full_Throttles    : Interfaces.Unsigned_32 := 0;
+      Average_Throttle  : Interfaces.Integer_8 := 0;
       Throttle_High     : Boolean := False;
       Pitch_High        : Boolean := False;
       Aux_Rc            : Float range 0.0 .. 5_000.0 := 1_500.0;

@@ -84,6 +84,9 @@ package Adaflight.STM32.Pilot is
    function Motors_Reversed return Boolean;
    --  Whether the throttle is low, as the virtual current meter reads it.
    function Throttle_Low (Channels : Adaflight.RC_Command.Channel_Values) return Boolean;
+   --  The throttle above the minimum check in percent, negative for the
+   --  reversed thrust of a 3D switch.
+   function Throttle_Percent (Channels : Adaflight.RC_Command.Channel_Values) return Integer;
    --  An arming disable reason the arming logic does not decide itself:
    --  the missing gyro, the failsafe's two, the command line, the MSP and the
    --  reboot request.

@@ -785,6 +785,9 @@ package body Adaflight.STM32.OSD is
       Context.Draw.Inputs.Zone := Context.Zone;
       Context.Page.GPS_Feature := F.GPS_Feature;
       Context.Page.Total_Flights := F.Total_Flights;
+      Context.Page.Full_Throttle_Time_Us := F.Full_Throttle_Us;
+      Context.Page.Full_Throttle_Count := F.Full_Throttles;
+      Context.Page.Average_Throttle := F.Average_Throttle;
       Context.Page.Total_Time_S := F.Total_Time_S;
       Context.Page.Total_Dist_M := F.Total_Dist_M;
       Context.Page.Best_Lap_Ms := F.Lap.Best_Lap_Time;
