@@ -12955,3 +12955,15 @@ A wing build's position hold group has no position source, and upstream's positi
 and optical flow everywhere it would read that source. Our board now gives core `Position_Estimator` the automatic
 source in a wing build, where it took the multirotor group's setting. Failsafe needs no change: upstream's wing build
 leaves out flight plan handling, and our board passes no autopilot or flight plan state to core `Failsafe`.
+
+## D619. Wing launch OSD warning (2026-11-02)
+
+Core `OSD_Warnings` now shows a wing launch's stage, as upstream's wing build does, under the warning a multirotor
+build uses for its launch control. The lines are RAISE THROTTLE, LAUNCH IDLE, a blinking READY TO LAUNCH, LAUNCH
+FINISHING, and LAUNCHING for the other active stages, at info severity. It sits below every critical warning and above
+HEADFREE. Our board passes the launch's state from the pilot in a wing build.
+
+Our checker runs a wing family from a wing build of the warning generator. That build leaves out launch control,
+autopilot abort, waypoint capture messages and mission cues, and its rescue and position hold are stubs, so the family
+draws none of their inputs, as our board feeds none in a wing build. Its runs read no capture message, so the checker
+skips that comparison for them.
