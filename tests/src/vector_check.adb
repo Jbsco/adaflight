@@ -62,6 +62,7 @@ with Adaflight.Optical_Flow_Debug;
 with Adaflight.DShot_Debug;
 with Adaflight.Receiver_Debug;
 with Adaflight.Serial_Receiver_Debug;
+with Adaflight.GHST_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -6100,6 +6101,7 @@ procedure Vector_Check is
    GHST_Rx       : Adaflight.Receiver.State;
    GHST_Settings : Adaflight.Receiver.Settings;
    GHST_Clock    : Unsigned_32 := 0;
+   GHST_Dbg      : Adaflight.Debug.State;
 
    procedure Check_GHST_Line is
       use Adaflight.GHST;
@@ -6152,11 +6154,13 @@ procedure Vector_Check is
             K := K + 2;
             if Int (K + 1) /= 0 then
                Frame_Status (GHST_State, GHST_Clock, Status);
+               Adaflight.GHST_Debug.Record_Frame_Status (GHST_Dbg, GHST_State);
                Expect_Next ("status",
                             (if Status.Complete then 1 else 0) + (if Status.Processing_Required then 4 else 0)
                             + (if Status.Dropped then 8 else 0));
                if Status.Processing_Required then
                   Process_Frame (GHST_State, GHST_Rx, GHST_Clock, Result);
+                  Adaflight.GHST_Debug.Record_Process (GHST_Dbg, GHST_State);
                   Processed := True;
                end if;
             else
@@ -6193,6 +6197,13 @@ procedure Vector_Check is
             end loop;
             Check_Fields;
          end;
+      elsif Name = "ghstdebug" then
+         GHST_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (GHST_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "ghstdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("ghststep.debug", Int (4 + J), Integer_64 (GHST_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown ghst case " & Name);
          Failures := Failures + 1;

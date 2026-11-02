@@ -12685,3 +12685,14 @@ telemetry reply, with the interval before each.
 Core `Serial_Receiver_Debug` records SBUS mode (frame flags, frame time) and FPORT mode (frame interval, error count,
 last error reason, telemetry reply interval). Vectors in both families select a mode at initialization and read eight
 values after every step. On the board, SBUS and FPORT frame status and FPORT frame processing record after they run.
+
+## D596. Debug values, Ghost receiver (2026-11-01)
+
+Core `GHST` now keeps taps: a frame status that failed its CRC, and from each processing a link statistics frame with
+its RSSI and link quality, an unknown frame type, or an MSP frame. Its counters of CRC errors, unknown frames and MSP
+requests move only through its recorders while their mode is selected, since upstream counts inside its debug writes.
+
+Core `GHST_Debug` records GHST mode (CRC error count, unknown frame count, uplink RSSI in dBm, link quality) and GHST
+MSP mode's received request count. Responses sent, its other value, wait for an oracle of the board's MSP replies.
+Ghost vectors select a mode at initialization and read eight values after every step. On the board, each frame
+status and frame processing records right after it runs, so each tap is counted once.
