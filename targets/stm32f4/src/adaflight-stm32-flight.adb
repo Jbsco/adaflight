@@ -480,7 +480,7 @@ package body Adaflight.STM32.Flight is
    --  features the build leaves out off.
    Image_Options : constant Build.List := Build.In_Order
      ((Build.Serial_RX_CRSF | Build.Serial_RX_FPORT | Build.Serial_RX_GHST | Build.Serial_RX_IBus
-       | Build.Serial_RX_SBUS | Build.Serial_RX_Spektrum | Build.Serial_RX_XBus => True,
+       | Build.Serial_RX_SBUS | Build.Serial_RX_Spektrum | Build.Serial_RX_SRXL2 | Build.Serial_RX_XBus => True,
        Build.Serial_RX_Jeti_EX_Bus => Adaflight.Build_Features.Jeti_EX_Bus,
        Build.Serial_RX_SUMD => Adaflight.Build_Features.SUMD,
        Build.Serial_RX_SUMH => Adaflight.Build_Features.SUMH,

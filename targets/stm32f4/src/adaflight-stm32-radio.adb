@@ -20,6 +20,7 @@ with Adaflight.SUMH;
 with Adaflight.MAVLink;
 with Adaflight.MAVLink_Debug;
 with Adaflight.STM32.MAVLink_Link;
+with Adaflight.SRXL2;
 with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
@@ -53,6 +54,7 @@ package body Adaflight.STM32.Radio is
    CRSF_Provider          : constant Interfaces.Unsigned_8 := 9;
    SRXL_Provider          : constant Interfaces.Unsigned_8 := 10;
    FPort_Provider         : constant Interfaces.Unsigned_8 := 12;
+   SRXL2_Provider         : constant Interfaces.Unsigned_8 := 13;
    GHST_Provider          : constant Interfaces.Unsigned_8 := 14;
    Spektrum_1024_Provider : constant Interfaces.Unsigned_8 := 15;
    MAVLink_Provider       : constant Interfaces.Unsigned_8 := 16;
@@ -69,13 +71,19 @@ package body Adaflight.STM32.Radio is
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    package ML renames Adaflight.STM32.MAVLink_Link;
-   type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti, MAVLink);
+   type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti, MAVLink, SRXL2);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
    SBUS_State  : Adaflight.SBUS.State;
    IBUS_State  : Adaflight.IBUS.State;
    SUMD_State  : Adaflight.SUMD.State;
    SUMH_State  : Adaflight.SUMH.State with Linker_Section => ".bss.ccm", Suppress_Initialization;
+   SRXL2_State : Adaflight.SRXL2.State with Linker_Section => ".bss.ccm", Suppress_Initialization;
+   --  The SRXL2 port's rate, the last byte's arrival time, and whether
+   --  bytes since the last idle wait for one.
+   SRXL2_Rate    : Adaflight.SRXL2.Baud_Rate := Adaflight.SRXL2.Default_Rate;
+   SRXL2_Last_Us : Time_Us := 0;
+   SRXL2_Bytes   : Boolean := False;
    Spek_State  : Adaflight.Spektrum.State;
    XBUS_State  : Adaflight.XBUS.State;
    FPort_State : Adaflight.FPort.State;
@@ -253,6 +261,7 @@ package body Adaflight.STM32.Radio is
                   when GHST_Provider => GHST,
                   when Jeti_Provider => Jeti,
                   when MAVLink_Provider => MAVLink,
+                  when SRXL2_Provider => SRXL2,
                   when others        => CRSF);
       Rx_Settings := Adaflight.Config_Runtime.Receiver_Settings_Of
         (Config.Rx_Config, Config.Rx_Channel_Range_Configs, Config.Rx_Failsafe_Channel_Configs,
@@ -271,7 +280,8 @@ package body Adaflight.STM32.Radio is
                                   when FPort => Adaflight.SBUS.Channel_Count,
                                   when GHST => Adaflight.GHST.Channel_Count,
                                   when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count,
-                                  when MAVLink => Adaflight.MAVLink.Channel_Count)));
+                                  when MAVLink => Adaflight.MAVLink.Channel_Count,
+                                  when SRXL2 => Adaflight.Receiver.Channel_Count)));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
@@ -279,7 +289,7 @@ package body Adaflight.STM32.Radio is
                                       | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
                                       | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider | SRXL_Provider
-                                      | MAVLink_Provider
+                                      | MAVLink_Provider | SRXL2_Provider
         and then (R.Serialrx_Provider /= SUMD_Provider or else Adaflight.Build_Features.SUMD)
         and then (R.Serialrx_Provider /= SUMH_Provider or else Adaflight.Build_Features.SUMH)
         and then (R.Serialrx_Provider /= Jeti_Provider or else Adaflight.Build_Features.Jeti_EX_Bus)
@@ -306,7 +316,7 @@ package body Adaflight.STM32.Radio is
            (if not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.Protocol_CRSF
             elsif Kind = MAVLink then Adaflight.Receiver.Protocol_Mavlink
-            elsif Kind in FPort | GHST then Adaflight.Receiver.Rx_Protocol
+            elsif Kind in FPort | GHST | SRXL2 then Adaflight.Receiver.Rx_Protocol
             elsif R.Rssi_Src_Frame_Errors /= 0 then Adaflight.Receiver.Frame_Errors
             else Adaflight.Receiver.None),
          Protocol_Quality =>
@@ -329,7 +339,7 @@ package body Adaflight.STM32.Radio is
         (if Kind = GHST
          then (On => True, Push_Pull => True,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
-         elsif Kind = Jeti or else SRXL_Telemetry_On or else (Kind not in CRSF | MAVLink and then R.Half_Duplex /= 0)
+         elsif Kind in Jeti | SRXL2 or else SRXL_Telemetry_On or else (Kind not in CRSF | MAVLink and then R.Half_Duplex /= 0)
          then (On => True, Push_Pull => Inverted,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
          else USART.Full_Duplex);
@@ -397,6 +407,15 @@ package body Adaflight.STM32.Radio is
                      ML.Open := True;
                   end;
                end if;
+            when SRXL2 =>
+               Adaflight.SRXL2.Init
+                 (SRXL2_State,
+                  (Unit_Id   => Adaflight.SRXL2.Byte (R.Srxl2_Unit_Id),
+                   Baud_Fast => Adaflight.SRXL2.Byte (R.Srxl2_Baud_Fast)),
+                  Adaflight.STM32.Time.Micros);
+               SRXL2_Rate := Adaflight.SRXL2.Default_Rate;
+               SRXL2_Bytes := False;
+               USART.Init (Link, Adaflight.SRXL2.Default_Baud_Rate, Line => Line, Inverted => Inverted);
             when SBUS =>
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
                USART.Init
@@ -853,6 +872,40 @@ package body Adaflight.STM32.Radio is
                      Adaflight.MAVLink.Frame_Status (ML.State, Status);
                   end if;
                end if;
+            when SRXL2 =>
+               declare
+                  use type Adaflight.SRXL2.Baud_Rate;
+                  --  One character at the port's rate, after which the line reads idle.
+                  Char_Us : constant Time_Us := (if SRXL2_Rate = Adaflight.SRXL2.High_Rate then 25 else 87);
+                  VTX     : Adaflight.SRXL2.VTX_Request;
+               begin
+                  for I in 0 .. Count - 1 loop
+                     if SRXL2_Bytes and then Times (I) - SRXL2_Last_Us > Char_Us then
+                        Adaflight.SRXL2.Idle (SRXL2_State, SRXL2_Last_Us + Char_Us);
+                     end if;
+                     Adaflight.SRXL2.Receive_Byte (SRXL2_State, Natural (Input (I)), Times (I));
+                     SRXL2_Last_Us := Times (I);
+                     SRXL2_Bytes := True;
+                  end loop;
+                  if SRXL2_Bytes and then Now_Us - SRXL2_Last_Us > Char_Us then
+                     Adaflight.SRXL2.Idle (SRXL2_State, SRXL2_Last_Us + Char_Us);
+                     SRXL2_Bytes := False;
+                  elsif not SRXL2_Bytes and then SRXL2_State.Transmitting and then USART.Transmit_Empty (Link) then
+                     --  A reply the line does not echo ends with an idle of its own.
+                     Adaflight.SRXL2.Idle (SRXL2_State, Now_Us);
+                  end if;
+                  if not Task_In_Progress then
+                     Adaflight.SRXL2.Frame_Status (SRXL2_State, Rx, Now_Us, Status, VTX);
+                     if SRXL2_State.Baud /= SRXL2_Rate then
+                        SRXL2_Rate := SRXL2_State.Baud;
+                        USART.Init
+                          (Link,
+                           (if SRXL2_Rate = Adaflight.SRXL2.High_Rate then Adaflight.SRXL2.High_Baud_Rate
+                            else Adaflight.SRXL2.Default_Baud_Rate),
+                           Line => Line, Inverted => Inverted);
+                     end if;
+                  end if;
+               end;
          end case;
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
@@ -999,6 +1052,27 @@ package body Adaflight.STM32.Radio is
             end if;
          end;
       end if;
+      --  The SRXL2 reply in the write buffer goes out once the bus has been
+      --  quiet for two characters since the last byte.
+      if Open and then Kind = SRXL2 and then Rx.Aux_Required then
+         declare
+            Length  : constant Natural := SRXL2_State.Write_Length;
+            Reply   : constant Adaflight.SRXL2.Packet_Bytes := SRXL2_State.Write_Buffer;
+            Written : Boolean;
+         begin
+            Adaflight.SRXL2.Process_Frame (SRXL2_State, Now_Us, Written);
+            if Written and then Length > 0 then
+               declare
+                  Data : Adaflight.Bytes.Byte_Array (0 .. Length - 1);
+               begin
+                  for I in Data'Range loop
+                     Data (I) := Adaflight.Bytes.Byte (Reply (Reply'First + I));
+                  end loop;
+                  USART.Put (Port, Data);
+               end;
+            end if;
+         end;
+      end if;
       if Open then
          case Kind is
             when CRSF =>
@@ -1054,6 +1128,10 @@ package body Adaflight.STM32.Radio is
                      Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.MAVLink.Read_Raw (ML.State, Ch)));
                   end loop;
                end if;
+            when SRXL2 =>
+               for Ch in Adaflight.Receiver.Channel loop
+                  Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SRXL2.Read_Raw (SRXL2_State, Ch)));
+               end loop;
          end case;
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
@@ -1119,7 +1197,8 @@ package body Adaflight.STM32.Radio is
          when FPort => FPort_State.Last_Frame_Time_Us,
          when GHST => GHST_State.Last_Frame_Time_Us,
          when Jeti => Jeti_State.Last_Frame_Time_Us,
-         when MAVLink => ML.State.Last_Frame_Time_Us);
+         when MAVLink => ML.State.Last_Frame_Time_Us,
+         when SRXL2 => SRXL2_State.Last_Frame_Time_Us);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
 
