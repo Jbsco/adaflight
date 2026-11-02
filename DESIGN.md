@@ -12984,3 +12984,20 @@ Our checker runs a wing family from a wing build of the menu oracle. That build'
 and arming fields, so the oracle prints zeros for the multirotor tuning it lacks, and its OSD elements have no nav map
 slot, which the checker maps into our layout. The family compares no configuration hash, which the wing oracle takes
 over its own rescue layout.
+
+## D621. SPI receiver board defaults (2026-11-02)
+
+A fresh configuration takes its board's SPI receiver settings, as upstream's resets of three receiver groups do.
+Those are the default protocol, SPI bus, select, interrupt, bind and LED pins with LED inversion, ExpressLRS reset and
+busy pins, and CC2500 chip detection and amplifier pins. `Board_Info.Reset_Config` writes them from a board's hardware
+defaults, whose own values name none of this hardware, so a board without an SPI receiver and every recorded vector
+keep their values.
+
+Our configuration fix sets a board's default receiver feature when none is set, as upstream's fix does with its
+build's default. A board configuration names that default, and serial stays the default where it names none.
+Configuration fix vectors add cases from a build of the fix oracle whose default is the SPI receiver.
+
+`tools/boardgen.py` writes these pins and defaults from each board's configuration file. Six board configurations name
+amplifier or radio pins under names the resets never read, so upstream resets them to none on those boards (F317).
+Our generator reads either name, the reset's own name first. This is a divergence with a write-up for upstream.
+Receiving through these settings is our next step.

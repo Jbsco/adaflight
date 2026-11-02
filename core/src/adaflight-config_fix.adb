@@ -552,17 +552,19 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       end loop;
    end Cut_Linked_Chains;
 
-   --  One receiver feature at most: the serial receiver when none is set,
+   --  One receiver feature at most: the board's default when none is set,
    --  and the first of PPM, MSP, serial, SPI and parallel PWM set clears
    --  the others. A build with the UDP receiver counts it as set and lets
    --  it clear the others last.
-   procedure Fix_Receiver_Features (Features : in out Unsigned_32; Runtime : in out Unsigned_32; UDP : Boolean) is
+   procedure Fix_Receiver_Features
+     (Features : in out Unsigned_32; Runtime : in out Unsigned_32; UDP : Boolean; Default : Unsigned_32)
+   is
       All_RX : constant Unsigned_32 :=
         Feature_RX_PPM or Feature_RX_UDP or Feature_RX_Serial or Feature_RX_Parallel_PWM or Feature_RX_MSP
         or Feature_RX_SPI;
    begin
       if (Features and (if UDP then All_RX else All_RX and not Feature_RX_UDP)) = 0 then
-         Enable (Features, Runtime, Feature_RX_Serial);
+         Enable (Features, Runtime, Default);
       end if;
       if (Features and Feature_RX_PPM) /= 0 then
          Disable (Features, Runtime, All_RX and not Feature_RX_PPM);
@@ -933,7 +935,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       Align_From_Standard (C.Compass_Config.Mag_Custom_Alignment, C.Compass_Config.Mag_Alignment);
       Align_Gyros (C.Gyro_Device_Config);
       Fix_Acc_Zero (C.Accelerometer_Config.Acc_Zero);
-      Fix_Receiver_Features (C.Feature_Config.Enabled_Features, Runtime_Features, H.UDP_Receiver);
+      Fix_Receiver_Features (C.Feature_Config.Enabled_Features, Runtime_Features, H.UDP_Receiver, H.Default_RX_Feature);
       Fix_RSSI (C.Rx_Config, C.Feature_Config.Enabled_Features);
       Fix_GPS_Rescue
         (C.Feature_Config.Enabled_Features, C.Mixer_Config.Mixer_Mode, C.Failsafe_Config, C.Mode_Activation_Conditions);
