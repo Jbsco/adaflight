@@ -91,6 +91,18 @@ package Adaflight.Wing_Launch with SPARK_Mode is
    subtype Angle_Deg is Float range -255.0 .. 255.0;
    subtype Factor is Float range 0.0 .. 1.0;
 
+   --  What a pass's throw detection wrote where upstream records a debug
+   --  value: whether it ran, the forward acceleration in g, the swing speed
+   --  in centimetres per second, and which detectors fired.
+   type Debug_Taps is record
+      Detect_Called : Boolean := False;
+      Ax_G          : Float range -1.0e6 .. 1.0e6 := 0.0;
+      Swing_Cms     : Float range 0.0 .. 1.0e9 := 0.0;
+      Bungee        : Boolean := False;
+      Swing         : Boolean := False;
+      Forward       : Boolean := False;
+   end record;
+
    type Launch is record
       Current          : State := Idle;
       Latched          : Boolean := False;
@@ -101,6 +113,7 @@ package Adaflight.Wing_Launch with SPARK_Mode is
       Throttle         : Throttle_Value := 0.0;
       Handover         : Factor := 0.0;
       Why              : Exit_Reason := None;
+      Taps             : Debug_Taps;
    end record;
 
    function Is_Terminal (L : Launch) return Boolean is (L.Current in Flying | Aborted);

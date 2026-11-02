@@ -1,6 +1,7 @@
 with Adaflight.RC_Debug;
 with Adaflight.Arming_Debug;
 with Adaflight.STM32.Debug_Values;
+with Adaflight.Launch_Debug;
 with Adaflight.STM32.Radio;
 with Adaflight.Board;
 with Adaflight.Build_Features;
@@ -220,6 +221,7 @@ package body Adaflight.STM32.Pilot is
      (Inp : Adaflight.Wing_Launch.Inputs; Angle_Roll, Angle_Pitch : in out Adaflight.Wing_Launch.Angle_Deg) is
    begin
       Adaflight.Wing_Launch.Update (Arm.Wing, Launch_Set, Inp, Angle_Roll, Angle_Pitch);
+      Adaflight.Launch_Debug.Record_Pass (Adaflight.STM32.Debug_Values.State, Arm.Wing);
    end Launch_Update;
 
    function Launch return Adaflight.Wing_Launch.Launch is (Arm.Wing);

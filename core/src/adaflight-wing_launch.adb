@@ -59,7 +59,7 @@ package body Adaflight.Wing_Launch with SPARK_Mode is
    --  A swing: the tangential speed about the thrower's shoulder past the
    --  threshold with a forward force. A run: the ground speed past the
    --  threshold with a forward force.
-   function Launch_Detected (C : Settings; Inp : Inputs) return Boolean is
+   procedure Launch_Detected (C : Settings; Inp : Inputs; Detected : out Boolean; T : out Debug_Taps) is
       Ax_G      : constant Float := Inp.Acc_X * Inp.Acc_1G_Rec;
       Ay_G      : constant Float := Inp.Acc_Y * Inp.Acc_1G_Rec;
       Yaw       : constant Rate := Inp.Gyro_Yaw;
@@ -76,7 +76,10 @@ package body Adaflight.Wing_Launch with SPARK_Mode is
       Swing := Swing_Cms > Float (C.Detect_Velocity_Cms) and then Ax_G > 0.0;
       Forward := Inp.GPS_Fix and then Inp.Num_Sat >= Min_Sats and then Inp.Ground_Speed_Cms > C.Detect_Velocity_Cms
         and then Ax_G > 0.0;
-      return Bungee or else Swing or else Forward;
+      T := (Detect_Called => True, Ax_G => Float'Max (-1.0e6, Float'Min (1.0e6, Ax_G)),
+            Swing_Cms => Float'Max (0.0, Float'Min (1.0e9, Swing_Cms)), Bungee => Bungee, Swing => Swing,
+            Forward => Forward);
+      Detected := Bungee or else Swing or else Forward;
    end Launch_Detected;
 
    function Sticks_Moved (C : Settings; Inp : Inputs) return Boolean is
@@ -127,7 +130,8 @@ package body Adaflight.Wing_Launch with SPARK_Mode is
             Pitch_Target_Deg => 0.0,
             Throttle         => 0.0,
             Handover         => 0.0,
-            Why              => None);
+            Why              => None,
+            Taps             => <>);
    end Init;
 
    ---------
@@ -161,7 +165,9 @@ package body Adaflight.Wing_Launch with SPARK_Mode is
       Climb_Angle     : constant Float range 0.0 .. 255.0 := Float (C.Climb_Angle_Deg);
       Lost            : Boolean;
       K               : Factor;
+      Found           : Boolean;
    begin
+      L.Taps.Detect_Called := False;
       if not Inp.Launch_Mode or else Inp.Failsafe_Active then
          if L.Current /= Idle and then not Is_Terminal (L) then
             End_Launch (L, Aborted, Mode_Off);
@@ -204,12 +210,15 @@ package body Adaflight.Wing_Launch with SPARK_Mode is
             L.Pitch_Target_Deg := Climb_Angle;
             if Inp.Throttle_Low then
                Set_State (L, Wait_Throttle, Inp.Now_Us);
-            elsif not Launch_Detected (C, Inp) then
-               L.State_Entered_Us := Inp.Now_Us;
-            elsif Elapsed_Ms (L, Inp.Now_Us) >= Float (C.Detect_Time_Ms) then
-               L.Detected_Us := Inp.Now_Us;
-               L.Attitude_Lost_Us := Inp.Now_Us;
-               Set_State (L, Motor_Delay, Inp.Now_Us);
+            else
+               Launch_Detected (C, Inp, Found, L.Taps);
+               if not Found then
+                  L.State_Entered_Us := Inp.Now_Us;
+               elsif Elapsed_Ms (L, Inp.Now_Us) >= Float (C.Detect_Time_Ms) then
+                  L.Detected_Us := Inp.Now_Us;
+                  L.Attitude_Lost_Us := Inp.Now_Us;
+                  Set_State (L, Motor_Delay, Inp.Now_Us);
+               end if;
             end if;
          when Motor_Delay =>
             L.Throttle := Idle_Throttle;

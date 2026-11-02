@@ -67,6 +67,7 @@ with Adaflight.Arming_Debug;
 with Adaflight.VTX_Debug;
 with Adaflight.MAVLink_Debug;
 with Adaflight.Gimbal_Debug;
+with Adaflight.Launch_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -9519,6 +9520,7 @@ procedure Vector_Check is
    WL_Launch      : Adaflight.Wing_Launch.Launch;
    WL_Angle_Roll  : Adaflight.Wing_Launch.Angle_Deg := 0.0;
    WL_Angle_Pitch : Adaflight.Wing_Launch.Angle_Deg := 0.0;
+   WL_Dbg         : Adaflight.Debug.State;
 
    procedure Check_Wing_Launch_Line is
       use Adaflight.Wing_Launch;
@@ -9528,7 +9530,10 @@ procedure Vector_Check is
       function U16 (I : Positive) return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Int (I)));
       function Flag (I : Positive) return Boolean is (Int (I) /= 0);
    begin
-      if Name = "wlinit" then
+      if Name = "wldebug" then
+         WL_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (WL_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "wlinit" then
          WL_Seq := Int (2);
          WL_Config := (Climb_Angle_Deg        => U8 (3),
                        Max_Angle_Deg          => U8 (4),
@@ -9588,6 +9593,7 @@ procedure Vector_Check is
                   Switch_Off (WL_Launch);
                when others =>
                   Update (WL_Launch, WL_Config, Inp, WL_Angle_Roll, WL_Angle_Pitch);
+                  Adaflight.Launch_Debug.Record_Pass (WL_Dbg, WL_Launch);
             end case;
             Record_Int (Name & ".state", Int (30), Integer_64 (State'Pos (WL_Launch.Current)));
             Record_Int (Name & ".latched", Int (31), (if WL_Launch.Latched then 1 else 0));
@@ -9601,6 +9607,10 @@ procedure Vector_Check is
             Record_Result (Name & ".angleroll", Bits (39), To_Bits (WL_Angle_Roll));
             Record_Result (Name & ".anglepitch", Bits (40), To_Bits (WL_Angle_Pitch));
          end;
+      elsif Name = "wldbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("wlstep.debug", Int (4 + J), Integer_64 (WL_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown wing launch case " & Name);
          Failures := Failures + 1;
