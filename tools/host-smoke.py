@@ -443,6 +443,13 @@ def sumd_frame(channels_us):
     return body + crc16_xmodem(body).to_bytes(2, "big")
 
 
+def sumh_frame(channels_us):
+    """A SUMH frame: the sync byte, two bytes the receiver skips, eight channels big-endian as
+    (us + 375) * 6.4, the zero before the last byte, and a last byte it skips."""
+    words = b"".join(round((v + 375) * 6.4).to_bytes(2, "big") for v in channels_us[:8])
+    return bytes([0xA8, 0x00, 0x00]) + words + bytes([0x00, 0x00])
+
+
 def spektrum_frame(channels_us):
     """A Spektrum 2048 frame: the fade count and the DSMX 11 ms system byte, then seven channel words
     big-endian, each the channel number above an eleven-bit value in half microseconds from 988 us."""
@@ -1249,7 +1256,8 @@ def main():
             check("options list the GPS, the OSD chip, the servos and the motor protocols",
                   {16412, 16416, 16420, 8230, 8231, 8232, 8233, 8235} <= numbers, text[-160:])
             for feature, number in (("LTM_Telemetry", 12304), ("MAVLink_Telemetry", 12305), ("IBus_Telemetry", 12303),
-                                    ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106)):
+                                    ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106),
+                                    ("SUMH", 4107)):
                 check(f"options list {feature} as the build contains it", (number in numbers) == contains(feature),
                       f"{number} {'in' if number in numbers else 'not in'} the list")
             text = cli(sock, "dshotprog 0 7")
@@ -1831,10 +1839,11 @@ def main():
             stop(proc)
             sock.close()
         us = [1500, 1599, 988, 1500] + [1500] * 10
-        receiver_features = {"SUMD": "SUMD", "JETIEXBUS": "Jeti_EX_Bus"}
+        receiver_features = {"SUMD": "SUMD", "SUMH": "SUMH", "JETIEXBUS": "Jeti_EX_Bus"}
         for name, frame, extra in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12), []),
                                    ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
-                                   ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
+                                   ("SUMD", sumd_frame(us), []), ("SUMH", sumh_frame(us), []),
+                                   ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
                                    ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
                                    ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), [])):
