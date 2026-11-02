@@ -196,6 +196,11 @@ package body Adaflight.STM32.VTX is
       Core.Common_Set_Pit_Mode (V, T, Value);
    end Set_Pit_Mode;
 
+   procedure Offer_Spektrum_Control (Word : Interfaces.Unsigned_32) is
+   begin
+      Core.Offer_Spektrum_Control (V, Word);
+   end Offer_Spektrum_Control;
+
    function Device return Adaflight.MSP_VTX_In.Device is
       Pit   : Boolean;
       Known : Boolean;

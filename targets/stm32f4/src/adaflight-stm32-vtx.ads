@@ -36,6 +36,9 @@ package Adaflight.STM32.VTX is
      (C : in out Adaflight.Config_Groups.Configuration; Aux : Adaflight.Modes.Aux_Values; Armed : Boolean);
    --  A pit mode an MSP write asks for.
    procedure Set_Pit_Mode (Value : Interfaces.Unsigned_8);
+   --  A VTX control word a Spektrum or SRXL2 receiver reports, for the next
+   --  VTX control pass.
+   procedure Offer_Spektrum_Control (Word : Interfaces.Unsigned_32);
    --  The readings of the MSP replies and writes.
    function Device return Adaflight.MSP_VTX_In.Device;
    function Table return Adaflight.VTX_Table.Table;
