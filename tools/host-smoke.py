@@ -1597,6 +1597,49 @@ def main():
             vtx.stop.set()
             stop(proc)
             sock.close()
+        vtx_store = os.path.join(work, "spekvtx.bin")
+        proc, sock = start(image, vtx_store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_uart = UART6", "vtx_type = SMARTAUDIO", "serialrx_provider = SPEK2048", "rx_uart = UART3"):
+                text = cli(sock, f"set {line}")
+                check(f"Spektrum VTX control setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("vtxtable bands 5", "vtxtable channels 8",
+                         "vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725",
+                         "vtxtable band 2 BOSCAM_B B FACTORY 5733 5752 5771 5790 5809 5828 5847 5866",
+                         "vtxtable band 3 BOSCAM_E E FACTORY 5705 5685 5665 5645 5885 5905 5925 5945",
+                         "vtxtable band 4 FATSHARK F FACTORY 5740 5760 5780 5800 5820 5840 5860 5880",
+                         "vtxtable band 5 RACEBAND R FACTORY 5658 5695 5732 5769 5806 5843 5880 5917",
+                         "vtxtable powerlevels 4", "vtxtable powervalues 0 1 2 3",
+                         "vtxtable powerlabels 25 200 500 800"):
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        vtx = SmartAudio()
+        frame = spektrum_frame([1500, 1599, 988, 1500] + [1500] * 10)
+        sender = SerialReceiver(frame[:12] + bytes([0xE0, 0x23, 0xE0, 0x04]))
+        proc, sock = start(image, vtx_store)
+        vtx.start()
+        sender.start()
+        try:
+            time.sleep(4.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for name, value, what in (("vtx_band", 5, "race band"), ("vtx_channel", 4, "channel 4"),
+                                      ("vtx_freq", 5769, "table frequency of race band channel 4"),
+                                      ("vtx_power", 2, "SmartAudio power index for 100 to 299 mW")):
+                text = cli(sock, f"get {name}")
+                check(f"Spektrum VTX control sets the {what}", f"{name} = {value}" in text, text[-120:])
+        finally:
+            sender.stop.set()
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
         esc = ESC()
         proc, sock = start(image, store)
         esc.start()

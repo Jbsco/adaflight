@@ -21,6 +21,7 @@ with Adaflight.MAVLink;
 with Adaflight.MAVLink_Debug;
 with Adaflight.STM32.MAVLink_Link;
 with Adaflight.SRXL2;
+with Adaflight.STM32.VTX;
 with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
@@ -841,6 +842,9 @@ package body Adaflight.STM32.Radio is
                      VTX : Adaflight.Spektrum.VTX_Request;
                   begin
                      Adaflight.Spektrum.Frame_Status (Spek_State, Now_Us, Status, VTX);
+                     if VTX.Present then
+                        Adaflight.STM32.VTX.Offer_Spektrum_Control (VTX.Word);
+                     end if;
                   end;
                end if;
             when XBUS =>
@@ -911,6 +915,9 @@ package body Adaflight.STM32.Radio is
                   end if;
                   if not Task_In_Progress then
                      Adaflight.SRXL2.Frame_Status (SRXL2_State, Rx, Now_Us, Status, VTX);
+                     if VTX.Present then
+                        Adaflight.STM32.VTX.Offer_Spektrum_Control (VTX.Word);
+                     end if;
                      if SRXL2_State.Baud /= SRXL2_Rate then
                         SRXL2_Rate := SRXL2_State.Baud;
                         USART.Init

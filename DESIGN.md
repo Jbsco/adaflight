@@ -12791,3 +12791,14 @@ core `SRXL2` between its sensor data header and checksum. Each reply leaves when
 
 Our SRXL display port registers for SRXL2 too, as upstream does once its receiver opens. Our host smoke asks for
 telemetry in every other channel packet and counts sensor data packets on the receiver's port.
+
+## D606. Spektrum VTX control on the board (2026-11-02)
+
+Our board now hands core `VTX` each control word that a Spektrum or SRXL2 receiver reports, where upstream calls its
+VTX control handler. Core `VTX` already ports the control pass, which the VTX control task runs with the board's
+settings, table and device, and our VTX control vectors cover it; bands past the five Spektrum bands map to band 0
+there (finding F70). This closes the unused word D443 noted.
+
+Our host smoke sets up a five-band VTX table, then sends Spektrum frames that carry a control word while a SmartAudio
+transmitter answers on its port, and reads band, channel, frequency and power settings from the CLI. Without a table
+the save path resets any band past the table's count to 0, as upstream's configuration fix-up does.
