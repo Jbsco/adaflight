@@ -808,8 +808,8 @@ package body Adaflight.STM32.Flight is
       if Gyro_Report.Acc_Found then
          M (Adaflight.Modes.Angle) := True;
          M (Adaflight.Modes.Horizon) := True;
-         M (Adaflight.Modes.Alt_Hold) := True;
-         M (Adaflight.Modes.Pos_Hold) := True;
+         M (Adaflight.Modes.Alt_Hold) := not Adaflight.Build_Features.Wing;
+         M (Adaflight.Modes.Pos_Hold) := not Adaflight.Build_Features.Wing;
          M (Adaflight.Modes.Launch) := Adaflight.Build_Features.Wing;
          M (Adaflight.Modes.Headfree) := True;
          M (Adaflight.Modes.Head_Adj) := True;
@@ -2665,14 +2665,16 @@ package body Adaflight.STM32.Flight is
       I.Throttle_Correction := Att_State.Throttle_Correction;
       I.Jerk_Magnitude := Acc_State.Jerk_Magnitude;
       I.RC_Data_Throttle := Channels (Adaflight.RC_Command.Throttle_Channel);
-      I.Autopilot_Throttle := Alt_Hold_State.Control.Throttle_Out;
+      I.Autopilot_Throttle := (if Adaflight.Build_Features.Wing then 0.0 else Alt_Hold_State.Control.Throttle_Out);
       I.Autopilot_Angles :=
         (Adaflight.Axes.Roll  => Pos_Hold_State.Control.Angle_Roll,
          Adaflight.Axes.Pitch => Pos_Hold_State.Control.Angle_Pitch);
       I.Autopilot_Max_Angle := Control_Settings.Max_Angle;
-      I.Autopilot_Control := Adaflight.Position_Hold.In_Control (Pos_Hold_State);
+      I.Autopilot_Control :=
+        not Adaflight.Build_Features.Wing and then Adaflight.Position_Hold.In_Control (Pos_Hold_State);
       I.Below_Landing :=
-        Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M);
+        not Adaflight.Build_Features.Wing
+        and then Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M);
       I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
       I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
       I.Battery_Latest := Bat.Voltage.Unfiltered;
@@ -3398,6 +3400,9 @@ package body Adaflight.STM32.Flight is
    procedure Run_Altitude_Hold is
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
+      if Adaflight.Build_Features.Wing then
+         return;
+      end if;
       Adaflight.Altitude_Hold.Update
         (Alt_Hold_State, Alt_Hold_Settings,
          (Hold_Mode             => M (Adaflight.Arming.Alt_Hold_Mode),
@@ -3470,6 +3475,9 @@ package body Adaflight.STM32.Flight is
       Inp       : constant Adaflight.Position_Control.Inputs := Hold_Inputs;
       Enable_XY : Boolean;
    begin
+      if Adaflight.Build_Features.Wing then
+         return;
+      end if;
       Adaflight.Position_Hold.Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY);
       Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
       Adaflight.Autopilot_Debug.Record_Position
@@ -3523,6 +3531,9 @@ package body Adaflight.STM32.Flight is
       Arming_Disabled : Boolean;
       Asked           : Adaflight.Arming.Outputs;
    begin
+      if Adaflight.Build_Features.Wing then
+         return;
+      end if;
       Adaflight.GPS_Rescue.Update
         (Rescue_State, Rescue_Settings, Inp,
          Adaflight.Altitude_Hold.Control_Settings (Alt_Hold_Settings), Alt_Hold_State.Control,
