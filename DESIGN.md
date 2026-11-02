@@ -12948,3 +12948,10 @@ accelerometer rule for a rescue failsafe procedure stays, as upstream keeps it i
 
 Autopilot angle targets in a wing build come only from the wing launch and stay between passes, as upstream's angle
 array does, where D615 started each pass from position hold's.
+
+## D618. Wing build position source (2026-11-02)
+
+A wing build's position hold group has no position source, and upstream's position estimator then allows both GPS
+and optical flow everywhere it would read that source. Our board now gives core `Position_Estimator` the automatic
+source in a wing build, where it took the multirotor group's setting. Failsafe needs no change: upstream's wing build
+leaves out flight plan handling, and our board passes no autopilot or flight plan state to core `Failsafe`.
