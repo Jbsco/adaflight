@@ -1,4 +1,5 @@
 with Adaflight.RC_Debug;
+with Adaflight.Arming_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.Radio;
 with Adaflight.Board;
@@ -77,6 +78,7 @@ package body Adaflight.STM32.Pilot is
       Step : in out Adaflight.Arming.Outputs) is
    begin
       Adaflight.Arming.Process_Rx (Arm, Arm_Settings, M, Sensed, Channels, Now_Us, Step);
+      Adaflight.Arming_Debug.Record_Runaway_Rx (Adaflight.STM32.Debug_Values.State, Arm);
    end Receiver_Pass;
 
    procedure Modes_Pass
@@ -159,6 +161,7 @@ package body Adaflight.STM32.Pilot is
       Step : in out Adaflight.Arming.Outputs) is
    begin
       Adaflight.Arming.Process_PID_Loop (Arm, Arm_Settings, M, Sensed, Channels, Now_Us, Step);
+      Adaflight.Arming_Debug.Record_Runaway_Loop (Adaflight.STM32.Debug_Values.State, Arm);
    end Runaway_Check;
 
    function Loop_Runtime return Adaflight.PID_Config.Runtime is (Runtime);

@@ -576,6 +576,14 @@ package body Adaflight.Arming with SPARK_Mode is
         and then not S.Crash_Flip_Active and then not C.Fixed_Wing
       then
          Deactivate_Runaway_Check (S, C, M, Sensed, Percent, Throttle_Active, Now_Us);
+         S.Runaway_Taps.Deactivating := S.Runaway_Deactivate_Us /= 0;
+         S.Runaway_Taps.Deactivate_Ms :=
+           (if S.Runaway_Deactivate_Us = 0 then S.Runaway_Accumulated_Us / 1_000
+            else (Interfaces.Unsigned_32'Mod (Clock.Elapsed (Now_Us, S.Runaway_Deactivate_Us))
+                  + S.Runaway_Accumulated_Us) / 1_000);
+      else
+         S.Runaway_Taps.Deactivating := False;
+         S.Runaway_Taps.Deactivate_Ms := 0;
       end if;
       if S.Armed then
          if In_Launch and then Percent > C.Launch_Trigger_Throttle then
@@ -627,8 +635,12 @@ package body Adaflight.Arming with SPARK_Mode is
          else
             S.Runaway_Trigger_Us := 0;
          end if;
+         S.Runaway_Taps.Enabled := True;
+         S.Runaway_Taps.Activating := S.Runaway_Trigger_Us /= 0;
       else
          S.Runaway_Trigger_Us := 0;
+         S.Runaway_Taps.Enabled := False;
+         S.Runaway_Taps.Activating := False;
       end if;
    end Process_PID_Loop;
 

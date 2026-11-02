@@ -63,6 +63,7 @@ with Adaflight.DShot_Debug;
 with Adaflight.Receiver_Debug;
 with Adaflight.Serial_Receiver_Debug;
 with Adaflight.GHST_Debug;
+with Adaflight.Arming_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -4964,6 +4965,7 @@ procedure Vector_Check is
    Arm_DShot_Mode    : Boolean := False;
    Arm_DShot_In      : Adaflight.Arming.Inputs;
    Arm_Last_Step     : Adaflight.Arming.Outputs;
+   Arm_Dbg           : Adaflight.Debug.State;
    --  The GPS sequences' inputs before each step.
    Arm_GPS_Mode      : Boolean := False;
    Arm_GPS_In        : Adaflight.Arming.Inputs;
@@ -5207,6 +5209,7 @@ procedure Vector_Check is
             procedure Runaway is
             begin
                Process_PID_Loop (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
+               Adaflight.Arming_Debug.Record_Runaway_Loop (Arm_Dbg, Arming_State);
             end Runaway;
             package Pass is new Adaflight.Main_Loop
               (Reset_Yaw => Note_Y, RC_Command => Note_R, Launch_Wing => Note_L, PID_Controller => Note_P,
@@ -5250,6 +5253,7 @@ procedure Vector_Check is
             Sensed_Before.Acc_Has_Calibration := Int (NF - 7) /= 0;
             Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 6) /= 0;
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed_Before, Channels, Now_Us, Step);
+            Adaflight.Arming_Debug.Record_Runaway_Rx (Arm_Dbg, Arming_State);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed_Before,
                               Channels, Now_Us, Natural (Int (5)), Step);
             Yaw_Reset :=
@@ -5445,6 +5449,13 @@ procedure Vector_Check is
          end loop;
          Record_Int ("armdshot.cleans", Int (10), Integer_64 (Arm_Last_Step.Telemetry_Cleans));
          Record_Int ("armdshot.rpm_resets", Int (11), Integer_64 (Arm_Last_Step.RPM_Limiter_Resets));
+      elsif Name = "armdebug" then
+         Arm_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Arm_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "armdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("armstep.debug", Int (4 + J), Integer_64 (Arm_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown arming case " & Name);
          Failures := Failures + 1;
