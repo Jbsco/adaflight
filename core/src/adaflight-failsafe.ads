@@ -50,6 +50,13 @@ package Adaflight.Failsafe with SPARK_Mode is
 
    subtype Event_Count is Natural range 0 .. 32_767;
 
+   --  What a monitored pass wrote where upstream records a debug value: that
+   --  it ran, and whether the receiver delivered data at its entry.
+   type Debug_Taps is record
+      Updated            : Boolean := False;
+      Receiving_At_Entry : Boolean := False;
+   end record;
+
    type State is record
       Events                          : Event_Count := 0;
       Monitoring                      : Boolean := False;
@@ -69,6 +76,7 @@ package Adaflight.Failsafe with SPARK_Mode is
       Arming_Disabled_Rx              : Boolean := False;
       Arming_Disabled                 : Boolean := False;
       Autopilot_Engage_Deadline       : Time_Ms := 0;
+      Taps                            : Debug_Taps;
    end record;
 
    procedure Init (S : out State; C : Settings);

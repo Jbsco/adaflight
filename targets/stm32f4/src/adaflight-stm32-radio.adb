@@ -5,6 +5,7 @@ with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
 with Adaflight.CRSF_Debug;
 with Adaflight.STM32.Debug_Values;
+with Adaflight.Receiver_Debug;
 with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
@@ -808,6 +809,7 @@ package body Adaflight.STM32.Radio is
          end if;
       end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
+      Adaflight.Receiver_Debug.Record_Frame_Check (Adaflight.STM32.Debug_Values.State, Rx, Delta_Us);
    end Frame_Check;
 
    function Update_Check (Task_In_Progress : Boolean) return Boolean is
@@ -980,6 +982,7 @@ package body Adaflight.STM32.Radio is
       Adaflight.Receiver.Calculate_Channels
         (Rx, Rx_Settings, Now_Us, Now_Ms, Raw, Override, Box_Failsafe => False, Box_3D => False,
          Failsafe_Active => FS.Active, Processed => Processed, Frame_Processed => Frame_Processed, Valid => Valid);
+      Adaflight.Receiver_Debug.Record_Channels (Adaflight.STM32.Debug_Values.State, Rx);
       case Valid is
          when Adaflight.Receiver.Data_Received =>
             Adaflight.Failsafe.On_Valid_Data_Received (FS, Now_Ms);
@@ -1002,6 +1005,7 @@ package body Adaflight.STM32.Radio is
    begin
       Adaflight.Failsafe.Check_Data_Failure_Period (FS, Now_Ms);
       Adaflight.Failsafe.Update (FS, FS_Settings, Now_Ms, In_Flight, Beep, Disarm, Stage_Rescue);
+      Adaflight.Receiver_Debug.Record_Failsafe (Adaflight.STM32.Debug_Values.State, FS);
    end Failsafe_Check;
 
    procedure Start_Failsafe_Monitoring is
