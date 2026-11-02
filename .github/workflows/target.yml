@@ -42,6 +42,9 @@ jobs:
       - name: Build and check the host image
         run: bash host.do
 
+      - name: Build and check the wing host image
+        run: bash hostwing.do
+
       - name: Keep the image
         uses: actions/upload-artifact@v4
         with:

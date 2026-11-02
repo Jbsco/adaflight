@@ -51,6 +51,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     bash target.do                            # STM32F4 image, BOARD names the board (CLRACINGF4 when unset)
     CRATE=stm32f7 bash target.do              # STM32F7 image, KAKUTEF7 when BOARD is unset
     bash host.do                              # host image, checked over its UART1 TCP port
+    bash hostwing.do                          # wing build of host image, checked the same way
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 
@@ -78,7 +79,7 @@ Host image simulator link (flight dynamics in, sticks in, motors out, clock rate
 | `tools/` | Repository tooling: changed units for CI, markdown rendering check, board package generator |
 | `third_party/` | Third-party material with its license and source, and the board configuration repository as a pinned submodule |
 | `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
-| `style.do`, `test.do`, `target.do`, `host.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
+| `style.do`, `test.do`, `target.do`, `host.do`, `hostwing.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
 | `DESIGN.md` | Numbered design decisions with their reasons |
 | `DIVERGENCES.md` | Every place where adaflight differs from Betaflight on purpose |
 | `ROADMAP.md` | Phases and the coverage of Betaflight's source areas |
