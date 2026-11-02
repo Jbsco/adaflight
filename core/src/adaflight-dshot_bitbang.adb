@@ -46,15 +46,18 @@ package body Adaflight.DShot_Bitbang with SPARK_Mode is
       package S renames Adaflight.DShot;
       Raw : Unsigned_32;
    begin
+      Counts.Taps := (Reads => 0, Missing => 0);
       if not Use_Telemetry then
          return;
       end if;
       for M in 0 .. Count - 1 loop
+         pragma Loop_Invariant (Counts.Taps.Reads + Counts.Taps.Missing <= M);
          if not Ports (Motors (M).Port).Aborted then
             S.Decode_Samples (D, Ports (Motors (M).Port).Buffer, Ports (Motors (M).Port).Count, Motors (M).Pin, Now_Us,
                               Raw);
             if Raw /= S.No_Edge then
                Counts.Reads := Counts.Reads + 1;
+               Counts.Taps.Reads := Counts.Taps.Reads + 1;
                if Raw /= S.Invalid_Value then
                   if Raw = S.Extended_Acknowledge and then Commands (M) = S.Extended_Telemetry_Enable then
                      T.Motors (M).Received := S.State_Events_Bit;
@@ -65,6 +68,8 @@ package body Adaflight.DShot_Bitbang with SPARK_Mode is
                   Counts.Invalids := Counts.Invalids + 1;
                end if;
                S.Count_Packet (Q (M), Raw /= S.Invalid_Value, Now_Ms);
+            else
+               Counts.Taps.Missing := Counts.Taps.Missing + 1;
             end if;
          end if;
       end loop;
