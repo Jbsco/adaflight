@@ -70,6 +70,7 @@ with Adaflight.Camera_Control;
 with Adaflight.Compass;
 with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
+with Adaflight.VTX_MSP;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile;
@@ -1306,6 +1307,12 @@ package body Adaflight.STM32.Flight is
       Port : Adaflight.MSP_Port.Port renames Lines (L).Port;
    begin
       Process_Command (Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1));
+      if Effects.Peripheral.VTX_Ready and then Adaflight.STM32.VTX.MSP_Running
+        and then Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+        and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Adaflight.STM32.VTX.MSP_Port)
+      then
+         Adaflight.STM32.VTX.MSP_Link_Ready;
+      end if;
       Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
                                  Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
       Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
@@ -1503,6 +1510,35 @@ package body Adaflight.STM32.Flight is
       Report_Battery;
    end Refresh_Views;
 
+   --  The MSP transmitter's configuration frame, pushed as an MSP version 2
+   --  reply on the MSP line of its port when the line's buffer has room.
+   procedure Push_VTX_MSP is
+      Data       : Adaflight.VTX_MSP.Config_Frame;
+      Pending    : Boolean;
+      Out_Frame  : Adaflight.MSP_Port.Frame_Buffer;
+      Out_Length : Positive;
+   begin
+      Adaflight.STM32.VTX.Take_MSP_Frame (Data, Pending);
+      if not Pending then
+         return;
+      end if;
+      for L in 1 .. Line_Count loop
+         if Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+           and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Adaflight.STM32.VTX.MSP_Port)
+         then
+            Adaflight.MSP_Port.Encode
+              (Adaflight.MSP_Port.V2_Native, Adaflight.VTX_MSP.Config_Command, 0, False, Data, Out_Frame, Out_Length);
+            if Adaflight.MSP_Port.May_Send
+                 (Out_Length, Adaflight.STM32.USART.Transmit_Empty (UART_Of (Line_Serial (L))),
+                  Adaflight.STM32.USART.Free (UART_Of (Line_Serial (L))))
+            then
+               Adaflight.STM32.Serial.Put (Replies (L), Out_Frame (0 .. Out_Length - 1));
+            end if;
+            exit;
+         end if;
+      end loop;
+   end Push_VTX_MSP;
+
    --  A request from the receiver link's MSP tunnel, processed as a serial
    --  one, with the reboot it asks for before its reply goes out.
    procedure Telemetry_Request (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
@@ -1511,6 +1547,9 @@ package body Adaflight.STM32.Flight is
    begin
       Refresh_Views;
       Process_Command (Command, Request);
+      if Effects.Peripheral.VTX_Ready then
+         Adaflight.STM32.VTX.MSP_Link_Ready;
+      end if;
       Reboot_If_Asked;
       Length := Natural'Min (Stream.Next, Answer_Bytes'Length);
       Answer_Bytes (Answer_Bytes'First .. Answer_Bytes'First + Length - 1) := Reply (0 .. Length - 1);
@@ -4249,6 +4288,7 @@ package body Adaflight.STM32.Flight is
                Save : Boolean;
             begin
                Adaflight.STM32.VTX.Run (Config, Adaflight.STM32.Time.Millis, Before, Session.Open, Save);
+               Push_VTX_MSP;
                if Save then
                   Write_Configuration;
                end if;

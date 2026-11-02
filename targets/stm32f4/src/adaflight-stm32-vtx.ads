@@ -14,6 +14,7 @@ with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.SmartAudio;
 with Adaflight.STM32.USART;
+with Adaflight.VTX_MSP;
 with Adaflight.VTX_Table;
 package Adaflight.STM32.VTX is
    --  The device and its port from the configuration, then the control
@@ -39,6 +40,14 @@ package Adaflight.STM32.VTX is
    --  A VTX control word a Spektrum or SRXL2 receiver reports, for the next
    --  VTX control pass.
    procedure Offer_Spektrum_Control (Word : Interfaces.Unsigned_32);
+   --  An MSP transmitter's port: whether one runs, and its UART.
+   function MSP_Running return Boolean;
+   function MSP_Port return Adaflight.STM32.USART.Number;
+   --  A VTX configuration read or write came over the MSP transmitter's
+   --  link: its MSP port or the receiver's MSP tunnel.
+   procedure MSP_Link_Ready;
+   --  The configuration frame the MSP transmitter asked to push, taken once.
+   procedure Take_MSP_Frame (Frame : out Adaflight.VTX_MSP.Config_Frame; Pending : out Boolean);
    --  The readings of the MSP replies and writes.
    function Device return Adaflight.MSP_VTX_In.Device;
    function Table return Adaflight.VTX_Table.Table;

@@ -1640,6 +1640,46 @@ def main():
             vtx.stop.set()
             stop(proc)
             sock.close()
+        msp_vtx_store = os.path.join(work, "mspvtx.bin")
+        proc, sock = start(image, msp_vtx_store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_type = MSP", "osd_displayport_device = MSP", "osd_uart = UART3"):
+                text = cli(sock, f"set {line}")
+                check(f"MSP transmitter setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("vtxtable bands 1", "vtxtable channels 8",
+                         "vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725",
+                         "vtxtable powerlevels 2", "vtxtable powervalues 25 200", "vtxtable powerlabels 25 200"):
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, msp_vtx_store)
+        try:
+            time.sleep(2.5)
+            goggle = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            goggle.settimeout(0.3)
+            read_all(goggle, 0.5)
+            goggle.sendall(b"$M<\x00\x58\x58")
+            reply = read_all(goggle, 0.6)
+            body = bytes([4, 89]) + (3).to_bytes(2, "little") + bytes([2, 0])
+            check_byte = 0
+            for b in body:
+                check_byte ^= b
+            goggle.sendall(b"$M<" + body + bytes([check_byte]))
+            pushed = read_all(goggle, 2.0)
+            goggle.close()
+            check("MSP transmitter answers the VTX configuration request with its type", b"$M>\x0f\x58\x05" in reply,
+                  repr(reply[:40]))
+            check("MSP transmitter pushes its configuration after a goggle's write",
+                  b"$X>\x00\x58\x00\x0f\x00\x05\x01\x04\x02" in pushed, repr(pushed[:80]))
+        finally:
+            stop(proc)
+            sock.close()
         esc = ESC()
         proc, sock = start(image, store)
         esc.start()
