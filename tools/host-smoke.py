@@ -1714,6 +1714,33 @@ def main():
             receiver.stop.set()
             stop(proc)
             sock.close()
+        shared_store = os.path.join(work, "crsfdisplay.bin")
+        proc, sock = start(image, shared_store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_type = MSP", "vtx_uart = UART3", "rx_uart = UART3"):
+                text = cli(sock, f"set {line}")
+                check(f"display port fallback setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, shared_store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            receiver.outbox.append(crsf_msp_request(bytes([0x30, 0, 1])))
+            time.sleep(2.0)
+            check("MSP display port leaves a CRSF receiver's line alone",
+                  receiver.frames.get(0x08, 0) >= 30 and len(receiver.msp_replies) >= 1, repr(receiver.frames))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
         esc = ESC()
         proc, sock = start(image, store)
         esc.start()

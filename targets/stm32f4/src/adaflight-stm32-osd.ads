@@ -33,6 +33,10 @@ package Adaflight.STM32.OSD is
 
    function Device return Adaflight.OSD_Task.Device_Kind;
    function Port_Present return Boolean;
+   --  The MSP display port's UART, when it has one, and whether an MSP line
+   --  runs there once the MSP ports open; frames go out only on such a line.
+   procedure Display_Port (On_UART : out Boolean; N : out Adaflight.STM32.USART.Number);
+   procedure Set_Display_Line (Present : Boolean);
    --  The display's columns and rows, zero before the chip answers.
    procedure Dimensions (Columns, Rows : out Interfaces.Unsigned_8);
 

@@ -4526,6 +4526,23 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
       Adaflight.STM32.Baro.Start_Calibration;
       Open_MSP_Lines;
+      --  The display port writes through an MSP line on its UART, as upstream
+      --  pushes display frames through its MSP ports.
+      declare
+         On_UART : Boolean;
+         N       : Adaflight.STM32.USART.Number;
+         Line_On : Boolean := False;
+      begin
+         Adaflight.STM32.OSD.Display_Port (On_UART, N);
+         for L in 1 .. Line_Count loop
+            if On_UART and then Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+              and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), N)
+            then
+               Line_On := True;
+            end if;
+         end loop;
+         Adaflight.STM32.OSD.Set_Display_Line (Line_On);
+      end;
       Pos_Settings :=
         Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
       Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);
