@@ -486,6 +486,7 @@ package body Adaflight.STM32.Flight is
        Build.Serial_RX_SUMD => Adaflight.Build_Features.SUMD,
        Build.Serial_RX_SUMH => Adaflight.Build_Features.SUMH,
        Build.Serial_RX_MAVLink => Adaflight.Build_Features.MAVLink_Receiver,
+       Build.Wing => Adaflight.Build_Features.Wing,
        Build.Telemetry_FrSky_Hub | Build.Telemetry_SmartPort => True,
        Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
@@ -787,7 +788,7 @@ package body Adaflight.STM32.Flight is
          M (Adaflight.Modes.Beep_GPS_Count) := True;
       end if;
       M (Adaflight.Modes.Autopilot) := True;
-      M (Adaflight.Modes.WP_Capture) := True;
+      M (Adaflight.Modes.WP_Capture) := not Adaflight.Build_Features.Wing;
       M (Adaflight.Modes.Failsafe) := True;
       M (Adaflight.Modes.Passthru) := Adaflight.Mixer_Init.Is_Fixed_Wing (Mixer);
       M (Adaflight.Modes.Beeper_On) := True;
@@ -820,7 +821,7 @@ package body Adaflight.STM32.Flight is
          end if;
       end loop;
       M (Adaflight.Modes.PID_Audio) := True;
-      M (Adaflight.Modes.Launch_Control) := True;
+      M (Adaflight.Modes.Launch_Control) := not Adaflight.Build_Features.Wing;
       M (Adaflight.Modes.MSP_Override) := Config.Rx_Config.Msp_Override_Channels_Mask /= 0;
       M (Adaflight.Modes.Stick_Command_Disable) := True;
       M (Adaflight.Modes.Ready) := True;
@@ -1063,6 +1064,10 @@ package body Adaflight.STM32.Flight is
          Loop_Rate => Config.Pid_Config, Sample_Time_Us => Adaflight.PID_Config.Loop_Time_Us (Sample_Us),
          Scale => Selection.Scale, Motors => Motors, Overflow_Protected => Selection.Overflow_Protected);
       Gyro_Settings.Motor_Telemetry := Adaflight.STM32.Motors.Telemetry_Configured (Config);
+      --  A wing build has no yaw spin recovery.
+      if Adaflight.Build_Features.Wing then
+         Gyro_Settings.Yaw_Spin := Adaflight.Gyro_Filters.Off;
+      end if;
       Adaflight.Gyro_Filters.Init (Gyro_State, Gyro_Settings);
       Adaflight.Debug.Select_Mode (Adaflight.STM32.Debug_Values.State, Config.System_Config.Debug_Mode);
       Adaflight.STM32.Debug_Values.Axis := Gyro_Settings.Debug_Axis;
@@ -2464,7 +2469,8 @@ package body Adaflight.STM32.Flight is
       Env.Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
       Adaflight.MSP_Box.Pack_Flight_Mode_Flags
         (Active => Offered, Armed => Adaflight.STM32.Pilot.Armed, Flight => Adaflight.STM32.Pilot.Flight_Modes,
-         Switches => Adaflight.STM32.Pilot.Active_Boxes, Wing => False, Packed => Status.Mode_Flags,
+         Switches => Adaflight.STM32.Pilot.Active_Boxes, Wing => Adaflight.Build_Features.Wing,
+         Packed => Status.Mode_Flags,
          Count => Status.Mode_Flag_Count);
       Ctx.Out_Views.Active := Offered;
       Ctx.Control.Armed := Adaflight.STM32.Pilot.Armed;
@@ -2599,7 +2605,8 @@ package body Adaflight.STM32.Flight is
    begin
       Adaflight.STM32.Blackbox.Set_Facts (Log_Inputs (Before));
       if Adaflight.STM32.Blackbox.Needs_Info then
-         Adaflight.STM32.Blackbox.Set_Info (Adaflight.Blackbox_Info.Sysinfo_Of (Config, Log_Facts, Wing => False));
+         Adaflight.STM32.Blackbox.Set_Info (Adaflight.Blackbox_Info.Sysinfo_Of
+           (Config, Log_Facts, Wing => Adaflight.Build_Features.Wing));
       end if;
       I.Now_Us := Before;
       I.Armed := Adaflight.STM32.Pilot.Armed;

@@ -12862,3 +12862,17 @@ nowhere. Our board wrote them onto the receiver's line, which crowded out CRSF t
 Our flight code tells the OSD, right after the MSP lines open, whether one runs on the display port's UART. Frames from
 an earlier start still go out as before. Our host smoke puts an MSP transmitter on a CRSF receiver's port with no OSD
 port, then finds CRSF telemetry at its full rate on that line and an answer through the MSP tunnel.
+
+## D612. Wing build switch (2026-11-02)
+
+A build now becomes a wing build with `FEATURES=+wing`, upstream's wing firmware variant. Our feature table gives the
+wing build no flash size, so no board gets it by default. Hosted CI builds a wing image beside the other targets.
+
+In a wing build our board hands core `PID_Config` its wing setup: fixed-wing mixer or not, and motor KV for the
+advanced airspeed model. Flight log settings, log header, MSP mode flags and build options all read the wing flag.
+
+Upstream leaves runaway takeoff prevention, launch control and yaw spin recovery out of a wing build. Our board turns
+runaway prevention off, drops launch control switch ranges before mode activation reads them, sets yaw spin recovery
+off and offers neither the launch control box nor the waypoint capture box. Settings for those features stay in our
+table until the wing settings land, where upstream removes them. Wing launch, wing settings and wing flight code
+follow as later steps.

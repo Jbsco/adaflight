@@ -1,5 +1,6 @@
 with Adaflight.Axes;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.Build_Features;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.MSP_Hardware_Out;
@@ -56,7 +57,7 @@ package body Adaflight.STM32.Blackbox is
       Rate     : constant Interfaces.Unsigned_32 :=
         SFM.Rate_Of (SFM.Baud_Index'Min (SFM.Baud_Index'Last, Natural (Config.Blackbox_Config.Blackbox_Baud)));
    begin
-      C := Adaflight.Config_Runtime.Blackbox_Settings_Of (Config.Blackbox_Config, Wing => False);
+      C := Adaflight.Config_Runtime.Blackbox_Settings_Of (Config.Blackbox_Config, Wing => Adaflight.Build_Features.Wing);
       Core.Init (L, C, Loop_Time);
       Open_Port := False;
       Shared := False;

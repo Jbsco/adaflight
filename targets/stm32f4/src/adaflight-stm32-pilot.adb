@@ -3,6 +3,7 @@ with Adaflight.Arming_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.Radio;
 with Adaflight.Board;
+with Adaflight.Build_Features;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot_Command;
 with Adaflight.Vectors;
@@ -28,6 +29,21 @@ package body Adaflight.STM32.Pilot is
    function Profile_Index (Setting : Interfaces.Unsigned_8) return Natural is
      (Natural'Min (3, Natural (Setting)));
 
+   --  The mode activation conditions, without launch control's in a wing
+   --  build, which has no launch control.
+   function Built_Conditions (Config : Adaflight.Config_Groups.Configuration) return Adaflight.Modes.Conditions is
+      C : Adaflight.Modes.Conditions := Adaflight.Config_Runtime.Conditions_Of (Config.Mode_Activation_Conditions);
+   begin
+      if Adaflight.Build_Features.Wing then
+         for Item of C loop
+            if Adaflight.Modes."=" (Item.Mode, Adaflight.Modes.Launch_Control) then
+               Item := Adaflight.Modes.Empty;
+            end if;
+         end loop;
+      end if;
+      return C;
+   end Built_Conditions;
+
    procedure Configure (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                         F : Facts) is
       P : constant Natural := Profile_Index (Config.System_Config.Pid_Profile_Index);
@@ -37,24 +53,32 @@ package body Adaflight.STM32.Pilot is
       Loop_Time : constant Adaflight.PID_Config.Loop_Time_Us :=
         Adaflight.PID_Config.Loop_Time_Us'Min (100_000, Sample * F.Loop_Ratio);
    begin
-      Conds := Adaflight.Config_Runtime.Conditions_Of (Config.Mode_Activation_Conditions);
+      Conds := Built_Conditions (Config);
       Arm_Settings := Adaflight.Config_Runtime.Arming_Settings_Of
         (Config.Arming_Config, Config.System_Config, Config.Rx_Config, Config.Flight3_D_Config,
          Config.Mixer_Config, Config.Pid_Config, Config.Scheduler_Config, Config.Motor_Config,
          Config.Failsafe_Config, Config.Gps_Rescue_Config, Config.Pid_Profiles (P), Runtime_Features, F.Sensors);
       Arm_Settings.Camera_Control := Adaflight.Board.Camera_Control_Tag /= 0;
+      if Adaflight.Build_Features.Wing then
+         Arm_Settings.Runaway_Prevention := False;
+      end if;
       RC_Config := Adaflight.Config_Runtime.RC_Config_Of
         (Config.Rx_Config, Config.Rc_Controls_Config, Config.Control_Rate_Profiles (R), Config.Pid_Config, Sample,
          Config.Flight3_D_Config, Runtime_Features);
       PID := Adaflight.Config_Runtime.PID_Profile_Of (Config.Pid_Profiles (P));
       AP_Deadband := Natural'Min (500, Natural (Config.Autopilot_Config.Stick_Deadband));
-      Adaflight.PID_Config.Configure (Runtime, PID, Loop_Time, Has_Acc => F.Sensors.Acc, Serial_Rx_Is_CRSF => F.CRSF);
-      Adaflight.STM32.DShot_Output.Set_Loop_Time (Adaflight.DShot_Command.Loop_Time_Us (Loop_Time));
       if Config.Mixer_Config.Mixer_Mode in
            1 .. Adaflight.Mixer_Init.Mixer_Mode'Pos (Adaflight.Mixer_Init.Mixer_Mode'Last) + 1
       then
          Mode := Adaflight.Mixer_Init.Mixer_Mode'Val (Config.Mixer_Config.Mixer_Mode - 1);
       end if;
+      Adaflight.PID_Config.Configure
+        (Runtime, PID, Loop_Time, Has_Acc => F.Sensors.Acc, Serial_Rx_Is_CRSF => F.CRSF,
+         Wing => (if Adaflight.Build_Features.Wing
+                  then (Build => True, Fixed_Wing => Adaflight.Mixer_Init.Is_Fixed_Wing (Mode),
+                        Motor_KV => Natural (Config.Motor_Config.Kv))
+                  else Adaflight.PID_Config.No_Wing));
+      Adaflight.STM32.DShot_Output.Set_Loop_Time (Adaflight.DShot_Command.Loop_Time_Us (Loop_Time));
    end Configure;
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
@@ -69,7 +93,7 @@ package body Adaflight.STM32.Pilot is
 
    procedure Reload_Modes (Config : Adaflight.Config_Groups.Configuration) is
    begin
-      Conds := Adaflight.Config_Runtime.Conditions_Of (Config.Mode_Activation_Conditions);
+      Conds := Built_Conditions (Config);
       Adaflight.Modes.Analyze (M, Conds);
    end Reload_Modes;
 
