@@ -42,13 +42,14 @@ if [ -n "$PATHS" ]; then
     echo "$PATHS" | sed 's/^/    /'
     FAIL=1
 fi
-# The settings table and its vectors keep the reference's lookup strings verbatim, and two of
+# The settings table and both builds' vectors keep the reference's lookup strings verbatim, and two of
 # the gated names stand in them as whole upper-case strings (DESIGN.md D2); nothing else may.
-VERBATIM='core/src/adaflight-settings_table.adb tests/vectors/settings.csv'
+VERBATIM='core/src/adaflight-settings_table.adb tests/vectors/settings.csv tests/vectors/settings-wing.csv'
 LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gnc|lasp' 2>/dev/null \
        | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' | grep -v '^.gitmodules$' \
        | grep -v '^DIVERGENCES.md$' | grep -v '^docs/upstream/' \
-       | grep -vxF -e core/src/adaflight-settings_table.adb -e tests/vectors/settings.csv || true)
+       | grep -vxF -e core/src/adaflight-settings_table.adb -e tests/vectors/settings.csv \
+                    -e tests/vectors/settings-wing.csv || true)
 for f in $VERBATIM; do
     if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
         EXTRA=$(grep -noiE 'betaflight|cleanflight|inav|ema-gnc|lasp' "$f" | grep -vE ':(BETAFLIGHT|INAV)$' || true)

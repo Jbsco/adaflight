@@ -1115,6 +1115,34 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Crsf_Tlm_Accgyro               : Unsigned_8;
       Providers                      : Telemetry_Provider_Record_List_3;
    end record;
+   type Alt_Hold_Config_Wing_Record is record
+      Dummy : Unsigned_8;
+   end record;
+   type Gps_Rescue_Wing_Record is record
+      Allow_Arming_Without_Fix : Unsigned_8;
+      Min_Sats                 : Unsigned_8;
+   end record;
+   type Launch_Wing_Config_Record is record
+      Climb_Angle_Deg        : Unsigned_8;
+      Max_Angle_Deg          : Unsigned_8;
+      Detect_Accel_Decig     : Unsigned_8;
+      Detect_Velocity_Cm_S   : Unsigned_16;
+      Detect_Time_Ms         : Unsigned_16;
+      Idle_Throttle_Percent  : Unsigned_8;
+      Idle_Delay_Ms          : Unsigned_16;
+      Throttle_Percent       : Unsigned_8;
+      Motor_Delay_Ms         : Unsigned_16;
+      Spinup_Time_Ms         : Unsigned_16;
+      Min_Time_Ms            : Unsigned_16;
+      Timeout_Ms             : Unsigned_16;
+      Max_Altitude_M         : Unsigned_16;
+      End_Time_Ms            : Unsigned_16;
+      Abort_Deadband_Percent : Unsigned_8;
+      Abort_Angle_Deg        : Unsigned_8;
+   end record;
+   type Pos_Hold_Config_Wing_Record is record
+      Dummy : Unsigned_8;
+   end record;
 
    type Configuration is record
       Blackbox_Config               : Blackbox_Config_Record;
@@ -1221,9 +1249,17 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Sonar_Config                  : Sonar_Config_Record;
       Voltage_Sensor_Adc_Config     : Voltage_Sensor_Adc_Config_Record_List_1;
       Telemetry_Config              : Telemetry_Config_Record;
+      Alt_Hold_Wing_Config          : Alt_Hold_Config_Wing_Record;
+      Gps_Rescue_Wing_Config        : Gps_Rescue_Wing_Record;
+      Launch_Wing_Config            : Launch_Wing_Config_Record;
+      Pos_Hold_Wing_Config          : Pos_Hold_Config_Wing_Record;
    end record;
 
    Defaults : constant Configuration;
+
+   --  The wing build's defaults: the multirotor ones with the groups whose
+   --  defaults the wing build sets otherwise.
+   function Wing_Defaults return Configuration;
 
    --  The profiles a setting has: one for a setting outside the profiles.
    function Profile_Count (S : Setting) return Positive is
@@ -1241,22 +1277,28 @@ package Adaflight.Config_Groups with SPARK_Mode is
           Crash_Limit_Yaw | Crash_Recovery | Iterm_Rotation | Iterm_Relax | Iterm_Relax_Type | Iterm_Relax_Cutoff |
           Iterm_Windup | Pidsum_Limit | Pidsum_Limit_Yaw | Yaw_Lowpass_Hz | Throttle_Boost | Throttle_Boost_Cutoff |
           Acro_Trainer_Angle_Limit | Acro_Trainer_Lookahead_Ms | Acro_Trainer_Debug_Axis | Acro_Trainer_Gain | P_Pitch
-          | I_Pitch | D_Pitch | F_Pitch | P_Roll | I_Roll | D_Roll | F_Roll | P_Yaw | I_Yaw | D_Yaw | F_Yaw |
-          Angle_P_Gain | Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit | Angle_Earth_Ref |
-          Horizon_Level_Strength | Horizon_Limit_Sticks | Horizon_Limit_Degrees | Horizon_Ignore_Sticks |
-          Horizon_Delay_Ms | Chirp_Lag_Freq_Hz | Chirp_Lead_Freq_Hz | Chirp_Amplitude_Roll | Chirp_Amplitude_Pitch |
-          Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz | Chirp_Frequency_End_Deci_Hz | Chirp_Time_Seconds |
-          Chirp_Repeat | D_Max_Roll | D_Max_Pitch | D_Max_Yaw | D_Max_Gain | D_Max_Advance | Motor_Output_Limit |
-          Auto_Profile_Cell_Count | Launch_Control_Mode | Launch_Trigger_Allow_Reset | Launch_Trigger_Throttle_Percent
-          | Launch_Angle_Limit | Launch_Control_Gain | Thrust_Linear | Feedforward_Transition | Feedforward_Averaging
-          | Feedforward_Smooth_Factor | Feedforward_Jitter_Factor | Feedforward_Boost | Feedforward_Max_Rate_Limit |
-          Feedforward_Yaw_Hold_Gain | Feedforward_Yaw_Hold_Time | Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain
-          | Dyn_Idle_D_Gain | Dyn_Idle_Max_Increase | Level_Race_Mode | Simplified_Pids_Mode |
-          Simplified_Master_Multiplier | Simplified_I_Gain | Simplified_D_Gain | Simplified_Pi_Gain |
-          Simplified_D_Max_Gain | Simplified_Feedforward_Gain | Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain |
-          Simplified_Dterm_Filter | Simplified_Dterm_Filter_Multiplier | Tpa_Mode | Tpa_Rate | Tpa_Breakpoint |
-          Tpa_Low_Rate | Tpa_Low_Breakpoint | Tpa_Low_Always | Ez_Landing_Threshold | Ez_Landing_Limit |
-          Ez_Landing_Speed | Landing_Disarm_Threshold => 4,
+          | I_Pitch | D_Pitch | F_Pitch | P_Roll | I_Roll | D_Roll | F_Roll | P_Yaw | I_Yaw | D_Yaw | F_Yaw | S_Pitch
+          | S_Roll | S_Yaw | Angle_P_Gain | Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit |
+          Angle_Earth_Ref | Horizon_Level_Strength | Horizon_Limit_Sticks | Horizon_Limit_Degrees |
+          Horizon_Ignore_Sticks | Horizon_Delay_Ms | Chirp_Lag_Freq_Hz | Chirp_Lead_Freq_Hz | Chirp_Amplitude_Roll |
+          Chirp_Amplitude_Pitch | Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz | Chirp_Frequency_End_Deci_Hz |
+          Chirp_Time_Seconds | Chirp_Repeat | D_Max_Roll | D_Max_Pitch | D_Max_Yaw | D_Max_Gain | D_Max_Advance |
+          Motor_Output_Limit | Auto_Profile_Cell_Count | Launch_Control_Mode | Launch_Trigger_Allow_Reset |
+          Launch_Trigger_Throttle_Percent | Launch_Angle_Limit | Launch_Control_Gain | Thrust_Linear |
+          Feedforward_Transition | Feedforward_Averaging | Feedforward_Smooth_Factor | Feedforward_Jitter_Factor |
+          Feedforward_Boost | Feedforward_Max_Rate_Limit | Feedforward_Yaw_Hold_Gain | Feedforward_Yaw_Hold_Time |
+          Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain | Dyn_Idle_D_Gain | Dyn_Idle_Max_Increase |
+          Level_Race_Mode | Simplified_Pids_Mode | Simplified_Master_Multiplier | Simplified_I_Gain |
+          Simplified_D_Gain | Simplified_Pi_Gain | Simplified_D_Max_Gain | Simplified_Feedforward_Gain |
+          Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain | Simplified_Dterm_Filter |
+          Simplified_Dterm_Filter_Multiplier | Tpa_Mode | Tpa_Rate | Tpa_Breakpoint | Tpa_Low_Rate |
+          Tpa_Low_Breakpoint | Tpa_Low_Always | Tpa_Speed_Type | Tpa_Speed_Basic_Delay | Tpa_Speed_Basic_Gravity |
+          Tpa_Speed_Adv_Prop_Pitch | Tpa_Speed_Adv_Mass | Tpa_Speed_Adv_Drag_K | Tpa_Speed_Adv_Thrust |
+          Tpa_Speed_Max_Voltage | Tpa_Speed_Pitch_Offset | Tpa_Curve_Type | Tpa_Curve_Stall_Throttle |
+          Tpa_Curve_Pid_Thr0 | Tpa_Curve_Pid_Thr100 | Tpa_Curve_Expo | Ez_Landing_Threshold | Ez_Landing_Limit |
+          Ez_Landing_Speed | Landing_Disarm_Threshold | Spa_Roll_Center | Spa_Roll_Width | Spa_Roll_Mode |
+          Spa_Pitch_Center | Spa_Pitch_Width | Spa_Pitch_Mode | Spa_Yaw_Center | Spa_Yaw_Width | Spa_Yaw_Mode |
+          Yaw_Type | Angle_Pitch_Offset => 4,
         when others => 1);
 
    --  The values an array setting holds: one for the others.
@@ -1544,6 +1586,11 @@ private
      0, 0, 0), Mavlink_Mah_As_Heading_Divisor => 0, Disabled_Sensors => 1540096, Mavlink_Min_Txbuff => 35,
      Mavlink_Extended_Status_Rate => 2, Mavlink_Rc_Channels_Rate => 1, Mavlink_Position_Rate => 2,
      Mavlink_Extra1_Rate => 2, Mavlink_Extra2_Rate => 2, Mavlink_Extra3_Rate => 1, Crsf_Tlm_Accgyro => 0, Providers
-     => (others => (Protocol => 0, Uart => -1, Baud => 0))));
+     => (others => (Protocol => 0, Uart => -1, Baud => 0))),  Alt_Hold_Wing_Config => (Dummy => 0),
+     Gps_Rescue_Wing_Config => (Allow_Arming_Without_Fix => 0, Min_Sats => 8),  Launch_Wing_Config =>
+     (Climb_Angle_Deg => 18, Max_Angle_Deg => 45, Detect_Accel_Decig => 19, Detect_Velocity_Cm_S => 300,
+     Detect_Time_Ms => 40, Idle_Throttle_Percent => 5, Idle_Delay_Ms => 0, Throttle_Percent => 80, Motor_Delay_Ms =>
+     500, Spinup_Time_Ms => 100, Min_Time_Ms => 0, Timeout_Ms => 5000, Max_Altitude_M => 0, End_Time_Ms => 3000,
+     Abort_Deadband_Percent => 20, Abort_Angle_Deg => 60),  Pos_Hold_Wing_Config => (Dummy => 0));
 
 end Adaflight.Config_Groups;

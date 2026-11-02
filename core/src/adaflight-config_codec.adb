@@ -14,7 +14,7 @@ package body Adaflight.Config_Codec with SPARK_Mode => Off is
       Booleans : Boolean;
    end record;
 
-   Runs : constant array (1 .. 245) of Run :=
+   Runs : constant array (1 .. 252) of Run :=
      ((0, 10, False), (0, 2, False), (0, 17, False), (0, 4, False), (0, 1, False), (2, 18, False), (0, 4, False),
       (0, 22, False), (0, 1, False), (0, 31, False), (0, 3, False), (0, 5, False), (6, 9, False), (16, 9, False),
       (26, 9, False), (36, 9, False), (46, 9, False), (56, 9, False), (66, 9, False), (76, 9, False), (86, 9, False),
@@ -51,7 +51,8 @@ package body Adaflight.Config_Codec with SPARK_Mode => Off is
       (4, 12, False), (0, 10, False), (0, 21, False), (0, 5, False), (5, 2, True), (7, 6, False), (13, 1, True),
       (0, 12, False), (0, 22, False), (0, 4, False), (0, 4, False), (0, 1, False), (2, 3, False), (0, 3, False),
       (4, 32, False), (0, 1, False), (2, 4, False), (0, 4, False), (0, 2, False), (0, 2, False), (0, 3, False),
-      (0, 27, False), (28, 2, False), (32, 21, False));
+      (0, 27, False), (28, 2, False), (32, 21, False), (0, 1, False), (0, 2, False), (0, 3, False), (4, 5, False),
+      (10, 3, False), (14, 14, False), (0, 1, False));
 
    --  Each group's runs, its offset in the configuration record, and a profile's size there, zero for a
    --  group without profiles.
@@ -82,13 +83,14 @@ package body Adaflight.Config_Codec with SPARK_Mode => Off is
       (219, 219, 4662, 0), (220, 222, 4698, 0), (223, 223, 4714, 0), (224, 224, 4724, 22), (225, 228, 4790, 0),
       (229, 229, 4804, 0), (230, 230, 4816, 0), (231, 231, 4838, 0), (232, 232, 4842, 0), (233, 234, 4846, 0),
       (235, 236, 4852, 0), (237, 238, 4888, 0), (239, 239, 4894, 0), (240, 240, 4898, 0), (241, 241, 4900, 0),
-      (242, 242, 4902, 0), (243, 245, 4908, 0));
+      (242, 242, 4902, 0), (243, 245, 4908, 0), (246, 246, 4964, 0), (247, 247, 4965, 0), (248, 251, 4968, 0),
+      (252, 252, 4996, 0));
 
    --  The elements of each group in the data: a profile group's profiles, one for the others.
    Copies : constant array (Registry'Range) of Positive :=
      (1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
 
    --  A group's position in the registry, zero for a number without a group.
    function Index_Of (Number : Natural) return Natural is

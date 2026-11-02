@@ -611,6 +611,7 @@ package body Adaflight.STM32.Flight is
       DShot_Protocol  => False,
       ESC_Sensor      => False,
       Build_Options   => CLI.Build_Option_List (Image_Options.Numbers),
+      Wing            => False,
       Option_Count    => Image_Options.Length,
       Supported_Features => Adaflight.Config_Fix.Supported_Features
         or (if Adaflight.STM32.MCU.UDP_Receiver_Available then Adaflight.Config_Fix.Feature_RX_UDP else 0),

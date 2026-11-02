@@ -27,8 +27,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Table_Led_Profile, Table_Ledstrip_Color, Table_Gyro_Filter_Debug, Table_Position_Alt_Source,
       Table_Off_On_Auto, Table_Feedforward_Averaging, Table_Dshot_Bitbanged_Timer, Table_Osd_Displayport_Device,
       Table_Vtx_Type, Table_Osd_Logo_On_Arming, Table_Osd_Custom_Text_Terminator, Table_Mixer_Type,
-      Table_Simplified_Tuning_Pids_Mode, Table_Cms_Background, Table_Freq_Domain, Table_Transponder_Provider,
-      Table_Baud_Rate, Table_Telemetry_Protocol);
+      Table_Simplified_Tuning_Pids_Mode, Table_Cms_Background, Table_Freq_Domain, Table_Tpa_Curve_Type,
+      Table_Tpa_Speed_Type, Table_Yaw_Type, Table_Transponder_Provider, Table_Baud_Rate, Table_Telemetry_Protocol);
 
    type Setting is
      (Gyro_Hardware_Lpf, Gyro_Lpf1_Type, Gyro_Lpf1_Static_Hz, Gyro_Lpf2_Type, Gyro_Lpf2_Static_Hz,
@@ -83,7 +83,10 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Gps_Lap_Timer_Gate_Lat, Gps_Lap_Timer_Gate_Lon, Gps_Lap_Timer_Min_Lap_Time_S,
       Gps_Lap_Timer_Gate_Tolerance_M, Deadband, Yaw_Deadband, Yaw_Control_Reversed, Alt_Hold_Climb_Rate,
       Alt_Hold_Deadband, Pos_Hold_Deadband, Poshold_Position_Source, Poshold_Opticalflow_Quality_Min,
-      Poshold_Opticalflow_Max_Range, Pid_Process_Denom, Runaway_Takeoff_Prevention,
+      Poshold_Opticalflow_Max_Range, Launch_Climb_Angle, Launch_Max_Angle, Launch_Detect_Accel,
+      Launch_Detect_Velocity, Launch_Detect_Time, Launch_Idle_Throttle, Launch_Idle_Delay, Launch_Throttle,
+      Launch_Motor_Delay, Launch_Spinup_Time, Launch_Min_Time, Launch_Timeout, Launch_Max_Altitude,
+      Launch_End_Time, Launch_Abort_Deadband, Launch_Abort_Angle, Pid_Process_Denom, Runaway_Takeoff_Prevention,
       Runaway_Takeoff_Deactivate_Delay, Runaway_Takeoff_Deactivate_Throttle_Percent, Profile_Name,
       Dterm_Lpf1_Dyn_Min_Hz, Dterm_Lpf1_Dyn_Max_Hz, Dterm_Lpf1_Dyn_Expo, Dterm_Lpf1_Type, Dterm_Lpf1_Static_Hz,
       Dterm_Lpf2_Type, Dterm_Lpf2_Static_Hz, Dterm_Notch_Hz, Dterm_Notch_Cutoff, Vbat_Sag_Compensation,
@@ -93,39 +96,44 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Iterm_Relax_Type, Iterm_Relax_Cutoff, Iterm_Windup, Pidsum_Limit, Pidsum_Limit_Yaw, Yaw_Lowpass_Hz,
       Throttle_Boost, Throttle_Boost_Cutoff, Acro_Trainer_Angle_Limit, Acro_Trainer_Lookahead_Ms,
       Acro_Trainer_Debug_Axis, Acro_Trainer_Gain, P_Pitch, I_Pitch, D_Pitch, F_Pitch, P_Roll, I_Roll, D_Roll,
-      F_Roll, P_Yaw, I_Yaw, D_Yaw, F_Yaw, Angle_P_Gain, Angle_Feedforward, Angle_Feedforward_Smoothing_Ms,
-      Angle_Limit, Angle_Earth_Ref, Horizon_Level_Strength, Horizon_Limit_Sticks, Horizon_Limit_Degrees,
-      Horizon_Ignore_Sticks, Horizon_Delay_Ms, Chirp_Lag_Freq_Hz, Chirp_Lead_Freq_Hz, Chirp_Amplitude_Roll,
-      Chirp_Amplitude_Pitch, Chirp_Amplitude_Yaw, Chirp_Frequency_Start_Deci_Hz, Chirp_Frequency_End_Deci_Hz,
-      Chirp_Time_Seconds, Chirp_Repeat, D_Max_Roll, D_Max_Pitch, D_Max_Yaw, D_Max_Gain, D_Max_Advance,
-      Motor_Output_Limit, Auto_Profile_Cell_Count, Launch_Control_Mode, Launch_Trigger_Allow_Reset,
-      Launch_Trigger_Throttle_Percent, Launch_Angle_Limit, Launch_Control_Gain, Thrust_Linear,
-      Feedforward_Transition, Feedforward_Averaging, Feedforward_Smooth_Factor, Feedforward_Jitter_Factor,
-      Feedforward_Boost, Feedforward_Max_Rate_Limit, Feedforward_Yaw_Hold_Gain, Feedforward_Yaw_Hold_Time,
-      Dyn_Idle_Min_Rpm, Dyn_Idle_P_Gain, Dyn_Idle_I_Gain, Dyn_Idle_D_Gain, Dyn_Idle_Max_Increase,
-      Level_Race_Mode, Simplified_Pids_Mode, Simplified_Master_Multiplier, Simplified_I_Gain, Simplified_D_Gain,
-      Simplified_Pi_Gain, Simplified_D_Max_Gain, Simplified_Feedforward_Gain, Simplified_Pitch_D_Gain,
-      Simplified_Pitch_Pi_Gain, Simplified_Dterm_Filter, Simplified_Dterm_Filter_Multiplier,
-      Simplified_Gyro_Filter, Simplified_Gyro_Filter_Multiplier, Tpa_Mode, Tpa_Rate, Tpa_Breakpoint,
-      Tpa_Low_Rate, Tpa_Low_Breakpoint, Tpa_Low_Always, Ez_Landing_Threshold, Ez_Landing_Limit, Ez_Landing_Speed,
-      Landing_Disarm_Threshold, Tlm_Inverted, Tlm_Halfduplex, Telemetry_1_Protocol, Telemetry_1_Uart,
-      Telemetry_1_Baud, Telemetry_2_Protocol, Telemetry_2_Uart, Telemetry_2_Baud, Telemetry_3_Protocol,
-      Telemetry_3_Uart, Telemetry_3_Baud, Crsf_Tlm_Accgyro, Frsky_Default_Lat, Frsky_Default_Long,
-      Frsky_Gps_Format, Frsky_Unit, Frsky_Vfas_Precision, Hott_Alarm_Int, Pid_In_Tlm, Report_Cell_Voltage,
-      Ibus_Sensor, Mavlink_Mah_As_Heading_Divisor, Mavlink_Min_Txbuff, Mavlink_Ext_Status_Rate,
-      Mavlink_Rc_Chan_Rate, Mavlink_Pos_Rate, Mavlink_Extra1_Rate, Mavlink_Extra2_Rate, Mavlink_Extra3_Rate,
-      Telemetry_Disabled_Voltage, Telemetry_Disabled_Current, Telemetry_Disabled_Fuel, Telemetry_Disabled_Mode,
-      Telemetry_Disabled_Acc_X, Telemetry_Disabled_Acc_Y, Telemetry_Disabled_Acc_Z, Telemetry_Disabled_Pitch,
-      Telemetry_Disabled_Roll, Telemetry_Disabled_Heading, Telemetry_Disabled_Altitude, Telemetry_Disabled_Vario,
-      Telemetry_Disabled_Lat_Long, Telemetry_Disabled_Ground_Speed, Telemetry_Disabled_Distance,
-      Telemetry_Disabled_Esc_Current, Telemetry_Disabled_Esc_Voltage, Telemetry_Disabled_Esc_Rpm,
-      Telemetry_Disabled_Esc_Temperature, Telemetry_Disabled_Temperature, Telemetry_Disabled_Cap_Used,
-      Ledstrip_Visual_Beeper, Ledstrip_Visual_Beeper_Color, Ledstrip_Grb_Rgb, Ledstrip_Profile,
-      Ledstrip_Race_Color, Ledstrip_Beacon_Color, Ledstrip_Beacon_Period_Ms, Ledstrip_Beacon_Percent,
-      Ledstrip_Beacon_Armed_Only, Ledstrip_Brightness, Ledstrip_Rainbow_Delta, Ledstrip_Rainbow_Freq,
-      Transponder_Provider, Transponder_Data, Sdcard_Detect_Inverted, Sdcard_Mode, Sdcard_Spi_Bus, Osd_Units,
-      Osd_Warn_Bitmask, Osd_Rssi_Alarm, Osd_Link_Quality_Alarm, Osd_Rssi_Dbm_Alarm, Osd_Rsnr_Alarm,
-      Osd_Cap_Alarm, Osd_Alt_Alarm, Osd_Distance_Alarm, Osd_Esc_Temp_Alarm, Osd_Esc_Rpm_Alarm,
+      F_Roll, P_Yaw, I_Yaw, D_Yaw, F_Yaw, S_Pitch, S_Roll, S_Yaw, Angle_P_Gain, Angle_Feedforward,
+      Angle_Feedforward_Smoothing_Ms, Angle_Limit, Angle_Earth_Ref, Horizon_Level_Strength, Horizon_Limit_Sticks,
+      Horizon_Limit_Degrees, Horizon_Ignore_Sticks, Horizon_Delay_Ms, Chirp_Lag_Freq_Hz, Chirp_Lead_Freq_Hz,
+      Chirp_Amplitude_Roll, Chirp_Amplitude_Pitch, Chirp_Amplitude_Yaw, Chirp_Frequency_Start_Deci_Hz,
+      Chirp_Frequency_End_Deci_Hz, Chirp_Time_Seconds, Chirp_Repeat, D_Max_Roll, D_Max_Pitch, D_Max_Yaw,
+      D_Max_Gain, D_Max_Advance, Motor_Output_Limit, Auto_Profile_Cell_Count, Launch_Control_Mode,
+      Launch_Trigger_Allow_Reset, Launch_Trigger_Throttle_Percent, Launch_Angle_Limit, Launch_Control_Gain,
+      Thrust_Linear, Feedforward_Transition, Feedforward_Averaging, Feedforward_Smooth_Factor,
+      Feedforward_Jitter_Factor, Feedforward_Boost, Feedforward_Max_Rate_Limit, Feedforward_Yaw_Hold_Gain,
+      Feedforward_Yaw_Hold_Time, Dyn_Idle_Min_Rpm, Dyn_Idle_P_Gain, Dyn_Idle_I_Gain, Dyn_Idle_D_Gain,
+      Dyn_Idle_Max_Increase, Level_Race_Mode, Simplified_Pids_Mode, Simplified_Master_Multiplier,
+      Simplified_I_Gain, Simplified_D_Gain, Simplified_Pi_Gain, Simplified_D_Max_Gain,
+      Simplified_Feedforward_Gain, Simplified_Pitch_D_Gain, Simplified_Pitch_Pi_Gain, Simplified_Dterm_Filter,
+      Simplified_Dterm_Filter_Multiplier, Simplified_Gyro_Filter, Simplified_Gyro_Filter_Multiplier, Tpa_Mode,
+      Tpa_Rate, Tpa_Breakpoint, Tpa_Low_Rate, Tpa_Low_Breakpoint, Tpa_Low_Always, Tpa_Speed_Type,
+      Tpa_Speed_Basic_Delay, Tpa_Speed_Basic_Gravity, Tpa_Speed_Adv_Prop_Pitch, Tpa_Speed_Adv_Mass,
+      Tpa_Speed_Adv_Drag_K, Tpa_Speed_Adv_Thrust, Tpa_Speed_Max_Voltage, Tpa_Speed_Pitch_Offset, Tpa_Curve_Type,
+      Tpa_Curve_Stall_Throttle, Tpa_Curve_Pid_Thr0, Tpa_Curve_Pid_Thr100, Tpa_Curve_Expo, Ez_Landing_Threshold,
+      Ez_Landing_Limit, Ez_Landing_Speed, Landing_Disarm_Threshold, Spa_Roll_Center, Spa_Roll_Width,
+      Spa_Roll_Mode, Spa_Pitch_Center, Spa_Pitch_Width, Spa_Pitch_Mode, Spa_Yaw_Center, Spa_Yaw_Width,
+      Spa_Yaw_Mode, Yaw_Type, Angle_Pitch_Offset, Tlm_Inverted, Tlm_Halfduplex, Telemetry_1_Protocol,
+      Telemetry_1_Uart, Telemetry_1_Baud, Telemetry_2_Protocol, Telemetry_2_Uart, Telemetry_2_Baud,
+      Telemetry_3_Protocol, Telemetry_3_Uart, Telemetry_3_Baud, Crsf_Tlm_Accgyro, Frsky_Default_Lat,
+      Frsky_Default_Long, Frsky_Gps_Format, Frsky_Unit, Frsky_Vfas_Precision, Hott_Alarm_Int, Pid_In_Tlm,
+      Report_Cell_Voltage, Ibus_Sensor, Mavlink_Mah_As_Heading_Divisor, Mavlink_Min_Txbuff,
+      Mavlink_Ext_Status_Rate, Mavlink_Rc_Chan_Rate, Mavlink_Pos_Rate, Mavlink_Extra1_Rate, Mavlink_Extra2_Rate,
+      Mavlink_Extra3_Rate, Telemetry_Disabled_Voltage, Telemetry_Disabled_Current, Telemetry_Disabled_Fuel,
+      Telemetry_Disabled_Mode, Telemetry_Disabled_Acc_X, Telemetry_Disabled_Acc_Y, Telemetry_Disabled_Acc_Z,
+      Telemetry_Disabled_Pitch, Telemetry_Disabled_Roll, Telemetry_Disabled_Heading, Telemetry_Disabled_Altitude,
+      Telemetry_Disabled_Vario, Telemetry_Disabled_Lat_Long, Telemetry_Disabled_Ground_Speed,
+      Telemetry_Disabled_Distance, Telemetry_Disabled_Esc_Current, Telemetry_Disabled_Esc_Voltage,
+      Telemetry_Disabled_Esc_Rpm, Telemetry_Disabled_Esc_Temperature, Telemetry_Disabled_Temperature,
+      Telemetry_Disabled_Cap_Used, Ledstrip_Visual_Beeper, Ledstrip_Visual_Beeper_Color, Ledstrip_Grb_Rgb,
+      Ledstrip_Profile, Ledstrip_Race_Color, Ledstrip_Beacon_Color, Ledstrip_Beacon_Period_Ms,
+      Ledstrip_Beacon_Percent, Ledstrip_Beacon_Armed_Only, Ledstrip_Brightness, Ledstrip_Rainbow_Delta,
+      Ledstrip_Rainbow_Freq, Transponder_Provider, Transponder_Data, Sdcard_Detect_Inverted, Sdcard_Mode,
+      Sdcard_Spi_Bus, Osd_Units, Osd_Warn_Bitmask, Osd_Rssi_Alarm, Osd_Link_Quality_Alarm, Osd_Rssi_Dbm_Alarm,
+      Osd_Rsnr_Alarm, Osd_Cap_Alarm, Osd_Alt_Alarm, Osd_Distance_Alarm, Osd_Esc_Temp_Alarm, Osd_Esc_Rpm_Alarm,
       Osd_Esc_Current_Alarm, Osd_Core_Temp_Alarm, Osd_Ah_Max_Pit, Osd_Ah_Max_Rol, Osd_Ah_Invert,
       Osd_Logo_On_Arming, Osd_Logo_On_Arming_Duration, Osd_Arming_Logo, Osd_Use_Quick_Menu, Osd_Show_Spec_Prearm,
       Osd_Tim1, Osd_Tim2, Osd_Vbat_Pos, Osd_Rssi_Pos, Osd_Link_Quality_Pos, Osd_Link_Tx_Power_Pos,
@@ -217,7 +225,13 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Group      : Group_Number := 0;
    end record with Pack;
 
-   function Describe (S : Setting) return Info;
+   function Describe (S : Setting; Wing : Boolean := False) return Info;
+
+   --  Whether the multirotor or the wing build has a setting.
+   function In_Build (S : Setting; Wing : Boolean) return Boolean;
+
+   --  Whether the multirotor or the wing build has a lookup table.
+   function Table_In_Build (T : Lookup_Table; Wing : Boolean) return Boolean;
 
    --  The longest setting name and the longest value name.
    Max_Name_Length  : constant := 43;
@@ -226,11 +240,11 @@ package Adaflight.Settings_Table with SPARK_Mode is
    function Name (S : Setting) return String
      with Post => Name'Result'Length in 1 .. Max_Name_Length;
 
-   function Value_Count (T : Lookup_Table) return Natural;
+   function Value_Count (T : Lookup_Table; Wing : Boolean := False) return Natural;
 
    --  A value's name, empty where the build has no such value.
    function Value_Name (T : Lookup_Table; Index : Natural) return String
-     with Pre  => Index < Value_Count (T),
+     with Pre  => Index < Value_Count (T) or else Index < Value_Count (T, Wing => True),
           Post => Value_Name'Result'Length <= Max_Value_Length;
 
 end Adaflight.Settings_Table;

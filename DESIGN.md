@@ -12876,3 +12876,25 @@ runaway prevention off, drops launch control switch ranges before mode activatio
 off and offers neither the launch control box nor the waypoint capture box. Settings for those features stay in our
 table until the wing settings land, where upstream removes them. Wing launch, wing settings and wing flight code
 follow as later steps.
+
+## D613. Settings tables of both builds (2026-11-02)
+
+Core `Settings_Table`, `Config_Groups` and `Config_Codec` now hold wing build settings and parameter groups beside
+multirotor ones. We generate them from a second settings oracle, built with the wing option, and merge both setting
+lists in source order, which shared settings keep in both builds. Each setting and lookup table names the builds it
+exists in. Value counts and limits take a build where wing values differ: one more TPA mode, and a wider low TPA rate.
+
+A wing build stores other layouts under three upstream group numbers: GPS rescue, altitude hold and position hold. Our
+configuration keeps both layouts as separate records. Wing records go after multirotor ones, stored under numbers
+upstream leaves unused, so a multirotor image keeps its layout. Launch settings get their own group there too. Wing
+defaults differ from multirotor defaults only in runaway takeoff fields of PID configuration.
+
+Command line and MSP setting messages now list and find only settings of a running build. Every caller passes the
+multirotor build in this step, so behavior stays as it was. Wing command line follows.
+
+Upstream's wing table marks SPA modes and yaw type as master values inside PID profiles, so its command line only ever
+reaches profile 0 while flight code reads whichever profile is active. Our table makes them profile values, and our wing
+oracle has that fix. Both builds' tables cost about 3 KB of flash in every image.
+
+Our checker walks each build's settings and defaults through its own vector files. Configuration hashes cover
+multirotor groups, which a multirotor oracle encodes.
