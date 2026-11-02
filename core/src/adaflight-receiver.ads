@@ -121,6 +121,17 @@ package Adaflight.Receiver with SPARK_Mode is
    end record
      with Dynamic_Predicate => Frame_RSSI_Accumulator.Sum <= Frame_RSSI_Accumulator.Count * RSSI_Max;
 
+   --  What the frame check and the channel calculation wrote where upstream
+   --  records a debug value: that the check ran past a running receiver
+   --  task, that it read a serial-class frame and that frame's failsafe
+   --  flag, and that the calculation applied the signal loss behaviour.
+   type Debug_Taps is record
+      Checked        : Boolean := False;
+      Status_Read    : Boolean := False;
+      Frame_Failsafe : Boolean := False;
+      Loss_Applied   : Boolean := False;
+   end record;
+
    type State is record
       Raw                 : Values := (others => 0.0);
       Data                : Values := (others => 1500.0);
@@ -162,6 +173,7 @@ package Adaflight.Receiver with SPARK_Mode is
       ADC_Update_At_Us    : Time_Us := 0;
       RSSI_From           : RSSI_Source := None;
       Quality_From        : Link_Quality_Source := None;
+      Taps                : Debug_Taps;
    end record;
 
    --  The frame the provider reports: the flags of a serial-class frame, or

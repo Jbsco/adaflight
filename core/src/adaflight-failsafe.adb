@@ -181,6 +181,7 @@ package body Adaflight.Failsafe with SPARK_Mode is
       if not S.Monitoring then
          return;
       end if;
+      S.Taps := (Updated => True, Receiving_At_Entry => Receiving);
       if In_Flight.Switch_On and then C.Switch = Stage_2 then
          Receiving := False;
       end if;
