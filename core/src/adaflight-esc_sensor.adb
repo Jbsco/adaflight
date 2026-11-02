@@ -71,6 +71,7 @@ package body Adaflight.ESC_Sensor with SPARK_Mode is
       Now_Ms : constant Unsigned_32 := Now / 1000;
    begin
       Request := False;
+      E.Taps := (others => <>);
       if not Motors_Enabled then
          return;
       end if;
@@ -97,16 +98,19 @@ package body Adaflight.ESC_Sensor with SPARK_Mode is
                         Consumption => Integer_32 (Word (E.Frame (5), E.Frame (6))),
                         Rpm         => To_Signed (Word (E.Frame (7), E.Frame (8))));
                      E.Combined_Stale := True;
+                     E.Taps := (Frame_Decoded => True, Frame_Motor => E.Motor, others => False);
                      Next_Motor (E, Count);
                      E.State := Ready;
                   else
                      Age (E, E.Motor);
+                     E.Taps.Checksum_Failed := True;
                      Next_Motor (E, Count);
                      E.State := Ready;
                   end if;
                end if;
             else
                Age (E, E.Motor);
+               E.Taps.Timed_Out := True;
                Next_Motor (E, Count);
                E.State := Ready;
             end if;

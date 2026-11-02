@@ -58,6 +58,15 @@ package Adaflight.ESC_Sensor with SPARK_Mode is
    subtype Frame_Index is Natural range 0 .. Frame_Size - 1;
    type Frame_Bytes is array (Frame_Index) of Byte;
 
+   --  What a polling pass wrote where upstream records a debug value: a
+   --  frame decoded and its motor, a reply timed out, a checksum failed.
+   type Debug_Taps is record
+      Frame_Decoded   : Boolean := False;
+      Frame_Motor     : Motor_Index := 0;
+      Timed_Out       : Boolean := False;
+      Checksum_Failed : Boolean := False;
+   end record;
+
    type Sensor is record
       Data            : Readings;
       Frame           : Frame_Bytes := (others => 0);
@@ -68,6 +77,11 @@ package Adaflight.ESC_Sensor with SPARK_Mode is
       Motor           : Motor_Index := 0;
       Combined        : Reading;
       Combined_Stale  : Boolean := True;
+      --  Replies timed out and checksums failed, counted by the recorder
+      --  while its mode is selected, as upstream counts inside its write.
+      Timeouts        : Unsigned_16 := 0;
+      Checksum_Errors : Unsigned_16 := 0;
+      Taps            : Debug_Taps;
    end record
      with Dynamic_Predicate => Sensor.Position <= Sensor.Size
        and then (for all M in Motor_Index => Summable (Sensor.Data (M)));
