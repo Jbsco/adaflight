@@ -100,6 +100,8 @@ package Adaflight.MAVLink with SPARK_Mode is
       Tx_Buffer_Valid    : Boolean := False;
       Tx_Buffer_Free     : Byte := 100;
       Data               : Channel_Data := (others => 1500);
+      --  Whether the last byte completed a radio status, where upstream records a debug value.
+      Radio_Status_Taken : Boolean := False;
    end record;
 
    --  Every channel starts at the configured center; the receiver takes the

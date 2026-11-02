@@ -61,11 +61,27 @@ package Adaflight.MAVLink_Telemetry with SPARK_Mode is
 
    --  The streams' schedules, the link's sequence, the disable reasons last
    --  reported and the time of the last send.
+   --  Debug slots two to seven count the system status, RC channels, GPS
+   --  raw, attitude, heartbeat and battery status messages sent, modulo 100.
+   subtype Counted_Slot is Natural range 2 .. 7;
+   subtype Transmit_Count is Natural range 0 .. 99;
+   type Transmit_Counts is array (Counted_Slot) of Transmit_Count;
+   type Slot_Flags is array (Counted_Slot) of Boolean;
+
+   --  What a telemetry pass wrote where upstream records a debug value: the
+   --  count before each counted message it sent.
+   type Debug_Taps is record
+      Sent   : Slot_Flags := (others => False);
+      Counts : Transmit_Counts := (others => 0);
+   end record;
+
    type State is record
       Streams         : Schedules;
       Tx_Seq          : Unsigned_8 := 0;
       Last_Flags      : Adaflight.Arming.Disable_Set := (others => False);
       Last_Message_Us : Unsigned_32 := 0;
+      Transmits       : Transmit_Counts := (others => 0);
+      Taps            : Debug_Taps;
    end record;
 
    subtype RC_Value is Float range 0.0 .. 65_535.0;

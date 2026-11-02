@@ -65,6 +65,7 @@ with Adaflight.Serial_Receiver_Debug;
 with Adaflight.GHST_Debug;
 with Adaflight.Arming_Debug;
 with Adaflight.VTX_Debug;
+with Adaflight.MAVLink_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -6535,6 +6536,7 @@ procedure Vector_Check is
    Mav_Settings : Adaflight.Receiver.Settings;
    Mav_Clock    : Unsigned_32 := 0;
    Mav_Min_Free : Adaflight.MAVLink.Byte := 0;
+   Mav_Dbg      : Adaflight.Debug.State;
 
    procedure Check_MAVLink_Line is
       use Adaflight.MAVLink;
@@ -6581,6 +6583,7 @@ procedure Vector_Check is
             for B in 1 .. Count loop
                Mav_Clock := Mav_Clock + Unsigned_32 (Int (K));
                Receive_Byte (Mav_State, Mav_Rx, Integer (Int (K + 1)), Mav_Clock);
+               Adaflight.MAVLink_Debug.Record_Receiver (Mav_Dbg, Mav_State);
                K := K + 2;
             end loop;
             Mav_Clock := Unsigned_32 (Int (K));
@@ -6634,6 +6637,13 @@ procedure Vector_Check is
             end loop;
             Check_Fields;
          end;
+      elsif Name = "mavdebug" then
+         Mav_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Mav_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "mavdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("mavstep.debug", Int (4 + J), Integer_64 (Mav_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown mavlink case " & Name);
          Failures := Failures + 1;
@@ -14240,6 +14250,7 @@ procedure Vector_Check is
    MV_Seq    : Integer_64 := -1;
    MV_State  : Adaflight.MAVLink_Telemetry.State;
    MV_Config : Adaflight.MAVLink_Telemetry.Settings;
+   MV_Dbg    : Adaflight.Debug.State;
 
    procedure MV_Record_Streams (Name : String; F : Positive) is
    begin
@@ -14328,6 +14339,7 @@ procedure Vector_Check is
             MV_Config.Report_Cell_Voltage := Int (60) = 1;
             MVT.Handle (MV_State, MV_Config, Inp, Interfaces.Unsigned_32 (Int (3)), Interfaces.Unsigned_32 (Int (4)),
                     Int (57) = 1, Int (58) = 1, O);
+            Adaflight.MAVLink_Debug.Record_Telemetry (MV_Dbg, MV_State, Int (57) = 1, Int (58) = 1);
             Record_Int (Name & ".lastsend", Int (61), Integer_64 (MV_State.Last_Message_Us));
             MV_Record_Streams (Name, 62);
             declare
@@ -14340,6 +14352,13 @@ procedure Vector_Check is
                Record_Bytes (Name & ".bytes", Hex_Bytes (84), Actual);
             end;
          end;
+      elsif Name = "mvdebug" then
+         MV_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (MV_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "mvdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("mvhandle.debug", Int (4 + J), Integer_64 (MV_Dbg.Data (J)));
+         end loop;
       elsif Name = "mvsetint" then
          declare
             Found : Boolean;
