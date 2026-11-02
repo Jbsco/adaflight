@@ -39017,6 +39017,9 @@ procedure Vector_Check is
    MCT_Seq   : Integer_64 := -1;
    MCT_State : MCT_Nav.State;
    MCT_T     : Adaflight.Menu_Content.Target;
+   --  A wing build's menu runs: the wing target, and no configuration hash,
+   --  which the wing oracle takes over its own rescue layout.
+   MC_Wing   : Boolean := False;
 
    procedure Check_Menu_Content_Line is
       use Adaflight.Menu;
@@ -39294,8 +39297,10 @@ procedure Vector_Check is
          declare
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (K));
          begin
-            Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
-            Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+            if not MC_Wing then
+               Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+               Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+            end if;
          end;
          K := K + 1;
          Expect_VTX;
@@ -39350,6 +39355,7 @@ procedure Vector_Check is
          end if;
          MCT_Seq := Int (2);
          MCT_T.Config := Adaflight.Config_Groups.Defaults;
+         MCT_T.Wing := MC_Wing;
          MCT_T.Asked := (others => <>);
          Read_Live (7);
          MCT_T.Config.Stats_Config.Stats_Mah_Used := Interfaces.Unsigned_32 (Int (12));
@@ -39418,13 +39424,18 @@ procedure Vector_Check is
          declare
             Positions : constant String := Str (99);
          begin
+            --  A wing build has no nav map element, so its later elements sit
+            --  one slot lower than in our layout.
             for P in MCT_T.Config.Osd_Element_Config.Item_Pos'Range loop
-               declare
-                  At_P : constant Positive := Positions'First + 4 * P;
-               begin
-                  MCT_T.Config.Osd_Element_Config.Item_Pos (P) :=
-                    Interfaces.Unsigned_16'Value ("16#" & Positions (At_P .. At_P + 3) & "#");
-               end;
+               if not MC_Wing or else P /= 96 then
+                  declare
+                     Source : constant Natural := (if MC_Wing and then P > 96 then P - 1 else P);
+                     At_P   : constant Positive := Positions'First + 4 * Source;
+                  begin
+                     MCT_T.Config.Osd_Element_Config.Item_Pos (P) :=
+                       Interfaces.Unsigned_16'Value ("16#" & Positions (At_P .. At_P + 3) & "#");
+                  end;
+               end if;
             end loop;
          end;
          MCT_T.Config.Osd_Config.Osd_Profile_Index := Interfaces.Unsigned_8 (Int (100));
@@ -39691,8 +39702,10 @@ procedure Vector_Check is
             for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
-            Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
-            Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+            if not MC_Wing then
+               Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+               Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+            end if;
          end;
       elsif Int (2) /= MCT_Seq then
          Put_Line ("menu contents line without its start");
@@ -39764,7 +39777,10 @@ procedure Vector_Check is
          begin
             Begin_Step;
             Read_Ops;
-            MCT_Nav.Change (MCT_State, MCT_T, Id);
+            --  A menu the build lacks: upstream's change to one it never built does nothing.
+            if Adaflight.Menu_Content.Present (MCT_T, Id) then
+               MCT_Nav.Change (MCT_State, MCT_T, Id);
+            end if;
             Expect_Ops;
             Expect_State;
          end;
@@ -40747,7 +40763,8 @@ procedure Vector_Check is
                   Check_OSD_Render_3_Line;
                elsif Kind = "osdwp" then
                   Check_OSD_WP_Line;
-               elsif Kind = "menucontent" then
+               elsif Kind = "menucontent" or else Kind = "menucontentwing" then
+                  MC_Wing := Kind = "menucontentwing";
                   Check_Menu_Content_Line;
                elsif Kind = "osdwarnel" then
                   Check_OSD_Warnings_Element_Line;
@@ -41418,6 +41435,8 @@ begin
    Run (Dir & "/taskinit.csv", "taskinit");
    Run (Dir & "/menu.csv", "menu");
    Run (Dir & "/menucontent.csv", "menucontent");
+   Run (Dir & "/menucontentwing.csv", "menucontentwing");
+   MC_Wing := False;
    Run (Dir & "/menusel.csv", "menusel");
    Run (Dir & "/servo.csv", "servo");
    Run (Dir & "/pwmout.csv", "pwmout");
