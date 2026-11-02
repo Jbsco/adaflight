@@ -8,6 +8,8 @@ with Adaflight.UPT1;
 with Adaflight.MT_Sensor;
 with Adaflight.STM32.MT;
 with Adaflight.STM32.Time;
+with Adaflight.Rangefinder_Debug;
+with Adaflight.STM32.Debug_Values;
 package body Adaflight.STM32.Rangefinder is
    use type Interfaces.Integer_8;
    use type Interfaces.Integer_32;
@@ -197,16 +199,33 @@ package body Adaflight.STM32.Rangefinder is
    function Holds (N : USART.Number) return Boolean is
      (Adaflight.Build_Features.Rangefinder and then Found and then Port.Open and then N = Port.Which);
 
+   procedure Record_Lidar is
+   begin
+      Adaflight.Rangefinder_Debug.Record_Lidar_TF
+        (Adaflight.STM32.Debug_Values.State, State.Last_Distance, State.Last_Strength,
+         Natural (State.Last_Byte_4), Natural (State.Last_Byte_5), State.Errors);
+   end Record_Lidar;
+
+   procedure Record_Module is
+      V : Module.Debug_Values renames UP_State.Debug;
+   begin
+      Adaflight.Rangefinder_Debug.Record_UPT1
+        (Adaflight.STM32.Debug_Values.State, V.Distance_Mm, Natural (V.Confidence), V.Flow_X, V.Flow_Y,
+         Natural (V.Valid_Status), V.Integration_Us, V.Reported, Module.Frame_Phase'Pos (V.Phase_Seen));
+   end Record_Module;
+
    procedure Update is
    begin
       if Adaflight.Build_Features.Rangefinder and then Found then
          case Driver is
             when Adaflight.Rangefinder_Detect.TF =>
                Lidar.Update (Port, State);
+               Record_Lidar;
             when Adaflight.Rangefinder_Detect.Nooploop =>
                TOFSense.Update (Port, TOF_State);
             when Adaflight.Rangefinder_Detect.UPT1 =>
                Module.Update (Port, UP_State);
+               Record_Module;
             when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT =>
                null;
          end case;
@@ -255,6 +274,7 @@ package body Adaflight.STM32.Rangefinder is
         (Sensor, Now_Us, Adaflight.STM32.Time.Millis,
          Core.Reading (Interfaces.Integer_32'Min (Core.Reading'Last, Distance)),
          Float'Max (-1.0, Float'Min (1.0, Cos_Tilt)), Unused_Processed);
+      Adaflight.Rangefinder_Debug.Record_Process (Adaflight.STM32.Debug_Values.State, Sensor);
    end Process;
 
    function Altitude_Cm return Interfaces.Integer_32 is (Sensor.Calculated_Altitude);
@@ -284,6 +304,7 @@ package body Adaflight.STM32.Rangefinder is
    begin
       if Adaflight.Build_Features.Rangefinder then
          Module.Update (Port, UP_State);
+         Record_Module;
       end if;
    end Update_UPT1;
 
