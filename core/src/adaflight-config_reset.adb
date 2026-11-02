@@ -9,8 +9,8 @@ package body Adaflight.Config_Reset with SPARK_Mode is
       end loop;
    end Apply_Tuning;
 
-   function Reset (Board : Board_Info.State) return Configuration is
-      C : Configuration := Defaults;
+   function Reset (Board : Board_Info.State; Wing : Boolean := False) return Configuration is
+      C : Configuration := (if Wing then Wing_Defaults else Defaults);
    begin
       Apply_Tuning (C);
       Board_Info.Reset_Config (C, Board);

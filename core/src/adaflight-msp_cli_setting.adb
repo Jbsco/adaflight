@@ -47,12 +47,12 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  A setting's value as the command line prints it; OK is false for a
    --  lookup or port value without a name.
    procedure Append_Value
-     (Reply : in out Reply_Text; C : Configuration; S : Setting; Profile : Natural; Ports : Port_List;
+     (Reply : in out Reply_Text; C : Configuration; S : Setting; Profile : Natural; Ports : Port_List; Wing : Boolean;
       OK : out Boolean)
      with Global => null,
           Pre    => Profile < Profile_Count (S) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
-      I : constant Info := Describe (S);
+      I : constant Info := Describe (S, Wing);
       V : Integer_64;
    begin
       OK := True;
@@ -71,7 +71,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
          when Direct =>
             Append (Reply, CLI_Text.Decimal (V));
          when Lookup =>
-            if V >= 0 and then V < Integer_64 (Value_Count (I.Table))
+            if V >= 0 and then V < Integer_64 (Value_Count (I.Table, Wing))
               and then Value_Name (I.Table, Natural (V))'Length > 0
             then
                Append (Reply, Value_Name (I.Table, Natural (V)));
@@ -120,7 +120,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       end if;
       Append (Reply, Settings_Table.Name (S));
       Append (Reply, " = ");
-      Append_Value (Reply, C, S, Profile_Of (C, S), Ports, OK);
+      Append_Value (Reply, C, S, Profile_Of (C, S), Ports, Wing, OK);
       if not OK then
          Reply := No_Reply;
       end if;
@@ -265,12 +265,13 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  A setting's value from its text as the setting writer parses it; OK
    --  is false, and nothing written, for a text that does not parse.
    procedure Write_Value
-     (C : in out Configuration; S : Setting; Profile : Natural; Value : String; Ports : Port_List; OK : out Boolean)
+     (C : in out Configuration; S : Setting; Profile : Natural; Value : String; Ports : Port_List; Wing : Boolean;
+      OK : out Boolean)
      with Global => null,
           Pre    => Profile < Profile_Count (S) and then Value'First >= 1 and then Value'Last < Positive'Last
                     and then Value'Length > 0 and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
-      I      : constant Info := Describe (S);
+      I      : constant Info := Describe (S, Wing);
       N      : Integer_64;
       Next   : Positive;
       Seen   : Boolean;
@@ -305,8 +306,8 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
             declare
                Table : constant Lookup_Table := (if I.How = Bitset then Table_Off_On else I.Table);
             begin
-               for K in 0 .. Value_Count (Table) - 1 loop
-                  pragma Loop_Invariant (K in 0 .. Value_Count (Table) - 1 and then not OK);
+               for K in 0 .. Value_Count (Table, Wing) - 1 loop
+                  pragma Loop_Invariant (K in 0 .. Value_Count (Table, Wing) - 1 and then not OK);
                   if Value_Name (Table, K)'Length > 0
                     and then CLI_Text.Same_Ignoring_Case (Value_Name (Table, K), Value)
                   then
@@ -385,7 +386,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       end if;
       Find (Text (Text'First .. Name_Last), Wing, Found, S);
       if Found then
-         Write_Value (C, S, Profile_Of (C, S), Text (First .. Last), Ports, OK);
+         Write_Value (C, S, Profile_Of (C, S), Text (First .. Last), Ports, Wing, OK);
       end if;
    end Set_By_Name;
 
@@ -463,11 +464,11 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  The description: the parameter group, the type with its range, its
    --  values or its lengths, each on a line, then the default without a line
    --  end, at most 255 characters of it.
-   procedure Describe_Setting (C : Configuration; S : Setting; Ports : Port_List; D : out Description)
+   procedure Describe_Setting (C : Configuration; S : Setting; Ports : Port_List; Wing : Boolean; D : out Description)
      with Global => null,
           Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports and then Valid_Profiles (C)
    is
-      I            : constant Info := Describe (S);
+      I            : constant Info := Describe (S, Wing);
       LF           : constant String := (1 => ASCII.LF);
       Default      : Reply_Text := No_Reply;
       Ignore_Named : Boolean;
@@ -510,8 +511,8 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
             declare
                First : Boolean := True;
             begin
-               for K in 0 .. Value_Count (I.Table) - 1 loop
-                  pragma Loop_Invariant (K in 0 .. Value_Count (I.Table) - 1);
+               for K in 0 .. Value_Count (I.Table, Wing) - 1 loop
+                  pragma Loop_Invariant (K in 0 .. Value_Count (I.Table, Wing) - 1);
                   if Value_Name (I.Table, K)'Length > 0 then
                      if not First then
                         Add (D, ",");
@@ -547,7 +548,9 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
             Add (D, LF);
       end case;
       Add (D, "default=");
-      Append_Value (Default, Config_Groups.Defaults, S, Profile_Of (C, S), Ports, Ignore_Named);
+      Append_Value
+        (Default, (if Wing then Config_Groups.Wing_Defaults else Config_Groups.Defaults), S, Profile_Of (C, S), Ports,
+         Wing, Ignore_Named);
       Add (D, Default.Text (1 .. Natural'Min (Default.Length, 255)));
    end Describe_Setting;
 
@@ -587,7 +590,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       if not Found then
          return;
       end if;
-      Describe_Setting (C, S, Ports, D);
+      Describe_Setting (C, S, Ports, Wing, D);
       Reply.Data (0) := Byte (D.Length mod 256);
       Reply.Data (1) := Byte (D.Length / 256);
       for K in 1 .. D.Length loop

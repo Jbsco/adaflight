@@ -264,7 +264,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          declare
             BR : MSP_Board_In.Result;
          begin
-            MSP_Board_In.Process (C, Board, Command, Request, Ctx.Control.Armed, BR, E.Board);
+            MSP_Board_In.Process (C, Board, Command, Request, Ctx.Control.Armed, Ctx.Wing, BR, E.Board);
             R := (if BR = MSP_Board_In.Ack then Ack else Error);
             E.Save := E.Board.Save;
             E.Reboot := E.Board.Reboot;

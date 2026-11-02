@@ -12898,3 +12898,16 @@ oracle has that fix. Both builds' tables cost about 3 KB of flash in every image
 
 Our checker walks each build's settings and defaults through its own vector files. Configuration hashes cover
 multirotor groups, which a multirotor oracle encodes.
+
+## D614. Wing command line (2026-11-02)
+
+A wing build's command line and MSP setting messages now take its own settings, with wing limits and lookup values
+where those differ: a low TPA rate down to -128, and PDS as a third TPA mode. Its configuration resets to wing defaults
+at start, from the command line's `defaults` and from the MSP reset message. Our board passes the build's wing flag into
+both, where D613 passed the multirotor build.
+
+Our checker runs wing families recorded from a wing build of the command line oracle: sets and gets, dumps, diffs and
+profile commands, with wing defaults at each run's start. Wing families compare replies only. A wing build's
+configuration hash covers upstream's wing layouts and OSD element positions, which differ from our records after the
+nav map element, so we leave that hash to the multirotor families. Our oracle skips groups a build does not register
+when it takes that hash.
