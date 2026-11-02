@@ -12673,3 +12673,15 @@ OSD throttle element and launch control warning take their percent from core `Ar
 does for both: normalized throttle above minimum check, with 3D handling. Before, they read throttle command. Vectors
 compare debug values only on steps where upstream's average is defined (no samples yet, or a sum below 2**31), since
 its conversion to an 8-bit value has no defined result past that.
+
+## D595. Debug values, SBUS and FPORT receivers (2026-11-01)
+
+Core `SBUS` now keeps taps: each completed frame's time from first byte to last, and the flags byte of the frame each
+status takes. Core `FPORT` counts frame errors as upstream does and keeps each one's reason: timeout and oversize
+while receiving bytes, then size, checksum, type and type size at frame status. Its frame status now tells those last
+four apart where it folded them into one test before. It also keeps the times of the last closed frame and the last
+telemetry reply, with the interval before each.
+
+Core `Serial_Receiver_Debug` records SBUS mode (frame flags, frame time) and FPORT mode (frame interval, error count,
+last error reason, telemetry reply interval). Vectors in both families select a mode at initialization and read eight
+values after every step. On the board, SBUS and FPORT frame status and FPORT frame processing record after they run.

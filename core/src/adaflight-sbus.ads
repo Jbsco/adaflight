@@ -42,10 +42,20 @@ package Adaflight.SBUS with SPARK_Mode is
       Done            : Boolean := False;
    end record;
 
+   --  What the frame handling wrote where upstream records a debug value: the
+   --  time from the last completed frame's first byte to its last, and the
+   --  flags byte of the frame the last status took, when it took one.
+   type Debug_Taps is record
+      Frame_Time  : Interfaces.Integer_32 := 0;
+      Status_Read : Boolean := False;
+      Flags       : Byte := 0;
+   end record;
+
    type State is record
       Frame              : Frame_State;
       Data               : Channel_Data := (others => 0);
       Last_Frame_Time_Us : Time_Us := 0;
+      Taps               : Debug_Taps;
    end record;
 
    --  Every channel starts at the value that reads as the center.

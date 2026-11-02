@@ -61,6 +61,7 @@ with Adaflight.ESC_Debug;
 with Adaflight.Optical_Flow_Debug;
 with Adaflight.DShot_Debug;
 with Adaflight.Receiver_Debug;
+with Adaflight.Serial_Receiver_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -3787,6 +3788,7 @@ procedure Vector_Check is
 
    SBUS_State : Adaflight.SBUS.State;
    SBUS_Clock : Unsigned_32 := 0;
+   SBUS_Dbg   : Adaflight.Debug.State;
 
    procedure Check_SBUS_Line is
       use Adaflight.SBUS;
@@ -3837,6 +3839,7 @@ procedure Vector_Check is
             else
                K := K + 1;
             end if;
+            Adaflight.Serial_Receiver_Debug.Record_SBUS (SBUS_Dbg, SBUS_State);
             Expect_Next ("position", Integer_64 (SBUS_State.Frame.Position));
             Expect_Next ("done", Boolean'Pos (SBUS_State.Frame.Done));
             Expect_Next ("start_at", Integer_64 (SBUS_State.Frame.Start_At_Us));
@@ -3849,6 +3852,13 @@ procedure Vector_Check is
             end loop;
             Check_Fields;
          end;
+      elsif Name = "sbusdebug" then
+         SBUS_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (SBUS_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "sbusdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("sbusburst.debug", Int (4 + J), Integer_64 (SBUS_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown sbus case " & Name);
          Failures := Failures + 1;
@@ -6394,6 +6404,7 @@ procedure Vector_Check is
    end Check_SRXL2_Line;
 
    FPORT_State    : Adaflight.FPORT.State;
+   FPORT_Dbg      : Adaflight.Debug.State;
    FPORT_Rx       : Adaflight.Receiver.State;
    FPORT_Settings : Adaflight.Receiver.Settings;
    FPORT_Clock    : Unsigned_32 := 0;
@@ -6459,6 +6470,7 @@ procedure Vector_Check is
             else
                K := K + 3;
             end if;
+            Adaflight.Serial_Receiver_Debug.Record_FPORT (FPORT_Dbg, FPORT_State);
             Expect_Next ("write_index", Integer_64 (FPORT_State.Write_Index));
             Expect_Next ("read_index", Integer_64 (FPORT_State.Read_Index));
             Expect_Next ("position", Integer_64 (FPORT_State.Position));
@@ -6482,6 +6494,13 @@ procedure Vector_Check is
             end loop;
             Check_Fields;
          end;
+      elsif Name = "fportdebug" then
+         FPORT_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (FPORT_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "fportdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("fportstep.debug", Int (4 + J), Integer_64 (FPORT_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown fport case " & Name);
          Failures := Failures + 1;

@@ -77,6 +77,25 @@ package Adaflight.FPORT with SPARK_Mode is
       Sent_Empty_Reply       : Boolean := False;
    end record;
 
+   --  The frame error reasons upstream records.
+   subtype Error_Reason is Byte range 0 .. 6;
+   No_Error        : constant Error_Reason := 0;
+   Error_Timeout   : constant Error_Reason := 1;
+   Error_Oversize  : constant Error_Reason := 2;
+   Error_Size      : constant Error_Reason := 3;
+   Error_Checksum  : constant Error_Reason := 4;
+   Error_Type      : constant Error_Reason := 5;
+   Error_Type_Size : constant Error_Reason := 6;
+
+   --  What the frame handling wrote where upstream records a debug value: the
+   --  last frame error's reason, the interval before the last closed frame,
+   --  and the interval before the last telemetry reply.
+   type Debug_Taps is record
+      Last_Error         : Error_Reason := No_Error;
+      Frame_Interval     : Time_Us := 0;
+      Telemetry_Interval : Time_Us := 0;
+   end record;
+
    type State is record
       Buffers              : Ring;
       Write_Index          : Ring_Index := 0;
@@ -96,6 +115,12 @@ package Adaflight.FPORT with SPARK_Mode is
       Rx_Driven_Rate       : Boolean := False;
       Consecutive          : Byte := 0;
       Data                 : Channel_Data := (others => 0);
+      --  The frame errors, counted as upstream counts them, and the times of
+      --  the last closed frame and the last telemetry reply.
+      Frame_Errors           : Interfaces.Unsigned_16 := 0;
+      Last_Frame_Received_Us : Time_Us := 0;
+      Last_Telemetry_Sent_Us : Time_Us := 0;
+      Taps                   : Debug_Taps;
    end record;
 
    --  Every channel starts at the count that reads as the center; the
