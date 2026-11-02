@@ -202,6 +202,10 @@ package body Adaflight.STM32.Pilot is
                               (Arm_Settings, Channels, Adaflight.Modes.Is_Active (M, Adaflight.Modes.Three_D)),
                             Adaflight.Arming.Throttle_Low));
 
+   function Throttle_Percent (Channels : Adaflight.RC_Command.Channel_Values) return Integer is
+     (Adaflight.Arming.Throttle_Percent
+        (Arm_Settings, Channels, Adaflight.Modes.Is_Active (M, Adaflight.Modes.Three_D)));
+
    procedure Set_Mode_Override (B : Adaflight.Modes.Box; Enabled : Boolean) is
    begin
       Adaflight.Arming.Set_Mode_Override (Arm, B, Enabled);

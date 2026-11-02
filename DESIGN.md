@@ -12661,3 +12661,15 @@ verdict, receiving verdict at pass entry, switch flag, phase) and each receiver 
 Vectors in receiver and failsafe families select a mode at initialization and read eight values after every step.
 Receiver task vectors compare the recorded estimate with the value upstream logs. On the board, frame checks, channel
 calculations, failsafe passes and receiver task steps record after they run.
+
+## D594. RC statistics task (2026-11-01)
+
+Board now runs its RC statistics task at the scheduled rate. Each run updates core statistics with arming flag, crash
+flip box and throttle percent, then records RC statistics mode's average throttle. Core `Arming` reports each arming
+as an RC statistics notice where upstream sends it, and the board clears its raised flag on that notice. OSD
+post-flight statistics show full throttle time, full throttle count and average throttle from this task.
+
+OSD throttle element and launch control warning take their percent from core `Arming`'s throttle percent, as upstream
+does for both: normalized throttle above minimum check, with 3D handling. Before, they read throttle command. Vectors
+compare debug values only on steps where upstream's average is defined (no samples yet, or a sum below 2**31), since
+its conversion to an 8-bit value has no defined result past that.
