@@ -59,9 +59,11 @@ package body Adaflight.Battery with SPARK_Mode is
 
    --  A count at the supply through the current sensor's scale and offset to
    --  hundredths of an ampere, in the reference's 32-bit arithmetic.
+   function Count_To_Millivolts (Count : ADC_Count; Supply_Mv : Supply_Millivolts) return Sensor_Millivolts is
+     (Integer_32 (Unsigned_32 (Count) * Unsigned_32 (Supply_Mv) / 4_096));
+
    function Count_To_Centiamps (Count : ADC_Count; C : Settings; Supply_Mv : Supply_Millivolts) return Centiamps is
-      Millivolts : constant Integer_32 range 0 .. 4_095 * 16_000 / 4_096 :=
-        Integer_32 (Unsigned_32 (Count) * Unsigned_32 (Supply_Mv) / 4_096);
+      Millivolts : constant Sensor_Millivolts := Count_To_Millivolts (Count, Supply_Mv);
    begin
       if C.Current_Scale = 0 then
          return 0;
@@ -160,6 +162,8 @@ package body Adaflight.Battery with SPARK_Mode is
          S.Voltage.Stable_Bits := Interfaces.Shift_Left (S.Voltage.Stable_Bits, 1) or 1;
          S.Voltage.Stable_Last_Update := Now_Ms;
       end if;
+      S.Taps.Voltage_Updated := True;
+      S.Taps.Voltage_State_Seen := S.Voltage_State;
    end Update_Voltage;
 
    --------------------
@@ -198,7 +202,12 @@ package body Adaflight.Battery with SPARK_Mode is
                   Filters.PT1_Apply (S.Current_Filter, Float (Raw), Filtered);
                   S.Current.Amperage_Latest := Latest;
                   S.Current.Amperage := Count_To_Centiamps (To_Count (Filtered), C, Meters.Supply_Mv);
+                  S.Taps.ADC_Current := True;
+                  S.Taps.Sensor_Millivolts := Count_To_Millivolts (To_Count (Filtered), Meters.Supply_Mv);
+                  S.Taps.Sensor_Centiamps := S.Current.Amperage;
                   Accumulate (Latest, Since_Last);
+                  S.Taps.Sensor_Latest := Latest;
+                  S.Taps.Sensor_Drawn := S.Current.mAh_Drawn;
                end;
             when Virtual =>
                declare

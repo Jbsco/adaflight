@@ -129,6 +129,7 @@ with Adaflight.SmartAudio;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Loop_Debug;
+with Adaflight.Power_Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
@@ -1835,6 +1836,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Adaflight.Internal_ADC.Process
         (Internal, Internal_Cal, Adaflight.STM32.ADC.Reference_Sample, Adaflight.STM32.ADC.Temperature_Sample);
+      Adaflight.Power_Debug.Record_Internal_ADC (Adaflight.STM32.Debug_Values.State, Internal);
       Env.Status.Vref_Mv := Internal.Vref_Mv;
       Env.Status.Core_Temp_C := Internal.Core_Temperature;
       Ctx.Out_Views.State.Status.Core_Temperature := Internal.Core_Temperature;
@@ -1906,6 +1908,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.Battery.Update_Voltage
         (Bat, Bat_Settings, Analog (Battery_Input),
          Adaflight.STM32.Time.Millis, Meters);
+      Adaflight.Power_Debug.Record_Battery (Adaflight.STM32.Debug_Values.State, Bat, Bat_Settings);
    end Run_Battery_Voltage;
 
    procedure Run_Battery_Current (Before : Unsigned_32) is
@@ -1913,6 +1916,7 @@ package body Adaflight.STM32.Flight is
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Update_Current
         (Bat, Bat_Settings, Analog (Current_Input), Before, Meters);
+      Adaflight.Power_Debug.Record_Current (Adaflight.STM32.Debug_Values.State, Bat);
    end Run_Battery_Current;
 
    --  A battery's connection: the PID profile for the detected cells while

@@ -46,6 +46,14 @@ package Adaflight.Internal_ADC with SPARK_Mode is
       Ts_Slope_K  : Integer_32 range -10_000 .. 10_000 := 307;
    end record;
 
+   --  Values a debug recorder reads after a pass: that one ran and its two
+   --  raw samples, which the reference logs beside their averages.
+   type Debug_Taps is record
+      Processed   : Boolean := False;
+      Vref_Sample : ADC_Value := 0;
+      Temp_Sample : ADC_Value := 0;
+   end record;
+
    type Sampler is record
       Vref_Average     : Moving_Average;
       Temp_Average     : Moving_Average;
@@ -53,6 +61,7 @@ package Adaflight.Internal_ADC with SPARK_Mode is
       Temp_Value       : ADC_Value := 0;
       Vref_Mv          : Unsigned_16 := 0;
       Core_Temperature : Integer_16 := 0;
+      Taps             : Debug_Taps;
    end record;
 
    --  The supply in millivolts from the averaged reference reading; a
