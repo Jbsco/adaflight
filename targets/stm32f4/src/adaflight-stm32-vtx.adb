@@ -1,5 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
@@ -40,6 +42,7 @@ package body Adaflight.STM32.VTX is
    --  The MSP transmitter's configuration frame waiting to be pushed.
    MSP_Out : Adaflight.VTX_MSP.Config_Frame := (others => 0);
    MSP_Due : Boolean := False;
+   MSP_CRSF : Boolean := False;
    T       : Adaflight.VTX_Table.Table;
    Open    : Boolean := False;
    Which   : USART.Number := USART.UART1;
@@ -75,6 +78,7 @@ package body Adaflight.STM32.VTX is
       T := (if Adaflight.VTX_Table_Store.Counts_Valid (C.Vtx_Table_Config)
             then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
       Open := False;
+      MSP_CRSF := False;
       if Kind = Core.MSP_Device then
          --  The transmitter's port, else the MSP display port's; the MSP
          --  line there owns the UART.
@@ -89,6 +93,21 @@ package body Adaflight.STM32.VTX is
                exit;
             end if;
          end loop;
+         --  A port with the serial receiver and the MSP transmitter on it,
+         --  where the receiver is CRSF.
+         if Open then
+            declare
+               use type Interfaces.Unsigned_32;
+               package SFM renames Adaflight.Serial_Feature_Map;
+               Mask : constant Interfaces.Unsigned_32 :=
+                 SFM.Function_Mask
+                   (Adaflight.Config_Fix.Serial_Options, Adaflight.Config_Fix.Serial_Assignments (C),
+                    SFM.Port_Id (Port_Ids (Which)));
+            begin
+               MSP_CRSF := (Mask and SFM.Function_RX_Serial) /= 0 and then (Mask and SFM.Function_VTX_MSP) /= 0
+                 and then C.Rx_Config.Serialrx_Provider = 9;
+            end;
+         end if;
       elsif Kind /= Core.No_Device then
          for N of USART.Present_Set loop
             if Port_Ids (N) = C.Vtx_Settings_Config.Vtx_Uart then
@@ -228,6 +247,8 @@ package body Adaflight.STM32.VTX is
    end Offer_Spektrum_Control;
 
    function MSP_Running return Boolean is (Open and then V.Kind = Core.MSP_Device);
+
+   function MSP_On_CRSF return Boolean is (MSP_Running and then MSP_CRSF);
 
    function MSP_Port return USART.Number is (Which);
 

@@ -42,6 +42,9 @@ package Adaflight.STM32.VTX is
    procedure Offer_Spektrum_Control (Word : Interfaces.Unsigned_32);
    --  An MSP transmitter's port: whether one runs, and its UART.
    function MSP_Running return Boolean;
+   --  Whether the MSP transmitter shares the CRSF receiver's port, so its
+   --  frames go over the CRSF link.
+   function MSP_On_CRSF return Boolean;
    function MSP_Port return Adaflight.STM32.USART.Number;
    --  A VTX configuration read or write came over the MSP transmitter's
    --  link: its MSP port or the receiver's MSP tunnel.

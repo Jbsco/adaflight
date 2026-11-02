@@ -12837,3 +12837,17 @@ receiver's port, which upstream reaches through CRSF telemetry, waits for a late
 
 Our host smoke sets up a VTX table, reads VTX configuration over MSP on the transmitter's port, writes band, channel
 and power as a goggle does, and finds a pushed frame with those values.
+
+## D610. MSP video transmitter on the CRSF port (2026-11-02)
+
+An MSP transmitter on a CRSF receiver's port now pushes its configuration over the CRSF link, where D609 left it
+waiting. Our board marks such a port at VTX start, when its functions include both a serial receiver and an MSP
+transmitter and that receiver is CRSF, as upstream checks it.
+
+Each frame our core asks to push goes into core `VTX_MSP`'s CRSF wrapping, an MSP version 2 response from flight
+controller to receiver, and our radio writes it on its line at once. Upstream first flushes buffered CRSF telemetry.
+Our board writes its CRSF telemetry at each step and keeps none waiting. Readiness comes through that receiver's MSP
+tunnel, as in D609.
+
+Our host smoke writes a VTX configuration through that tunnel and finds a pushed frame on its port. It keeps the OSD
+on another UART, since an MSP display port on a receiver's port writes onto that line, which D611 takes up.

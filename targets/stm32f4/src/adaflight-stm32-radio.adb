@@ -734,6 +734,13 @@ package body Adaflight.STM32.Radio is
 
    function Is_CRSF return Boolean is (Open and then Kind = CRSF);
 
+   procedure Push_CRSF_Frame (Data : Adaflight.Bytes.Byte_Array) is
+   begin
+      if Open and then Kind = CRSF and then Data'Length > 0 then
+         USART.Put (Port, Data);
+      end if;
+   end Push_CRSF_Frame;
+
    function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
 
    function Serial_Protocol return Natural is (Serial_Provider);
