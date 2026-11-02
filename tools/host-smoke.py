@@ -1278,7 +1278,7 @@ def main():
             check("options list the SRXL2 receiver", 4105 in numbers, text[-160:])
             for feature, number in (("LTM_Telemetry", 12304), ("MAVLink_Telemetry", 12305), ("IBus_Telemetry", 12303),
                                     ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106),
-                                    ("SUMH", 4107), ("MAVLink_Receiver", 4109)):
+                                    ("SUMH", 4107), ("MAVLink_Receiver", 4109), ("Wing", 16424)):
                 check(f"options list {feature} as the build contains it", (number in numbers) == contains(feature),
                       f"{number} {'in' if number in numbers else 'not in'} the list")
             text = cli(sock, "dshotprog 0 7")
