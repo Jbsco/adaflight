@@ -4606,6 +4606,11 @@ package body Adaflight.STM32.Flight is
       end;
       Pos_Settings :=
         Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
+      --  A wing build's position hold group has no position source, so both
+      --  sources stay allowed.
+      if Adaflight.Build_Features.Wing then
+         Pos_Settings.Horizontal := Adaflight.Position_Estimator.Auto;
+      end if;
       Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);
       Alt_Hold_Settings := Adaflight.Config_Runtime.Altitude_Hold_Settings_Of
         (Config.Autopilot_Config, Config.Alt_Hold_Config, Config.Rx_Config);
