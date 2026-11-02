@@ -33,6 +33,15 @@ package Adaflight.Tramp with SPARK_Mode is
    subtype Frame_Bytes is Byte_Array (0 .. Frame_Length - 1);
    subtype Frame_Fill is Natural range 0 .. Frame_Length;
 
+   --  What a task call wrote where upstream records a debug value: that it
+   --  ran on an open port, the reply code it read, and whether it sent a
+   --  configuration change.
+   type Debug_Taps is record
+      Ran             : Boolean := False;
+      Reply           : Byte := 0;
+      Update_Required : Boolean := False;
+   end record;
+
    type Driver is record
       Port_Open          : Boolean := False;
       Current            : Status := Offline;
@@ -56,6 +65,7 @@ package Adaflight.Tramp with SPARK_Mode is
       Rx_Pos             : Frame_Fill := 0;
       Rx                 : Frame_Bytes := (others => 0);
       Last_Time_Us       : Unsigned_32 := 0;
+      Taps               : Debug_Taps;
    end record;
 
    type Events is record

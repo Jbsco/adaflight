@@ -12704,3 +12704,15 @@ stable time so far in milliseconds, or none when the deactivation check is off. 
 check is enabled and whether its activation delay runs. Core `Arming_Debug` records runaway takeoff mode from those
 taps after each pass. Base arming vectors select that mode on even sequences and read eight values after every
 step. On the board, the pilot's receiver and PID loop passes record after they run.
+
+## D598. Debug values, Tramp and SmartAudio (2026-11-01)
+
+Core `Tramp` now keeps taps from each task call on an open port: the reply code it read and whether it sent a
+configuration change. Core `SmartAudio` keeps a snapshot of each settings reply (version and mode, channel,
+frequency, power index), taken where upstream records them, since later replies change those fields without a
+debug write.
+
+Core `VTX_Debug` records Tramp mode (status, reply code, packed pit modes and powers with change flags, retries left)
+after each task call and SmartAudio mode after each call that took a settings reply. Both families' vectors select a
+mode after initialization and read eight values after every step. On the board, the VTX update records for whichever
+device runs. VTX MSP mode waits for the board's MSP descriptors.

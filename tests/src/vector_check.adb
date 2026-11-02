@@ -64,6 +64,7 @@ with Adaflight.Receiver_Debug;
 with Adaflight.Serial_Receiver_Debug;
 with Adaflight.GHST_Debug;
 with Adaflight.Arming_Debug;
+with Adaflight.VTX_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -10530,6 +10531,7 @@ procedure Vector_Check is
 
    SA_Seq     : Integer_64 := -1;
    SA_Driver  : Adaflight.SmartAudio.Driver;
+   SA_Dbg     : Adaflight.Debug.State;
    SA_Table   : Adaflight.VTX_Table.Table;
    SA_Prepend : Boolean := False;
 
@@ -10769,10 +10771,18 @@ procedure Vector_Check is
                   null;
             end case;
             Process (SA_Driver, SA_Table, Unsigned_32 (Int (4)), Rx, Disabled, SA_Prepend, E);
+            Adaflight.VTX_Debug.Record_SmartAudio (SA_Dbg, SA_Driver);
             Record_SA_State (Name, 11, SA_Driver, SA_Table);
             Record_Bytes (Name & ".tx", Hex_Bytes (67), E.Tx (0 .. E.Tx_Count - 1));
             Record_Int (Name & ".baudset", Int (68), (if E.Baud_Changed then Integer_64 (Rate_Of (E.New_Baud)) else 0));
          end;
+      elsif Name = "vtxsadebug" then
+         SA_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (SA_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "vtxsadbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("vtxsastep.debug", Int (4 + J), Integer_64 (SA_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown smartaudio case " & Name);
          Failures := Failures + 1;
@@ -10781,6 +10791,7 @@ procedure Vector_Check is
 
    TM_Seq     : Integer_64 := -1;
    TM_Driver  : Adaflight.Tramp.Driver;
+   TM_Dbg     : Adaflight.Debug.State;
    TM_Table   : Adaflight.VTX_Table.Table;
    TM_Pending : Pending_Bytes := (others => 0);
    TM_Count   : Pending_Count := 0;
@@ -10819,12 +10830,20 @@ procedure Vector_Check is
                end case;
             end if;
             Process (TM_Driver, Unsigned_32 (Int (4)), Rx, Int (5) = 1, E, Consumed);
+            Adaflight.VTX_Debug.Record_Tramp (TM_Dbg, TM_Driver);
             Record_Tramp_State (Name, 11, TM_Driver, TM_Table);
             Record_Bytes (Name & ".tx", Hex_Bytes (44), E.Tx (0 .. E.Tx_Count - 1));
             Record_Int (Name & ".consumed", Int (45), Integer_64 (Consumed));
             TM_Count := Rx'Length - Consumed;
             TM_Pending (0 .. TM_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
          end;
+      elsif Name = "vtxtrdebug" then
+         TM_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (TM_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "vtxtrdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("vtxtrstep.debug", Int (4 + J), Integer_64 (TM_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown tramp case " & Name);
          Failures := Failures + 1;

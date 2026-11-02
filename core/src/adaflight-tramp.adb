@@ -175,10 +175,13 @@ package body Adaflight.Tramp with SPARK_Mode is
    begin
       E := (others => <>);
       Consumed := 0;
+      D.Taps.Ran := False;
       if not D.Port_Open then
          return;
       end if;
       Receive (D, Rx, Reply, Consumed);
+      D.Taps.Ran := True;
+      D.Taps.Reply := Reply;
       case D.Current is
          when Offline =>
             if Reply = Cmd_Limits then
@@ -237,6 +240,7 @@ package body Adaflight.Tramp with SPARK_Mode is
                D.Last_Time_Us := Now_Us;
             end if;
       end case;
+      D.Taps.Update_Required := Changed;
    end Process;
 
    ---------------------
