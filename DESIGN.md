@@ -12967,3 +12967,20 @@ Our checker runs a wing family from a wing build of the warning generator. That 
 autopilot abort, waypoint capture messages and mission cues, and its rescue and position hold are stubs, so the family
 draws none of their inputs, as our board feeds none in a wing build. Its runs read no capture message, so the checker
 skips that comparison for them.
+
+## D620. Wing build menus (2026-11-02)
+
+Upstream's wing build keeps the GPS rescue menu and its PID page as a label and BACK, with no settings and hooks that
+do nothing, and it builds no launch control menu at all. Core `Menu_Content` now takes a wing flag in its target. It
+shows those two pages the same way in a wing build and drops the launch control entry from the profile's other page.
+Our enter and exit hooks still copy the rescue groups in and out, which leaves them unchanged with no entry to edit.
+Our board sets the flag from the build's features.
+
+Core `Menu_Content` tells whether a build has a menu. A wing board never reaches the launch control menu, since no
+entry and no hook reply names it, so navigation stays as it was. Upstream's change to a menu it never built does
+nothing, and only our checker's probe jumps reach that case, which it refuses with that answer.
+
+Our checker runs a wing family from a wing build of the menu oracle. That build's rescue group has only its satellite
+and arming fields, so the oracle prints zeros for the multirotor tuning it lacks, and its OSD elements have no nav map
+slot, which the checker maps into our layout. The family compares no configuration hash, which the wing oracle takes
+over its own rescue layout.

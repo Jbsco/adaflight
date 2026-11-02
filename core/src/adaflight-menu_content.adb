@@ -959,25 +959,29 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    begin
       Clear (M);
       Add (M, N, Make ("--- GPS RESCUE ---", Label));
-      Add (M, N, Number ("MIN START DIST  M", U16 (R.Min_Start_Dist_M), 5, 30, UInt16, Flags => Reboot));
-      Add (M, N, Choice ("ALTITUDE MODE", U8 (R.Altitude_Mode), 2,
-                         Setting_Name (Adaflight.Settings_Table.Table_Gps_Rescue_Alt_Mode, Natural (R.Altitude_Mode)),
-                         Reboot));
-      Add (M, N, Number ("INITAL CLIMB    M", U16 (R.Initial_Climb_M), 0, 100, UInt16, Flags => Reboot));
-      Add (M, N, Number ("ASCEND RATE  CM/S", U16 (R.Ascend_Rate), 50, 2500, UInt16, Flags => Reboot));
-      Add (M, N, Number ("RETURN ALT      M", U16 (R.Return_Altitude_M), 5, 1000, UInt16, Flags => Reboot));
-      Add (M, N, Number ("RETURN SPEED CM/S", U16 (R.Ground_Speed_Cm_S), 0, 3000, UInt16, Flags => Reboot));
-      Add (M, N, Number ("PITCH ANGLE MAX", U8 (R.Max_Angle), 0, 60, Flags => Reboot));
-      Add (M, N, Number ("DESCENT DIST    M", U16 (R.Descent_Distance_M), 5, 500, UInt16, Flags => Reboot));
-      Add (M, N, Number ("DESCENT RATE CM/S", U16 (R.Descend_Rate), 25, 500, UInt16, Flags => Reboot));
-      Add (M, N, Number ("LANDING ALT     M", U8 (R.Landing_Altitude_M), 1, 15, Flags => Reboot));
-      Add (M, N, Number ("THROTTLE MIN", U16 (R.Throttle_Min), 1050, 1400, UInt16, Flags => Reboot));
-      Add (M, N, Number ("THROTTLE MAX", U16 (R.Throttle_Max), 1400, 2000, UInt16, Flags => Reboot));
-      Add (M, N, Number ("THROTTLE HOV", U16 (R.Hover_Throttle), 1100, 1700, UInt16, Flags => Reboot));
-      Add (M, N, Number ("SATS REQUIRED", U8 (R.Min_Sats), 5, 50, Flags => Reboot));
-      Add (M, N, Make ("ARM WITHOUT FIX", Bool, Has_Data => True, Value => U8 (R.Allow_Arming_Without_Fix),
-                       Flags => Reboot));
-      Add (M, N, Sub ("GPS RESCUE PID", GPS_Rescue_PID_Menu));
+      --  Upstream's wing build keeps only the label and BACK.
+      if not T.Wing then
+         Add (M, N, Number ("MIN START DIST  M", U16 (R.Min_Start_Dist_M), 5, 30, UInt16, Flags => Reboot));
+         Add (M, N, Choice ("ALTITUDE MODE", U8 (R.Altitude_Mode), 2,
+                            Setting_Name (Adaflight.Settings_Table.Table_Gps_Rescue_Alt_Mode,
+                                          Natural (R.Altitude_Mode)),
+                            Reboot));
+         Add (M, N, Number ("INITAL CLIMB    M", U16 (R.Initial_Climb_M), 0, 100, UInt16, Flags => Reboot));
+         Add (M, N, Number ("ASCEND RATE  CM/S", U16 (R.Ascend_Rate), 50, 2500, UInt16, Flags => Reboot));
+         Add (M, N, Number ("RETURN ALT      M", U16 (R.Return_Altitude_M), 5, 1000, UInt16, Flags => Reboot));
+         Add (M, N, Number ("RETURN SPEED CM/S", U16 (R.Ground_Speed_Cm_S), 0, 3000, UInt16, Flags => Reboot));
+         Add (M, N, Number ("PITCH ANGLE MAX", U8 (R.Max_Angle), 0, 60, Flags => Reboot));
+         Add (M, N, Number ("DESCENT DIST    M", U16 (R.Descent_Distance_M), 5, 500, UInt16, Flags => Reboot));
+         Add (M, N, Number ("DESCENT RATE CM/S", U16 (R.Descend_Rate), 25, 500, UInt16, Flags => Reboot));
+         Add (M, N, Number ("LANDING ALT     M", U8 (R.Landing_Altitude_M), 1, 15, Flags => Reboot));
+         Add (M, N, Number ("THROTTLE MIN", U16 (R.Throttle_Min), 1050, 1400, UInt16, Flags => Reboot));
+         Add (M, N, Number ("THROTTLE MAX", U16 (R.Throttle_Max), 1400, 2000, UInt16, Flags => Reboot));
+         Add (M, N, Number ("THROTTLE HOV", U16 (R.Hover_Throttle), 1100, 1700, UInt16, Flags => Reboot));
+         Add (M, N, Number ("SATS REQUIRED", U8 (R.Min_Sats), 5, 50, Flags => Reboot));
+         Add (M, N, Make ("ARM WITHOUT FIX", Bool, Has_Data => True, Value => U8 (R.Allow_Arming_Without_Fix),
+                          Flags => Reboot));
+         Add (M, N, Sub ("GPS RESCUE PID", GPS_Rescue_PID_Menu));
+      end if;
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_GPS_Rescue_Menu;
@@ -992,16 +996,19 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    begin
       Clear (M);
       Add (M, N, Make ("--- GPS RESCUE PID---", Label));
-      Add (M, N, Number ("ALTITUDE P", U8 (P.Altitude_P), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("ALTITUDE I", U8 (P.Altitude_I), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("ALTITUDE D", U8 (P.Altitude_D), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("ALTITUDE A", U8 (P.Altitude_A), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("ALTITUDE F", U8 (P.Altitude_F), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("YAW P", U8 (P.Yaw_P), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("POSITION P", U8 (P.Position_P), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("POSITION I", U8 (P.Position_I), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("POSITION D", U8 (P.Position_D), 0, 200, Flags => Reboot));
-      Add (M, N, Number ("SMOOTHING", U8 (P.Position_Cutoff), 10, 255, Flags => Reboot));
+      --  Upstream's wing build keeps only the label and BACK.
+      if not T.Wing then
+         Add (M, N, Number ("ALTITUDE P", U8 (P.Altitude_P), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("ALTITUDE I", U8 (P.Altitude_I), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("ALTITUDE D", U8 (P.Altitude_D), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("ALTITUDE A", U8 (P.Altitude_A), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("ALTITUDE F", U8 (P.Altitude_F), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("YAW P", U8 (P.Yaw_P), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("POSITION P", U8 (P.Position_P), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("POSITION I", U8 (P.Position_I), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("POSITION D", U8 (P.Position_D), 0, 200, Flags => Reboot));
+         Add (M, N, Number ("SMOOTHING", U8 (P.Position_Cutoff), 10, 255, Flags => Reboot));
+      end if;
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_GPS_Rescue_PID_Menu;
@@ -1496,7 +1503,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                             Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax_Type,
                                           Natural (O.Iterm_Relax_Type))));
          Add (M, N, Number ("I_RELAX CUTOFF", Interfaces.Integer_32 (O.Iterm_Relax_Cutoff), 1, 50));
-         Add (M, N, Sub ("LAUNCH CONTROL", Launch_Control_Menu));
+         if not T.Wing then
+            Add (M, N, Sub ("LAUNCH CONTROL", Launch_Control_Menu));
+         end if;
          Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (O.Motor_Output_Limit), 1, 100));
          Add (M, N, Number ("AUTO CELL CNT", Interfaces.Integer_32 (O.Auto_Cell_Count), -1, 8, Int8));
          Add (M, N, Number ("D_MAX ROLL", Interfaces.Integer_32 (O.D_Max (0)), 0, 100, Flags => Slider_RP));

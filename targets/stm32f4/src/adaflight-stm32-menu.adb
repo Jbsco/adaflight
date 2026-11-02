@@ -8,6 +8,7 @@ with Adaflight.STM32.Motors;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Time;
+with Adaflight.Build_Features;
 package body Adaflight.STM32.Menu is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
@@ -158,6 +159,7 @@ package body Adaflight.STM32.Menu is
      (Version, Target_Name, Board_Name, Manufacturer : String; Display_Present : Boolean;
       Columns, Rows : Interfaces.Unsigned_8) is
    begin
+      T.Wing := Adaflight.Build_Features.Wing;
       T.Identity := (Identifier  => Label ("ADFL"),
                      Version     => Label (Version),
                      Revision    => Label ("0000000"),

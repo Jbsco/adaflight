@@ -593,6 +593,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Stats        : Stats_Copies;
       Board        : Board_Copies;
       Popup        : Popup_Lines;
+      --  A wing build, whose GPS rescue menus show no settings.
+      Wing         : Boolean := False;
       Calibration  : Calibration_Statuses;
       Asked        : Requests;
    end record;
@@ -614,6 +616,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
 
    procedure Load (T : Target; Id : Menu_Id; M : out Adaflight.Menu.Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M);
+
+   --  A wing build has no launch control menu.
+   function Present (T : Target; Id : Menu_Id) return Boolean is
+     (case Id is when Launch_Control_Menu => not T.Wing, when others => True);
 
    procedure On_Enter (T : in out Target; Id : Menu_Id; Reply : out Adaflight.Menu.Answer);
 
