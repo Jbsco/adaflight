@@ -18,7 +18,7 @@ package body Adaflight.SBUS with SPARK_Mode is
    procedure Init (S : out State; Mid_RC : Center_Us) is
       Center : constant Channel_Value := (16 * Mid_RC) / 10 - 1_408;
    begin
-      S := (Frame => <>, Data => (others => Center), Last_Frame_Time_Us => 0);
+      S := (Frame => <>, Data => (others => Center), Last_Frame_Time_Us => 0, Taps => <>);
    end Init;
 
    ------------------
@@ -42,6 +42,9 @@ package body Adaflight.SBUS with SPARK_Mode is
          S.Frame.Bytes (S.Frame.Position) := C mod 256;
          S.Frame.Position := S.Frame.Position + 1;
          S.Frame.Done := S.Frame.Position = Frame_Size;
+         if S.Frame.Done then
+            S.Taps.Frame_Time := Clock.Elapsed (Now_Us, S.Frame.Start_At_Us);
+         end if;
       end if;
    end Receive_Byte;
 
@@ -88,10 +91,13 @@ package body Adaflight.SBUS with SPARK_Mode is
       Block : Channel_Block;
    begin
       Status := (others => False);
+      S.Taps.Status_Read := False;
       if not S.Frame.Done then
          return;
       end if;
       S.Frame.Done := False;
+      S.Taps.Status_Read := True;
+      S.Taps.Flags := S.Frame.Bytes (23);
       for I in Block_Index loop
          Block (I) := S.Frame.Bytes (I + 1);
       end loop;

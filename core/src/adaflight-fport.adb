@@ -40,11 +40,20 @@ package body Adaflight.FPORT with SPARK_Mode is
    -- Receive_Byte --
    ------------------
 
+   --  One frame error of the reason.
+   procedure Report_Error (S : in out State; Reason : Error_Reason) is
+      use type Interfaces.Unsigned_16;
+   begin
+      S.Frame_Errors := S.Frame_Errors + 1;
+      S.Taps.Last_Error := Reason;
+   end Report_Error;
+
    procedure Receive_Byte (S : in out State; C : Serial_Word; Now_Us : Time_Us) is
       Val : Byte := C mod 256;
    begin
       S.Clear_To_Send := False;
       if S.Position > 1 and then Clock.Elapsed (Now_Us, S.Frame_Start_At_Us) > Frame_Timeout_Us then
+         Report_Error (S, Error_Timeout);
          S.Position := 0;
       end if;
       if Val = Frame_Marker then
@@ -62,6 +71,8 @@ package body Adaflight.FPORT with SPARK_Mode is
                S.Last_Telemetry_At_Us := Now_Us;
                S.Telemetry_Frame := False;
             end if;
+            S.Taps.Frame_Interval := Now_Us - S.Last_Frame_Received_Us;
+            S.Last_Frame_Received_Us := Now_Us;
             S.Escaped := False;
          end if;
          S.Frame_Start_At_Us := Now_Us;
@@ -70,6 +81,7 @@ package body Adaflight.FPORT with SPARK_Mode is
       elsif S.Position > 0 then
          if S.Position > Buffer_Size then
             S.Position := 0;
+            Report_Error (S, Error_Oversize);
          else
             if S.Escaped then
                Val := (if (Val / 32) mod 2 = 1 then Val - 32 else Val + 32);
@@ -153,18 +165,26 @@ package body Adaflight.FPORT with SPARK_Mode is
             B            : constant Frame_Buffer := S.Buffers (S.Read_Index);
             Frame_Length : constant Byte := B.Data (0);
          begin
-            if Integer (B.Length) - 2 = Frame_Length and then Checksum_Good (B.Data, B.Length) then
+            if Integer (B.Length) - 2 /= Frame_Length then
+               Report_Error (S, Error_Size);
+            elsif not Checksum_Good (B.Data, B.Length) then
+               Report_Error (S, Error_Checksum);
+            else
                case B.Data (1) is
                   when Type_Control =>
                      if Frame_Length = Control_Payload_Length then
                         Take_Control (S, Rx, B, Now_Ms, Status);
+                     else
+                        Report_Error (S, Error_Type_Size);
                      end if;
                   when Type_Telemetry_Request =>
-                     if Frame_Length = Telemetry_Payload_Length and then S.Telemetry_Enabled then
+                     if Frame_Length /= Telemetry_Payload_Length then
+                        Report_Error (S, Error_Type_Size);
+                     elsif S.Telemetry_Enabled then
                         Take_Request (S, B);
                      end if;
                   when others =>
-                     null;
+                     Report_Error (S, Error_Type);
                end case;
             end if;
          end;
@@ -208,6 +228,8 @@ package body Adaflight.FPORT with SPARK_Mode is
             Result.Sent_Empty_Reply := True;
             S.Clear_To_Send := False;
          end if;
+         S.Taps.Telemetry_Interval := Now_Us - S.Last_Telemetry_Sent_Us;
+         S.Last_Telemetry_Sent_Us := Now_Us;
       end if;
       S.Has_MSP := False;
    end Process_Frame;

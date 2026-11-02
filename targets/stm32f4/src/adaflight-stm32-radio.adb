@@ -6,6 +6,7 @@ with Adaflight.CRSF;
 with Adaflight.CRSF_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.Receiver_Debug;
+with Adaflight.Serial_Receiver_Debug;
 with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
@@ -724,6 +725,7 @@ package body Adaflight.STM32.Radio is
                if not Task_In_Progress then
                   Adaflight.SBUS.Frame_Status (SBUS_State, Status);
                end if;
+               Adaflight.Serial_Receiver_Debug.Record_SBUS (Adaflight.STM32.Debug_Values.State, SBUS_State);
             when IBUS =>
                for I in 0 .. Count - 1 loop
                   Adaflight.IBUS.Receive_Byte (IBUS_State, Natural (Input (I)), Times (I));
@@ -769,6 +771,7 @@ package body Adaflight.STM32.Radio is
                if not Task_In_Progress then
                   Adaflight.FPort.Frame_Status (FPort_State, Rx, Now_Us, Status);
                end if;
+               Adaflight.Serial_Receiver_Debug.Record_FPORT (Adaflight.STM32.Debug_Values.State, FPort_State);
             when GHST =>
                for I in 0 .. Count - 1 loop
                   Adaflight.GHST.Receive_Byte (GHST_State, Natural (Input (I)), Times (I));
@@ -891,6 +894,7 @@ package body Adaflight.STM32.Radio is
             end if;
          end if;
          Adaflight.FPort.Process_Frame (FPort_State, Now_Us, Handled, Result);
+         Adaflight.Serial_Receiver_Debug.Record_FPORT (Adaflight.STM32.Debug_Values.State, FPort_State);
          if Result.Sent_Empty_Reply then
             Adaflight.SmartPort_Telemetry.Write_Frame (Empty, 0, 0, 0, FPort => True);
             USART.Put (Port, Empty.Tx (0 .. Empty.Count - 1));
