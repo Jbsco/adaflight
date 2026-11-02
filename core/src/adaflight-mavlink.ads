@@ -26,7 +26,7 @@ package Adaflight.MAVLink with SPARK_Mode is
 
    Max_Payload : constant := 255;
    subtype Payload_Index is Natural range 0 .. Max_Payload - 1;
-   type Payload_Bytes is array (Payload_Index) of Byte;
+   type Payload_Bytes is array (Payload_Index) of Byte with Component_Size => 8;
    Signature_Length : constant := 13;
    subtype Signature_Count is Natural range 0 .. Signature_Length;
    Queue_Size : constant := 16;

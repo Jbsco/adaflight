@@ -12744,3 +12744,10 @@ Serial bytes reach core `SUMH` with their arrival times, its frame status runs o
 receiver reads eight channels. SUMH gives no frame time, so the refresh rate falls back to the task's time, as for
 XBUS. Its state sits in CCM, since F4 main RAM has no margin. Our host smoke sends SUMH frames, reads the channels
 over MSP and checks the options list.
+
+## D602. MAVLink payload packing (2026-11-01)
+
+Core `MAVLink` payload arrays now keep one byte per element (`Component_Size => 8`), where the `Byte` subtype of
+`Natural` took four. Each parsed message shrinks by 765 bytes (255 elements times three bytes), and our board's
+command state keeps two messages. A receiver state queues sixteen more, which made it about 19 KB before this change.
+The MAVLink receiver on the board needs it small. Vectors and proofs are unchanged, since only representation moves.
