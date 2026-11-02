@@ -37,6 +37,16 @@ package Adaflight.Rangefinder with SPARK_Mode is
    type Int32_Window is array (0 .. 4) of Sample_Cm;
    type Snr_Window is array (0 .. 4) of Snr_Sample;
 
+   --  Values a debug recorder reads after a processed reading: that a
+   --  reading was processed, the tilt cosine it took, and whether the
+   --  surface altitude stood valid before its tilt correction, as upstream
+   --  logs it there.
+   type Debug_Taps is record
+      Processed_Set : Boolean := False;
+      Cos_Tilt      : Cosine := 1.0;
+      Quality_Valid : Boolean := False;
+   end record;
+
    type Sensor is record
       Max_Tilt_Cos          : Cosine := 1.0;
       Raw_Altitude          : Distance_Cm := Out_Of_Range;
@@ -56,6 +66,7 @@ package Adaflight.Rangefinder with SPARK_Mode is
       Snr_Ready             : Boolean := False;
       Max_Alt_With_Tilt_Cm  : Integer_16 := 0;
       Cf_Altitude_Cm        : Integer_16 := 0;
+      Taps                  : Debug_Taps;
    end record;
 
    --  The sensor after detection: the tilt limit from the cone, the

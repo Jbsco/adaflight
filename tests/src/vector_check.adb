@@ -128,6 +128,7 @@ with Adaflight.FrSky_OSD;
 with Adaflight.LED_Strip;
 with Adaflight.Color;
 with Adaflight.Rangefinder;
+with Adaflight.Rangefinder_Debug;
 with Adaflight.Optical_Flow;
 with Adaflight.MS4525;
 with Adaflight.Pitot;
@@ -8868,6 +8869,7 @@ procedure Vector_Check is
 
    RF_Seq    : Integer_64 := -1;
    RF_Sensor : Adaflight.Rangefinder.Sensor;
+   RF_Dbg    : Adaflight.Debug.State;
 
    procedure Check_Rangefinder_Line is
       use Adaflight.Rangefinder;
@@ -8903,6 +8905,14 @@ procedure Vector_Check is
             Record_Int (Name & ".healthy", Int (17), (if Is_Healthy (RF_Sensor, Now_Ms) then 1 else 0));
             Record_Int (Name & ".valid", Int (18), (if Surface_Altitude_Valid (RF_Sensor) then 1 else 0));
          end;
+      elsif Name = "rfdebug" then
+         RF_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (RF_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "rfdbg" then
+         Adaflight.Rangefinder_Debug.Record_Process (RF_Dbg, RF_Sensor);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("rfstep.debug", Int (4 + J), Integer_64 (RF_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown rangefinder case " & Name);
          Failures := Failures + 1;
@@ -18247,6 +18257,7 @@ procedure Vector_Check is
 
    TF_Device : TF_Port;
    TF_State  : TF_Driver.State;
+   TF_Dbg    : Adaflight.Debug.State;
    TF_Found  : Boolean := False;
    TF_Dev    : TF_Driver.Device;
 
@@ -18264,6 +18275,9 @@ procedure Vector_Check is
          BMP_Op_Count := 0;
          TF_Device := (others => <>);
          TF_State := (others => <>);
+         TF_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode
+           (TF_Dbg, Interfaces.Unsigned_8 (Adaflight.Debug.Mode'Pos (Adaflight.Debug.Lidar_TF)));
          TF_Device.Opens := Int (5) /= 0;
          TF_Device.Clock := Interfaces.Unsigned_32 (Int (6));
          TF_Driver.Detect (TF_Device, TF_State, Byte (Int (3)), Interfaces.Integer_8 (Int (4)), TF_Found, TF_Dev);
@@ -18317,6 +18331,12 @@ procedure Vector_Check is
          Record_Int ("lidartf.byte_4", Int (7), Integer_64 (TF_State.Last_Byte_4));
          Record_Int ("lidartf.byte_5", Int (8), Integer_64 (TF_State.Last_Byte_5));
          Record_Int ("lidartf.errors", Int (9), TF_Int16 (Interfaces.Unsigned_16 (TF_State.Errors mod 65_536)));
+         Adaflight.Rangefinder_Debug.Record_Lidar_TF
+           (TF_Dbg, TF_State.Last_Distance, TF_State.Last_Strength, Natural (TF_State.Last_Byte_4),
+            Natural (TF_State.Last_Byte_5), TF_State.Errors);
+         for J in 0 .. 4 loop
+            Record_Int ("lidartf.debug", Int (5 + J), Integer_64 (TF_Dbg.Data (J)));
+         end loop;
       end if;
    end Check_Lidar_TF_Line;
 
@@ -18418,6 +18438,7 @@ procedure Vector_Check is
 
    UP_Device     : TF_Port;
    UP_State      : UP_Driver.State;
+   UP_Dbg        : Adaflight.Debug.State;
    UP_RF_Found   : Boolean := False;
    UP_Flow_Found : Boolean := False;
    UP_RF_Dev     : UP_Driver.Rangefinder_Device;
@@ -18432,6 +18453,8 @@ procedure Vector_Check is
          BMP_Op_Count := 0;
          UP_Device := (others => <>);
          UP_State := (others => <>);
+         UP_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (UP_Dbg, Interfaces.Unsigned_8 (Adaflight.Debug.Mode'Pos (Adaflight.Debug.UPT1)));
          UP_RF_Found := False;
          UP_Flow_Found := False;
          UP_RF_Dev := (others => <>);
@@ -18512,6 +18535,13 @@ procedure Vector_Check is
          Record_Int ("upt1.d_integration", Int (10), TF_Int16 (UP_State.Debug.Integration_Us));
          Record_Int ("upt1.d_reported", Int (11), Integer_64 (UP_State.Debug.Reported));
          Record_Int ("upt1.d_phase", Int (12), UP_Driver.Frame_Phase'Pos (UP_State.Debug.Phase_Seen));
+         Adaflight.Rangefinder_Debug.Record_UPT1
+           (UP_Dbg, UP_State.Debug.Distance_Mm, Natural (UP_State.Debug.Confidence), UP_State.Debug.Flow_X,
+            UP_State.Debug.Flow_Y, Natural (UP_State.Debug.Valid_Status), UP_State.Debug.Integration_Us,
+            UP_State.Debug.Reported, UP_Driver.Frame_Phase'Pos (UP_State.Debug.Phase_Seen));
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("upt1.debug", Int (5 + J), Integer_64 (UP_Dbg.Data (J)));
+         end loop;
          if Str (13) /= "-" then
             declare
                F : constant UP_Driver.Flow_Data := UP_Driver.Flow (UP_State);

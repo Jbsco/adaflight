@@ -114,6 +114,9 @@ package body Adaflight.Rangefinder with SPARK_Mode is
             S.Threshold_Reached := True;
          end if;
       end if;
+      S.Taps.Processed_Set := True;
+      S.Taps.Cos_Tilt := Cos_Tilt;
+      S.Taps.Quality_Valid := Surface_Altitude_Valid (S);
       if Cos_Tilt < S.Max_Tilt_Cos or else S.Raw_Altitude < 0 then
          S.Calculated_Altitude := Out_Of_Range;
       else

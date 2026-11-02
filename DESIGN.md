@@ -12560,3 +12560,15 @@ recorder moves the matching tap only then, which is why it takes compass state i
 families select among these modes after initialization and read eight values after every step, with a zero execution
 time as their clock stands still inside a step. On the board, the compass task records after each read cycle with the
 time the cycle took.
+
+## D587. Debug values, rangefinder group (2026-11-01)
+
+Core `Rangefinder` now keeps taps at a processed reading: that one was processed, the tilt cosine it took, and whether
+surface altitude stood valid before tilt correction, where upstream logs it. Core `Rangefinder_Debug` records
+rangefinder mode (raw and tilt corrected altitudes, signal quality, tilt cosine and its usable limit in thousandths)
+and rangefinder quality mode (raw altitude, threshold reached, dynamic threshold, that validity) from sensor state and
+taps, lidar mode from the lidar driver's last frame values and checksum error count, and UPT1 mode from that driver's
+debug record, which both drivers already kept to match upstream's arrays. Vectors in the rangefinder family select
+among its two modes after initialization and read eight values after every step; lidar and UPT1 families compare the
+recorder's copies beside the driver values they already checked. On the board, the rangefinder task records after each
+process call and after each driver update.
