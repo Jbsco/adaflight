@@ -5073,6 +5073,7 @@ procedure Vector_Check is
             Crashflip_Auto_Rearm       => False,
             GPS_Feature                => False,
             GPS_Rescue_Built           => False,
+            Rescue_Available           => True,
             OSD_Feature                => False,
             Failsafe_GPS_Rescue        => False,
             Rescue_Arming_Without_Fix  => False,

@@ -133,13 +133,18 @@ package body Adaflight.STM32.Control is
 
    --  The wing launch's pass, over the autopilot's angle targets the level
    --  controller reads, as upstream's launch writes them.
+   --  A wing build's autopilot angle targets, which only the launch writes
+   --  and which stay between passes.
+   Wing_Angles : Adaflight.PID_Controller.Autopilot_Angles := (others => 0.0);
+
    procedure Run_Launch is
-      Roll  : Adaflight.Wing_Launch.Angle_Deg := Current.Autopilot_Angles (Adaflight.Axes.Roll);
-      Pitch : Adaflight.Wing_Launch.Angle_Deg := Current.Autopilot_Angles (Adaflight.Axes.Pitch);
+      Roll  : Adaflight.Wing_Launch.Angle_Deg := Wing_Angles (Adaflight.Axes.Roll);
+      Pitch : Adaflight.Wing_Launch.Angle_Deg := Wing_Angles (Adaflight.Axes.Pitch);
    begin
       Current.Launch.Launch_Mode := Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Launch_Mode);
       Adaflight.STM32.Pilot.Launch_Update (Current.Launch, Roll, Pitch);
-      Current.Autopilot_Angles := (Adaflight.Axes.Roll => Roll, Adaflight.Axes.Pitch => Pitch);
+      Wing_Angles := (Adaflight.Axes.Roll => Roll, Adaflight.Axes.Pitch => Pitch);
+      Current.Autopilot_Angles := Wing_Angles;
    end Run_Launch;
 
    --  The controller's loop over the rates, the RC command's setpoints and

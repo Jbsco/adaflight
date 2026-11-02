@@ -95,7 +95,7 @@ package body Adaflight.Arming with SPARK_Mode is
 
    --  GPS rescue is configured as the failsafe procedure or by its box.
    function Rescue_Configured (C : Settings; Conds : Modes.Conditions) return Boolean is
-     (C.GPS_Rescue_Built
+     (C.GPS_Rescue_Built and then C.Rescue_Available
       and then (C.Failsafe_GPS_Rescue or else Modes.Condition_Present (Conds, Modes.GPS_Rescue)));
 
    ----------

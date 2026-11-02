@@ -12934,3 +12934,17 @@ within a 32-bit integer.
 
 Our launch vectors select a mode at each sequence's start and read eight values after every event. On the board our
 recorder runs after each launch pass.
+
+## D617. Wing build autopilot (2026-11-02)
+
+Upstream's wing build replaces autopilot, altitude hold, position hold and GPS rescue with stubs that do nothing and
+report no control. Our board now does the same in a wing build. Arming takes no altitude or position control, so those
+modes never engage, and the board offers neither box. Altitude hold, position hold and rescue updates do nothing.
+Autopilot throttle, control and landing outputs stay neutral.
+
+Core `Arming` gains a setting for builds whose GPS rescue can never be configured. A wing build clears it, so rescue
+mode and the rescue's GPS arming check never apply, where upstream's wing stub reports rescue unconfigured. The
+accelerometer rule for a rescue failsafe procedure stays, as upstream keeps it in both builds.
+
+Autopilot angle targets in a wing build come only from the wing launch and stay between passes, as upstream's angle
+array does, where D615 started each pass from position hold's.

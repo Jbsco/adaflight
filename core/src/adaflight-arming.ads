@@ -190,6 +190,9 @@ package Adaflight.Arming with SPARK_Mode is
       --  laws, and a flying wing or airplane mixer.
       GPS_Feature                : Boolean := False;
       GPS_Rescue_Built           : Boolean := True;
+      --  Whether the build's GPS rescue can be configured at all; a wing
+      --  build's never is.
+      Rescue_Available           : Boolean := True;
       OSD_Feature                : Boolean := False;
       Failsafe_GPS_Rescue        : Boolean := False;
       Rescue_Arming_Without_Fix  : Boolean := False;

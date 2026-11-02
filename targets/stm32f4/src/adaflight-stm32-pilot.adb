@@ -64,6 +64,9 @@ package body Adaflight.STM32.Pilot is
       if Adaflight.Build_Features.Wing then
          Arm_Settings.Runaway_Prevention := False;
          Arm_Settings.Launch_Wing := True;
+         Arm_Settings.Altitude_Control := False;
+         Arm_Settings.Position_Control := False;
+         Arm_Settings.Rescue_Available := False;
       end if;
       declare
          L : Adaflight.Config_Groups.Launch_Wing_Config_Record renames Config.Launch_Wing_Config;

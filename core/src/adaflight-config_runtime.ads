@@ -591,6 +591,7 @@ private
       Crashflip_Auto_Rearm       => Mixer.Crashflip_Auto_Rearm,
       GPS_Feature                => (Features and Config_Fix.Feature_GPS) /= 0,
       GPS_Rescue_Built           => True,
+      Rescue_Available           => True,
       OSD_Feature                => (Features and Config_Fix.Feature_OSD) /= 0,
       Failsafe_GPS_Rescue        => F.Failsafe_Procedure = 2,
       Rescue_Arming_Without_Fix  => Rescue.Allow_Arming_Without_Fix /= 0,
