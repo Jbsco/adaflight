@@ -1,5 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Runtime;
+with Adaflight.Gimbal_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.OSD_Custom_Text;
@@ -44,6 +46,7 @@ package body Adaflight.STM32.Gimbal is
          USART.Init (Which, Baud);
       end if;
       Core.Init (State, Settings_Of (Config), Sticks);
+      Adaflight.Gimbal_Debug.Record_Set (Adaflight.STM32.Debug_Values.State, State);
    end Init;
 
    function Holds (N : USART.Number) return Boolean is (Open and then N = Which);
@@ -61,6 +64,7 @@ package body Adaflight.STM32.Gimbal is
             USART.Take (Which, Input, Count);
          end if;
          Core.Update (State, Settings_Of (Config), Sticks, Now_Us, Input (0 .. Count - 1), O);
+         Adaflight.Gimbal_Debug.Record_Set (Adaflight.STM32.Debug_Values.State, State);
          if O.Length > 0 then
             USART.Put (Port, O.Bytes (0 .. O.Length - 1));
          end if;

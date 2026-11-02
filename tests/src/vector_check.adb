@@ -66,6 +66,7 @@ with Adaflight.GHST_Debug;
 with Adaflight.Arming_Debug;
 with Adaflight.VTX_Debug;
 with Adaflight.MAVLink_Debug;
+with Adaflight.Gimbal_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -29187,6 +29188,7 @@ procedure Vector_Check is
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
+   GB_Dbg      : Adaflight.Debug.State;
 
    procedure Check_Gimbal_Line is
       use Adaflight.Gimbal_Control;
@@ -29198,7 +29200,10 @@ procedure Vector_Check is
          Yaw      => To_Float (Bits (K + 2)),
          Throttle => To_Float (Bits (K + 3)));
    begin
-      if Name = "gbinit" then
+      if Name = "gbdebug" then
+         GB_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (GB_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "gbinit" then
          GB_Seq := Int (2);
          GB_Settings := (Port_Configured        => Int (3) /= 0,
                          Roll_RC_Gain           => Integer (Int (9)),
@@ -29220,6 +29225,7 @@ procedure Vector_Check is
                          Sensitivity            => Integer (Int (25)),
                          Mid_RC                 => Natural (Int (4)));
          Init (GB_State, GB_Settings, Sticks_At (5));
+         Adaflight.Gimbal_Debug.Record_Set (GB_Dbg, GB_State);
          Record_Bytes (Name & ".frame", Hex_Bytes (26), GB_State.Sent);
       elsif Int (2) /= GB_Seq then
          Put_Line ("gimbal line without its start");
@@ -29229,9 +29235,14 @@ procedure Vector_Check is
             O : Output;
          begin
             Update (GB_State, GB_Settings, Sticks_At (5), Interfaces.Unsigned_32 (Int (4)), Hex_Bytes (9), O);
+            Adaflight.Gimbal_Debug.Record_Set (GB_Dbg, GB_State);
             Record_Bytes (Name & ".output", Hex_Bytes (10), O.Bytes (0 .. O.Length - 1));
             Record_Int (Name & ".disabled", Int (11), Boolean'Pos (O.Disable_Task));
          end;
+      elsif Name = "gbdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("gbstep.debug", Int (4 + J), Integer_64 (GB_Dbg.Data (J)));
+         end loop;
       end if;
    end Check_Gimbal_Line;
 

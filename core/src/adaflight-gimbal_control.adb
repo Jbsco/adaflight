@@ -81,6 +81,8 @@ package body Adaflight.Gimbal_Control with SPARK_Mode is
       Roll := Roll + Roll_Max * C.Roll_Offset / 100;
       Pitch := Pitch + Pitch_Max * C.Pitch_Offset / 100;
       Yaw := Yaw + Yaw_Max * C.Yaw_Offset / 100;
+      T.Taps := (Set_Called => True, Head_Roll => Roll_In, Head_Pitch => Pitch_In, Head_Yaw => Yaw_In,
+                 Roll => Roll, Pitch => Pitch, Yaw => Yaw);
       Roll := Constrain (Roll, Roll_Min * C.Roll_Limit / 100, Roll_Max * C.Roll_Limit / 100);
       Pitch := Constrain (Pitch, Pitch_Min * C.Pitch_Low_Limit / 100, Pitch_Max * C.Pitch_High_Limit / 100);
       Yaw := Constrain (Yaw, Yaw_Min * C.Yaw_Limit / 100, Yaw_Max * C.Yaw_Limit / 100);
@@ -130,6 +132,7 @@ package body Adaflight.Gimbal_Control with SPARK_Mode is
       end Write;
    begin
       O := (others => <>);
+      T.Taps.Set_Called := False;
       if not T.Open then
          O.Disable_Task := True;
          return;
