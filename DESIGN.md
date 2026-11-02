@@ -12537,3 +12537,13 @@ upstream reads afresh before each task call, so this value stays near zero; sche
 task splits each drawn duration into controller, motor and subprocess parts and prints them, so the checker replays
 the same stamps against the same simulated clock and compares all eight values against the reference's task delta
 time and load.
+
+## D585. Debug values, CRSF group (2026-11-01)
+
+Core `CRSF` now keeps taps from its two statistics handlers: from a link statistics frame its uplink RSSI per antenna,
+link quality, SNR, active antenna, RF mode and power index, and its downlink RSSI, link quality and SNR (bytes ten to
+twelve of a frame whose length check already admits only full frames); from a transmitter statistics frame its RSSI,
+SNR, link quality and RSSI percentage. Core `CRSF_Debug` records uplink, power and downlink modes from these taps as
+upstream's handlers do, signed bytes kept signed. Vectors in the receiver family select among those modes after
+initialization and read eight values after every step. On the board, the radio task records after each pass of
+receiver bytes.

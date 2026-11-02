@@ -51,6 +51,28 @@ package Adaflight.CRSF with SPARK_Mode is
 
    Legacy_Scale : constant Float := 0.62477120195241;
 
+   --  The link statistics as the last handled frame of each kind carried
+   --  them, for the debug values.
+   subtype Signed_Byte is Integer range -128 .. 127;
+   type Debug_Taps is record
+      Stats_Set        : Boolean := False;
+      Uplink_RSSI_1    : Byte := 0;
+      Uplink_RSSI_2    : Byte := 0;
+      Uplink_Quality   : Byte := 0;
+      Uplink_SNR       : Signed_Byte := 0;
+      Active_Antenna   : Byte := 0;
+      RF_Mode          : Byte := 0;
+      Uplink_Power     : Byte := 0;
+      Downlink_RSSI    : Byte := 0;
+      Downlink_Quality : Byte := 0;
+      Downlink_SNR     : Signed_Byte := 0;
+      Tx_Set           : Boolean := False;
+      Tx_RSSI          : Byte := 0;
+      Tx_SNR           : Signed_Byte := 0;
+      Tx_Quality       : Byte := 0;
+      Tx_Percent       : Byte := 0;
+   end record;
+
    type State is record
       Frame            : Frame_Bytes := (others => 0);
       Position         : Frame_Length := 0;
@@ -64,6 +86,7 @@ package Adaflight.CRSF with SPARK_Mode is
       Last_Stats_Us    : Time_Us := 0;
       Last_Frame_Us    : Time_Us := 0;
       Event_Telemetry  : Boolean := False;
+      Taps             : Debug_Taps;
    end record;
 
    --  What a received byte asked of the other units: a command frame for
