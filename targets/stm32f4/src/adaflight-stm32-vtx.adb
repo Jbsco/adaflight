@@ -26,6 +26,9 @@ package body Adaflight.STM32.VTX is
 
    SmartAudio_Code : constant := 3;
    Tramp_Code      : constant := 4;
+   MSP_Code        : constant := 5;
+   --  The OSD display port device number of the MSP display port.
+   MSP_Display     : constant := 3;
    Unknown_Code    : constant := 16#FF#;
 
    SmartAudio_Line : constant USART.Half_Duplex :=
@@ -34,6 +37,9 @@ package body Adaflight.STM32.VTX is
      (On => True, Push_Pull => False, Resistor => Adaflight.STM32.GPIO.Up);
 
    V       : Core.State;
+   --  The MSP transmitter's configuration frame waiting to be pushed.
+   MSP_Out : Adaflight.VTX_MSP.Config_Frame := (others => 0);
+   MSP_Due : Boolean := False;
    T       : Adaflight.VTX_Table.Table;
    Open    : Boolean := False;
    Which   : USART.Number := USART.UART1;
@@ -56,6 +62,7 @@ package body Adaflight.STM32.VTX is
      (case Code is
          when SmartAudio_Code => Core.SmartAudio_Device,
          when Tramp_Code      => Core.Tramp_Device,
+         when MSP_Code        => Core.MSP_Device,
          when others          => Core.No_Device);
 
    --  The table, then SmartAudio's start and Tramp's on the configured port,
@@ -68,7 +75,21 @@ package body Adaflight.STM32.VTX is
       T := (if Adaflight.VTX_Table_Store.Counts_Valid (C.Vtx_Table_Config)
             then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
       Open := False;
-      if Kind /= Core.No_Device then
+      if Kind = Core.MSP_Device then
+         --  The transmitter's port, else the MSP display port's; the MSP
+         --  line there owns the UART.
+         for N of USART.Present_Set loop
+            if Port_Ids (N) = C.Vtx_Settings_Config.Vtx_Uart
+              or else (Integer (C.Vtx_Settings_Config.Vtx_Uart) < 0
+                       and then C.Osd_Config.Display_Port_Device = MSP_Display
+                       and then Integer (Port_Ids (N)) = Integer (C.Osd_Config.Osd_Uart))
+            then
+               Which := N;
+               Open := True;
+               exit;
+            end if;
+         end loop;
+      elsif Kind /= Core.No_Device then
          for N of USART.Present_Set loop
             if Port_Ids (N) = C.Vtx_Settings_Config.Vtx_Uart then
                if not Adaflight.STM32.Radio.Holds (N) and then not Adaflight.STM32.GPS.Holds (N)
@@ -101,7 +122,8 @@ package body Adaflight.STM32.VTX is
       end if;
    end Init;
 
-   function Holds (N : USART.Number) return Boolean is (Open and then N = Which);
+   function Holds (N : USART.Number) return Boolean is
+     (Open and then V.Kind /= Core.MSP_Device and then N = Which);
 
    procedure Run
      (C        : in out Adaflight.Config_Groups.Configuration;
@@ -125,7 +147,7 @@ package body Adaflight.STM32.VTX is
          Pit_Switch       => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.VTX_Pit_Mode),
          Control_Disabled => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.VTX_Control_Disable));
    begin
-      if Open then
+      if Open and then V.Kind /= Core.MSP_Device then
          USART.Take (Which, Fresh (0 .. Pending'Length - Waiting - 1), Count);
          Pending (Waiting .. Waiting + Count - 1) := Fresh (0 .. Count - 1);
          Waiting := Waiting + Count;
@@ -160,6 +182,10 @@ package body Adaflight.STM32.VTX is
             when others =>
                null;
          end case;
+      end if;
+      if V.Kind = Core.MSP_Device and then E.MSP_Send then
+         MSP_Out := E.MSP_Frame;
+         MSP_Due := True;
       end if;
       if S /= Before then
          Store (C, S);
@@ -200,6 +226,24 @@ package body Adaflight.STM32.VTX is
    begin
       Core.Offer_Spektrum_Control (V, Word);
    end Offer_Spektrum_Control;
+
+   function MSP_Running return Boolean is (Open and then V.Kind = Core.MSP_Device);
+
+   function MSP_Port return USART.Number is (Which);
+
+   procedure MSP_Link_Ready is
+   begin
+      if MSP_Running then
+         Adaflight.VTX_MSP.Set_Ready (V.MD, T, On_Link => True);
+      end if;
+   end MSP_Link_Ready;
+
+   procedure Take_MSP_Frame (Frame : out Adaflight.VTX_MSP.Config_Frame; Pending : out Boolean) is
+   begin
+      Frame := MSP_Out;
+      Pending := MSP_Due;
+      MSP_Due := False;
+   end Take_MSP_Frame;
 
    function Device return Adaflight.MSP_VTX_In.Device is
       Pit   : Boolean;
@@ -260,12 +304,14 @@ package body Adaflight.STM32.VTX is
         and then (case V.Kind is
                      when Core.SmartAudio_Device => Adaflight.SmartAudio.Ready (V.SA),
                      when Core.Tramp_Device      => Adaflight.Tramp.Ready (V.TR),
+                     when Core.MSP_Device        => Adaflight.VTX_MSP.Is_Ready (V.MD),
                      when others                 => False);
       Type_Code :=
         (if not Present then Unknown_Code
          else (case V.Kind is
                   when Core.SmartAudio_Device => SmartAudio_Code,
                   when Core.Tramp_Device      => Tramp_Code,
+                  when Core.MSP_Device        => MSP_Code,
                   when others                 => Unknown_Code));
    end Peripheral;
 

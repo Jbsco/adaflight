@@ -12821,3 +12821,19 @@ and roll, pitch and yaw before their limits, where upstream records them. Core `
 from those taps after each init or update. Our gimbal vectors select a mode before init, since init already sets the
 gimbal, and read eight values after it and after every step. On the board our recorder runs after each init and
 update of gimbal control.
+
+## D609. MSP video transmitter on the board (2026-11-02)
+
+Our board now runs core `VTX` with its MSP device when the VTX type is MSP, as upstream's MSP transmitter does for HD
+goggle systems. Its port is the VTX port, else the MSP display port's when that display port device is MSP. Our board
+opens no UART for it, since an MSP line on that port owns it, and its VTX task reads none of those bytes. Its
+peripheral report gives the MSP device type and driver readiness, where it named SmartAudio and Tramp alone.
+
+This transmitter becomes ready when our MSP processor reports a VTX configuration read or write from its port's MSP
+line or from the receiver's MSP tunnel, where upstream compares MSP descriptors. Each configuration frame the core
+asks to push goes out after the VTX task as an MSP version 2 reply with the VTX configuration command on that line,
+when its buffer has room. As upstream does, a push follows a change, not readiness alone. A transmitter on a CRSF
+receiver's port, which upstream reaches through CRSF telemetry, waits for a later entry.
+
+Our host smoke sets up a VTX table, reads VTX configuration over MSP on the transmitter's port, writes band, channel
+and power as a goggle does, and finds a pushed frame with those values.
