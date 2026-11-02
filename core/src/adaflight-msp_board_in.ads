@@ -38,7 +38,7 @@ package Adaflight.MSP_Board_In with SPARK_Mode is
    --  The reset happens only while disarmed.
    procedure Process
      (C : in out Configuration; Board : in out Board_Info.State; Command : Interfaces.Unsigned_16;
-      Request : Byte_Array; Armed : Boolean; R : out Result; E : out Effects)
+      Request : Byte_Array; Armed : Boolean; Wing : Boolean; R : out Result; E : out Effects)
      with Pre  => Handles (Command) and then Request'Length <= Max_Request,
           Post => (if R = Error then C = C'Old and then Board = Board'Old and then E = No_Effects);
 

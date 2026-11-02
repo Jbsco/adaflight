@@ -30686,6 +30686,9 @@ procedure Vector_Check is
                           Vref_Mv      => 3300, Core_Temp_C => 40, Stack_Total => 2048, Stack_High => 16#2002_0000#,
                           others       => <>));
    CLI_Env      : CLI.Environment := CLI_Identity;
+   --  A wing build's command line runs: its settings and defaults, and no
+   --  configuration hash, which the wing oracle takes over its own layout.
+   CLI_Wing     : Boolean := False;
    --  The build options of the command line oracle's build, for the list the
    --  port derives from its option table.
    package BO renames Adaflight.Build_Options;
@@ -30821,8 +30824,9 @@ procedure Vector_Check is
    begin
       if Str (1) = "cli" then
          if Int (2) = 0 then
-            CLI_Config := Groups.Defaults;
+            CLI_Config := (if CLI_Wing then Groups.Wing_Defaults else Groups.Defaults);
             CLI_Env := CLI_Identity;
+            CLI_Env.Wing := CLI_Wing;
             CLI_Gyro_Bus_Kind := 0;
             CLI_Gyro_Bus_Devices := 0;
             CLI_Board := (others => <>);
@@ -31859,6 +31863,9 @@ procedure Vector_Check is
             Record_Int ("cli.serial_pass", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_SP_Log)));
          end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
+         if CLI_Wing then
+            return;
+         end if;
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
@@ -40909,7 +40916,8 @@ procedure Vector_Check is
                   Check_Config_Codec_Line;
                elsif Kind = "conffix" then
                   Check_Config_Fix_Line;
-               elsif Kind = "cliset" then
+               elsif Kind = "cliset" or else Kind = "cliwing" then
+                  CLI_Wing := Kind = "cliwing";
                   Check_CLI_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
@@ -41265,6 +41273,10 @@ begin
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
    Run (Dir & "/cliset.csv", "cliset");
+   Run (Dir & "/cliwingset.csv", "cliwing");
+   Run (Dir & "/cliwingdump.csv", "cliwing");
+   Run (Dir & "/cliwingdiff.csv", "cliwing");
+   Run (Dir & "/cliwingprof.csv", "cliwing");
    Run (Dir & "/cliprof.csv", "cliset");
    Run (Dir & "/cliflag.csv", "cliset");
    Run (Dir & "/cliaux.csv", "cliset");

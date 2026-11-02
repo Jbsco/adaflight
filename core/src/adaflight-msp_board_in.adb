@@ -72,7 +72,7 @@ package body Adaflight.MSP_Board_In with SPARK_Mode is
 
    procedure Process
      (C : in out Configuration; Board : in out Board_Info.State; Command : Interfaces.Unsigned_16;
-      Request : Byte_Array; Armed : Boolean; R : out Result; E : out Effects)
+      Request : Byte_Array; Armed : Boolean; Wing : Boolean; R : out Result; E : out Effects)
    is
    begin
       E := No_Effects;
@@ -83,7 +83,7 @@ package body Adaflight.MSP_Board_In with SPARK_Mode is
             Set_Signature (C, Board, Request, R);
          when Reset_Config_Command =>
             if not Armed then
-               C := Config_Reset.Reset (Board);
+               C := Config_Reset.Reset (Board, Wing);
                E.Save := True;
                E.Reboot := True;
                E.Reply_Value := 1;

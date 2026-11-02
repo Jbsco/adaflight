@@ -9,6 +9,6 @@ package Adaflight.Config_Reset with SPARK_Mode is
    procedure Apply_Tuning (C : in out Configuration);
 
    --  The reset configuration for a board.
-   function Reset (Board : Board_Info.State) return Configuration;
+   function Reset (Board : Board_Info.State; Wing : Boolean := False) return Configuration;
 
 end Adaflight.Config_Reset;

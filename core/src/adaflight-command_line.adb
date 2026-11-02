@@ -123,10 +123,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  corrupted value's error on a line of its own.
    procedure Put_Value
      (Into : in out Output; C : Configuration; S : Setting; Profile : Natural; Command : String; Full : Boolean;
-      Ports : Port_List)
+      Ports : Port_List; Wing : Boolean)
      with Pre => Profile < Profile_Count (S) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
-      I         : constant Info := Describe (S);
+      I         : constant Info := Describe (S, Wing);
       V         : Integer_64;
       Corrupted : Boolean := False;
    begin
@@ -166,7 +166,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   end if;
             end case;
          when Lookup =>
-            if V >= 0 and then V < Integer_64 (Value_Count (I.Table))
+            if V >= 0 and then V < Integer_64 (Value_Count (I.Table, Wing))
               and then Value_Name (I.Table, Natural (V))'Length > 0
             then
                Put (Into, Value_Name (I.Table, Natural (V)));
@@ -206,8 +206,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Value;
 
    --  The values a setting takes, on a line; nothing for a port.
-   procedure Put_Range (Into : in out Output; S : Setting) is
-      I     : constant Info := Describe (S);
+   procedure Put_Range (Into : in out Output; S : Setting; Wing : Boolean) is
+      I     : constant Info := Describe (S, Wing);
       First : Boolean := True;
    begin
       case I.How is
@@ -232,7 +232,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end case;
          when Lookup =>
             Put (Into, "Allowed values: ");
-            for K in 0 .. Value_Count (I.Table) - 1 loop
+            for K in 0 .. Value_Count (I.Table, Wing) - 1 loop
                if Value_Name (I.Table, K)'Length > 0 then
                   if not First then
                      Put (Into, ", ");
@@ -302,7 +302,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
             Put (Into, Name (S));
             Put (Into, " = ");
-            Put_Value (Into, C, S, Profile_Of (S, P), Command, False, Ports);
+            Put_Value (Into, C, S, Profile_Of (S, P), Command, False, Ports, Wing);
             Put (Into, CRLF);
             case Describe (S).Where is
                when PID_Profile =>
@@ -320,10 +320,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
                when Master | Hardware =>
                   null;
             end case;
-            Put_Range (Into, S);
+            Put_Range (Into, S, Wing);
             if not Equals_Default (C, S, Profile_Of (S, P)) then
                Put (Into, "Default value: ");
-               Put_Value (Into, Defaults, S, Profile_Of (S, P), Command, False, Ports);
+               Put_Value (Into, Defaults, S, Profile_Of (S, P), Command, False, Ports, Wing);
                Put (Into, CRLF);
             end if;
             Matched := True;
@@ -447,7 +447,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             if In_Build (S, Wing) then
                Put (Into, Name (S));
                Put (Into, " = ");
-               Put_Value (Into, C, S, Profile_Of (S, P), "set", Arguments'Length = 1, Ports);
+               Put_Value (Into, C, S, Profile_Of (S, P), "set", Arguments'Length = 1, Ports, Wing);
                Put (Into, CRLF);
             end if;
          end loop;
@@ -496,7 +496,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
          declare
             Value   : constant String := Arguments (Value_First .. Arguments'Last);
-            I       : constant Info := Describe (Target);
+            I       : constant Info := Describe (Target, Wing);
             Profile : constant Natural := Profile_Of (Target, P);
             Changed : Boolean := False;
          begin
@@ -541,7 +541,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   declare
                      Table : constant Lookup_Table := (if I.How = Bitset then Table_Off_On else I.Table);
                   begin
-                     for K in 0 .. Value_Count (Table) - 1 loop
+                     for K in 0 .. Value_Count (Table, Wing) - 1 loop
                         if Value_Name (Table, K)'Length > 0
                           and then CLI_Text.Same_Ignoring_Case (Value_Name (Table, K), Value)
                         then
@@ -587,10 +587,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             if Changed then
                Put (Into, Name (Target));
                Put (Into, " set to ");
-               Put_Value (Into, C, Target, Profile, "set", False, Ports);
+               Put_Value (Into, C, Target, Profile, "set", False, Ports, Wing);
             else
                Put_Error (Into, "set: INVALID VALUE###" & CRLF);
-               Put_Range (Into, Target);
+               Put_Range (Into, Target, Wing);
             end if;
          end;
       end;
@@ -673,13 +673,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      Put (Into, "#set ");
                      Put (Into, Name (S));
                      Put (Into, " = ");
-                     Put_Value (Into, Defaults, S, Profile, Command, False, Ports);
+                     Put_Value (Into, Defaults, S, Profile, Command, False, Ports, Wing);
                      Put (Into, CRLF);
                   end if;
                   Put (Into, "set ");
                   Put (Into, Name (S));
                   Put (Into, " = ");
-                  Put_Value (Into, C, S, Profile, Command, False, Ports);
+                  Put_Value (Into, C, S, Profile, Command, False, Ports, Wing);
                   Put (Into, CRLF);
                end if;
             end;
@@ -1403,7 +1403,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, "set ");
                Put (Into, Name (S));
                Put (Into, " = ");
-               Put_Value (Into, C, S, 0, "serial", False, Ports);
+               Put_Value (Into, C, S, 0, "serial", False, Ports, Wing);
                Put (Into, CRLF);
             end if;
          end if;
@@ -4195,7 +4195,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  configuration's write and the board's restart.
    procedure Defaults_Command
      (Into : in out Output; C : in out Configuration; Board : in out Board_State; Arguments : String;
-      Changes : in out Effects)
+      Changes : in out Effects; Wing : Boolean)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
    is
       Save   : Boolean := True;
@@ -4239,13 +4239,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       if Group = 0 then
          Put_Hash_Line (Into, "resetting to defaults");
-         C := Config_Reset.Reset (Board);
+         C := Config_Reset.Reset (Board, Wing);
       else
          Put (Into, CRLF & "# resetting group ");
          Put_Decimal (Into, Integer_64 (Group));
          Put (Into, " to defaults" & CRLF);
          declare
-            Reset : constant Configuration := Config_Reset.Reset (Board);
+            Reset : constant Configuration := Config_Reset.Reset (Board, Wing);
             Kept  : Config_Codec.Data;
             Fresh : Config_Codec.Data;
          begin
@@ -8328,7 +8328,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Beeper_Command
                  (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Args);
             when Defaults_Command_Word =>
-               Defaults_Command (Into, C, Board, Args, Changes);
+               Defaults_Command (Into, C, Board, Args, Changes, Env.Wing);
             when Diff_Command =>
                Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
             when Dma_Command_Word =>

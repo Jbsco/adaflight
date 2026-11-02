@@ -276,7 +276,8 @@ package body Adaflight.STM32.Flight is
       ESC_Serial_Tag        => Adaflight.Board.ESC_Serial_Tag);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
-   Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
+   Config   : Adaflight.Config_Groups.Configuration :=
+     Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
    Sched    : Scheduler.State;
    Session  : Terminal.Session;
    Into     : CLI.Output;
@@ -611,7 +612,7 @@ package body Adaflight.STM32.Flight is
       DShot_Protocol  => False,
       ESC_Sensor      => False,
       Build_Options   => CLI.Build_Option_List (Image_Options.Numbers),
-      Wing            => False,
+      Wing            => Adaflight.Build_Features.Wing,
       Option_Count    => Image_Options.Length,
       Supported_Features => Adaflight.Config_Fix.Supported_Features
         or (if Adaflight.STM32.MCU.UDP_Receiver_Available then Adaflight.Config_Fix.Feature_RX_UDP else 0),
@@ -839,7 +840,7 @@ package body Adaflight.STM32.Flight is
       Defaults : Adaflight.Config_Codec.Data;
       Data     : Adaflight.Config_Codec.Data;
    begin
-      Adaflight.Config_Codec.Encode (Adaflight.Config_Reset.Reset (Board), Defaults);
+      Adaflight.Config_Codec.Encode (Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing), Defaults);
       Adaflight.Config_Store.Load
         (Adaflight.STM32.Flash.Config, Adaflight.Config_Codec.Registry, Defaults, Data, Hashes, Success);
       Adaflight.Config_Codec.Decode (Data, Config);
@@ -853,7 +854,7 @@ package body Adaflight.STM32.Flight is
    procedure Reset_Configuration is
       Unused_Success : Boolean;
    begin
-      Config := Adaflight.Config_Reset.Reset (Board);
+      Config := Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
       for I in Board_Identifier'Range loop
          Config.System_Config.Board_Identifier (I - 1) := Character'Pos (Board_Identifier (I));
       end loop;
@@ -4436,6 +4437,7 @@ package body Adaflight.STM32.Flight is
       Env.Serial_Protocol := Adaflight.STM32.Radio.Serial_Protocol;
       Ctx.Receiver_Source := Adaflight.STM32.Radio.Source;
       Ctx.Serial_Protocol := Adaflight.STM32.Radio.Serial_Protocol;
+      Ctx.Wing := Adaflight.Build_Features.Wing;
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then
