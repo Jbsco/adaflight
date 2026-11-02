@@ -56,6 +56,7 @@ with Adaflight.Adjustments;
 with Adaflight.Scheduler;
 with Adaflight.Loop_Debug;
 with Adaflight.Power_Debug;
+with Adaflight.IMU_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -2346,7 +2347,7 @@ procedure Vector_Check is
             C.Loop_Time_Us := Integer'Value (Str (3));
             C.Sample_Time_Us := Integer'Value (Str (4));
             Gyro_Denom := Integer'Value (Str (5));
-            Gyro_Debug := (others => <>);
+            Gyro_Debug.Data := (others => 0);
             C.Scale := Flt (6);
             C.Sensors (0) := (Alignment     => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (7)),
                               Custom_Angles => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (8)),
@@ -2517,12 +2518,14 @@ procedure Vector_Check is
                      Filter (Gyro_State, Gyro_Settings,
                              Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                              Gyro_Motor_Hz, Gyro_Dt_Scale);
+                     Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
                   end if;
                end if;
             end loop;
             if Step then
                Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
                Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, 0, Gyro_Motor_Hz, Gyro_Dt_Scale);
+               Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
                for A in Adaflight.Axes.Axis loop
                   Expect_Float ("rate", Gyro_State.Rate (A));
                end loop;
@@ -2548,6 +2551,7 @@ procedure Vector_Check is
          Filter (Gyro_State, Gyro_Settings,
                  Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                  Gyro_Motor_Hz, Gyro_Dt_Scale);
+         Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
          Record_Int ("gyromcaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for G in Adaflight.Gyro_Filters.Gyro_Index loop
             for A in Adaflight.Axes.Axis loop
@@ -2581,18 +2585,25 @@ procedure Vector_Check is
                           Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                           Gyro_Motor_Hz, Gyro_Dt_Scale);
                   Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
+                  Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
                end if;
                K := K + 3;
             end loop;
          end;
       elsif Name = "gyrodebug" then
+         Gyro_Debug := (others => <>);
          Adaflight.Debug.Select_Mode (Gyro_Debug, Interfaces.Unsigned_8 (Int (3)));
          Gyro_Settings.Debug_Axis := Adaflight.Axes.Axis'Val (Int (4));
+      elsif Name = "gyrodbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("gyromstep.debug", Int (4 + J), Integer_64 (Gyro_Debug.Data (J)));
+         end loop;
       elsif Name = "gyrocaldone" then
          Filter (Gyro_State, Gyro_Settings,
                  Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
                  Gyro_Motor_Hz, Gyro_Dt_Scale);
          Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
+         Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)),
@@ -2640,6 +2651,7 @@ procedure Vector_Check is
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
             Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)), Gyro_Motor_Hz, Gyro_Dt_Scale);
             Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
+            Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("rate", Gyro_State.Rate (A));
             end loop;
@@ -4318,6 +4330,8 @@ procedure Vector_Check is
    Acc_State    : Adaflight.Accelerometer.State;
    Acc_Settings : Adaflight.Accelerometer.Settings;
    Acc_Cal      : Adaflight.Acc_Inflight.State;
+   Acc_Dbg      : Adaflight.Debug.State;
+   Acc_Dbg_Axis : Adaflight.Vectors.Coordinate := Adaflight.Vectors.X;
    Acc_Done_Tones : Natural := 0;
    Acc_Saves    : Natural := 0;
 
@@ -4414,6 +4428,15 @@ procedure Vector_Check is
          Record_Int ("accinfl.remaining", Int (7), Integer_64 (Acc_Cal.Remaining));
          Record_Int ("accinfl.tones", Int (8), Integer_64 (Acc_Done_Tones));
          Record_Int ("accinfl.saves", Int (9), Integer_64 (Acc_Saves));
+      elsif Name = "accdebug" then
+         Acc_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Acc_Dbg, Interfaces.Unsigned_8 (Int (3)));
+         Acc_Dbg_Axis := Adaflight.Vectors.Coordinate'Val (Int (4));
+      elsif Name = "accdbg" then
+         Adaflight.IMU_Debug.Record_Acc (Acc_Dbg, Acc_State, Acc_Dbg_Axis);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("accstep.debug", Int (4 + J), Integer_64 (Acc_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown acc case " & Name);
          Failures := Failures + 1;

@@ -203,6 +203,8 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
          S.Sensors (I).Cal_Step := False;
          if S.Enabled (I) then
             if Ready (I) then
+               S.Sensors (I).Raw_Roll := Interfaces.Integer_16 (Samples (I) (Roll));
+               S.Sensors (I).Raw_Pitch := Interfaces.Integer_16 (Samples (I) (Pitch));
                if (for all J in Gyro_Index range 0 .. I - 1 => not S.Enabled (J)) then
                   S.Taps.Raw_Last := (Roll  => Interfaces.Integer_16 (Samples (I) (Roll)),
                                       Pitch => Interfaces.Integer_16 (Samples (I) (Pitch)),

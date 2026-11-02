@@ -12585,3 +12585,19 @@ meter as upstream's reader does) and internal ADC mode (core temperature, raw re
 reference millivolts). Vectors in the three battery families and the internal ADC family select among these modes
 after initialization and read eight values after every step. On the board, the voltage and current tasks and the
 internal ADC pass record after their updates.
+
+## D589. Debug values, IMU group (2026-11-01)
+
+Core `Accelerometer` now keeps taps: that an update ran, and each axis's trimmed sample before its filter, which upstream
+logs on the debug axis ahead of the filtered one. Core `IMU_Debug` records accelerometer mode from those taps and state:
+on the debug axis the sample before and after filtering and its jerk in hundreds of counts per second, then
+acceleration and jerk magnitudes in thousandths of a g.
+
+Core `Gyro_Filters` keeps each sensor's last raw roll and pitch counts. `Gyro_Debug` gains a multi gyro recorder for
+three modes, written after each filter pass as upstream does. For the first four enabled sensors it fills two slots
+each: raw counts, aligned rates at scale, or those rates against the filtered rate.
+
+Vectors in the accelerometer families select accelerometer mode with a debug axis after
+initialization, and the multi gyro family selects among its three modes before initialization (upstream enables that
+logging at gyro init); both read eight values after every step. On the board, the accelerometer task records after
+each update and the filter task after each filter pass.

@@ -130,6 +130,7 @@ with Adaflight.SmartPort_Telemetry;
 with Adaflight.Debug;
 with Adaflight.Loop_Debug;
 with Adaflight.Power_Debug;
+with Adaflight.IMU_Debug;
 with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
@@ -1742,6 +1743,9 @@ package body Adaflight.STM32.Flight is
       Calibrating := Acc_State.Calibrating;
       Adaflight.Accelerometer.Update
         (Acc_State, Acc_Settings, (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), Acc_Cal);
+      Adaflight.IMU_Debug.Record_Acc
+        (Adaflight.STM32.Debug_Values.State, Acc_State,
+         Adaflight.Vectors.Coordinate'Val (Adaflight.Axes.Axis'Pos (Adaflight.STM32.Debug_Values.Axis)));
       if Acc_State.Inflight_Ended then
          Request_Beep (Adaflight.Beeper.Acc_Calibration);
       end if;
@@ -2064,6 +2068,7 @@ package body Adaflight.STM32.Flight is
                                      Motor_Hz => Motor_Hz, Dt_Scale => Scale);
       Adaflight.Gyro_Debug.Record_Filter
         (Adaflight.STM32.Debug_Values.State, Gyro_State, Gyro_Settings.Debug_Axis, Natural'Min (100, Sched.Average_Load_Percent));
+      Adaflight.Gyro_Debug.Record_Multi (Adaflight.STM32.Debug_Values.State, Gyro_State, Gyro_Settings);
       for I in Adaflight.MSP_Out.Axis loop
          Ctx.Out_Views.State.IMU.Gyro_Dps (I) := Counts (Gyro_State.Filtered (Adaflight.Axes.Axis'Val (I)));
       end loop;

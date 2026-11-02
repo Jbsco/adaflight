@@ -86,4 +86,33 @@ package body Adaflight.Gyro_Debug with SPARK_Mode is
       end loop;
    end Record_Calibration;
 
+   procedure Record_Multi (D : in out Debug.State; S : Gyro_Filters.State; C : Gyro_Filters.Settings) is
+      Slot : Natural range 0 .. 4 := 0;
+   begin
+      if not (Debug.Selected (D, Debug.Multi_Gyro_Raw) or else Debug.Selected (D, Debug.Multi_Gyro_Scaled)
+              or else Debug.Selected (D, Debug.Multi_Gyro_Diff))
+      then
+         return;
+      end if;
+      for I in Gyro_Filters.Gyro_Index loop
+         pragma Loop_Invariant (Slot <= I);
+         if S.Enabled (I) and then Slot < 4 then
+            declare
+               Roll_Rate  : constant Float := S.Sensors (I).Aligned (Axes.Roll) * C.Scale;
+               Pitch_Rate : constant Float := S.Sensors (I).Aligned (Axes.Pitch) * C.Scale;
+            begin
+               Debug.Set (D, Debug.Multi_Gyro_Raw, 2 * Slot, S.Sensors (I).Raw_Roll);
+               Debug.Set (D, Debug.Multi_Gyro_Raw, 2 * Slot + 1, S.Sensors (I).Raw_Pitch);
+               Debug.Set (D, Debug.Multi_Gyro_Scaled, 2 * Slot, Debug.Rounded (Held (Roll_Rate)));
+               Debug.Set (D, Debug.Multi_Gyro_Scaled, 2 * Slot + 1, Debug.Rounded (Held (Pitch_Rate)));
+               Debug.Set (D, Debug.Multi_Gyro_Diff, 2 * Slot,
+                          Debug.Rounded (Held (Held (Roll_Rate) - Held (S.Filtered (Axes.Roll)))));
+               Debug.Set (D, Debug.Multi_Gyro_Diff, 2 * Slot + 1,
+                          Debug.Rounded (Held (Held (Pitch_Rate) - Held (S.Filtered (Axes.Pitch)))));
+            end;
+            Slot := Slot + 1;
+         end if;
+      end loop;
+   end Record_Multi;
+
 end Adaflight.Gyro_Debug;

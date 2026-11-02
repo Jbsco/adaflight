@@ -131,6 +131,8 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Cal_Step         : Boolean := False;
       Cal_Final        : Boolean := False;
       Cal_Failed       : Boolean := False;
+      Raw_Roll         : Interfaces.Integer_16 := 0;
+      Raw_Pitch        : Interfaces.Integer_16 := 0;
    end record;
    type Sensor_States is array (Gyro_Index) of Sensor_State;
 
