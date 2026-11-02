@@ -12813,3 +12813,11 @@ through their drivers once those are wired.
 The CLI environment and the MSP context now take the receiver source and serial protocol from the radio's start, as
 upstream fixes them at its receiver init. Both stayed at none before, so every bind request read as not supported.
 Our host smoke runs `bind_rx` beside each receiver and finds its frame on the receiver's port.
+
+## D608. Debug values, gimbal (2026-11-02)
+
+Core `Gimbal_Control` now keeps taps from each call that sets the gimbal: head tracker roll, pitch and yaw it took,
+and roll, pitch and yaw before their limits, where upstream records them. Core `Gimbal_Debug` records gimbal mode
+from those taps after each init or update. Our gimbal vectors select a mode before init, since init already sets the
+gimbal, and read eight values after it and after every step. On the board our recorder runs after each init and
+update of gimbal control.

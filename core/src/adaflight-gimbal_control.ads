@@ -53,6 +53,19 @@ package Adaflight.Gimbal_Control with SPARK_Mode is
 
    type Parse_Phase is (Opcode_Low, Opcode_High, Command);
 
+   --  What a call wrote where upstream records a debug value: whether it set
+   --  the gimbal, the head tracker's angles it took, and the roll, pitch
+   --  and yaw before their limits.
+   type Debug_Taps is record
+      Set_Called : Boolean := False;
+      Head_Roll  : Integer := 0;
+      Head_Pitch : Integer := 0;
+      Head_Yaw   : Integer := 0;
+      Roll       : Integer := 0;
+      Pitch      : Integer := 0;
+      Yaw        : Integer := 0;
+   end record;
+
    type State is record
       Open        : Boolean := False;
       Phase       : Parse_Phase := Opcode_Low;
@@ -60,6 +73,7 @@ package Adaflight.Gimbal_Control with SPARK_Mode is
       Received    : Frame := (others => 0);
       Sent        : Frame := (others => 0);
       Last_Rx_Us  : Unsigned_32 := 0;
+      Taps        : Debug_Taps;
    end record;
 
    Max_Input  : constant := 256;
