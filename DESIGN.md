@@ -12851,3 +12851,14 @@ tunnel, as in D609.
 
 Our host smoke writes a VTX configuration through that tunnel and finds a pushed frame on its port. It keeps the OSD
 on another UART, since an MSP display port on a receiver's port writes onto that line, which D611 takes up.
+
+## D611. MSP display port on MSP lines only (2026-11-02)
+
+Our MSP display port now writes only on a UART where an MSP line runs, as upstream pushes display frames through its
+MSP ports alone. With HD video and no OSD port set, upstream and our board both take the first port with the VTX MSP
+function as the display port, and that port can be a CRSF receiver's. Upstream has no MSP port there, so its frames go
+nowhere. Our board wrote them onto the receiver's line, which crowded out CRSF telemetry and the MSP tunnel's replies.
+
+Our flight code tells the OSD, right after the MSP lines open, whether one runs on the display port's UART. Frames from
+an earlier start still go out as before. Our host smoke puts an MSP transmitter on a CRSF receiver's port with no OSD
+port, then finds CRSF telemetry at its full rate on that line and an answer through the MSP tunnel.

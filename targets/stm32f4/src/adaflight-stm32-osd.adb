@@ -251,6 +251,7 @@ package body Adaflight.STM32.OSD is
    Device_UARTs   : array (USART.Number) of Boolean := (others => False);
    --  The display's UART, when the display port names one of the board's.
    Display_On_UART : Boolean := False;
+   Display_Line    : Boolean := True;
    Display_UART    : USART.Port := (Which => USART.UART1);
    Board_UARTs    : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
@@ -266,7 +267,7 @@ package body Adaflight.STM32.OSD is
       Frame_Length : Positive;
    begin
       Sent := 0;
-      if not Display_On_UART or else Length = 0 then
+      if not Display_On_UART or else not Display_Line or else Length = 0 then
          return;
       end if;
       Adaflight.MSP_Port.Encode
@@ -596,6 +597,17 @@ package body Adaflight.STM32.OSD is
      (if On_MSP then Interfaces.Unsigned_32 (USART.Free (Display_UART.Which)) else Interfaces.Unsigned_32'Last);
 
    function Peripheral (N : USART.Number) return Boolean is (Device_UARTs (N));
+
+   procedure Display_Port (On_UART : out Boolean; N : out USART.Number) is
+   begin
+      On_UART := Display_On_UART;
+      N := Display_UART.Which;
+   end Display_Port;
+
+   procedure Set_Display_Line (Present : Boolean) is
+   begin
+      Display_Line := Present;
+   end Set_Display_Line;
 
    function Font_Write_Taken return Boolean is
      (Present and then Kind = Adaflight.OSD_Task.MAX7456 and then Chip_State.Detected);
