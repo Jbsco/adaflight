@@ -12923,3 +12923,14 @@ Our board gathers what a launch reads from its sensors: accelerometer, filtered 
 its rate, GPS fix and ground speed, stick deflections, throttle and failsafe. Arming takes the same inputs to check
 that the airframe rests as it arms. Arming settings enable the launch, and a wing build with an accelerometer offers
 the launch box. Launch debug values follow as their own step.
+
+## D616. Debug values, wing launch (2026-11-02)
+
+Core `Wing_Launch` now keeps taps from each pass's throw detection: forward acceleration in g, swing speed, and which
+of bungee, swing and ground speed detectors fired. Core `Launch_Debug` records launch mode after each pass, as upstream
+records at the end of every launch update: state, climb angle target, launch throttle, handover and exit reason, plus
+the detection taps when that pass looked for a throw. Taps keep ranges far past any sensor, so their rounding stays
+within a 32-bit integer.
+
+Our launch vectors select a mode at each sequence's start and read eight values after every event. On the board our
+recorder runs after each launch pass.
