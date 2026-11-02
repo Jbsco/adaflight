@@ -450,12 +450,12 @@ def sumh_frame(channels_us):
     return bytes([0xA8, 0x00, 0x00]) + words + bytes([0x00, 0x00])
 
 
-def srxl2_frame(channels_us):
-    """An SRXL2 control data packet of channel data: no reply asked, full RSSI, no frame losses, a mask over
-    the first channels and a word per channel little-endian in 1/64 us from 988 us, then the CRC-16 high byte
-    first."""
+def srxl2_frame(channels_us, reply=0):
+    """An SRXL2 control data packet of channel data: the device asked to reply, full RSSI, no frame losses, a
+    mask over the first channels and a word per channel little-endian in 1/64 us from 988 us, then the CRC-16
+    high byte first."""
     ch = channels_us[:16]
-    body = bytes([0xA6, 0xCD, 12 + 2 * len(ch) + 2, 0x00, 0x00, 100, 0, 0]) + ((1 << len(ch)) - 1).to_bytes(4, "little") \
+    body = bytes([0xA6, 0xCD, 12 + 2 * len(ch) + 2, 0x00, reply, 100, 0, 0]) + ((1 << len(ch)) - 1).to_bytes(4, "little") \
         + b"".join(((v - 988) * 64).to_bytes(2, "little") for v in ch)
     return body + crc16_xmodem(body).to_bytes(2, "big")
 
@@ -1760,6 +1760,40 @@ def main():
                 sender.stop.set()
                 stop(proc)
                 sock.close()
+        store = os.path.join(work, "srxl2tlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for SRXL2", "Enabled" in text, text[-120:])
+            text = cli(sock, "set serialrx_provider = SRXL2")
+            check("receiver protocol set to SRXL2 for telemetry", "serialrx_provider set to SRXL2" in text, text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("SRXL2 telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        us = [1500, 1599, 988, 1500] + [1500] * 10
+        sender = SerialReceiver([srxl2_frame(us), srxl2_frame(us, reply=0x31)])
+        sender.start()
+        try:
+            time.sleep(2.5)
+            passed, values = until(lambda: rc_values(sock),
+                                   lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2 and abs(v[1] - 1599) <= 2
+                                   and abs(v[2] - 1500) <= 2 and v[3] <= 1000)
+            check("SRXL2 channels reach the MSP RC reply with telemetry on", passed, repr(values))
+            time.sleep(1.0)
+            replies = sender.received.count(b"\xa6\x80\x16")
+            check("SRXL2 receiver gets telemetry packets when it asks", replies >= 2, repr(sender.received[:48]))
+        finally:
+            sender.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "frskyhub.bin")
         proc, sock = start(image, store)
         try:

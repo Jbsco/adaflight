@@ -12782,3 +12782,12 @@ processing is due, a waiting reply goes out once the bus has been quiet for two 
 protocol claims RSSI where no other source is set. Telemetry replies, VTX control frames and binding follow in later
 entries. Our host smoke sends channel data packets, reads channels over MSP, sees signal loss cleared and checks the
 options list.
+
+## D605. SRXL2 telemetry on the board (2026-11-02)
+
+Our board now answers an SRXL2 receiver's telemetry requests from its SRXL telemetry stream. That stream takes a frame
+once a receiver has asked for one, where SRXL waits for an empty buffer, and each frame's 16-byte payload goes into
+core `SRXL2` between its sensor data header and checksum. Each reply leaves when the bus allows, as in D604.
+
+Our SRXL display port registers for SRXL2 too, as upstream does once its receiver opens. Our host smoke asks for
+telemetry in every other channel packet and counts sensor data packets on the receiver's port.

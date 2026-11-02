@@ -657,6 +657,20 @@ package body Adaflight.STM32.Radio is
       if not SRXL_Telemetry_On then
          return;
       end if;
+      --  An SRXL2 receiver asks for each frame, and the payload goes out in
+      --  that protocol's framing.
+      if Kind = SRXL2 then
+         Seen.Buffer_Empty := SRXL2_State.Telemetry_Requested;
+         Adaflight.SRXL_Telemetry.Update (SRXL_Tlm, SRXL_Tlm_Set, Seen, O);
+         if O.Count > 0 then
+            Adaflight.SRXL2.Begin_Telemetry_Frame (SRXL2_State);
+            for K in 3 .. 18 loop
+               Adaflight.SRXL2.Add_Telemetry_Byte (SRXL2_State, Adaflight.SRXL2.Byte (O.Tx (K)));
+            end loop;
+            Adaflight.SRXL2.Finish_Telemetry_Frame (SRXL2_State);
+         end if;
+         return;
+      end if;
       Seen.Buffer_Empty := Adaflight.Spektrum.Telemetry_Buffer_Empty (Spek_State);
       Adaflight.SRXL_Telemetry.Update (SRXL_Tlm, SRXL_Tlm_Set, Seen, O);
       if O.Count > 0 then
@@ -665,7 +679,8 @@ package body Adaflight.STM32.Radio is
       end if;
    end SRXL_Telemetry_Step;
 
-   function SRXL_Telemetry_On return Boolean is (Open and then Kind = Spektrum and then Spek_State.SRXL_Enabled);
+   function SRXL_Telemetry_On return Boolean is
+     (Open and then ((Kind = Spektrum and then Spek_State.SRXL_Enabled) or else Kind = SRXL2));
 
    procedure SRXL_Display_Grab is
    begin
