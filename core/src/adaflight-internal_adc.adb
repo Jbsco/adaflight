@@ -55,7 +55,8 @@ package body Adaflight.Internal_ADC with SPARK_Mode is
             Vref_Value       => 0,
             Temp_Value       => 0,
             Vref_Mv          => 0,
-            Core_Temperature => 0);
+            Core_Temperature => 0,
+            Taps             => <>);
    end Init;
 
    -------------
@@ -68,6 +69,9 @@ package body Adaflight.Internal_ADC with SPARK_Mode is
       Update (S.Temp_Average, Temp_Sample, S.Temp_Value);
       S.Vref_Mv := Compensate_Vref (Cal, S.Vref_Value);
       S.Core_Temperature := Compute_Temperature (Cal, S.Temp_Value, S.Vref_Mv);
+      S.Taps.Processed := True;
+      S.Taps.Vref_Sample := Vref_Sample;
+      S.Taps.Temp_Sample := Temp_Sample;
    end Process;
 
 end Adaflight.Internal_ADC;

@@ -12572,3 +12572,16 @@ debug record, which both drivers already kept to match upstream's arrays. Vector
 among its two modes after initialization and read eight values after every step; lidar and UPT1 families compare the
 recorder's copies beside the driver values they already checked. On the board, the rangefinder task records after each
 process call and after each driver update.
+
+## D588. Debug values, power group (2026-11-01)
+
+Core `Battery` now keeps taps: that a voltage update ran, and from an analog current update its filtered sample's
+millivolts and centiamps, which its conversion now computes through a shared millivolt function so the tap matches
+upstream's logged conversion; its voltage origin test is public for the recorder. Core `Internal_ADC` keeps taps for
+a completed pass and its two raw samples, which upstream logs beside their averages. Core `Power_Debug` records battery
+mode (unfiltered and displayed voltages, stability bits and verdict, voltage origin, last stable voltage, voltage
+state), current sensor mode (those millivolts and centiamps, latest amperage, charge drawn, only from the analog
+meter as upstream's reader does) and internal ADC mode (core temperature, raw reference and temperature samples,
+reference millivolts). Vectors in the three battery families and the internal ADC family select among these modes
+after initialization and read eight values after every step. On the board, the voltage and current tasks and the
+internal ADC pass record after their updates.

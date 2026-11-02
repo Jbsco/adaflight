@@ -55,6 +55,7 @@ with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
 with Adaflight.Scheduler;
 with Adaflight.Loop_Debug;
+with Adaflight.Power_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -4477,6 +4478,7 @@ procedure Vector_Check is
 
    Battery_State_V  : Adaflight.Battery.State;
    Battery_Settings : Adaflight.Battery.Settings;
+   Bat_Dbg          : Adaflight.Debug.State;
    Battery_Events   : Adaflight.Battery.Presence_Events;
 
    procedure Check_Battery_Line is
@@ -4580,6 +4582,15 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "batdebug" then
+         Bat_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Bat_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "batdbg" then
+         Adaflight.Power_Debug.Record_Battery (Bat_Dbg, Battery_State_V, Battery_Settings);
+         Adaflight.Power_Debug.Record_Current (Bat_Dbg, Battery_State_V);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("batstep.debug", Int (4 + J), Integer_64 (Bat_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown battery case " & Name);
          Failures := Failures + 1;
@@ -9251,6 +9262,7 @@ procedure Vector_Check is
    ADC_Seq     : Integer_64 := -1;
    ADC_Cal     : Adaflight.Internal_ADC.Calibration;
    ADC_Sampler : Adaflight.Internal_ADC.Sampler;
+   ADC_Dbg     : Adaflight.Debug.State;
 
    procedure Check_Internal_ADC_Line is
       use Adaflight.Internal_ADC;
@@ -9284,6 +9296,14 @@ procedure Vector_Check is
             Process (ADC_Sampler, ADC_Cal, ADC_Value (Int (5)), ADC_Value (Int (6)));
          end if;
          Expect_State (7);
+      elsif Name = "adcdebug" then
+         ADC_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (ADC_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "adcdbg" then
+         Adaflight.Power_Debug.Record_Internal_ADC (ADC_Dbg, ADC_Sampler);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("adcstep.debug", Int (4 + J), Integer_64 (ADC_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown internal ADC case " & Name);
          Failures := Failures + 1;

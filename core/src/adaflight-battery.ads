@@ -115,6 +115,25 @@ package Adaflight.Battery with SPARK_Mode is
       mAh_Drawn_F     : Float range -2.0 ** 30 .. 2.0 ** 30 := 0.0;
    end record;
 
+   --  A count at the supply in millivolts, in the reference's 32-bit
+   --  arithmetic.
+   subtype Sensor_Millivolts is Integer_32 range 0 .. 4_095 * 16_000 / 4_096;
+
+   --  Values a debug recorder reads: that a voltage update ran and the
+   --  voltage state it saw (the states update later in a pass), that an
+   --  analog current update ran, and that update's filtered millivolts and
+   --  centiamps as the reference logs them from its conversion, its latest
+   --  amperage and the charge drawn, which outlive a reset of the meter.
+   type Debug_Taps is record
+      Voltage_Updated   : Boolean := False;
+      Voltage_State_Seen : Battery_State := Init;
+      ADC_Current       : Boolean := False;
+      Sensor_Millivolts : Battery.Sensor_Millivolts := 0;
+      Sensor_Centiamps  : Centiamps := 0;
+      Sensor_Latest     : Centiamps := 0;
+      Sensor_Drawn      : Charge_mAh := 0;
+   end record;
+
    type State is record
       Voltage                : Voltage_Meter;
       Display_Filter         : Filters.PT1;
@@ -140,6 +159,7 @@ package Adaflight.Battery with SPARK_Mode is
       MSP_mAh                : Unsigned_16 := 0;
       MSP_Request_At         : Time_Us := 0;
       MSP_Request            : Boolean := False;
+      Taps                   : Debug_Taps;
    end record;
 
    procedure Init (S : out State; C : Settings);
@@ -183,6 +203,7 @@ package Adaflight.Battery with SPARK_Mode is
    function Percentage_Remaining (S : State; C : Settings) return Percent;
 
    function Voltage_Is_Stable (S : State) return Boolean;
+   function Voltage_From_Battery (S : State; C : Settings) return Boolean;
 
    --  The sag-filtered voltage per cell, or 0 before the cell count is known.
    function Sag_Cell_Voltage (S : State) return Centivolts is
