@@ -541,6 +541,8 @@ package body Adaflight.STM32.Flight is
        Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.OSD_SD | Build.OSD_HD | Build.PINIO
        | Build.Position_Hold | Build.Servos | Build.VTX => True,
        Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
+       Build.Mag => Adaflight.Build_Features.Compass,
+       Build.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
        Build.LED_Strip => Adaflight.Build_Features.LED_Strip,
        Build.Brushed | Build.DShot | Build.MultiShot | Build.OneShot | Build.PWM_Output => True,
        others => False));
@@ -1150,7 +1152,8 @@ package body Adaflight.STM32.Flight is
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
          LED_Strip => Adaflight.Build_Features.LED_Strip,
-         Baro => Adaflight.STM32.Baro.Detected, Mag => True, Pitot => True, Optical_Flow => True,
+         Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.Build_Features.Compass,
+         Pitot => Adaflight.Build_Features.Pitot, Optical_Flow => Adaflight.Build_Features.Optical_Flow,
          Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;

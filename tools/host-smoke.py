@@ -1211,8 +1211,9 @@ def main():
             options = [int.from_bytes(info[i:i + 2], "little") for i in range(26, len(info) - 1, 2)] if info else []
             check("MSP build info lists the GPS and the DShot protocol", {16412, 8231} <= set(options), repr(options))
             status = msp(sock, 101)
-            check("MSP status with the barometer", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x02 != 0)
+            if contains("Barometer"):
+                check("MSP status with the barometer", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x02 != 0)
             time.sleep(1.5)
             altitude = msp(sock, 109)
             check("MSP altitude near the calibrated ground",
@@ -1270,7 +1271,8 @@ def main():
             text = cli(sock, "tasks")
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
             text = cli(sock, "status")
-            check("status names the barometer on its bus", "BARO" in text and "BMP280" in text, text[:200])
+            if contains("Barometer"):
+                check("status names the barometer on its bus", "BARO" in text and "BMP280" in text, text[:200])
             text = cli(sock, "options")
             numbers = {int(w) for w in text.split() if w.isdigit()}
             check("options list the GPS, the OSD chip, the servos and the motor protocols",
@@ -2619,7 +2621,8 @@ def main():
             kinds = sorted({k for k, _ in frames})
             check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
                   repr(sender.received[:60]))
-            check("Ghost telemetry sends the battery pack and the barometer frames", kinds == [0x23, 0x27], repr(kinds))
+            check("Ghost telemetry sends the battery pack and the barometer frames",
+                  kinds == ([0x23, 0x27] if contains("Barometer") else [0x23]), repr(kinds))
             chunks = ghst_msp_exchange(sender, bytes([0x30, 0, 1]), 2, 5.0)
             reply = msp_tunnel_reply(chunks)
             check("MSP over Ghost answers the API version in a full chunk and an empty last one",
@@ -3189,74 +3192,77 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        # The pitot: the host's I2C bus answers an MS4525 frame at 0x28, so naming the sensor finds it at the next
-        # start, its first sample sets the sensor flag, and twenty samples at rest zero it.
-        store = os.path.join(work, "pitot.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set pitot_hardware = MS4525")
-            check("pitot hardware set to MS4525", "pitot_hardware set to MS4525" in text, text[-120:])
-            # Boards without a default I2C device store bus zero, so the pilot names the bus as upstream needs.
-            text = cli(sock, "set pitot_i2c_device = 1")
-            check("pitot bus set to I2C1", "pitot_i2c_device set to 1" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(3.0)
-            status = msp(sock, 101)
-            check("MSP status shows the pitot after its first sample", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x80 != 0, repr(status))
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "status")
-            check("status lists the pitot as detected", "PITOT" in text.upper() or "MS4525" in text.upper(), text[-300:])
-        finally:
-            stop(proc)
-            sock.close()
-        # An MT rangefinder and optical flow module over MSP: named by both hardware settings with both features on,
-        # its range and flow frames arrive as MSP2 sensor messages, so both sensor flags show and the rangefinder
-        # altitude follows the distance.
-        store = os.path.join(work, "mtflow.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set rangefinder_hardware = MTF01")
-            check("rangefinder hardware set to MTF01", "rangefinder_hardware set to MTF01" in text, text[-120:])
-            text = cli(sock, "set opticalflow_hardware = MT")
-            check("optical flow hardware set to MT", "opticalflow_hardware set to MT" in text, text[-120:])
-            text = cli(sock, "feature RANGEFINDER")
-            check("rangefinder feature on", "Enabled RANGEFINDER" in text, text[-120:])
-            text = cli(sock, "feature OPTICALFLOW")
-            check("optical flow feature on", "Enabled OPTICALFLOW" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(3.0)
-            for _ in range(4):
-                msp2(sock, 0x1F01, struct.pack("<Bi", 100, 1500))
-                msp2(sock, 0x1F02, struct.pack("<Bii", 200, 10, -5))
-            status = msp(sock, 101)
-            check("MSP status shows the MT rangefinder and optical flow", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x50 == 0x50, repr(status))
-            altitude = msp(sock, 58)
-            check("MT distance frames set the rangefinder altitude", altitude is not None and len(altitude) >= 4
-                  and abs(struct.unpack_from("<i", altitude, 0)[0] - 150) <= 2, repr(altitude))
-        finally:
-            stop(proc)
-            sock.close()
+        if built("Pitot"):
+            # The pitot: the host's I2C bus answers an MS4525 frame at 0x28, so naming the sensor finds it at the next
+            # start, its first sample sets the sensor flag, and twenty samples at rest zero it.
+            store = os.path.join(work, "pitot.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set pitot_hardware = MS4525")
+                check("pitot hardware set to MS4525", "pitot_hardware set to MS4525" in text, text[-120:])
+                # Boards without a default I2C device store bus zero, so the pilot names the bus as upstream needs.
+                text = cli(sock, "set pitot_i2c_device = 1")
+                check("pitot bus set to I2C1", "pitot_i2c_device set to 1" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                status = msp(sock, 101)
+                check("MSP status shows the pitot after its first sample", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x80 != 0, repr(status))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "status")
+                check("status lists the pitot as detected", "PITOT" in text.upper() or "MS4525" in text.upper(),
+                      text[-300:])
+            finally:
+                stop(proc)
+                sock.close()
+        if built("Optical_Flow"):
+            # An MT rangefinder and optical flow module over MSP: named by both hardware settings with both features on,
+            # its range and flow frames arrive as MSP2 sensor messages, so both sensor flags show and the rangefinder
+            # altitude follows the distance.
+            store = os.path.join(work, "mtflow.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set rangefinder_hardware = MTF01")
+                check("rangefinder hardware set to MTF01", "rangefinder_hardware set to MTF01" in text, text[-120:])
+                text = cli(sock, "set opticalflow_hardware = MT")
+                check("optical flow hardware set to MT", "opticalflow_hardware set to MT" in text, text[-120:])
+                text = cli(sock, "feature RANGEFINDER")
+                check("rangefinder feature on", "Enabled RANGEFINDER" in text, text[-120:])
+                text = cli(sock, "feature OPTICALFLOW")
+                check("optical flow feature on", "Enabled OPTICALFLOW" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                for _ in range(4):
+                    msp2(sock, 0x1F01, struct.pack("<Bi", 100, 1500))
+                    msp2(sock, 0x1F02, struct.pack("<Bii", 200, 10, -5))
+                status = msp(sock, 101)
+                check("MSP status shows the MT rangefinder and optical flow", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x50 == 0x50, repr(status))
+                altitude = msp(sock, 58)
+                check("MT distance frames set the rangefinder altitude", altitude is not None and len(altitude) >= 4
+                      and abs(struct.unpack_from("<i", altitude, 0)[0] - 150) <= 2, repr(altitude))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "oneshot.bin")
         for protocol in ("ONESHOT125", "PWM"):
             proc, sock = start(image, store)
@@ -3626,18 +3632,21 @@ def main():
                   len(raw) == 6 and abs(raw[2] - 512) <= 8 and abs(raw[0]) <= 8 and abs(raw[1]) <= 8
                   and raw[3:6] == [0, 0, 0], repr(raw))
             status = msp(sock, 101)
-            check("simulator status shows the virtual barometer", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x02 != 0, repr(status))
-            check("simulator status shows the virtual compass", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x04 != 0, repr(status))
+            if contains("Barometer"):
+                check("simulator status shows the virtual barometer", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x02 != 0, repr(status))
+            if contains("Compass"):
+                check("simulator status shows the virtual compass", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x04 != 0, repr(status))
             imu = msp(sock, 102)
             mag = list(struct.unpack_from("<3h", imu, 12)) if imu and len(imu) >= 18 else None
             # The synthetic field (4096 counts, 60 degrees of inclination, 2 degrees of east declination) in the
             # body frame of the rolled craft, after the bridge's quarter turn of yaw between the simulator frame
             # and the flight frame.
-            check("virtual compass reads the fed field in the body frame",
-                  mag is not None and abs(mag[0] - (-72)) <= 2 and abs(mag[1] - (-2632)) <= 2
-                  and abs(mag[2] - (-3138)) <= 2, repr(mag))
+            if contains("Compass"):
+                check("virtual compass reads the fed field in the body frame",
+                      mag is not None and abs(mag[0] - (-72)) <= 2 and abs(mag[1] - (-2632)) <= 2
+                      and abs(mag[2] - (-3138)) <= 2, repr(mag))
             # A position in the Gazebo bridge's order (longitude, latitude, altitude); the virtual barometer takes
             # its pressure from the altitude and the virtual GPS its solution from all three.
             def fdm_at(t, lon, lat, alt):
@@ -3677,15 +3686,17 @@ def main():
                   and abs(lon + 1052500000) <= 2000, repr((fix, sats, lat, lon)))
             altitude = msp(sock, 109)
             alt_cm = int.from_bytes(altitude[0:4], "little", signed=True) if altitude and len(altitude) >= 4 else None
-            check("virtual barometer altitude settles at a fed 1600 m", alt_cm is not None and abs(alt_cm - 160000) <= 500,
-                  repr(alt_cm))
+            if contains("Barometer"):
+                check("virtual barometer altitude settles at a fed 1600 m",
+                      alt_cm is not None and abs(alt_cm - 160000) <= 500, repr(alt_cm))
             for i in range(600, 950):
                 sim.sendto(fdm_at(i * 0.01, -105.25, 40.0, 1620.0), ("127.0.0.1", 9003))
                 time.sleep(0.01)
             altitude = msp(sock, 109)
             alt_cm = int.from_bytes(altitude[0:4], "little", signed=True) if altitude and len(altitude) >= 4 else None
-            check("virtual barometer altitude follows a fed twenty metre climb", alt_cm is not None and abs(alt_cm - 162000) <= 500,
-                  repr(alt_cm))
+            if contains("Barometer"):
+                check("virtual barometer altitude follows a fed twenty metre climb",
+                      alt_cm is not None and abs(alt_cm - 162000) <= 500, repr(alt_cm))
             # A roll rate of one radian per second: the filtered gyro's debug values show it on roll alone.
             def fdm_rolling(t):
                 return struct.pack("<18d", t, 1.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

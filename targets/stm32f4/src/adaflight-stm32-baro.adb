@@ -12,6 +12,7 @@ with Adaflight.Baro_Detect.Scan;
 with Adaflight.STM32.MCU;
 with Adaflight.BMP280;
 with Adaflight.Board;
+with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
@@ -210,6 +211,9 @@ package body Adaflight.STM32.Baro is
    begin
       Found := False;
       Hardware_Id := Adaflight.Baro_Detect.Hardware_None;
+      if not Adaflight.Build_Features.Barometer then
+         return;
+      end if;
       Adaflight.Barometer.Init (Baro_State);
       Settings := (Temperature_Drift_Cm_Per_10C => Integer'Max (-500, Integer'Min (500, Drift)),
                    Virtual_Device => False);
@@ -230,13 +234,15 @@ package body Adaflight.STM32.Baro is
       end if;
    end Init;
 
-   function Detected return Boolean is (Found);
+   function Live return Boolean is (Adaflight.Build_Features.Barometer and then Found);
+
+   function Detected return Boolean is (Live);
    function Hardware return Unsigned_8 is (Hardware_Id);
    function Bus_Type return Unsigned_8 is
-     (if not Found or else Virtual then 0 elsif Dev.Use_I2C then Adaflight.Baro_Detect.Bus_I2C else Adaflight.Baro_Detect.Bus_SPI);
+     (if not Live or else Virtual then 0 elsif Dev.Use_I2C then Adaflight.Baro_Detect.Bus_I2C else Adaflight.Baro_Detect.Bus_SPI);
    function Bus_Number return Natural is
-     (if not Found or else Virtual then 0 elsif Dev.Use_I2C then I2C.Bus'Pos (Dev.I2C_Bus) + 1 else SPI.Bus'Pos (Dev.SPI_Bus) + 1);
-   function Bus_Address return Unsigned_8 is (if Found and then Dev.Use_I2C then Dev.Address else 0);
+     (if not Live or else Virtual then 0 elsif Dev.Use_I2C then I2C.Bus'Pos (Dev.I2C_Bus) + 1 else SPI.Bus'Pos (Dev.SPI_Bus) + 1);
+   function Bus_Address return Unsigned_8 is (if Live and then Dev.Use_I2C then Dev.Address else 0);
 
    procedure Update (Now_Us : Adaflight.Scheduler.Time_Us; Next_Period_Us : out Adaflight.Scheduler.Time_Delta) is
       Done        : Boolean := False;
@@ -247,7 +253,7 @@ package body Adaflight.STM32.Baro is
       Next_State  : Integer_32;
    begin
       Next_Period_Us := 0;
-      if not Found then
+      if not Live then
          return;
       end if;
       if Virtual then
@@ -275,17 +281,17 @@ package body Adaflight.STM32.Baro is
 
    procedure Start_Calibration is
    begin
-      if Found then
+      if Live then
          Adaflight.Barometer.Start_Calibration (Baro_State, Settings);
       end if;
    end Start_Calibration;
    procedure Set_Ground_Level is
    begin
-      if Found then
+      if Live then
          Adaflight.Barometer.Set_Ground_Level (Baro_State);
       end if;
    end Set_Ground_Level;
-   function Calibrated return Boolean is (Found and then Baro_State.Calibrated);
+   function Calibrated return Boolean is (Live and then Baro_State.Calibrated);
    function Altitude_Cm return Float is
      (Float'Max (-4.0e7, Float'Min (4.0e7, Baro_State.Altitude)));
    function Temperature_Centi return Integer_32 is (Baro_State.Temperature);

@@ -13001,3 +13001,18 @@ Configuration fix vectors add cases from a build of the fix oracle whose default
 amplifier or radio pins under names the resets never read, so upstream resets them to none on those boards (F317).
 Our generator reads either name, the reset's own name first. This is a divergence with a write-up for upstream.
 Receiving through these settings is our next step.
+
+## D622. Sensor features in 512 KB builds (2026-11-02)
+
+A 512 KB image builds its compass and barometer only when its board configuration names `USE_MAG` or `USE_BARO`,
+as upstream's board builds take a whole driver suite with either define and leave it out without one. Larger images
+keep both. The pitot sensor and the optical flow sensors become features of 1024 KB images, since no upstream build
+compiles pitot support and upstream builds optical flow at that size only.
+
+Each board unit returns from its start-up when its feature is off, and every read of its detected flag goes through
+the feature, so the optimizer drops drivers, task bodies and code that waits on a detection. The build
+options list the compass and the optical flow with their features. Our host smoke skips barometer, pitot and
+optical flow checks for a build without them.
+
+On the CLRacing F7, whose configuration names neither, the image needs 14581 bytes less (42432 over its 480 KB code
+region, measured by a link with a larger region and the packed data stream).

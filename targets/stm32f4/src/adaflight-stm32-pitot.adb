@@ -2,6 +2,7 @@ with Adaflight.Sensor_Debug;
 with Adaflight.STM32.Debug_Values;
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.Build_Features;
 with Adaflight.Config_Runtime;
 with Adaflight.MS4525;
 with Adaflight.Pitot;
@@ -34,6 +35,9 @@ package body Adaflight.STM32.Pitot is
    begin
       Settings := Adaflight.Config_Runtime.Pitot_Settings_Of (P);
       I2C_Found := False;
+      if not Adaflight.Build_Features.Pitot then
+         return;
+      end if;
       if Core.Is_Configured (Settings) and then Settings.Hardware in Core.Default | Core.MS4525
         and then P.Pitot_Bus_Type = Bus_I2C and then P.Pitot_I2c_Device in 1 .. 4
         and then I2C.Started (I2C.Bus'Val (P.Pitot_I2c_Device - 1))
@@ -46,8 +50,8 @@ package body Adaflight.STM32.Pitot is
       Core.Init (Sensor, Settings, I2C_Detected => I2C_Found);
    end Init;
 
-   function Configured return Boolean is (Core.Is_Configured (Settings));
-   function Detected return Boolean is (Sensor.Active /= Core.None);
+   function Configured return Boolean is (Adaflight.Build_Features.Pitot and then Core.Is_Configured (Settings));
+   function Detected return Boolean is (Adaflight.Build_Features.Pitot and then Sensor.Active /= Core.None);
 
    procedure Update (Now_Us : Adaflight.Scheduler.Time_Us; Next_Period_Us : out Adaflight.Scheduler.Time_Delta) is
       F           : Adaflight.MS4525.Frame := (others => 0);
