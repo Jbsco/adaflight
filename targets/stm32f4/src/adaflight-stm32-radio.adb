@@ -7,6 +7,7 @@ with Adaflight.CRSF_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.Receiver_Debug;
 with Adaflight.Serial_Receiver_Debug;
+with Adaflight.GHST_Debug;
 with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
@@ -778,6 +779,7 @@ package body Adaflight.STM32.Radio is
                end loop;
                if not Task_In_Progress then
                   Adaflight.GHST.Frame_Status (GHST_State, Now_Us, Status);
+                  Adaflight.GHST_Debug.Record_Frame_Status (Adaflight.STM32.Debug_Values.State, GHST_State);
                end if;
             when Jeti =>
                if Adaflight.Build_Features.Jeti_EX_Bus then
@@ -908,6 +910,7 @@ package body Adaflight.STM32.Radio is
             Result : Adaflight.GHST.Process_Outputs;
          begin
             Adaflight.GHST.Process_Frame (GHST_State, Rx, Now_Us, Result);
+            Adaflight.GHST_Debug.Record_Process (Adaflight.STM32.Debug_Values.State, GHST_State);
             if Result.Telemetry_Sent and then GHST_Length > 0 then
                USART.Put (Port, GHST_Reply (0 .. GHST_Length - 1));
                GHST_Length := 0;

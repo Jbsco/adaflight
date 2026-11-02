@@ -76,6 +76,7 @@ package body Adaflight.GHST with SPARK_Mode is
    procedure Frame_Status (S : in out State; Now_Us : Time_Us; Status : out Receiver.Frame_Report) is
    begin
       Status := (others => False);
+      S.Taps.CRC_Failed := False;
       if S.Frame_Available then
          S.Frame_Available := False;
          declare
@@ -88,6 +89,7 @@ package body Adaflight.GHST with SPARK_Mode is
                Status.Processing_Required := True;
             else
                Status.Dropped := True;
+               S.Taps.CRC_Failed := True;
             end if;
          end;
       elsif S.Telemetry_Enabled and then Should_Send_Telemetry (S, Now_Us) then
@@ -103,6 +105,9 @@ package body Adaflight.GHST with SPARK_Mode is
       RSSI : constant Byte := F (10);
       RF   : constant Byte := F (11);
    begin
+      S.Taps.Statistics := True;
+      S.Taps.RSSI := RSSI;
+      S.Taps.LQ := LQ;
       S.RF_Protocol := RF;
       S.Telemetry_Enabled := RF in RF_Normal | RF_Race | RF_Long_Range | RF_Race_250;
       if Rx.RSSI_From = Receiver.Rx_Protocol then
@@ -162,6 +167,9 @@ package body Adaflight.GHST with SPARK_Mode is
    ) is
    begin
       Result := (others => <>);
+      S.Taps.Statistics := False;
+      S.Taps.Unknown := False;
+      S.Taps.MSP_Frame := False;
       if S.Telemetry_Enabled and then Should_Send_Telemetry (S, Now_Us) then
          S.Transmitting_Telemetry := True;
          if S.Telemetry_Length > 0 then
@@ -199,7 +207,7 @@ package body Adaflight.GHST with SPARK_Mode is
                            Start := 12;
                         end if;
                      when others =>
-                        null;
+                        S.Taps.Unknown := True;
                   end case;
                   if S.RF_Protocol /= RF_Undefined then
                      Take_Channels (S, F, Start, Legacy);
@@ -209,10 +217,12 @@ package body Adaflight.GHST with SPARK_Mode is
                case Kind is
                   when MSP_Request =>
                      Result.MSP := Request;
+                     S.Taps.MSP_Frame := True;
                   when MSP_Write =>
                      Result.MSP := Write;
+                     S.Taps.MSP_Frame := True;
                   when others =>
-                     null;
+                     S.Taps.Unknown := True;
                end case;
                if Result.MSP /= None then
                   Result.MSP_Length := S.Validated_Full - 4;

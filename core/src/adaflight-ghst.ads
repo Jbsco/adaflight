@@ -69,6 +69,19 @@ package Adaflight.GHST with SPARK_Mode is
       MSP_Length     : Natural range 0 .. Frame_Size - 4 := 0;
    end record;
 
+   --  What the frame handling wrote where upstream records a debug value: a
+   --  frame status that failed its CRC, and from the last processing a link
+   --  statistics frame with its RSSI and link quality, an unknown frame type
+   --  and an MSP frame.
+   type Debug_Taps is record
+      CRC_Failed : Boolean := False;
+      Statistics : Boolean := False;
+      RSSI       : Byte := 0;
+      LQ         : Byte := 0;
+      Unknown    : Boolean := False;
+      MSP_Frame  : Boolean := False;
+   end record;
+
    type State is record
       Buffers                : Buffer_Pair := (others => (others => 0));
       Incoming               : Buffer_Choice := 0;
@@ -84,6 +97,13 @@ package Adaflight.GHST with SPARK_Mode is
       Last_Frame_Time_Us     : Time_Us := 0;
       Telemetry_Length       : Natural range 0 .. Frame_Size := 0;
       Data                   : Channel_Data := (0 .. 3 => Center_Primary_12_Bit, others => Center_Aux_12_Bit);
+      --  The CRC errors, unknown frames and MSP requests, counted by the
+      --  recorders while their mode is selected, as upstream counts inside
+      --  its debug writes.
+      CRC_Errors             : Interfaces.Unsigned_16 := 0;
+      Unknown_Frames         : Interfaces.Unsigned_16 := 0;
+      MSP_Requests           : Interfaces.Unsigned_8 := 0;
+      Taps                   : Debug_Taps;
    end record;
 
    --  Every channel starts at its center; the receiver takes the protocol's
