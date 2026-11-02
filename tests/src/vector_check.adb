@@ -59,6 +59,7 @@ with Adaflight.Power_Debug;
 with Adaflight.IMU_Debug;
 with Adaflight.ESC_Debug;
 with Adaflight.Optical_Flow_Debug;
+with Adaflight.DShot_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -7212,6 +7213,7 @@ procedure Vector_Check is
    Edge_State    : Adaflight.DShot.Edge_Decoder;
    Quality_State : Adaflight.DShot.Quality;
    Tlm           : Adaflight.DShot.Telemetry;
+   DS_Dbg        : Adaflight.Debug.State;
    Edge_Buffer   : Adaflight.DShot.Samples (0 .. Adaflight.DShot.Max_Samples - 1) := (others => 0);
 
    procedure Check_DShot_Line is
@@ -7274,6 +7276,7 @@ procedure Vector_Check is
                Edge_Buffer (J) := Unsigned_16 (Int (7 + J));
             end loop;
             Decode_Samples (Edge_State, Edge_Buffer, Count, Natural (Int (5)), Unsigned_32 (Int (4)), Result);
+            Adaflight.DShot_Debug.Record_Decode (DS_Dbg, Edge_State);
             Record_Int (Name, Int (K), Integer_64 (Result));
             Record_Int (Name & ".skip", Int (K + 1), Integer_64 (Edge_State.Preamble_Skip));
             Record_Int (Name & ".margin", Int (K + 2), Integer_64 (Edge_State.Min_Margin));
@@ -7308,9 +7311,11 @@ procedure Vector_Check is
                   K := K + 1;
                end loop;
                Update (Tlm);
+               Adaflight.DShot_Debug.Record_Update (DS_Dbg, Tlm);
             elsif Op = 1 then
                Clean (Tlm);
             end if;
+            Adaflight.DShot_Debug.Record_Errors (DS_Dbg, Tlm, (0 => Quality_State, others => <>), Tlm.Count, True);
             Record_Int (Name & ".state", Int (K), Integer_64 (Raw_State'Pos (Tlm.State)));
             Record_Result (Name & ".average", Bits (K + 1), To_Bits (Tlm.Rpm_Average));
             Record_Result (Name & ".minfreq", Bits (K + 2), To_Bits (Tlm.Min_Frequency));
@@ -7347,6 +7352,16 @@ procedure Vector_Check is
             Record_Int (Name & ".invalid", Int (20 + B), Integer_64 (Quality_State.Invalids (B)));
          end loop;
          Record_Int (Name & ".percent", Int (30), Integer_64 (Invalid_Percent (Quality_State, Int (6) = 1)));
+         Tlm.Motors (0).Received := (if Int (6) = 1 then 1 else 0);
+         Adaflight.DShot_Debug.Record_Errors (DS_Dbg, Tlm, (0 => Quality_State, others => <>), Tlm.Count, True);
+      elsif Name = "dsdebug" then
+         DS_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (DS_Dbg, Unsigned_8 (Int (3)));
+         Tlm.Count := Motor_Total (Int (4));
+      elsif Name = "dsdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("dshot.debug", Int (4 + J), Integer_64 (DS_Dbg.Data (J)));
+         end loop;
       elsif Name = "dsorder" then
          declare
             N     : constant Natural := Natural (Int (4));
