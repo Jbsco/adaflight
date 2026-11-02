@@ -18,12 +18,15 @@ with Adaflight.STM32.I2C;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
+with Adaflight.Compass_Debug;
+with Adaflight.STM32.Debug_Values;
 package body Adaflight.STM32.Compass is
    subtype Unsigned_8 is Interfaces.Unsigned_8;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    use type Adaflight.Compass_Detect.Driver;
    use type Adaflight.Compass.Beep;
    use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_32;
    package GPIO renames Adaflight.STM32.GPIO;
    package I2C renames Adaflight.STM32.I2C;
    package SPI renames Adaflight.STM32.SPI;
@@ -430,6 +433,8 @@ package body Adaflight.STM32.Compass is
         (State, Settings, Bus_Busy => False, Data_Ready => Got, Sample => Sample, Gyro => Gyro_Rates, Now_Us => Now_Us,
          Next_Period_Us => Next);
       Next_Period_Us := Adaflight.Scheduler.Time_Delta (Next);
+      Adaflight.Compass_Debug.Record_Cycle
+        (Adaflight.STM32.Debug_Values.State, State, Adaflight.STM32.Time.Micros - Now_Us);
       if State.Beeper /= Adaflight.Compass.Silence then
          Pending_Beep := State.Beeper;
       end if;

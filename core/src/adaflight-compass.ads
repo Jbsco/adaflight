@@ -71,6 +71,26 @@ package Adaflight.Compass with SPARK_Mode is
    subtype Rotation_Matrix is Vectors.Matrix33
      with Dynamic_Predicate => Vectors.Bounded (Rotation_Matrix, 2.0);
 
+   --  Values a debug recorder reads after a read cycle, each as its site
+   --  last wrote it: the interval since the previous cycle, whether the bus
+   --  was busy and whether a read found no data, the time of the last new
+   --  sample with its pending interval for the task rate mode, and that
+   --  mode's previous sample time, which the recorder moves only while the
+   --  mode is selected.
+   type Debug_Taps is record
+      Cycle_Set        : Boolean := False;
+      Task_Interval_Us : Time_Us := 0;
+      Previous_Task_Us : Time_Us := 0;
+      Bus_Busy         : Boolean := False;
+      Read_Checked     : Boolean := False;
+      No_Data          : Boolean := False;
+      Updated          : Boolean := False;
+      Update_Us        : Time_Us := 0;
+      Data_Pending     : Boolean := False;
+      Previous_Data_Us : Time_Us := 0;
+      Data_Interval_Us : Time_Us := 0;
+   end record;
+
    type State is record
       Alignment          : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.Default;
       Rotation           : Rotation_Matrix := Vectors.Identity;
@@ -86,6 +106,7 @@ package Adaflight.Compass with SPARK_Mode is
       Save_Requested     : Boolean := False;
       --  The wait after a read before the next, in microseconds.
       Read_Interval_Us   : Natural range 0 .. 65_535 := 25_000;
+      Taps               : Debug_Taps;
    end record;
 
    --  The squared gyro norm, in radians per second squared, that starts the
