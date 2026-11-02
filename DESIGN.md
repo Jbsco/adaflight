@@ -12601,3 +12601,21 @@ Vectors in the accelerometer families select accelerometer mode with a debug axi
 initialization, and the multi gyro family selects among its three modes before initialization (upstream enables that
 logging at gyro init); both read eight values after every step. On the board, the accelerometer task records after
 each update and the filter task after each filter pass.
+
+## D590. Debug values, optical flow and ESC sensor (2026-11-01)
+
+Core `Optical_Flow` now keeps taps from each sample with new data: flow rates after the mounting rotation, delayed
+gyro rates, and compensated rates before an axis past the gyro limit keeps its previous rate. Core
+`Optical_Flow_Debug` records optical flow mode from those taps and state, in thousandths of a radian per second:
+rotated rates, gyro compensation, compensated rates on valid axes (zero otherwise) and rates kept.
+
+Core `ESC_Sensor` keeps taps per polling pass: a frame decoded and its motor, a reply timed out, a checksum failed. Its
+two counters move only through its recorder while sensor mode is selected, since upstream increments
+them inside its debug write. Core `ESC_Debug` records sensor mode: requested motor, those counts, and combined data age
+after each reading. From each decoded frame of motors one to four it records rate mode in tens of revolutions per
+minute and temperature mode. Upstream reads its signed count as unsigned, so a negative count becomes a large rate
+whose low sixteen bits remain.
+
+Vectors in the optical flow family select its mode, and those in the ESC sensor family a mode and a pole count,
+before initialization; both read eight values after every step, and ESC lines now check both counts. On the board,
+optical flow processing records after each sample and ESC polling after each pass and each combined reading.

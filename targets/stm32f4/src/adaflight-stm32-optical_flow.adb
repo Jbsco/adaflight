@@ -3,6 +3,8 @@ with Adaflight.Build_Features;
 with Adaflight.MT_Sensor;
 with Adaflight.Optical_Flow_Detect;
 with Adaflight.Optical_Flow_Detect.Probe;
+with Adaflight.Optical_Flow_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.MT;
 with Adaflight.STM32.Rangefinder;
 package body Adaflight.STM32.Optical_Flow is
@@ -110,6 +112,7 @@ package body Adaflight.STM32.Optical_Flow is
            (Sensor,
             (if Dev.Kind = Detect.UPT1 then Adaflight.STM32.Rangefinder.UPT1_Flow else Adaflight.STM32.MT.Flow_Sample),
             Roll_Dps, Pitch_Dps);
+         Adaflight.Optical_Flow_Debug.Record_Process (Adaflight.STM32.Debug_Values.State, Sensor);
       end if;
    end Process;
 

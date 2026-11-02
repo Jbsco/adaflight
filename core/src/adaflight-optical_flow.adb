@@ -2,11 +2,6 @@ with Adaflight.Maths;
 
 package body Adaflight.Optical_Flow with SPARK_Mode is
 
-   --  A rate in the craft frame: within twice the flow bound after the
-   --  rotation, and a little past it after the compensation.
-   subtype Rotated_Rate is Float range -2.0e6 .. 2.0e6;
-   subtype Frame_Rate is Float range -4.0e6 .. 4.0e6;
-
    ----------
    -- Init --
    ----------
@@ -27,7 +22,8 @@ package body Adaflight.Optical_Flow with SPARK_Mode is
             Sample_Index   => 0,
             Roll_Rates     => (others => 0.0),
             Pitch_Rates    => (others => 0.0),
-            Sample_Times   => (others => 0));
+            Sample_Times   => (others => 0),
+            Taps           => <>);
    end Init;
 
    -------------
@@ -42,6 +38,7 @@ package body Adaflight.Optical_Flow with SPARK_Mode is
       Rx, Ry     : Rotated_Rate;
    begin
       S.Quality := D.Quality;
+      S.Taps.Processed := False;
       if Adaflight.Clock.Elapsed (D.Time_Stamp_Us, S.Time_Stamp_Us) = 0 then
          return;
       end if;
@@ -88,6 +85,8 @@ package body Adaflight.Optical_Flow with SPARK_Mode is
          S.X_Valid := X_Valid;
          S.Y_Valid := Y_Valid;
          S.Time_Stamp_Us := D.Time_Stamp_Us;
+         S.Taps := (Processed => True, Rotated_X => Rx, Rotated_Y => Ry, Gyro_X => Gx, Gyro_Y => Gy,
+                    Compensated_X => Px, Compensated_Y => Py);
       end;
    end Process;
 

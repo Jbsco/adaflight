@@ -1,5 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
+with Adaflight.ESC_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
@@ -90,6 +92,7 @@ package body Adaflight.STM32.ESC_Sensor is
       end if;
       Drain;
       Core.Process (Sensor, Now_Us, Count_Of (Motors), Adaflight.STM32.Motors.Enabled, Request);
+      Adaflight.ESC_Debug.Record_Process (Adaflight.STM32.Debug_Values.State, Sensor, Request, Erpm_To_Hz);
       if Request then
          Adaflight.STM32.DShot_Output.Request_Telemetry (Sensor.Motor);
       end if;
@@ -98,6 +101,7 @@ package body Adaflight.STM32.ESC_Sensor is
    procedure Combined (Motors : Natural; R : out Core.Reading) is
    begin
       Core.Combined_Reading (Sensor, Count_Of (Motors), R);
+      Adaflight.ESC_Debug.Record_Combined (Adaflight.STM32.Debug_Values.State, Sensor);
    end Combined;
 
    function Motor_Reading (M : Natural) return Core.Reading is

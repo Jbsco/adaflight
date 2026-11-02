@@ -37,6 +37,11 @@ package Adaflight.Optical_Flow with SPARK_Mode is
    subtype Flow_Rate is Float range -1.0e6 .. 1.0e6;
    subtype Gyro_Rate is Float range -1.0e6 .. 1.0e6;
 
+   --  A rate in the craft frame: within twice the flow bound after the
+   --  rotation, and a little past it after the compensation.
+   subtype Rotated_Rate is Float range -2.0e6 .. 2.0e6;
+   subtype Frame_Rate is Float range -4.0e6 .. 4.0e6;
+
    --  The age of the gyro reading that belongs to a flow sample.
    subtype Gyro_Delay is Unsigned_32 range 0 .. 2 ** 31 - 1;
 
@@ -61,6 +66,20 @@ package Adaflight.Optical_Flow with SPARK_Mode is
    type Rate_History is array (History_Index) of Gyro_Rate;
    type Time_History is array (History_Index) of Unsigned_32;
 
+   --  What the processing of a sample wrote where upstream records a debug
+   --  value: that the sample held new data, the rates after the mounting
+   --  rotation, the delayed gyro rates and the compensated rates before an
+   --  axis past the gyro limit keeps its previous rate.
+   type Debug_Taps is record
+      Processed     : Boolean := False;
+      Rotated_X     : Rotated_Rate := 0.0;
+      Rotated_Y     : Rotated_Rate := 0.0;
+      Gyro_X        : Gyro_Rate := 0.0;
+      Gyro_Y        : Gyro_Rate := 0.0;
+      Compensated_X : Frame_Rate := 0.0;
+      Compensated_Y : Frame_Rate := 0.0;
+   end record;
+
    type Sensor is record
       Rotation_Cos   : Cosine := 1.0;
       Rotation_Sin   : Cosine := 0.0;
@@ -76,6 +95,7 @@ package Adaflight.Optical_Flow with SPARK_Mode is
       Roll_Rates     : Rate_History := (others => 0.0);
       Pitch_Rates    : Rate_History := (others => 0.0);
       Sample_Times   : Time_History := (others => 0);
+      Taps           : Debug_Taps;
    end record;
 
    --  The sensor after detection, with the cosine and sine of the mounting

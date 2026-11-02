@@ -57,6 +57,8 @@ with Adaflight.Scheduler;
 with Adaflight.Loop_Debug;
 with Adaflight.Power_Debug;
 with Adaflight.IMU_Debug;
+with Adaflight.ESC_Debug;
+with Adaflight.Optical_Flow_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -7669,8 +7671,10 @@ procedure Vector_Check is
       end if;
    end Check_CRSF_Telemetry_Line;
 
-   ESC_Seq   : Integer_64 := -1;
-   ESC_State : Adaflight.ESC_Sensor.Sensor;
+   ESC_Seq        : Integer_64 := -1;
+   ESC_State      : Adaflight.ESC_Sensor.Sensor;
+   ESC_Dbg        : Adaflight.Debug.State;
+   ESC_Erpm_To_Hz : Adaflight.DShot.Rate_Factor := 0.0;
 
    procedure Record_ESC_Reading (Name : String; K : Positive; R : Adaflight.ESC_Sensor.Reading) is
    begin
@@ -7682,7 +7686,7 @@ procedure Vector_Check is
       Record_Int (Name & ".rpm", Int (K + 5), Integer_64 (R.Rpm));
    end Record_ESC_Reading;
 
-   procedure Check_ESC_Line is
+   procedure Check_ESC_Step is
       use Adaflight.ESC_Sensor;
       Name    : constant String := Str (1);
       Count   : constant Motor_Count := Motor_Count (Int (5));
@@ -7711,6 +7715,7 @@ procedure Vector_Check is
          Receive (ESC_State, B);
       end loop;
       Process (ESC_State, Unsigned_32 (Int (4)), Count, Int (6) = 1, Request);
+      Adaflight.ESC_Debug.Record_Process (ESC_Dbg, ESC_State, Request, ESC_Erpm_To_Hz);
       Record_Int (Name & ".requests", Int (17), Boolean'Pos (Request));
       if Request then
          Record_Int (Name & ".requested", Int (18), Integer_64 (ESC_State.Motor));
@@ -7720,12 +7725,31 @@ procedure Vector_Check is
       Record_Int (Name & ".trigger", Int (21), Integer_64 (ESC_State.Trigger_Time_Ms));
       Record_Int (Name & ".position", Int (22), Integer_64 (ESC_State.Position));
       Record_Int (Name & ".size", Int (23), Integer_64 (ESC_State.Size));
+      Record_Int (Name & ".timeouts", Int (24), Integer_64 (ESC_State.Timeouts));
+      Record_Int (Name & ".crcerrors", Int (25), Integer_64 (ESC_State.Checksum_Errors));
       Record_Int (Name & ".stale", Int (26), Boolean'Pos (ESC_State.Combined_Stale));
       Combined_Reading (ESC_State, Count, R);
+      Adaflight.ESC_Debug.Record_Combined (ESC_Dbg, ESC_State);
       Record_ESC_Reading (Name & ".combined", 27, R);
       for M in 0 .. Count - 1 loop
          Record_ESC_Reading (Name & ".motor", 33 + 6 * M, ESC_State.Data (M));
       end loop;
+   end Check_ESC_Step;
+
+   procedure Check_ESC_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "escdebug" then
+         ESC_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (ESC_Dbg, Interfaces.Unsigned_8 (Int (3)));
+         ESC_Erpm_To_Hz := 100.0 / 60.0 / (Float (Int (4)) / 2.0);
+      elsif Name = "escdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("esc.debug", Int (4 + J), Integer_64 (ESC_Dbg.Data (J)));
+         end loop;
+      else
+         Check_ESC_Step;
+      end if;
    end Check_ESC_Line;
 
    SP_Seq     : Integer_64 := -1;
@@ -8955,6 +8979,7 @@ procedure Vector_Check is
 
    OF_Seq    : Integer_64 := -1;
    OF_Sensor : Adaflight.Optical_Flow.Sensor;
+   OF_Dbg    : Adaflight.Debug.State;
 
    procedure Check_Optical_Flow_Line is
       use Adaflight.Optical_Flow;
@@ -8990,6 +9015,14 @@ procedure Vector_Check is
             Record_Int (Name & ".stamp", Int (18), Integer_64 (OF_Sensor.Time_Stamp_Us));
             Record_Int (Name & ".healthy", Int (19), (if Is_Healthy (OF_Sensor, Now_Us) then 1 else 0));
          end;
+      elsif Name = "ofdebug" then
+         OF_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (OF_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "ofdbg" then
+         Adaflight.Optical_Flow_Debug.Record_Process (OF_Dbg, OF_Sensor);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("ofstep.debug", Int (4 + J), Integer_64 (OF_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown optical flow case " & Name);
          Failures := Failures + 1;
