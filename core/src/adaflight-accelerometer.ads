@@ -62,6 +62,14 @@ package Adaflight.Accelerometer with SPARK_Mode is
    subtype Jerk_Vector is Vectors.Vector3
      with Dynamic_Predicate => Vectors.Bounded (Jerk_Vector, 2.0 ** 60);
 
+   --  Values a debug recorder reads after an update: that one ran, and each
+   --  axis's trimmed sample before its filter, which upstream logs ahead of
+   --  the filtered one.
+   type Debug_Taps is record
+      Updated    : Boolean := False;
+      Pre_Filter : Acc_Vector := (0.0, 0.0, 0.0);
+   end record;
+
    type State is record
       Lowpass_Hz       : Cutoff := 0;
       Filter           : Axis_PT2;
@@ -90,6 +98,7 @@ package Adaflight.Accelerometer with SPARK_Mode is
       --  configuration.
       Inflight_Ended   : Boolean := False;
       Inflight_Saved   : Boolean := False;
+      Taps             : Debug_Taps;
    end record;
 
    procedure Init (S : out State; C : Settings);

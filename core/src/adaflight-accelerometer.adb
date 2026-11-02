@@ -75,7 +75,8 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             Saved_Roll_Trim  => 0,
             Saved_Pitch_Trim => 0,
             Inflight_Ended   => False,
-            Inflight_Saved   => False);
+            Inflight_Saved   => False,
+            Taps             => <>);
       if S.Lowpass_Hz /= 0 then
          declare
             K : constant Unit_Interval :=
@@ -153,13 +154,15 @@ package body Adaflight.Accelerometer with SPARK_Mode is
       --  One axis after the calibration and the zero offset: the lowpass,
       --  the jerk from the previous value, and the value kept.
       procedure Finish (Value : Aligned; Z : Zero_Count; Use_Filter : Boolean; Rate : Sample_Rate;
-                        F : in out Filters.PT2; Prev : in out Float; Out_Value : out Float; Jerk : out Float)
+                        F : in out Filters.PT2; Prev : in out Float; Out_Value : out Float; Jerk : out Float;
+                        Pre_Filter : out Float)
         with Pre  => abs Prev <= Signal_Bound,
              Post => abs Out_Value <= Signal_Bound and then abs Prev <= Signal_Bound
-                     and then abs Jerk <= 2.0 ** 60
+                     and then abs Jerk <= 2.0 ** 60 and then abs Pre_Filter <= Signal_Bound
       is
          Trimmed : Signal := Value - Float (Z);
       begin
+         Pre_Filter := Trimmed;
          if Use_Filter then
             declare
                Filtered : Signal;
@@ -201,9 +204,12 @@ package body Adaflight.Accelerometer with SPARK_Mode is
       declare
          Use_Filter : constant Boolean := S.Lowpass_Hz /= 0;
       begin
-         Finish (V (X), S.Zero (X), Use_Filter, C.Sample_Rate_Hz, S.Filter (X), S.Previous.X, S.Acc.X, S.Jerk.X);
-         Finish (V (Y), S.Zero (Y), Use_Filter, C.Sample_Rate_Hz, S.Filter (Y), S.Previous.Y, S.Acc.Y, S.Jerk.Y);
-         Finish (V (Z), S.Zero (Z), Use_Filter, C.Sample_Rate_Hz, S.Filter (Z), S.Previous.Z, S.Acc.Z, S.Jerk.Z);
+         Finish (V (X), S.Zero (X), Use_Filter, C.Sample_Rate_Hz, S.Filter (X), S.Previous.X, S.Acc.X, S.Jerk.X,
+                 S.Taps.Pre_Filter.X);
+         Finish (V (Y), S.Zero (Y), Use_Filter, C.Sample_Rate_Hz, S.Filter (Y), S.Previous.Y, S.Acc.Y, S.Jerk.Y,
+                 S.Taps.Pre_Filter.Y);
+         Finish (V (Z), S.Zero (Z), Use_Filter, C.Sample_Rate_Hz, S.Filter (Z), S.Previous.Z, S.Acc.Z, S.Jerk.Z,
+                 S.Taps.Pre_Filter.Z);
       end;
       declare
          --  The norms of vectors within their component bounds, held to a
@@ -215,6 +221,7 @@ package body Adaflight.Accelerometer with SPARK_Mode is
          S.Jerk_Magnitude := Jerk_Norm * S.One_G_Reciprocal;
       end;
       S.Updated_Once := True;
+      S.Taps.Updated := True;
    end Update;
 
 end Adaflight.Accelerometer;

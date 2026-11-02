@@ -19,4 +19,9 @@ package Adaflight.Gyro_Debug with SPARK_Mode is
    --  failed the movement check.
    procedure Record_Calibration (D : in out Debug.State; S : Gyro_Filters.State);
 
+   --  After one filter pass: the enabled sensors' raw roll and pitch counts,
+   --  their scaled aligned rates and those rates against the filtered rate,
+   --  two slots per sensor for the first four enabled.
+   procedure Record_Multi (D : in out Debug.State; S : Gyro_Filters.State; C : Gyro_Filters.Settings);
+
 end Adaflight.Gyro_Debug;
