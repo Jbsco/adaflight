@@ -24,6 +24,15 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Frame (S.Tx_Seq, O.Data, O.Length, 2, 137, P, 12);
    end Send_System_Time;
 
+   procedure Count (S : in out State; Slot : Counted_Slot)
+     with Global => null
+   is
+   begin
+      S.Taps.Sent (Slot) := True;
+      S.Taps.Counts (Slot) := S.Transmits (Slot);
+      S.Transmits (Slot) := (S.Transmits (Slot) + 1) mod 100;
+   end Count;
+
    procedure Send_Sys_Status (S : in out State; Inp : Inputs; Now_Ms : Unsigned_32; O : in out Output)
      with Global => null
    is
@@ -61,6 +70,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U8 (P, 30, Remaining);
       Frame (S.Tx_Seq, O.Data, O.Length, 1, 124, P, 43);
       Send_System_Time (S, Inp, Now_Ms, O);
+      Count (S, 2);
    end Send_Sys_Status;
 
    procedure Send_RC_Channels (S : in out State; Inp : Inputs; Now_Ms : Unsigned_32; O : in out Output)
@@ -76,6 +86,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       end loop;
       Put_U8 (P, 21, Unsigned_8 (((254 * Unsigned_32 (Inp.RSSI)) / 1023) mod 256));
       Frame (S.Tx_Seq, O.Data, O.Length, 35, 244, P, 22);
+      Count (S, 3);
    end Send_RC_Channels;
 
    procedure Send_GPS_Raw (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -104,6 +115,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U32 (P, 42, Inp.S_Acc);
       Put_U32 (P, 46, Unsigned_32'Last);
       Frame (S.Tx_Seq, O.Data, O.Length, 24, 24, P, 52);
+      Count (S, 4);
    end Send_GPS_Raw;
 
    procedure Send_Global_Position (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -169,6 +181,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_F32 (P, 8, Float (-Integer_32 (Inp.Pitch)) / 10.0 * Decidegree_Radians);
       Put_F32 (P, 12, Float (Inp.Yaw) / 10.0 * Decidegree_Radians);
       Frame (S.Tx_Seq, O.Data, O.Length, 30, 39, P, 28);
+      Count (S, 5);
    end Send_Attitude;
 
    function Custom_Mode (Inp : Inputs) return Unsigned_32 is
@@ -210,6 +223,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U8 (P, 7, (if Inp.Armed then (if Inp.Failsafe_Active then 5 else 4) else 3));
       Put_U8 (P, 8, 3);
       Frame (S.Tx_Seq, O.Data, O.Length, 0, 50, P, 9);
+      Count (S, 6);
    end Send_Heartbeat;
 
    procedure Send_HUD (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
@@ -258,6 +272,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U16 (P, 30, (if Inp.Amperage_Configured then Bits_16 (Inp.Amperage) else 16#FFFF#));
       Put_U8 (P, 35, (if Inp.Voltage_Configured then Inp.Battery_Percent else 16#FF#));
       Frame (S.Tx_Seq, O.Data, O.Length, 147, 154, P, 54);
+      Count (S, 7);
    end Send_Battery;
 
    procedure Send_Arming_Text (S : in out State; Inp : Inputs; O : in out Output)
@@ -355,6 +370,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Should : constant Boolean := (if Tx_Valid then Tx_Should_Send else Now_Us - S.Last_Message_Us >= Delay_Us);
    begin
       O := (others => <>);
+      S.Taps.Sent := (others => False);
       if not Should then
          return;
       end if;

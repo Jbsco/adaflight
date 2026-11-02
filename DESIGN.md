@@ -12724,3 +12724,15 @@ so signal and SPI clock modes reach blackbox and MSP. Core vectors already cover
 records USB mode before its MSP work: cable inserted (detect pin high, or a host configured the port) and port
 configured. Upstream on F7 also counts an addressed or suspended port as connected. Our USB driver reports its
 configured state alone. Stack and flash test modes stay out, since upstream builds them only with optional features.
+
+## D600. Debug values, MAVLink (2026-11-01)
+
+Core `MAVLink_Telemetry` now counts each system status, RC channels, GPS raw, attitude, heartbeat and battery status
+message it sends, modulo 100, whatever the debug mode, as upstream does. Per-pass taps keep each count before its send.
+Core `MAVLink` marks a byte that completes a radio status.
+
+Core `MAVLink_Debug` records MAVLink telemetry mode: free transmitter buffer after a radio status, whether a valid
+buffer report let a pass send, and six message counts. Both families' vectors select a mode after initialization and
+read eight values after every step. Our receiver generator undoes the debug write of a buffer check it prints, since
+that call is no reference site. On the board, each telemetry pass records. Receiver slots wait for MAVLink receiver
+wiring on the board.

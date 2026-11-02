@@ -1,7 +1,9 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Runtime;
+with Adaflight.MAVLink_Debug;
 with Adaflight.MAVLink_Frames;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.Telemetry_Port;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.MAVLink is
@@ -88,6 +90,8 @@ package body Adaflight.STM32.MAVLink is
       Waiting := Waiting - Consumed;
       Put (Replies.Data (1 .. Replies.Length));
       Telemetry.Handle (Tlm, Tlm_Set, Inp, Now_Us, Now_Ms, Tx_Valid => False, Tx_Should_Send => False, O => Stream);
+      Adaflight.MAVLink_Debug.Record_Telemetry
+        (Adaflight.STM32.Debug_Values.State, Tlm, Tx_Valid => False, Tx_Should_Send => False);
       Put (Stream.Data (1 .. Stream.Length));
    end Run;
    procedure Finish_Transmit is

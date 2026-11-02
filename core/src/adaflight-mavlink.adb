@@ -235,6 +235,7 @@ package body Adaflight.MAVLink with SPARK_Mode is
    procedure Receive_Byte (S : in out State; Rx : in out Receiver.State; C : Serial_Word; Now_Us : Time_Us) is
       Result : Framing;
    begin
+      S.Radio_Status_Taken := False;
       Parse_Byte (S.Frames, C mod 256, Result);
       if Result = OK then
          case S.Frames.Received.Id is
@@ -243,6 +244,7 @@ package body Adaflight.MAVLink with SPARK_Mode is
                S.Last_Frame_Time_Us := Now_Us;
             when Radio_Status_Id =>
                Take_Radio_Status (S, Rx);
+               S.Radio_Status_Taken := True;
             when others =>
                Enqueue (S);
          end case;
