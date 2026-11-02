@@ -12736,3 +12736,11 @@ buffer report let a pass send, and six message counts. Both families' vectors se
 read eight values after every step. Our receiver generator undoes the debug write of a buffer check it prints, since
 that call is no reference site. On the board, each telemetry pass records. Receiver slots wait for MAVLink receiver
 wiring on the board.
+
+## D601. SUMH receiver on the board (2026-11-01)
+
+The board now opens a SUMH receiver at 115200 baud on builds with 1 MB of flash or more, where upstream builds SUMH.
+Serial bytes reach core `SUMH` with their arrival times, its frame status runs outside a task in progress, and the
+receiver reads eight channels. SUMH gives no frame time, so the refresh rate falls back to the task's time, as for
+XBUS. Its state sits in CCM, since F4 main RAM has no margin. Our host smoke sends SUMH frames, reads the channels
+over MSP and checks the options list.

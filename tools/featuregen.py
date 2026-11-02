@@ -36,6 +36,7 @@ FEATURES = [
     ("MAVLink_Telemetry", 1024, "The MAVLink telemetry."),
     ("Jeti_EX_Bus", 1024, "The Jeti EX Bus receiver and its telemetry."),
     ("SUMD", 1024, "The SUMD receiver."),
+    ("SUMH", 1024, "The SUMH receiver."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Cold tables and initialized data kept compressed in flash, unpacked at start (STM32F7)."),
 ]

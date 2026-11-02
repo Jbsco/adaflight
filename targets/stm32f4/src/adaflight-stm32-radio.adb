@@ -16,6 +16,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.SBUS;
 with Adaflight.Spektrum;
 with Adaflight.SUMD;
+with Adaflight.SUMH;
 with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
@@ -36,11 +37,12 @@ package body Adaflight.STM32.Radio is
    use type Adaflight.Modes.Box;
 
    --  The serial receiver provider settings the board reads, the SBUS rates,
-   --  the rate IBUS, SUMD, Spektrum and XBUS mode B share, the XBUS RJ01
+   --  the rate IBUS, SUMD, SUMH, Spektrum and XBUS mode B share, the XBUS RJ01
    --  rate, and the serial receiver feature's bit.
    Spektrum_2048_Provider : constant Interfaces.Unsigned_8 := 1;
    SBUS_Provider          : constant Interfaces.Unsigned_8 := 2;
    SUMD_Provider          : constant Interfaces.Unsigned_8 := 3;
+   SUMH_Provider          : constant Interfaces.Unsigned_8 := 4;
    XBUS_B_Provider        : constant Interfaces.Unsigned_8 := 5;
    XBUS_RJ01_Provider     : constant Interfaces.Unsigned_8 := 6;
    IBUS_Provider          : constant Interfaces.Unsigned_8 := 7;
@@ -61,12 +63,13 @@ package body Adaflight.STM32.Radio is
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
-   type Provider is (CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS, FPort, GHST, Jeti);
+   type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
    SBUS_State  : Adaflight.SBUS.State;
    IBUS_State  : Adaflight.IBUS.State;
    SUMD_State  : Adaflight.SUMD.State;
+   SUMH_State  : Adaflight.SUMH.State with Linker_Section => ".bss.ccm", Suppress_Initialization;
    Spek_State  : Adaflight.Spektrum.State;
    XBUS_State  : Adaflight.XBUS.State;
    FPort_State : Adaflight.FPort.State;
@@ -236,6 +239,7 @@ package body Adaflight.STM32.Radio is
                   when SBUS_Provider => SBUS,
                   when IBUS_Provider => IBUS,
                   when SUMD_Provider => SUMD,
+                  when SUMH_Provider => SUMH,
                   when Spektrum_2048_Provider | Spektrum_1024_Provider | SRXL_Provider => Spektrum,
                   when XBUS_B_Provider | XBUS_RJ01_Provider => XBUS,
                   when FPort_Provider => FPort,
@@ -251,6 +255,7 @@ package body Adaflight.STM32.Radio is
                                   when SBUS => Adaflight.SBUS.Channel_Count,
                                   when IBUS => Adaflight.IBUS.Channel_Count,
                                   when SUMD => Adaflight.Receiver.Channel_Count,
+                                  when SUMH => Adaflight.SUMH.Channel_Count,
                                   when Spektrum =>
                                     (if R.Serialrx_Provider = Spektrum_1024_Provider then 7
                                      else Adaflight.Spektrum.Channel_Count_Max),
@@ -261,10 +266,12 @@ package body Adaflight.STM32.Radio is
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
-        and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | XBUS_B_Provider
+        and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | SUMH_Provider
+                                      | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
                                       | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider | SRXL_Provider
         and then (R.Serialrx_Provider /= SUMD_Provider or else Adaflight.Build_Features.SUMD)
+        and then (R.Serialrx_Provider /= SUMH_Provider or else Adaflight.Build_Features.SUMH)
         and then (R.Serialrx_Provider /= Jeti_Provider or else Adaflight.Build_Features.Jeti_EX_Bus)
       then
          declare
@@ -324,6 +331,11 @@ package body Adaflight.STM32.Radio is
             when SUMD =>
                if Adaflight.Build_Features.SUMD then
                   Adaflight.SUMD.Init (SUMD_State);
+                  USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
+               end if;
+            when SUMH =>
+               if Adaflight.Build_Features.SUMH then
+                  Adaflight.SUMH.Init (SUMH_State);
                   USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
                end if;
             when Spektrum =>
@@ -747,6 +759,15 @@ package body Adaflight.STM32.Radio is
                      Adaflight.SUMD.Frame_Status (SUMD_State, Status);
                   end if;
                end if;
+            when SUMH =>
+               if Adaflight.Build_Features.SUMH then
+                  for I in 0 .. Count - 1 loop
+                     Adaflight.SUMH.Receive_Byte (SUMH_State, Natural (Input (I)), Times (I));
+                  end loop;
+                  if not Task_In_Progress then
+                     Adaflight.SUMH.Frame_Status (SUMH_State, Status);
+                  end if;
+               end if;
             when Spektrum =>
                for I in 0 .. Count - 1 loop
                   Adaflight.Spektrum.Receive_Byte (Spek_State, Natural (Input (I)), Times (I));
@@ -956,6 +977,12 @@ package body Adaflight.STM32.Radio is
                      Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SUMD.Read_Raw (SUMD_State, Ch)));
                   end loop;
                end if;
+            when SUMH =>
+               if Adaflight.Build_Features.SUMH then
+                  for Ch in Adaflight.SUMH.Channel loop
+                     Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SUMH.Read_Raw (SUMH_State, Ch)));
+                  end loop;
+               end if;
             when Spektrum =>
                for Ch in Adaflight.Spektrum.Channel loop
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.Spektrum.Read_Raw (Spek_State, Ch)));
@@ -1038,6 +1065,7 @@ package body Adaflight.STM32.Radio is
          when SBUS => SBUS_State.Last_Frame_Time_Us,
          when IBUS => IBUS_State.Last_Frame_Time_Us,
          when SUMD => SUMD_State.Last_Frame_Us,
+         when SUMH => 0,
          when Spektrum => Spek_State.Last_Frame_Time_Us,
          when XBUS => 0,
          when FPort => FPort_State.Last_Frame_Time_Us,
