@@ -18,6 +18,7 @@ with Adaflight.Failsafe;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.Receiver;
+with Adaflight.RX_Bind;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.USART;
@@ -29,6 +30,9 @@ package Adaflight.STM32.Radio is
    --  start wants them, and Saved when the bind count returned to zero for
    --  the configuration to be written.
    procedure Bind_At_Power_Up (C : in out Adaflight.Config_Groups.Configuration; Saved : out Boolean);
+   --  A bind request from the CLI or MSP: a CRSF receiver gets its bind frame
+   --  at once, an SRXL2 receiver its bind information at the next reply.
+   procedure Bind (B : Adaflight.RX_Bind.Bind);
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
    --  One run of the telemetry task: the negotiation, then the next chunk of
@@ -68,6 +72,9 @@ package Adaflight.STM32.Radio is
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;
+   --  The receiver's source and serial protocol as its start set them.
+   function Source return Adaflight.Receiver.Provider;
+   function Serial_Protocol return Natural;
    --  The SmartPort tables an FPORT receiver's telemetry answers from, built
    --  when the receiver opened, and whether an FPORT receiver is open, which
    --  keeps the SmartPort telemetry off its own port.

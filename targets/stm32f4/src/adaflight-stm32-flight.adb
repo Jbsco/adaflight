@@ -1234,6 +1234,7 @@ package body Adaflight.STM32.Flight is
       if Effects.VTX.Pit_Mode_Set then
          Adaflight.STM32.VTX.Set_Pit_Mode (Effects.VTX.Pit_Mode_Value);
       end if;
+      Adaflight.STM32.Radio.Bind (Effects.Bind);
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
       end if;
@@ -1557,6 +1558,7 @@ package body Adaflight.STM32.Flight is
                if not Session.Open then
                   Adaflight.STM32.Control.Reset_Disarmed;
                end if;
+               Adaflight.STM32.Radio.Bind (Changes.Bind);
                if Changes.Save then
                   Write_Configuration;
                end if;
@@ -4372,6 +4374,10 @@ package body Adaflight.STM32.Flight is
       Init_Internal_ADC;
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
+      Env.Receiver_Source := Adaflight.STM32.Radio.Source;
+      Env.Serial_Protocol := Adaflight.STM32.Radio.Serial_Protocol;
+      Ctx.Receiver_Source := Adaflight.STM32.Radio.Source;
+      Ctx.Serial_Protocol := Adaflight.STM32.Radio.Serial_Protocol;
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then

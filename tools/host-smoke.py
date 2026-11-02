@@ -1803,6 +1803,40 @@ def main():
                 sender.stop.set()
                 stop(proc)
                 sock.close()
+        us = [1500, 1599, 988, 1500] + [1500] * 10
+        for name, frame, expected in (("CRSF", crsf_frame([992, 1150, 172, 992] + [992] * 12),
+                                       bytes.fromhex("c80732ecc810019ee8")),
+                                      ("SRXL2", srxl2_frame(us), b"\xa6\x41")):
+            bind_store = os.path.join(work, name.lower() + "bind.bin")
+            proc, sock = start(image, bind_store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, f"set serialrx_provider = {name}")
+                check(f"{name} receiver set for binding", f"serialrx_provider set to {name}" in text, text[-120:])
+                text = cli(sock, "set rx_uart = UART3")
+                check(f"{name} bind port assigned", "rx_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, bind_store)
+            sender = SerialReceiver(frame)
+            sender.start()
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "bind_rx")
+                check(f"bind_rx starts a {name} bind", "Binding..." in text, text[-120:])
+                time.sleep(1.0)
+                check(f"{name} receiver gets its bind frame", expected in sender.received, repr(sender.received[:48]))
+            finally:
+                sender.stop.set()
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "srxl2tlm.bin")
         proc, sock = start(image, store)
         try:

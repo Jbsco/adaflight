@@ -12802,3 +12802,14 @@ there (finding F70). This closes the unused word D443 noted.
 Our host smoke sets up a five-band VTX table, then sends Spektrum frames that carry a control word while a SmartAudio
 transmitter answers on its port, and reads band, channel, frequency and power settings from the CLI. Without a table
 the save path resets any band past the table's count to 0, as upstream's configuration fix-up does.
+
+## D607. Receiver bind on the board (2026-11-02)
+
+Our board now acts on the bind request that core `RX_Bind` derives for the CLI's `bind_rx` and the MSP bind message.
+A CRSF receiver gets upstream's fixed bind frame on its port at once. An SRXL2 receiver gets bind information from
+core `SRXL2` in its write buffer, which goes out at the next reply as other SRXL2 replies do. SPI receivers bind
+through their drivers once those are wired.
+
+The CLI environment and the MSP context now take the receiver source and serial protocol from the radio's start, as
+upstream fixes them at its receiver init. Both stayed at none before, so every bind request read as not supported.
+Our host smoke runs `bind_rx` beside each receiver and finds its frame on the receiver's port.
