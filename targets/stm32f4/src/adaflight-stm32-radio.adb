@@ -17,6 +17,9 @@ with Adaflight.SBUS;
 with Adaflight.Spektrum;
 with Adaflight.SUMD;
 with Adaflight.SUMH;
+with Adaflight.MAVLink;
+with Adaflight.MAVLink_Debug;
+with Adaflight.STM32.MAVLink_Link;
 with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
@@ -52,18 +55,21 @@ package body Adaflight.STM32.Radio is
    FPort_Provider         : constant Interfaces.Unsigned_8 := 12;
    GHST_Provider          : constant Interfaces.Unsigned_8 := 14;
    Spektrum_1024_Provider : constant Interfaces.Unsigned_8 := 15;
+   MAVLink_Provider       : constant Interfaces.Unsigned_8 := 16;
    SBUS_Baud              : constant := 100_000;
    SBUS_Fast_Baud         : constant := 200_000;
    IBUS_SUMD_Baud         : constant := 115_200;
    XBUS_RJ01_Baud         : constant := 250_000;
    GHST_Baud              : constant := 420_000;
    Jeti_Baud              : constant := 125_000;
+   MAVLink_Baud           : constant := 460_800;
    Feature_RX_Serial : constant Interfaces.Unsigned_32 := 8;
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
-   type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti);
+   package ML renames Adaflight.STM32.MAVLink_Link;
+   type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti, MAVLink);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
    SBUS_State  : Adaflight.SBUS.State;
@@ -235,6 +241,7 @@ package body Adaflight.STM32.Radio is
         R.Serialrx_Provider = SRXL_Provider and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
    begin
       Open := False;
+      ML.Open := False;
       Kind := (case R.Serialrx_Provider is
                   when SBUS_Provider => SBUS,
                   when IBUS_Provider => IBUS,
@@ -245,6 +252,7 @@ package body Adaflight.STM32.Radio is
                   when FPort_Provider => FPort,
                   when GHST_Provider => GHST,
                   when Jeti_Provider => Jeti,
+                  when MAVLink_Provider => MAVLink,
                   when others        => CRSF);
       Rx_Settings := Adaflight.Config_Runtime.Receiver_Settings_Of
         (Config.Rx_Config, Config.Rx_Channel_Range_Configs, Config.Rx_Failsafe_Channel_Configs,
@@ -262,7 +270,8 @@ package body Adaflight.STM32.Radio is
                                   when XBUS => Adaflight.XBUS.Channel_Count,
                                   when FPort => Adaflight.SBUS.Channel_Count,
                                   when GHST => Adaflight.GHST.Channel_Count,
-                                  when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count)));
+                                  when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count,
+                                  when MAVLink => Adaflight.MAVLink.Channel_Count)));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
@@ -270,9 +279,11 @@ package body Adaflight.STM32.Radio is
                                       | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
                                       | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider | SRXL_Provider
+                                      | MAVLink_Provider
         and then (R.Serialrx_Provider /= SUMD_Provider or else Adaflight.Build_Features.SUMD)
         and then (R.Serialrx_Provider /= SUMH_Provider or else Adaflight.Build_Features.SUMH)
         and then (R.Serialrx_Provider /= Jeti_Provider or else Adaflight.Build_Features.Jeti_EX_Bus)
+        and then (R.Serialrx_Provider /= MAVLink_Provider or else Adaflight.Build_Features.MAVLink_Receiver)
       then
          declare
             Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
@@ -294,6 +305,7 @@ package body Adaflight.STM32.Radio is
          Protocol_RSSI    =>
            (if not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.Protocol_CRSF
+            elsif Kind = MAVLink then Adaflight.Receiver.Protocol_Mavlink
             elsif Kind in FPort | GHST then Adaflight.Receiver.Rx_Protocol
             elsif R.Rssi_Src_Frame_Errors /= 0 then Adaflight.Receiver.Frame_Errors
             else Adaflight.Receiver.None),
@@ -301,6 +313,7 @@ package body Adaflight.STM32.Radio is
            (if not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.CRSF
             elsif Kind = GHST then Adaflight.Receiver.GHST
+            elsif Kind = MAVLink then Adaflight.Receiver.Mavlink
             else Adaflight.Receiver.None));
       for C of Conditions loop
          if C.Mode = Adaflight.Modes.Arm and then Adaflight.Modes.Usable (C.Span) then
@@ -316,7 +329,7 @@ package body Adaflight.STM32.Radio is
         (if Kind = GHST
          then (On => True, Push_Pull => True,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
-         elsif Kind = Jeti or else SRXL_Telemetry_On or else (Kind /= CRSF and then R.Half_Duplex /= 0)
+         elsif Kind = Jeti or else SRXL_Telemetry_On or else (Kind not in CRSF | MAVLink and then R.Half_Duplex /= 0)
          then (On => True, Push_Pull => Inverted,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
          else USART.Full_Duplex);
@@ -366,6 +379,23 @@ package body Adaflight.STM32.Radio is
                if Adaflight.Build_Features.Jeti_EX_Bus then
                   Adaflight.Jeti_Ex_Bus.Init (Jeti_State);
                   USART.Init (Link, Jeti_Baud, Line => Line, Inverted => Inverted);
+               end if;
+            when MAVLink =>
+               if Adaflight.Build_Features.MAVLink_Receiver then
+                  declare
+                     --  A MAVLink telemetry provider's rate on this port, else 460800 baud.
+                     Baud : constant SFM.Baud_Index :=
+                       SFM.Provider_Baud
+                         (Adaflight.Config_Fix.Serial_Options, Adaflight.Config_Fix.Serial_Assignments (Config),
+                          SFM.MAVLink, Port_Ids (Link));
+                  begin
+                     Adaflight.MAVLink.Init (ML.State, Rx_Settings.Mid_RC);
+                     USART.Init
+                       (Link, (if Baud = 0 then MAVLink_Baud else Positive (SFM.Rate_Of (Baud))), Line => Line,
+                        Inverted => Inverted);
+                     ML.Line := Link;
+                     ML.Open := True;
+                  end;
                end if;
             when SBUS =>
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
@@ -811,6 +841,18 @@ package body Adaflight.STM32.Radio is
                      Adaflight.Jeti_Ex_Bus.Frame_Status (Jeti_State, Status);
                   end if;
                end if;
+            when MAVLink =>
+               if Adaflight.Build_Features.MAVLink_Receiver then
+                  for I in 0 .. Count - 1 loop
+                     Adaflight.MAVLink.Receive_Byte
+                       (ML.State, Rx, Natural (Input (I)), Times (I));
+                     Adaflight.MAVLink_Debug.Record_Receiver
+                       (Adaflight.STM32.Debug_Values.State, ML.State);
+                  end loop;
+                  if not Task_In_Progress then
+                     Adaflight.MAVLink.Frame_Status (ML.State, Status);
+                  end if;
+               end if;
          end case;
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
@@ -1006,6 +1048,12 @@ package body Adaflight.STM32.Radio is
                        Float'Max (0.0, Float'Min (65_535.0, Adaflight.Jeti_Ex_Bus.Read_Raw (Jeti_State, Ch)));
                   end loop;
                end if;
+            when MAVLink =>
+               if Adaflight.Build_Features.MAVLink_Receiver then
+                  for Ch in Adaflight.MAVLink.Channel loop
+                     Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.MAVLink.Read_Raw (ML.State, Ch)));
+                  end loop;
+               end if;
          end case;
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
@@ -1070,7 +1118,8 @@ package body Adaflight.STM32.Radio is
          when XBUS => 0,
          when FPort => FPort_State.Last_Frame_Time_Us,
          when GHST => GHST_State.Last_Frame_Time_Us,
-         when Jeti => Jeti_State.Last_Frame_Time_Us);
+         when Jeti => Jeti_State.Last_Frame_Time_Us,
+         when MAVLink => ML.State.Last_Frame_Time_Us);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
 

@@ -12751,3 +12751,20 @@ Core `MAVLink` payload arrays now keep one byte per element (`Component_Size => 
 `Natural` took four. Each parsed message shrinks by 765 bytes (255 elements times three bytes), and our board's
 command state keeps two messages. A receiver state queues sixteen more, which made it about 19 KB before this change.
 The MAVLink receiver on the board needs it small. Vectors and proofs are unchanged, since only representation moves.
+
+## D603. MAVLink receiver on the board (2026-11-01)
+
+The board now opens a MAVLink receiver on builds with 1 MB of flash or more, where upstream builds it. Its rate is a
+MAVLink telemetry provider's rate on that port, else 460800 baud, and its line stays full duplex whatever the
+half-duplex setting says. Each byte reaches core `MAVLink` with its arrival time and receiver state, and the debug
+recorder runs after it. The protocol claims RSSI and link quality where no other source is set.
+
+Receiver state sits in CCM in a small board package, since MAVLink telemetry rides on that port when no MAVLink
+telemetry provider has a port of its own, or when the provider's port shares the receiver's. Telemetry then starts
+once the receiver opens, takes queued receiver messages instead of parsing a port, and waits on radio status for its
+buffer report. Both CCM receiver states, this one and SUMH's, suppress default initialization, since that section
+takes zeroed data only and each receiver's init sets its state.
+
+A MAVLink telemetry port shared with another receiver protocol stays out, as our board shares no other receiver's
+port with telemetry. Our host smoke sends RC override frames on the receiver's port, reads channels over MSP and finds
+telemetry heartbeats on that port.
