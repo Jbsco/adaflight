@@ -72,6 +72,9 @@ package Adaflight.STM32.Radio is
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;
+   --  A frame written on a CRSF receiver's line at once, as an MSP
+   --  transmitter on that port pushes its configuration.
+   procedure Push_CRSF_Frame (Data : Adaflight.Bytes.Byte_Array);
    --  The receiver's source and serial protocol as its start set them.
    function Source return Adaflight.Receiver.Provider;
    function Serial_Protocol return Natural;

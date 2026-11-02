@@ -1522,6 +1522,16 @@ package body Adaflight.STM32.Flight is
       if not Pending then
          return;
       end if;
+      if Adaflight.STM32.VTX.MSP_On_CRSF then
+         declare
+            Wrapped : Adaflight.VTX_MSP.CRSF_Frame;
+            Length  : Natural;
+         begin
+            Adaflight.VTX_MSP.CRSF_Push (Adaflight.VTX_MSP.Config_Command, Data, Wrapped, Length);
+            Adaflight.STM32.Radio.Push_CRSF_Frame (Wrapped (0 .. Length - 1));
+         end;
+         return;
+      end if;
       for L in 1 .. Line_Count loop
          if Line_Serial (L) /= Adaflight.STM32.Serial.VCP
            and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Adaflight.STM32.VTX.MSP_Port)

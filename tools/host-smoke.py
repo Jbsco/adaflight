@@ -1680,6 +1680,40 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        crsf_vtx_store = os.path.join(work, "crsfvtx.bin")
+        proc, sock = start(image, crsf_vtx_store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_type = MSP", "vtx_uart = UART3", "rx_uart = UART3", "osd_uart = UART1"):
+                text = cli(sock, f"set {line}")
+                check(f"CRSF port MSP transmitter setting {line}", line.replace(" = ", " set to ") in text,
+                      text[-120:])
+            for line in ("vtxtable bands 1", "vtxtable channels 8",
+                         "vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725",
+                         "vtxtable powerlevels 2", "vtxtable powervalues 25 200", "vtxtable powerlabels 25 200"):
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, crsf_vtx_store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            receiver.outbox.append(crsf_msp_request(bytes([0x30, 4, 89, 3, 0, 2, 0])))
+            time.sleep(2.0)
+            pushes = [f for f in receiver.msp_replies
+                      if f[3:5] == bytes([0xEC, 0xC8]) and f[5:11] == bytes([0x50, 0, 0x58, 0, 0x0F, 0])]
+            check("MSP transmitter on the CRSF port pushes its configuration over the CRSF link",
+                  len(pushes) >= 1 and pushes[0][11:15] == bytes([5, 1, 4, 2]), repr(receiver.msp_replies[:3]))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
         esc = ESC()
         proc, sock = start(image, store)
         esc.start()
