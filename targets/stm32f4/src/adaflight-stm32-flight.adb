@@ -136,6 +136,7 @@ with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
 with Adaflight.Autopilot_Debug;
 with Adaflight.STM32.Debug_Values;
+with Adaflight.Receiver_Debug;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.Serial;
@@ -2874,11 +2875,16 @@ package body Adaflight.STM32.Flight is
       end case;
       Apply (Asked);
       Report_Pilot;
-      Adaflight.RX_Task.Finish
-        (RX_State, Rx_Ready => Ready, Ignore_Exec_Time => Scheduler.Ignoring_Task_Exec_Time (Sched),
-         Anticipated_Us => Adaflight.RX_Task.Execution_Us
-           (Integer_32'Max (0, Integer_32'Min (Adaflight.RX_Task.Max_Execution_Us, Anticipated))),
-         Elapsed_Us => Adaflight.STM32.Time.Micros - Before + 1, Next_State_Us => Next);
+      declare
+         Left_Step : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
+      begin
+         Adaflight.RX_Task.Finish
+           (RX_State, Rx_Ready => Ready, Ignore_Exec_Time => Scheduler.Ignoring_Task_Exec_Time (Sched),
+            Anticipated_Us => Adaflight.RX_Task.Execution_Us
+              (Integer_32'Max (0, Integer_32'Min (Adaflight.RX_Task.Max_Execution_Us, Anticipated))),
+            Elapsed_Us => Adaflight.STM32.Time.Micros - Before + 1, Next_State_Us => Next);
+         Adaflight.Receiver_Debug.Record_State_Time (Adaflight.STM32.Debug_Values.State, RX_State, Left_Step);
+      end;
       Scheduler.Set_Next_State_Time (Sched, Next);
       Ctx.Out_Views.State.RC.Count :=
         Natural'Min (Adaflight.STM32.Radio.Channel_Count, Adaflight.MSP_Out.Channel_Count);

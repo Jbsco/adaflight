@@ -60,6 +60,7 @@ with Adaflight.IMU_Debug;
 with Adaflight.ESC_Debug;
 with Adaflight.Optical_Flow_Debug;
 with Adaflight.DShot_Debug;
+with Adaflight.Receiver_Debug;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
@@ -3501,6 +3502,7 @@ procedure Vector_Check is
    end Check_Beeper_Line;
 
    Rx_State    : Adaflight.Receiver.State;
+   Rx_Dbg      : Adaflight.Debug.State;
    Rx_Settings : Adaflight.Receiver.Settings;
    Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0.0);
    Rx_Override : Adaflight.Receiver.Override_Report;
@@ -3624,6 +3626,13 @@ procedure Vector_Check is
             end if;
             Check_Fields;
          end;
+      elsif Name = "rxdebug" then
+         Rx_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (Rx_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "rxdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("rxstep.debug", Int (4 + J), Integer_64 (Rx_Dbg.Data (J)));
+         end loop;
       elsif Name = "rxstep" then
          declare
             Now_Us : constant Unsigned_32 := Unsigned_32 (Int (4));
@@ -3717,11 +3726,13 @@ procedure Vector_Check is
                end loop;
             end if;
             Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame, Rx_Override);
+            Adaflight.Receiver_Debug.Record_Frame_Check (Rx_Dbg, Rx_State, Delta_Us);
             if not Task_In_Progress then
                Rx_Frame := (others => False);
             end if;
             Calculate_Channels (Rx_State, Rx_Settings, Now_Us, Now_Us / 1_000, Rx_Raw, Rx_Override, Box_Failsafe,
                                 Box_3D, Failsafe_Active, Processed, Frame_Processed, Valid);
+            Adaflight.Receiver_Debug.Record_Channels (Rx_Dbg, Rx_State);
             Update_RSSI (Rx_State, Rx_Settings, Now_Us, ADC_Sample);
             Expect_Next ("processed", Boolean'Pos (Processed));
             Expect_Next ("frame_processed", Boolean'Pos (Frame_Processed));
@@ -4184,6 +4195,7 @@ procedure Vector_Check is
    FS_State    : Adaflight.Failsafe.State;
    FS_Settings : Adaflight.Failsafe.Settings;
    FS_Disarms  : Integer_64 := 0;
+   FS_Dbg      : Adaflight.Debug.State;
 
    procedure Check_Failsafe_Line is
       use Adaflight.Failsafe;
@@ -4240,6 +4252,7 @@ procedure Vector_Check is
                when others => null;
             end case;
             Update (FS_State, FS_Settings, Now, In_Flight, Beeper, Disarm, Stage);
+            Adaflight.Receiver_Debug.Record_Failsafe (FS_Dbg, FS_State);
             if Disarm then
                FS_Disarms := FS_Disarms + 1;
             end if;
@@ -4266,6 +4279,13 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "fsdebug" then
+         FS_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (FS_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "fsdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("fsstep.debug", Int (4 + J), Integer_64 (FS_Dbg.Data (J)));
+         end loop;
       else
          Put_Line ("unknown failsafe case " & Name);
          Failures := Failures + 1;
@@ -15455,6 +15475,7 @@ procedure Vector_Check is
    RT_Seq    : Integer_64 := -1;
    RT_Task   : Adaflight.RX_Task.State;
    RT_Before : Adaflight.RX_Task.Step := Adaflight.RX_Task.Check;
+   RT_Dbg    : Adaflight.Debug.State;
 
    procedure Check_RX_Task_Line is
       use Adaflight.RX_Task;
@@ -15463,6 +15484,9 @@ procedure Vector_Check is
       if Name = "rtinit" then
          RT_Seq := Int (2);
          RT_Task := (others => <>);
+         RT_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode
+           (RT_Dbg, Interfaces.Unsigned_8 (Adaflight.Debug.Mode'Pos (Adaflight.Debug.RX_State_Time)));
       elsif Int (2) /= RT_Seq then
          Put_Line ("receiver task line without its start");
          Failures := Failures + 1;
@@ -15478,9 +15502,12 @@ procedure Vector_Check is
             Record_Int (Name & ".update_called", Int (12), Boolean'Pos (Before = Update));
             Record_Int (Name & ".arming_called", Int (13), Boolean'Pos (Before = Update));
             Record_Int (Name & ".ignore_rate", Int (14), Boolean'Pos (Ignore_Rate (RT_Task)));
+            RT_Dbg.Data (0 .. 2) := (others => -1);
             Finish (RT_Task, Rx_Ready => Int (4) /= 0, Ignore_Exec_Time => Int (6) /= 0,
                     Anticipated_Us => Execution_Us (Int (7)), Elapsed_Us => Interfaces.Unsigned_32 (Int (5)),
                     Next_State_Us => Next);
+            Adaflight.Receiver_Debug.Record_State_Time (RT_Dbg, RT_Task, Before);
+            Record_Int (Name & ".debug", Int (17), Integer_64 (RT_Dbg.Data (Step'Pos (Before))));
             Record_Int (Name & ".after", Int (9), Step'Pos (Current_Step (RT_Task)));
             Record_Int (Name & ".next_set", Int (15), 1);
             Record_Int (Name & ".next_state", Int (16), Integer_64 (Next));

@@ -12646,3 +12646,18 @@ mode is selected, since upstream increments its logged value in place.
 Bit-banged read vectors gain two sequences;
 even ones select telemetry counts mode, an emulated wait counts one timeout when telemetry runs and a used port gave
 up, and every step prints eight values. On the board, bit-banged reads and waits record after each pass.
+
+## D593. Debug values, receiver core (2026-11-01)
+
+Core `Receiver` now keeps taps: that a frame check ran past a running receiver task, that it read a serial-class
+frame and that frame's failsafe flag, and that a channel calculation applied the signal loss behaviour. Core
+`Failsafe` keeps taps from each monitored pass: that it ran, and whether the receiver delivered data at its entry.
+These taps change only after the monitoring test, so an unmonitored pass still leaves the state unchanged.
+
+Core `Receiver_Debug` records signal loss mode: task interval in tenths of a millisecond at every frame check, frame
+failsafe flag, signal verdict, and throttle channel after each signal loss pass. It records failsafe mode (signal
+verdict, receiving verdict at pass entry, switch flag, phase) and each receiver task step's time estimate.
+
+Vectors in receiver and failsafe families select a mode at initialization and read eight values after every step.
+Receiver task vectors compare the recorded estimate with the value upstream logs. On the board, frame checks, channel
+calculations, failsafe passes and receiver task steps record after they run.

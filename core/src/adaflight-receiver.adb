@@ -295,9 +295,12 @@ package body Adaflight.Receiver with SPARK_Mode is
       Received    : Boolean := False;
       Data_Driven : Boolean := True;
    begin
+      S.Taps.Checked := False;
+      S.Taps.Status_Read := False;
       if Task_In_Progress then
          return;
       end if;
+      S.Taps.Checked := True;
       case C.Source is
          when PPM =>
             if Frame.PPM_Received then
@@ -309,6 +312,8 @@ package body Adaflight.Receiver with SPARK_Mode is
                Data_Driven := False;
             end if;
          when Serial | MSP | SPI | UDP =>
+            S.Taps.Status_Read := True;
+            S.Taps.Frame_Failsafe := Frame.Failsafe;
             Received := Frame.Complete and then not (Frame.Failsafe or else Frame.Dropped);
             Set_Link_Quality (S, Received, Delta_Us);
             S.Aux_Required := S.Aux_Required or else Frame.Processing_Required;
@@ -512,6 +517,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       Processed := False;
       Frame_Processed := False;
       Valid := No_Report;
+      S.Taps.Loss_Applied := False;
       if S.Aux_Required then
          Frame_Processed := True;
          S.Aux_Required := False;
@@ -529,6 +535,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       end if;
       Read_Channels (S, C, Raw, Override);
       Detect_Signal_Loss (S, C, Now_Ms, Box_Failsafe, Box_3D, Failsafe_Active, Valid);
+      S.Taps.Loss_Applied := True;
       S.Sample_Index := (S.Sample_Index + 1) mod 256;
       Processed := True;
    end Calculate_Channels;
