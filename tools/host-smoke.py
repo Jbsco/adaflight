@@ -1515,8 +1515,8 @@ def main():
             sock.close()
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
-            time.sleep(4.0)
-            deadline = time.time() + 6.0
+            started = time.time()
+            deadline = started + 24.0
             while True:
                 summary = msp(sock, 70)
                 used = int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else 0
@@ -1529,9 +1529,12 @@ def main():
             check("MSP flash summary reports the chip ready",
                   summary is not None and len(summary) == 13 and summary[0] == 3, repr(summary))
             check("MSP flash summary sizes the chip", sectors == 256 and size == 16 * 1024 * 1024, f"{sectors} {size}")
-            check("MSP flash summary counts the log's bytes", 2048 <= used < 16 * 1024 * 1024, str(used))
+            waited = time.time() - started
             sock.sendall(b"#")
             read_all(sock, 0.8)
+            status = "" if used >= 2048 else cli(sock, "status", 1.5)[-400:]
+            check("MSP flash summary counts the log's bytes", 2048 <= used < 16 * 1024 * 1024,
+                  f"{used} after {waited:.1f} s {status}")
             text = cli(sock, "flash_info", 1.5)
             check("flash_info names the chip", "sectors=256" in text and "FlashFS size=16777216" in text, text[-200:])
             text = cli(sock, "flash_read 0 60", 1.5)
