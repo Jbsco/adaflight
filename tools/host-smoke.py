@@ -930,6 +930,16 @@ def mavlink_command_long(command, param1):
     return b"\xfd" + header + payload + crc.to_bytes(2, "little")
 
 
+def mavlink_override(channels_us):
+    """A MAVLink 2 RC channels override from a ground station: channels one to eight, target system and
+    component, then channels nine to eighteen, little-endian, with the message's CRC extra 124."""
+    ch = (list(channels_us) + [0] * 18)[:18]
+    payload = struct.pack("<8H", *ch[:8]) + bytes([1, 1]) + struct.pack("<10H", *ch[8:])
+    header = bytes([len(payload), 0, 0, 0, 255, 190]) + (70).to_bytes(3, "little")
+    crc = x25(header + payload + bytes([124]))
+    return b"\xfd" + header + payload + crc.to_bytes(2, "little")
+
+
 def fat16_image(path, sectors):
     """A card image: a partition table, then a FAT16 volume of 8-sector clusters from sector 8."""
     start = 8
@@ -1257,7 +1267,7 @@ def main():
                   {16412, 16416, 16420, 8230, 8231, 8232, 8233, 8235} <= numbers, text[-160:])
             for feature, number in (("LTM_Telemetry", 12304), ("MAVLink_Telemetry", 12305), ("IBus_Telemetry", 12303),
                                     ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106),
-                                    ("SUMH", 4107)):
+                                    ("SUMH", 4107), ("MAVLink_Receiver", 4109)):
                 check(f"options list {feature} as the build contains it", (number in numbers) == contains(feature),
                       f"{number} {'in' if number in numbers else 'not in'} the list")
             text = cli(sock, "dshotprog 0 7")
@@ -1703,6 +1713,40 @@ def main():
                     code = None
                 check("MSP reboot restarts into the bootloader", code == 2, repr(code))
             finally:
+                stop(proc)
+                sock.close()
+        if built("MAVLink_Receiver"):
+            store = os.path.join(work, "mavlinkrx.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "feature TELEMETRY")
+                check("telemetry feature on for the MAVLink receiver", "Enabled" in text, text[-120:])
+                text = cli(sock, "set serialrx_provider = MAVLINK")
+                check("receiver protocol set to MAVLINK", "serialrx_provider set to MAVLINK" in text, text[-120:])
+                text = cli(sock, "set rx_uart = UART3")
+                check("MAVLINK port assigned", "rx_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            sender = SerialReceiver(mavlink_override([1500, 1599, 988, 1500] + [1500] * 10))
+            sender.start()
+            try:
+                time.sleep(2.5)
+                passed, values = until(lambda: rc_values(sock),
+                                       lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2 and abs(v[1] - 1599) <= 2
+                                       and abs(v[2] - 1500) <= 2 and v[3] <= 1000)
+                check("MAVLINK channels reach the MSP RC reply", passed, repr(values))
+                time.sleep(1.0)
+                ids = [m for m, _ in mavlink_frames(sender.received)]
+                check("MAVLink telemetry heartbeats ride on the receiver's port", ids.count(0) >= 2, repr(ids[:40]))
+            finally:
+                sender.stop.set()
                 stop(proc)
                 sock.close()
         store = os.path.join(work, "frskyhub.bin")

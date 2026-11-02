@@ -484,6 +484,7 @@ package body Adaflight.STM32.Flight is
        Build.Serial_RX_Jeti_EX_Bus => Adaflight.Build_Features.Jeti_EX_Bus,
        Build.Serial_RX_SUMD => Adaflight.Build_Features.SUMD,
        Build.Serial_RX_SUMH => Adaflight.Build_Features.SUMH,
+       Build.Serial_RX_MAVLink => Adaflight.Build_Features.MAVLink_Receiver,
        Build.Telemetry_FrSky_Hub | Build.Telemetry_SmartPort => True,
        Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
