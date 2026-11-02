@@ -289,13 +289,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
    -- Get --
    ---------
 
-   procedure Get (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List)
+   procedure Get
+     (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List; Wing : Boolean)
    is
       P       : constant Profiles := Current (C);
       Matched : Boolean := False;
    begin
       for S in Setting loop
-         if CLI_Text.Contains_Ignoring_Case (Name (S), Fragment) then
+         if In_Build (S, Wing) and then CLI_Text.Contains_Ignoring_Case (Name (S), Fragment) then
             if Matched then
                Put (Into, CRLF);
             end if;
@@ -435,17 +436,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
    -- Set --
    ---------
 
-   procedure Set (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List) is
+   procedure Set (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List; Wing : Boolean)
+   is
       P      : constant Profiles := Current (C);
       Equals : Natural := 0;
    begin
       if Arguments'Length = 0 or else Arguments = "*" then
          Put (Into, "Current settings: " & CRLF);
          for S in Setting loop
-            Put (Into, Name (S));
-            Put (Into, " = ");
-            Put_Value (Into, C, S, Profile_Of (S, P), "set", Arguments'Length = 1, Ports);
-            Put (Into, CRLF);
+            if In_Build (S, Wing) then
+               Put (Into, Name (S));
+               Put (Into, " = ");
+               Put_Value (Into, C, S, Profile_Of (S, P), "set", Arguments'Length = 1, Ports);
+               Put (Into, CRLF);
+            end if;
          end loop;
          return;
       end if;
@@ -456,7 +460,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
       end loop;
       if Equals = 0 then
-         Get (Into, C, "set", Arguments, Ports);
+         Get (Into, C, "set", Arguments, Ports, Wing);
          return;
       end if;
       declare
@@ -476,7 +480,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Value_First := Value_First + 1;
          end loop;
          for S in Setting loop
-            if CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Name_Last), Name (S)) then
+            if In_Build (S, Wing)
+              and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Name_Last), Name (S))
+            then
                Found := True;
                Target := S;
                exit;
@@ -647,14 +653,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  after its default for Show_Defaults.
    procedure Dump_Values
      (Into : in out Output; C : Configuration; Where : Value_Scope; P : Profiles; Heading : String; Command : String;
-      Mode : Dump_Mode; Ports : Port_List)
+      Mode : Dump_Mode; Ports : Port_List; Wing : Boolean)
      with Pre => Valid (P) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Pending : Boolean := True;
    begin
       Put_Heading (Into, Mode, False, Heading, Pending);
       for S in Setting loop
-         if Describe (S).Where = Where or else (Where = Master and then Describe (S).Where = Hardware) then
+         if In_Build (S, Wing)
+           and then (Describe (S).Where = Where or else (Where = Master and then Describe (S).Where = Hardware))
+         then
             declare
                Profile : constant Natural := Profile_Of (S, P);
                Equal   : constant Boolean := Equals_Default (C, S, Profile);
@@ -682,7 +690,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  A profile's line, then its settings under its heading.
    procedure Dump_Profile
      (Into : in out Output; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Mode : Dump_Mode;
-      Ports : Port_List)
+      Ports : Port_List; Wing : Boolean)
      with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
    is
    begin
@@ -703,7 +711,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          (PID     => (if Kind = PID then Index else 0),
           Rate    => (if Kind = Rate then Index else 0),
           Battery => (if Kind = Battery then Index else 0)),
-         Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)), Command, Mode, Ports);
+         Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)), Command, Mode, Ports, Wing);
    end Dump_Profile;
 
    --  Whether a text starts a word, without regard to case.
@@ -1357,10 +1365,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
       2000000, 2470000);
 
    --  The setting a name names, without regard to case.
-   procedure Find_Setting (Text : String; Found : out Boolean; S : out Setting) is
+   procedure Find_Setting (Text : String; Wing : Boolean; Found : out Boolean; S : out Setting) is
    begin
       for T in Setting loop
-         if CLI_Text.Same_Ignoring_Case (Name (T), Text) then
+         if In_Build (T, Wing) and then CLI_Text.Same_Ignoring_Case (Name (T), Text) then
             Found := True;
             S := T;
             return;
@@ -1374,7 +1382,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  or a port, a function mask and the msp, gps, telemetry and blackbox
    --  baud rates, each within its class's range, moved onto the feature
    --  settings, then a deprecation line and the port's claims.
-   procedure Serial_Command (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List)
+   procedure Serial_Command
+     (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List; Wing : Boolean)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
                  and then Ports'Length <= Serial_Feature_Map.Max_Ports
@@ -1389,7 +1398,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          S     : Setting;
       begin
          if Setting_Name'Length > 0 then
-            Find_Setting (Setting_Name, Found, S);
+            Find_Setting (Setting_Name, Wing, Found, S);
             if Found and then not Equals_Default (C, S, 0) then
                Put (Into, "set ");
                Put (Into, Name (S));
@@ -6868,12 +6877,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  every battery profile; unless bare, the selected profiles restored and
    --  a save without its line end.
    procedure Dump_Every_Profile
-     (Into : in out Output; C : Configuration; Command : String; Mode : Dump_Mode; Bare : Boolean; Ports : Port_List)
+     (Into : in out Output; C : Configuration; Command : String; Mode : Dump_Mode; Bare : Boolean; Ports : Port_List;
+      Wing : Boolean)
      with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
    is
    begin
       for Index in 0 .. Pid_Profile_Record_List_4'Length - 1 loop
-         Dump_Profile (Into, C, PID, Index, Command, Mode, Ports);
+         Dump_Profile (Into, C, PID, Index, Command, Mode, Ports, Wing);
       end loop;
       if not Bare then
          Put_Hash_Line (Into, "restore original profile selection");
@@ -6882,10 +6892,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, CRLF);
       end if;
       for Index in 0 .. Control_Rate_Config_Record_List_4'Length - 1 loop
-         Dump_Profile (Into, C, Rate, Index, Command, Mode, Ports);
+         Dump_Profile (Into, C, Rate, Index, Command, Mode, Ports, Wing);
       end loop;
       for Index in 0 .. Battery_Profile_Record_List_3'Length - 1 loop
-         Dump_Profile (Into, C, Battery, Index, Command, Mode, Ports);
+         Dump_Profile (Into, C, Battery, Index, Command, Mode, Ports, Wing);
       end loop;
       if not Bare then
          Put_Hash_Line (Into, "restore original rateprofile selection");
@@ -8039,16 +8049,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_DMA_Dump (Into, C, Mode, Dump => True, Hide_Unused => False);
       Put_Feature_Dump (Into, C.Feature_Config.Enabled_Features, Mode => Mode, Heading => "feature");
       if Hardware_Only then
-         Dump_Values (Into, C, Hardware, Current (C), "master", Command, Mode, Ports);
+         Dump_Values (Into, C, Hardware, Current (C), "master", Command, Mode, Ports, Env.Wing);
       else
          Put_Sections (Into, C, Mode);
-         Dump_Values (Into, C, Master, Current (C), "master", Command, Mode, Ports);
+         Dump_Values (Into, C, Master, Current (C), "master", Command, Mode, Ports, Env.Wing);
          if Every_Profile then
-            Dump_Every_Profile (Into, C, Command, Mode, Bare, Ports);
+            Dump_Every_Profile (Into, C, Command, Mode, Bare, Ports, Env.Wing);
          else
-            Dump_Profile (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, Mode, Ports);
-            Dump_Profile (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, Mode, Ports);
-            Dump_Profile (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, Mode, Ports);
+            Dump_Profile
+              (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, Mode, Ports, Env.Wing);
+            Dump_Profile
+              (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, Mode, Ports, Env.Wing);
+            Dump_Profile
+              (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, Mode, Ports, Env.Wing);
          end if;
       end if;
       if not Bare and then not Every_Profile then
@@ -8086,7 +8099,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Dump_Profile
            (Into, C, (if Profile_At > 0 then PID else Rate),
             Natural (if Profile_At > 0 then C.System_Config.Pid_Profile_Index else C.System_Config.Active_Rate_Profile),
-            Command, Mode, Ports);
+            Command, Mode, Ports, Env.Wing);
       else
          Dump_Master (Into, C, Env, Board, Command, Mode, Bare, Hardware_At > 0, All_At > 0, Ports);
       end if;
@@ -8327,7 +8340,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Feature_Command_Word =>
                Feature_Command (Into, C, Env.Supported_Features, Args);
             when Get_Command =>
-               Get (Into, C, "get", Args, Ports);
+               Get (Into, C, "get", Args, Ports, Env.Wing);
             when Help_Command_Word =>
                Help_Command (Into, Args);
             when Color_Command_Word =>
@@ -8405,9 +8418,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Save_Command_Word =>
                Save_Command (Into, C, Board, Args, Changes);
             when Serial_Command_Word =>
-               Serial_Command (Into, C, Args, Ports);
+               Serial_Command (Into, C, Args, Ports, Env.Wing);
             when Set_Command =>
-               Set (Into, C, Args, Ports);
+               Set (Into, C, Args, Ports, Env.Wing);
             when Simplified_Tuning_Command_Word =>
                Simplified_Tuning_Command (Into, C, Args);
             when Timer_Command_Word =>

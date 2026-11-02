@@ -132,6 +132,8 @@ package Adaflight.MSP_Processor with SPARK_Mode is
       Receiver_Source     : Receiver.Provider := Receiver.None;
       Serial_Protocol     : Natural := 0;
       Out_Views           : Views;
+      --  A wing build, whose settings the setting messages take.
+      Wing                : Boolean := False;
    end record;
 
    --  Handled says a unit answered. Save and Reboot gather the configuration

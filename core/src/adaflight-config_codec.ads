@@ -8,8 +8,11 @@ with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 
 package Adaflight.Config_Codec with SPARK_Mode is
 
-   Group_Count : constant := 104;
-   Data_Size   : constant := 4674;
+   Group_Count : constant := 108;
+   Data_Size   : constant := 4703;
+
+   --  The multirotor groups come first, the wing build's own groups after them.
+   Multirotor_Data_Size : constant := 4674;
 
    subtype Data is Adaflight.Bytes.Byte_Array (0 .. Data_Size - 1);
 
@@ -118,7 +121,11 @@ package Adaflight.Config_Codec with SPARK_Mode is
       (Number => 527, Version => 1, Offset => 4617, Size => 2),
       (Number => 516, Version => 1, Offset => 4619, Size => 2),
       (Number => 258, Version => 0, Offset => 4621, Size => 3),
-      (Number => 31, Version => 7, Offset => 4624, Size => 50));
+      (Number => 31, Version => 7, Offset => 4624, Size => 50),
+      (Number => 3131, Version => 4, Offset => 4674, Size => 1),
+      (Number => 3127, Version => 7, Offset => 4675, Size => 2),
+      (Number => 570, Version => 1, Offset => 4677, Size => 25),
+      (Number => 3133, Version => 1, Offset => 4702, Size => 1));
 
    --  Each group's bytes lie inside the data, as the storage image needs.
    function Groups_Within return Boolean is

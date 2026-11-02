@@ -51,8 +51,8 @@ package Adaflight.MSP_CLI_Setting with SPARK_Mode is
       and then Natural (C.System_Config.Active_Rate_Profile) < Control_Rate_Config_Record_List_4'Length
       and then Natural (C.System_Config.Active_Battery_Profile) < Battery_Profile_Record_List_3'Length);
 
-   procedure Process (C : in out Configuration; Request : Byte_Array; Ports : Port_List; R : out Result;
-                      Reply : out Reply_Text)
+   procedure Process (C : in out Configuration; Request : Byte_Array; Ports : Port_List; Wing : Boolean;
+                      R : out Result; Reply : out Reply_Text)
      with Pre  => Request'Length <= Max_Request and then Ports'Length <= Serial_Feature_Map.Max_Ports
                   and then Valid_Profiles (C),
           Post => (if R = Error then Reply.Length = 0);
@@ -70,7 +70,8 @@ package Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  An empty request or one of more than 128 bytes is an error without a
    --  reply, and one naming no setting an error whose reply is a zero length.
    procedure Setting_Info
-     (C : Configuration; Request : Byte_Array; Ports : Port_List; R : out Result; Reply : out Info_Reply)
+     (C : Configuration; Request : Byte_Array; Ports : Port_List; Wing : Boolean; R : out Result;
+      Reply : out Info_Reply)
      with Pre  => Request'Length <= Max_Request and then Ports'Length <= Serial_Feature_Map.Max_Ports
                   and then Valid_Profiles (C),
           Post => (if R = Error then Reply.Length <= 2);

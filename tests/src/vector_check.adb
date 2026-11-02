@@ -29668,7 +29668,40 @@ procedure Vector_Check is
       end if;
    end Check_Ack_Receiver_Line;
 
-   Settings_Seen : Natural := 0;
+   Settings_Seen  : Natural := 0;
+   --  The build the settings and defaults files name, and the settings each
+   --  build's file listed.
+   Settings_Wing  : Boolean := False;
+   Settings_Count : array (Boolean) of Natural := (others => 0);
+
+   --  The settings table's position of a build's lookup table, from that
+   --  build's own position of it.
+   function Build_Table (K : Natural) return Adaflight.Settings_Table.Lookup_Table is
+      use Adaflight.Settings_Table;
+      N : Natural := 0;
+   begin
+      for T in Lookup_Table loop
+         if Table_In_Build (T, Settings_Wing) then
+            if N = K then
+               return T;
+            end if;
+            N := N + 1;
+         end if;
+      end loop;
+      return Lookup_Table'Last;
+   end Build_Table;
+
+   function Build_Position (T : Adaflight.Settings_Table.Lookup_Table) return Natural is
+      use Adaflight.Settings_Table;
+      N : Natural := 0;
+   begin
+      for U in Lookup_Table'First .. T loop
+         if U /= T and then Table_In_Build (U, Settings_Wing) then
+            N := N + 1;
+         end if;
+      end loop;
+      return N;
+   end Build_Position;
 
    procedure Check_Settings_Line is
       use Adaflight.Settings_Table;
@@ -29683,6 +29716,11 @@ procedure Vector_Check is
         (T (T'First .. Ada.Strings.Fixed.Index_Non_Blank (T, Ada.Strings.Backward)));
    begin
       if Str (1) = "setting" then
+         while Settings_Seen <= Setting'Pos (Setting'Last)
+           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing)
+         loop
+            Settings_Seen := Settings_Seen + 1;
+         end loop;
          if Settings_Seen > Setting'Pos (Setting'Last) then
             Put_Line ("settings: more settings than the table holds");
             Failures := Failures + 1;
@@ -29690,10 +29728,11 @@ procedure Vector_Check is
          end if;
          declare
             S : constant Setting := Setting'Val (Settings_Seen);
-            D : constant Info := Describe (S);
+            D : constant Info := Describe (S, Settings_Wing);
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
+            Settings_Count (Settings_Wing) := Settings_Count (Settings_Wing) + 1;
             Record_Text ("settings.name", Str (2), Name (S));
             Record_Text ("settings.type", Str (3), Trim (Kind_Names (D.Kind)));
             Record_Text ("settings.scope", Str (4), Trim (Scope_Names (D.Where)));
@@ -29703,7 +29742,7 @@ procedure Vector_Check is
                   Record_Int ("settings.min", Int (6), D.Min);
                   Record_Int ("settings.max", Int (7), D.Max);
                when Lookup =>
-                  Record_Int ("settings.table", Int (6), Lookup_Table'Pos (D.Table));
+                  Record_Int ("settings.table", Int (6), Integer_64 (Build_Position (D.Table)));
                when List | Bitset | Identifier =>
                   Record_Int ("settings.count", Int (6), Integer_64 (D.Count));
                when Text =>
@@ -29715,10 +29754,10 @@ procedure Vector_Check is
          end;
       elsif Str (1) = "lookup" then
          declare
-            T : constant Lookup_Table := Lookup_Table'Val (Int (2));
+            T : constant Lookup_Table := Build_Table (Natural (Int (2)));
          begin
-            Record_Int ("settings.lookup_count", Int (3), Integer_64 (Value_Count (T)));
-            for I in 0 .. Natural'Min (Value_Count (T), NF - 3) - 1 loop
+            Record_Int ("settings.lookup_count", Int (3), Integer_64 (Value_Count (T, Settings_Wing)));
+            for I in 0 .. Natural'Min (Value_Count (T, Settings_Wing), NF - 3) - 1 loop
                Record_Text ("settings.lookup_name", Str (4 + I), Value_Name (T, I));
             end loop;
          end;
@@ -29730,7 +29769,13 @@ procedure Vector_Check is
    procedure Check_Config_Groups_Line is
       use Adaflight.Settings_Table;
       use Adaflight.Config_Groups;
+      Start : constant Configuration := (if Settings_Wing then Wing_Defaults else Defaults);
    begin
+      while Defaults_Seen <= Setting'Pos (Setting'Last)
+        and then not In_Build (Setting'Val (Defaults_Seen), Settings_Wing)
+      loop
+         Defaults_Seen := Defaults_Seen + 1;
+      end loop;
       if Defaults_Seen > Setting'Pos (Setting'Last) then
          Put_Line ("confgroups: more settings than the table holds");
          Failures := Failures + 1;
@@ -29744,7 +29789,7 @@ procedure Vector_Check is
          Record_Text ("confgroups.name", Str (2), Name (S));
          case Describe (S).How is
             when Text =>
-               Record_Text ("confgroups.text", V (V'First + 1 .. V'Last - 1), Get_Text (Defaults, S));
+               Record_Text ("confgroups.text", V (V'First + 1 .. V'Last - 1), Get_Text (Start, S));
             when List =>
                declare
                   From  : Positive := V'First;
@@ -29754,7 +29799,7 @@ procedure Vector_Check is
                      if I > V'Last or else V (I) = ':' then
                         if Index < Element_Count (S) then
                            Record_Int ("confgroups.element", Integer_64'Value (V (From .. I - 1)),
-                                       Get (Defaults, S, 0, Index));
+                                       Get (Start, S, 0, Index));
                         else
                            Record_Int ("confgroups.element_count", Integer_64 (Index + 1),
                                        Integer_64 (Element_Count (S)));
@@ -29766,7 +29811,7 @@ procedure Vector_Check is
                   Record_Int ("confgroups.element_count", Integer_64 (Index), Integer_64 (Element_Count (S)));
                end;
             when Direct | Lookup | Bitset | Identifier =>
-               Record_Int ("confgroups.value", Integer_64'Value (V), Get (Defaults, S));
+               Record_Int ("confgroups.value", Integer_64'Value (V), Get (Start, S));
          end case;
       end;
    end Check_Config_Groups_Line;
@@ -29779,15 +29824,20 @@ procedure Vector_Check is
       use Adaflight.Config_Groups;
       use type Interfaces.Unsigned_64;
       Sum : Interfaces.Unsigned_64 := 0;
+      --  The setting's position in the multirotor build's table.
+      Pos : Natural := 0;
    begin
       for S in Setting loop
-         if Describe (S).How /= Text then
+         if In_Build (S, False) and then Describe (S).How /= Text then
             for P in 0 .. Profile_Count (S) - 1 loop
                for K in 0 .. Element_Count (S) - 1 loop
-                  Sum := Sum + Interfaces.Unsigned_64 ((Setting'Pos (S) + 1) * 31 + P * 7 + K)
+                  Sum := Sum + Interfaces.Unsigned_64 ((Pos + 1) * 31 + P * 7 + K)
                     * Interfaces.Unsigned_64'Mod (Get (C, S, P, K));
                end loop;
             end loop;
+         end if;
+         if In_Build (S, False) then
+            Pos := Pos + 1;
          end if;
       end loop;
       return Sum;
@@ -29840,13 +29890,13 @@ procedure Vector_Check is
          Codec_Config := Defaults;
          Codec.Encode (Codec_Config, D);
          declare
-            Text : String (1 .. 2 * D'Length);
+            Text : String (1 .. 2 * Codec.Multirotor_Data_Size);
          begin
-            for I in D'Range loop
+            for I in 0 .. Codec.Multirotor_Data_Size - 1 loop
                Text (2 * I + 1 .. 2 * I + 2) := FD_Hex (Natural (D (I)), 2);
             end loop;
             declare
-               Expected : String (1 .. 2 * D'Length);
+               Expected : String (1 .. 2 * D'Length + 2 * NF);
                Last     : Natural := 0;
             begin
                for F in 3 .. NF loop
@@ -29866,7 +29916,7 @@ procedure Vector_Check is
                Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
                Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (7));
             begin
-               for B of D loop
+               for B of D (0 .. Codec.Multirotor_Data_Size - 1) loop
                   Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
                end loop;
                Record_Int ("confcodec.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -30256,7 +30306,7 @@ procedure Vector_Check is
          Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
          Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (8));
       begin
-         for B of Output loop
+         for B of Output (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
          end loop;
          Record_Int ("conffix.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -30608,6 +30658,7 @@ procedure Vector_Check is
       DShot_Protocol  => False,
       ESC_Sensor      => False,
       Build_Options   => <>,
+      Wing            => False,
       Option_Count    => 0,
       Supported_Features => <>,
       Soft_Serial     => False,
@@ -31021,7 +31072,8 @@ procedure Vector_Check is
                           VTX_Table           => MSP_VTX_Running,
                           Receiver_Source     => CLI_Env.Receiver_Source,
                           Serial_Protocol     => CLI_Env.Serial_Protocol,
-                          Out_Views           => <>);
+                          Out_Views           => <>,
+                          Wing                => False);
                   Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
                   Adaflight.MSP_Processor.Process
                     (Ctx, CLI_Config, CLI_Board, MSP_Links, Cmd, Request, Ports, Reply, St, R, E);
@@ -31459,7 +31511,8 @@ procedure Vector_Check is
                        VTX_Table           => MSP_VTX_Running,
                        Receiver_Source     => CLI_Env.Receiver_Source,
                        Serial_Protocol     => CLI_Env.Serial_Protocol,
-                       Out_Views           => Vw);
+                       Out_Views           => Vw,
+                       Wing                => False);
                Adaflight.Stream_Buffers.Init (St, 0, 512);
                Adaflight.MSP_Processor.Process
                  (Ctx, CLI_Config, CLI_Board, MSP_Links, MV_Command, MV_Request (0 .. MV_Request_Len - 1), Ports,
@@ -31812,7 +31865,7 @@ procedure Vector_Check is
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (3));
          begin
             Adaflight.Config_Codec.Encode (CLI_Config, D);
-            for B of D loop
+            for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
             Record_Int ("cli.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -39208,7 +39261,7 @@ procedure Vector_Check is
          Record_Int (Name & ".rate_asked", Next, Integer_64 (MCT_T.Asked.Rate_Asked));
          Record_Int (Name & ".endpoint_inits", Next, Integer_64 (MCT_T.Asked.Endpoint_Inits));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
-         for B of D loop
+         for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
          end loop;
          declare
@@ -39608,7 +39661,7 @@ procedure Vector_Check is
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (455));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
-            for B of D loop
+            for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
             Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -40844,9 +40897,11 @@ procedure Vector_Check is
                   Check_CX10_Line;
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
-               elsif Kind = "settings" then
+               elsif Kind = "settings" or else Kind = "settingswing" then
+                  Settings_Wing := Kind = "settingswing";
                   Check_Settings_Line;
-               elsif Kind = "confgroups" then
+               elsif Kind = "confgroups" or else Kind = "confgroupswing" then
+                  Settings_Wing := Kind = "confgroupswing";
                   Check_Config_Groups_Line;
                elsif Kind = "confset" then
                   Check_Config_Set_Line;
@@ -41201,6 +41256,11 @@ begin
    Run (Dir & "/ackrx.csv", "ackrx");
    Run (Dir & "/settings.csv", "settings");
    Run (Dir & "/confgroups.csv", "confgroups");
+   Settings_Seen := 0;
+   Defaults_Seen := 0;
+   Run (Dir & "/settings-wing.csv", "settingswing");
+   Run (Dir & "/confgroups-wing.csv", "confgroupswing");
+   Settings_Wing := False;
    Run (Dir & "/confset.csv", "confset");
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
@@ -41271,10 +41331,21 @@ begin
    Run (Dir & "/cliserpass.csv", "cliset");
    Run (Dir & "/cligyroregs.csv", "cliset");
    Run (Dir & "/cliflash.csv", "cliset");
-   if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
-      Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
-      Failures := Failures + 1;
-   end if;
+   for W in Boolean loop
+      declare
+         Expected : Natural := 0;
+      begin
+         for S in Adaflight.Settings_Table.Setting loop
+            if Adaflight.Settings_Table.In_Build (S, W) then
+               Expected := Expected + 1;
+            end if;
+         end loop;
+         if Settings_Count (W) /= Expected then
+            Put_Line ("settings: the vectors hold" & Settings_Count (W)'Image & " settings of" & Expected'Image);
+            Failures := Failures + 1;
+         end if;
+      end;
+   end loop;
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fatcache.csv", "fatcache");

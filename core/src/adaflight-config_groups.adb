@@ -118,7 +118,11 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Gps_Lap_Timer_Gate_Lon => 4, Gps_Lap_Timer_Min_Lap_Time_S => 8, Gps_Lap_Timer_Gate_Tolerance_M => 10,
       Deadband => 0, Yaw_Deadband => 1, Yaw_Control_Reversed => 2, Alt_Hold_Climb_Rate => 0,
       Alt_Hold_Deadband => 1, Pos_Hold_Deadband => 0, Poshold_Position_Source => 1,
-      Poshold_Opticalflow_Quality_Min => 2, Poshold_Opticalflow_Max_Range => 3, Pid_Process_Denom => 0,
+      Poshold_Opticalflow_Quality_Min => 2, Poshold_Opticalflow_Max_Range => 3, Launch_Climb_Angle => 0,
+      Launch_Max_Angle => 1, Launch_Detect_Accel => 2, Launch_Detect_Velocity => 3, Launch_Detect_Time => 5,
+      Launch_Idle_Throttle => 7, Launch_Idle_Delay => 8, Launch_Throttle => 10, Launch_Motor_Delay => 11,
+      Launch_Spinup_Time => 13, Launch_Min_Time => 15, Launch_Timeout => 17, Launch_Max_Altitude => 19,
+      Launch_End_Time => 21, Launch_Abort_Deadband => 23, Launch_Abort_Angle => 24, Pid_Process_Denom => 0,
       Runaway_Takeoff_Prevention => 1, Runaway_Takeoff_Deactivate_Delay => 2,
       Runaway_Takeoff_Deactivate_Throttle_Percent => 4, Profile_Name => 0, Dterm_Lpf1_Dyn_Min_Hz => 84,
       Dterm_Lpf1_Dyn_Max_Hz => 86, Dterm_Lpf1_Dyn_Expo => 123, Dterm_Lpf1_Type => 38,
@@ -133,51 +137,58 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Acro_Trainer_Angle_Limit => 78, Acro_Trainer_Lookahead_Ms => 81, Acro_Trainer_Debug_Axis => 79,
       Acro_Trainer_Gain => 80, P_Pitch => 14, I_Pitch => 15, D_Pitch => 16, F_Pitch => 17, P_Roll => 8,
       I_Roll => 9, D_Roll => 10, F_Roll => 11, P_Yaw => 20, I_Yaw => 21, D_Yaw => 22, F_Yaw => 23,
-      Angle_P_Gain => 26, Angle_Feedforward => 29, Angle_Feedforward_Smoothing_Ms => 143, Angle_Limit => 45,
-      Angle_Earth_Ref => 144, Horizon_Level_Strength => 27, Horizon_Limit_Sticks => 28,
-      Horizon_Limit_Degrees => 46, Horizon_Ignore_Sticks => 47, Horizon_Delay_Ms => 145,
-      Chirp_Lag_Freq_Hz => 197, Chirp_Lead_Freq_Hz => 198, Chirp_Amplitude_Roll => 199,
-      Chirp_Amplitude_Pitch => 201, Chirp_Amplitude_Yaw => 203, Chirp_Frequency_Start_Deci_Hz => 205,
-      Chirp_Frequency_End_Deci_Hz => 207, Chirp_Time_Seconds => 209, Chirp_Repeat => 210, D_Max_Roll => 94,
-      D_Max_Pitch => 95, D_Max_Yaw => 96, D_Max_Gain => 97, D_Max_Advance => 98, Motor_Output_Limit => 99,
-      Auto_Profile_Cell_Count => 100, Launch_Control_Mode => 88, Launch_Trigger_Allow_Reset => 92,
-      Launch_Trigger_Throttle_Percent => 89, Launch_Angle_Limit => 90, Launch_Control_Gain => 91,
-      Thrust_Linear => 93, Feedforward_Transition => 115, Feedforward_Averaging => 116,
-      Feedforward_Smooth_Factor => 117, Feedforward_Jitter_Factor => 118, Feedforward_Boost => 119,
-      Feedforward_Max_Rate_Limit => 120, Feedforward_Yaw_Hold_Gain => 121, Feedforward_Yaw_Hold_Time => 122,
-      Dyn_Idle_Min_Rpm => 110, Dyn_Idle_P_Gain => 111, Dyn_Idle_I_Gain => 112, Dyn_Idle_D_Gain => 113,
-      Dyn_Idle_Max_Increase => 114, Level_Race_Mode => 124, Simplified_Pids_Mode => 126,
-      Simplified_Master_Multiplier => 127, Simplified_I_Gain => 129, Simplified_D_Gain => 130,
-      Simplified_Pi_Gain => 131, Simplified_D_Max_Gain => 132, Simplified_Feedforward_Gain => 133,
-      Simplified_Pitch_D_Gain => 128, Simplified_Pitch_Pi_Gain => 136, Simplified_Dterm_Filter => 134,
-      Simplified_Dterm_Filter_Multiplier => 135, Simplified_Gyro_Filter => 32,
+      S_Pitch => 19, S_Roll => 13, S_Yaw => 25, Angle_P_Gain => 26, Angle_Feedforward => 29,
+      Angle_Feedforward_Smoothing_Ms => 143, Angle_Limit => 45, Angle_Earth_Ref => 144,
+      Horizon_Level_Strength => 27, Horizon_Limit_Sticks => 28, Horizon_Limit_Degrees => 46,
+      Horizon_Ignore_Sticks => 47, Horizon_Delay_Ms => 145, Chirp_Lag_Freq_Hz => 197,
+      Chirp_Lead_Freq_Hz => 198, Chirp_Amplitude_Roll => 199, Chirp_Amplitude_Pitch => 201,
+      Chirp_Amplitude_Yaw => 203, Chirp_Frequency_Start_Deci_Hz => 205, Chirp_Frequency_End_Deci_Hz => 207,
+      Chirp_Time_Seconds => 209, Chirp_Repeat => 210, D_Max_Roll => 94, D_Max_Pitch => 95, D_Max_Yaw => 96,
+      D_Max_Gain => 97, D_Max_Advance => 98, Motor_Output_Limit => 99, Auto_Profile_Cell_Count => 100,
+      Launch_Control_Mode => 88, Launch_Trigger_Allow_Reset => 92, Launch_Trigger_Throttle_Percent => 89,
+      Launch_Angle_Limit => 90, Launch_Control_Gain => 91, Thrust_Linear => 93, Feedforward_Transition => 115,
+      Feedforward_Averaging => 116, Feedforward_Smooth_Factor => 117, Feedforward_Jitter_Factor => 118,
+      Feedforward_Boost => 119, Feedforward_Max_Rate_Limit => 120, Feedforward_Yaw_Hold_Gain => 121,
+      Feedforward_Yaw_Hold_Time => 122, Dyn_Idle_Min_Rpm => 110, Dyn_Idle_P_Gain => 111,
+      Dyn_Idle_I_Gain => 112, Dyn_Idle_D_Gain => 113, Dyn_Idle_Max_Increase => 114, Level_Race_Mode => 124,
+      Simplified_Pids_Mode => 126, Simplified_Master_Multiplier => 127, Simplified_I_Gain => 129,
+      Simplified_D_Gain => 130, Simplified_Pi_Gain => 131, Simplified_D_Max_Gain => 132,
+      Simplified_Feedforward_Gain => 133, Simplified_Pitch_D_Gain => 128, Simplified_Pitch_Pi_Gain => 136,
+      Simplified_Dterm_Filter => 134, Simplified_Dterm_Filter_Multiplier => 135, Simplified_Gyro_Filter => 32,
       Simplified_Gyro_Filter_Multiplier => 33, Tpa_Mode => 139, Tpa_Rate => 140, Tpa_Breakpoint => 141,
-      Tpa_Low_Rate => 147, Tpa_Low_Breakpoint => 148, Tpa_Low_Always => 150, Ez_Landing_Threshold => 151,
-      Ez_Landing_Limit => 152, Ez_Landing_Speed => 153, Landing_Disarm_Threshold => 154, Tlm_Inverted => 4,
-      Tlm_Halfduplex => 5, Telemetry_1_Protocol => 41, Telemetry_1_Uart => 42, Telemetry_1_Baud => 43,
-      Telemetry_2_Protocol => 44, Telemetry_2_Uart => 45, Telemetry_2_Baud => 46, Telemetry_3_Protocol => 47,
-      Telemetry_3_Uart => 48, Telemetry_3_Baud => 49, Crsf_Tlm_Accgyro => 40, Frsky_Default_Lat => 0,
-      Frsky_Default_Long => 2, Frsky_Gps_Format => 6, Frsky_Unit => 7, Frsky_Vfas_Precision => 8,
-      Hott_Alarm_Int => 9, Pid_In_Tlm => 10, Report_Cell_Voltage => 11, Ibus_Sensor => 12,
-      Mavlink_Mah_As_Heading_Divisor => 27, Mavlink_Min_Txbuff => 33, Mavlink_Ext_Status_Rate => 34,
-      Mavlink_Rc_Chan_Rate => 35, Mavlink_Pos_Rate => 36, Mavlink_Extra1_Rate => 37,
-      Mavlink_Extra2_Rate => 38, Mavlink_Extra3_Rate => 39, Telemetry_Disabled_Voltage => 29,
-      Telemetry_Disabled_Current => 29, Telemetry_Disabled_Fuel => 29, Telemetry_Disabled_Mode => 29,
-      Telemetry_Disabled_Acc_X => 29, Telemetry_Disabled_Acc_Y => 29, Telemetry_Disabled_Acc_Z => 29,
-      Telemetry_Disabled_Pitch => 29, Telemetry_Disabled_Roll => 29, Telemetry_Disabled_Heading => 29,
-      Telemetry_Disabled_Altitude => 29, Telemetry_Disabled_Vario => 29, Telemetry_Disabled_Lat_Long => 29,
-      Telemetry_Disabled_Ground_Speed => 29, Telemetry_Disabled_Distance => 29,
-      Telemetry_Disabled_Esc_Current => 29, Telemetry_Disabled_Esc_Voltage => 29,
-      Telemetry_Disabled_Esc_Rpm => 29, Telemetry_Disabled_Esc_Temperature => 29,
-      Telemetry_Disabled_Temperature => 29, Telemetry_Disabled_Cap_Used => 29, Ledstrip_Visual_Beeper => 0,
-      Ledstrip_Visual_Beeper_Color => 10, Ledstrip_Grb_Rgb => 2, Ledstrip_Profile => 3,
-      Ledstrip_Race_Color => 4, Ledstrip_Beacon_Color => 5, Ledstrip_Beacon_Period_Ms => 6,
-      Ledstrip_Beacon_Percent => 8, Ledstrip_Beacon_Armed_Only => 9, Ledstrip_Brightness => 11,
-      Ledstrip_Rainbow_Delta => 12, Ledstrip_Rainbow_Freq => 14, Transponder_Provider => 0,
-      Transponder_Data => 2, Sdcard_Detect_Inverted => 3, Sdcard_Mode => 4, Sdcard_Spi_Bus => 0,
-      Osd_Units => 5, Osd_Warn_Bitmask => 10, Osd_Rssi_Alarm => 4, Osd_Link_Quality_Alarm => 80,
-      Osd_Rssi_Dbm_Alarm => 82, Osd_Rsnr_Alarm => 84, Osd_Cap_Alarm => 0, Osd_Alt_Alarm => 2,
-      Osd_Distance_Alarm => 92, Osd_Esc_Temp_Alarm => 20, Osd_Esc_Rpm_Alarm => 21,
+      Tpa_Low_Rate => 147, Tpa_Low_Breakpoint => 148, Tpa_Low_Always => 150, Tpa_Speed_Type => 177,
+      Tpa_Speed_Basic_Delay => 178, Tpa_Speed_Basic_Gravity => 180, Tpa_Speed_Adv_Prop_Pitch => 182,
+      Tpa_Speed_Adv_Mass => 184, Tpa_Speed_Adv_Drag_K => 186, Tpa_Speed_Adv_Thrust => 188,
+      Tpa_Speed_Max_Voltage => 190, Tpa_Speed_Pitch_Offset => 192, Tpa_Curve_Type => 170,
+      Tpa_Curve_Stall_Throttle => 171, Tpa_Curve_Pid_Thr0 => 172, Tpa_Curve_Pid_Thr100 => 174,
+      Tpa_Curve_Expo => 176, Ez_Landing_Threshold => 151, Ez_Landing_Limit => 152, Ez_Landing_Speed => 153,
+      Landing_Disarm_Threshold => 154, Spa_Roll_Center => 155, Spa_Roll_Width => 161, Spa_Roll_Mode => 167,
+      Spa_Pitch_Center => 157, Spa_Pitch_Width => 163, Spa_Pitch_Mode => 168, Spa_Yaw_Center => 159,
+      Spa_Yaw_Width => 165, Spa_Yaw_Mode => 169, Yaw_Type => 194, Angle_Pitch_Offset => 195,
+      Tlm_Inverted => 4, Tlm_Halfduplex => 5, Telemetry_1_Protocol => 41, Telemetry_1_Uart => 42,
+      Telemetry_1_Baud => 43, Telemetry_2_Protocol => 44, Telemetry_2_Uart => 45, Telemetry_2_Baud => 46,
+      Telemetry_3_Protocol => 47, Telemetry_3_Uart => 48, Telemetry_3_Baud => 49, Crsf_Tlm_Accgyro => 40,
+      Frsky_Default_Lat => 0, Frsky_Default_Long => 2, Frsky_Gps_Format => 6, Frsky_Unit => 7,
+      Frsky_Vfas_Precision => 8, Hott_Alarm_Int => 9, Pid_In_Tlm => 10, Report_Cell_Voltage => 11,
+      Ibus_Sensor => 12, Mavlink_Mah_As_Heading_Divisor => 27, Mavlink_Min_Txbuff => 33,
+      Mavlink_Ext_Status_Rate => 34, Mavlink_Rc_Chan_Rate => 35, Mavlink_Pos_Rate => 36,
+      Mavlink_Extra1_Rate => 37, Mavlink_Extra2_Rate => 38, Mavlink_Extra3_Rate => 39,
+      Telemetry_Disabled_Voltage => 29, Telemetry_Disabled_Current => 29, Telemetry_Disabled_Fuel => 29,
+      Telemetry_Disabled_Mode => 29, Telemetry_Disabled_Acc_X => 29, Telemetry_Disabled_Acc_Y => 29,
+      Telemetry_Disabled_Acc_Z => 29, Telemetry_Disabled_Pitch => 29, Telemetry_Disabled_Roll => 29,
+      Telemetry_Disabled_Heading => 29, Telemetry_Disabled_Altitude => 29, Telemetry_Disabled_Vario => 29,
+      Telemetry_Disabled_Lat_Long => 29, Telemetry_Disabled_Ground_Speed => 29,
+      Telemetry_Disabled_Distance => 29, Telemetry_Disabled_Esc_Current => 29,
+      Telemetry_Disabled_Esc_Voltage => 29, Telemetry_Disabled_Esc_Rpm => 29,
+      Telemetry_Disabled_Esc_Temperature => 29, Telemetry_Disabled_Temperature => 29,
+      Telemetry_Disabled_Cap_Used => 29, Ledstrip_Visual_Beeper => 0, Ledstrip_Visual_Beeper_Color => 10,
+      Ledstrip_Grb_Rgb => 2, Ledstrip_Profile => 3, Ledstrip_Race_Color => 4, Ledstrip_Beacon_Color => 5,
+      Ledstrip_Beacon_Period_Ms => 6, Ledstrip_Beacon_Percent => 8, Ledstrip_Beacon_Armed_Only => 9,
+      Ledstrip_Brightness => 11, Ledstrip_Rainbow_Delta => 12, Ledstrip_Rainbow_Freq => 14,
+      Transponder_Provider => 0, Transponder_Data => 2, Sdcard_Detect_Inverted => 3, Sdcard_Mode => 4,
+      Sdcard_Spi_Bus => 0, Osd_Units => 5, Osd_Warn_Bitmask => 10, Osd_Rssi_Alarm => 4,
+      Osd_Link_Quality_Alarm => 80, Osd_Rssi_Dbm_Alarm => 82, Osd_Rsnr_Alarm => 84, Osd_Cap_Alarm => 0,
+      Osd_Alt_Alarm => 2, Osd_Distance_Alarm => 92, Osd_Esc_Temp_Alarm => 20, Osd_Esc_Rpm_Alarm => 21,
       Osd_Esc_Current_Alarm => 23, Osd_Core_Temp_Alarm => 25, Osd_Ah_Max_Pit => 14, Osd_Ah_Max_Rol => 15,
       Osd_Ah_Invert => 26, Osd_Logo_On_Arming => 94, Osd_Logo_On_Arming_Duration => 95,
       Osd_Arming_Logo => 111, Osd_Use_Quick_Menu => 109, Osd_Show_Spec_Prearm => 110, Osd_Tim1 => 6,
@@ -343,21 +354,26 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Gps_Lap_Timer_Gate_Tolerance_M => U8, Deadband => U8, Yaw_Deadband => U8, Yaw_Control_Reversed => U8,
       Alt_Hold_Climb_Rate => U8, Alt_Hold_Deadband => U8, Pos_Hold_Deadband => U8,
       Poshold_Position_Source => U8, Poshold_Opticalflow_Quality_Min => U8,
-      Poshold_Opticalflow_Max_Range => U16, Pid_Process_Denom => U8, Runaway_Takeoff_Prevention => U8,
-      Runaway_Takeoff_Deactivate_Delay => U16, Runaway_Takeoff_Deactivate_Throttle_Percent => U8,
-      Profile_Name => Text_Value, Dterm_Lpf1_Dyn_Min_Hz => U16, Dterm_Lpf1_Dyn_Max_Hz => U16,
-      Dterm_Lpf1_Dyn_Expo => U8, Dterm_Lpf1_Type => U8, Dterm_Lpf1_Static_Hz => I16, Dterm_Lpf2_Type => U8,
-      Dterm_Lpf2_Static_Hz => I16, Dterm_Notch_Hz => U16, Dterm_Notch_Cutoff => U16,
-      Vbat_Sag_Compensation => U8, Pid_At_Min_Throttle => U8, Anti_Gravity_Gain => U8,
-      Anti_Gravity_Cutoff_Hz => U8, Anti_Gravity_P_Gain => U8, Acc_Limit_Yaw => U16, Acc_Limit => U16,
-      Crash_Dthreshold => U16, Crash_Gthreshold => U16, Crash_Setpoint_Threshold => U16, Crash_Time => U16,
-      Crash_Delay => U16, Crash_Recovery_Angle => U8, Crash_Recovery_Rate => U8, Crash_Limit_Yaw => U16,
-      Crash_Recovery => U8, Iterm_Rotation => U8, Iterm_Relax => U8, Iterm_Relax_Type => U8,
-      Iterm_Relax_Cutoff => U8, Iterm_Windup => U8, Pidsum_Limit => U16, Pidsum_Limit_Yaw => U16,
-      Yaw_Lowpass_Hz => U16, Throttle_Boost => U8, Throttle_Boost_Cutoff => U8,
-      Acro_Trainer_Angle_Limit => U8, Acro_Trainer_Lookahead_Ms => U16, Acro_Trainer_Debug_Axis => U8,
-      Acro_Trainer_Gain => U8, P_Pitch => U8, I_Pitch => U8, D_Pitch => U8, F_Pitch => U16, P_Roll => U8,
-      I_Roll => U8, D_Roll => U8, F_Roll => U16, P_Yaw => U8, I_Yaw => U8, D_Yaw => U8, F_Yaw => U16,
+      Poshold_Opticalflow_Max_Range => U16, Launch_Climb_Angle => U8, Launch_Max_Angle => U8,
+      Launch_Detect_Accel => U8, Launch_Detect_Velocity => U16, Launch_Detect_Time => U16,
+      Launch_Idle_Throttle => U8, Launch_Idle_Delay => U16, Launch_Throttle => U8, Launch_Motor_Delay => U16,
+      Launch_Spinup_Time => U16, Launch_Min_Time => U16, Launch_Timeout => U16, Launch_Max_Altitude => U16,
+      Launch_End_Time => U16, Launch_Abort_Deadband => U8, Launch_Abort_Angle => U8, Pid_Process_Denom => U8,
+      Runaway_Takeoff_Prevention => U8, Runaway_Takeoff_Deactivate_Delay => U16,
+      Runaway_Takeoff_Deactivate_Throttle_Percent => U8, Profile_Name => Text_Value,
+      Dterm_Lpf1_Dyn_Min_Hz => U16, Dterm_Lpf1_Dyn_Max_Hz => U16, Dterm_Lpf1_Dyn_Expo => U8,
+      Dterm_Lpf1_Type => U8, Dterm_Lpf1_Static_Hz => I16, Dterm_Lpf2_Type => U8, Dterm_Lpf2_Static_Hz => I16,
+      Dterm_Notch_Hz => U16, Dterm_Notch_Cutoff => U16, Vbat_Sag_Compensation => U8,
+      Pid_At_Min_Throttle => U8, Anti_Gravity_Gain => U8, Anti_Gravity_Cutoff_Hz => U8,
+      Anti_Gravity_P_Gain => U8, Acc_Limit_Yaw => U16, Acc_Limit => U16, Crash_Dthreshold => U16,
+      Crash_Gthreshold => U16, Crash_Setpoint_Threshold => U16, Crash_Time => U16, Crash_Delay => U16,
+      Crash_Recovery_Angle => U8, Crash_Recovery_Rate => U8, Crash_Limit_Yaw => U16, Crash_Recovery => U8,
+      Iterm_Rotation => U8, Iterm_Relax => U8, Iterm_Relax_Type => U8, Iterm_Relax_Cutoff => U8,
+      Iterm_Windup => U8, Pidsum_Limit => U16, Pidsum_Limit_Yaw => U16, Yaw_Lowpass_Hz => U16,
+      Throttle_Boost => U8, Throttle_Boost_Cutoff => U8, Acro_Trainer_Angle_Limit => U8,
+      Acro_Trainer_Lookahead_Ms => U16, Acro_Trainer_Debug_Axis => U8, Acro_Trainer_Gain => U8, P_Pitch => U8,
+      I_Pitch => U8, D_Pitch => U8, F_Pitch => U16, P_Roll => U8, I_Roll => U8, D_Roll => U8, F_Roll => U16,
+      P_Yaw => U8, I_Yaw => U8, D_Yaw => U8, F_Yaw => U16, S_Pitch => U8, S_Roll => U8, S_Yaw => U8,
       Angle_P_Gain => U8, Angle_Feedforward => U8, Angle_Feedforward_Smoothing_Ms => U8, Angle_Limit => U8,
       Angle_Earth_Ref => U8, Horizon_Level_Strength => U8, Horizon_Limit_Sticks => U8,
       Horizon_Limit_Degrees => U8, Horizon_Ignore_Sticks => U8, Horizon_Delay_Ms => U16,
@@ -377,8 +393,15 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Simplified_Pitch_D_Gain => U8, Simplified_Pitch_Pi_Gain => U8, Simplified_Dterm_Filter => U8,
       Simplified_Dterm_Filter_Multiplier => U8, Simplified_Gyro_Filter => U8,
       Simplified_Gyro_Filter_Multiplier => U8, Tpa_Mode => U8, Tpa_Rate => U8, Tpa_Breakpoint => U16,
-      Tpa_Low_Rate => I8, Tpa_Low_Breakpoint => U16, Tpa_Low_Always => U8, Ez_Landing_Threshold => U8,
-      Ez_Landing_Limit => U8, Ez_Landing_Speed => U8, Landing_Disarm_Threshold => U8, Tlm_Inverted => U8,
+      Tpa_Low_Rate => I8, Tpa_Low_Breakpoint => U16, Tpa_Low_Always => U8, Tpa_Speed_Type => U8,
+      Tpa_Speed_Basic_Delay => U16, Tpa_Speed_Basic_Gravity => U16, Tpa_Speed_Adv_Prop_Pitch => U16,
+      Tpa_Speed_Adv_Mass => U16, Tpa_Speed_Adv_Drag_K => U16, Tpa_Speed_Adv_Thrust => U16,
+      Tpa_Speed_Max_Voltage => U16, Tpa_Speed_Pitch_Offset => I16, Tpa_Curve_Type => U8,
+      Tpa_Curve_Stall_Throttle => U8, Tpa_Curve_Pid_Thr0 => U16, Tpa_Curve_Pid_Thr100 => U16,
+      Tpa_Curve_Expo => I8, Ez_Landing_Threshold => U8, Ez_Landing_Limit => U8, Ez_Landing_Speed => U8,
+      Landing_Disarm_Threshold => U8, Spa_Roll_Center => U16, Spa_Roll_Width => U16, Spa_Roll_Mode => U8,
+      Spa_Pitch_Center => U16, Spa_Pitch_Width => U16, Spa_Pitch_Mode => U8, Spa_Yaw_Center => U16,
+      Spa_Yaw_Width => U16, Spa_Yaw_Mode => U8, Yaw_Type => U8, Angle_Pitch_Offset => I16, Tlm_Inverted => U8,
       Tlm_Halfduplex => U8, Telemetry_1_Protocol => U8, Telemetry_1_Uart => I8, Telemetry_1_Baud => U8,
       Telemetry_2_Protocol => U8, Telemetry_2_Uart => I8, Telemetry_2_Baud => U8, Telemetry_3_Protocol => U8,
       Telemetry_3_Uart => I8, Telemetry_3_Baud => U8, Crsf_Tlm_Accgyro => U8, Frsky_Default_Lat => I16,
@@ -559,13 +582,14 @@ package body Adaflight.Config_Groups with SPARK_Mode is
         when Gyro_Offset_Yaw | Acc_Trim_Pitch | Acc_Trim_Roll | Acc_Calibration | Mag_Align_Roll | Mag_Align_Pitch |
           Mag_Align_Yaw | Mag_Calibration | Baro_Drift | Align_Board_Roll | Align_Board_Pitch | Align_Board_Yaw |
           Ibata_Scale | Ibata_Offset | Ibatv_Scale | Beeper_Frequency | Mag_Declination | Dterm_Lpf1_Static_Hz |
-          Dterm_Lpf2_Static_Hz | Frsky_Default_Lat | Frsky_Default_Long | Osd_Rssi_Dbm_Alarm | Osd_Rsnr_Alarm |
-          Osd_Esc_Rpm_Alarm | Osd_Esc_Current_Alarm | Opticalflow_Rotation | Timezone_Offset_Minutes => -32768,
+          Dterm_Lpf2_Static_Hz | Tpa_Speed_Pitch_Offset | Angle_Pitch_Offset | Frsky_Default_Lat | Frsky_Default_Long
+          | Osd_Rssi_Dbm_Alarm | Osd_Rsnr_Alarm | Osd_Esc_Rpm_Alarm | Osd_Esc_Current_Alarm | Opticalflow_Rotation |
+          Timezone_Offset_Minutes => -32768,
         when Rssi_Channel | Rssi_Src_Frame_Errors | Rssi_Offset | Rssi_Invert | Rx_Uart | Adc_Device |
           Input_Filtering_Mode | Blackbox_Uart | Tri_Unarmed_Servo | Gps_Uart | Auto_Profile_Cell_Count | Tpa_Low_Rate
-          | Telemetry_1_Uart | Telemetry_2_Uart | Telemetry_3_Uart | Osd_Uart | Osd_Rcchannels | Osd_Custom_Text_Uart
-          | Task_Statistics | Vtx_Uart | Vcd_H_Offset | Vcd_V_Offset | Displayport_Msp_Col_Adjust |
-          Displayport_Msp_Row_Adjust | Displayport_Max7456_Col_Adjust | Displayport_Max7456_Row_Adjust |
+          | Tpa_Curve_Expo | Telemetry_1_Uart | Telemetry_2_Uart | Telemetry_3_Uart | Osd_Uart | Osd_Rcchannels |
+          Osd_Custom_Text_Uart | Task_Statistics | Vtx_Uart | Vcd_H_Offset | Vcd_V_Offset | Displayport_Msp_Col_Adjust
+          | Displayport_Msp_Row_Adjust | Displayport_Max7456_Col_Adjust | Displayport_Max7456_Row_Adjust |
           Esc_Sensor_Uart | Frsky_Spi_Offset | Rangefinder_Uart | Opticalflow_Uart | Rcdevice_Uart | Msp_1_Uart |
           Msp_2_Uart | Msp_3_Uart | Stats_Min_Armed_Time_S | Altitude_Source | Altitude_Prefer_Baro |
           Gimbal_Roll_Rc_Gain | Gimbal_Pitch_Rc_Thr_Gain | Gimbal_Pitch_Rc_Low_Gain | Gimbal_Pitch_Rc_High_Gain |
@@ -613,31 +637,34 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           | Gps_Rescue_Alt_Mode | Gps_Rescue_Sanity_Checks | Gps_Rescue_Min_Sats | Gps_Rescue_Allow_Arming_Without_Fix
           | Gps_Rescue_Yaw_P | Gps_Lap_Timer_Gate_Tolerance_M | Deadband | Yaw_Deadband | Alt_Hold_Climb_Rate |
           Alt_Hold_Deadband | Pos_Hold_Deadband | Poshold_Position_Source | Poshold_Opticalflow_Quality_Min |
-          Pid_Process_Denom | Runaway_Takeoff_Prevention | Runaway_Takeoff_Deactivate_Throttle_Percent |
-          Dterm_Lpf1_Dyn_Expo | Dterm_Lpf1_Type | Dterm_Lpf2_Type | Vbat_Sag_Compensation | Pid_At_Min_Throttle |
-          Anti_Gravity_Gain | Anti_Gravity_Cutoff_Hz | Anti_Gravity_P_Gain | Crash_Recovery_Angle |
-          Crash_Recovery_Rate | Crash_Recovery | Iterm_Rotation | Iterm_Relax | Iterm_Relax_Type | Iterm_Relax_Cutoff
-          | Iterm_Windup | Throttle_Boost | Throttle_Boost_Cutoff | Acro_Trainer_Angle_Limit | Acro_Trainer_Debug_Axis
-          | Acro_Trainer_Gain | P_Pitch | I_Pitch | D_Pitch | P_Roll | I_Roll | D_Roll | P_Yaw | I_Yaw | D_Yaw |
-          Angle_P_Gain | Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit | Angle_Earth_Ref |
-          Horizon_Level_Strength | Horizon_Limit_Sticks | Horizon_Limit_Degrees | Horizon_Ignore_Sticks |
-          Chirp_Lag_Freq_Hz | Chirp_Lead_Freq_Hz | Chirp_Time_Seconds | Chirp_Repeat | D_Max_Roll | D_Max_Pitch |
-          D_Max_Yaw | D_Max_Gain | D_Max_Advance | Motor_Output_Limit | Launch_Control_Mode |
-          Launch_Trigger_Allow_Reset | Launch_Trigger_Throttle_Percent | Launch_Angle_Limit | Launch_Control_Gain |
-          Thrust_Linear | Feedforward_Transition | Feedforward_Averaging | Feedforward_Smooth_Factor |
-          Feedforward_Jitter_Factor | Feedforward_Boost | Feedforward_Max_Rate_Limit | Feedforward_Yaw_Hold_Gain |
-          Feedforward_Yaw_Hold_Time | Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain | Dyn_Idle_D_Gain |
-          Dyn_Idle_Max_Increase | Level_Race_Mode | Simplified_Pids_Mode | Simplified_Master_Multiplier |
-          Simplified_I_Gain | Simplified_D_Gain | Simplified_Pi_Gain | Simplified_D_Max_Gain |
-          Simplified_Feedforward_Gain | Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain | Simplified_Dterm_Filter |
+          Launch_Climb_Angle | Launch_Max_Angle | Launch_Detect_Accel | Launch_Idle_Throttle | Launch_Throttle |
+          Launch_Abort_Deadband | Launch_Abort_Angle | Pid_Process_Denom | Runaway_Takeoff_Prevention |
+          Runaway_Takeoff_Deactivate_Throttle_Percent | Dterm_Lpf1_Dyn_Expo | Dterm_Lpf1_Type | Dterm_Lpf2_Type |
+          Vbat_Sag_Compensation | Pid_At_Min_Throttle | Anti_Gravity_Gain | Anti_Gravity_Cutoff_Hz |
+          Anti_Gravity_P_Gain | Crash_Recovery_Angle | Crash_Recovery_Rate | Crash_Recovery | Iterm_Rotation |
+          Iterm_Relax | Iterm_Relax_Type | Iterm_Relax_Cutoff | Iterm_Windup | Throttle_Boost | Throttle_Boost_Cutoff
+          | Acro_Trainer_Angle_Limit | Acro_Trainer_Debug_Axis | Acro_Trainer_Gain | P_Pitch | I_Pitch | D_Pitch |
+          P_Roll | I_Roll | D_Roll | P_Yaw | I_Yaw | D_Yaw | S_Pitch | S_Roll | S_Yaw | Angle_P_Gain |
+          Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit | Angle_Earth_Ref | Horizon_Level_Strength
+          | Horizon_Limit_Sticks | Horizon_Limit_Degrees | Horizon_Ignore_Sticks | Chirp_Lag_Freq_Hz |
+          Chirp_Lead_Freq_Hz | Chirp_Time_Seconds | Chirp_Repeat | D_Max_Roll | D_Max_Pitch | D_Max_Yaw | D_Max_Gain |
+          D_Max_Advance | Motor_Output_Limit | Launch_Control_Mode | Launch_Trigger_Allow_Reset |
+          Launch_Trigger_Throttle_Percent | Launch_Angle_Limit | Launch_Control_Gain | Thrust_Linear |
+          Feedforward_Transition | Feedforward_Averaging | Feedforward_Smooth_Factor | Feedforward_Jitter_Factor |
+          Feedforward_Boost | Feedforward_Max_Rate_Limit | Feedforward_Yaw_Hold_Gain | Feedforward_Yaw_Hold_Time |
+          Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain | Dyn_Idle_D_Gain | Dyn_Idle_Max_Increase |
+          Level_Race_Mode | Simplified_Pids_Mode | Simplified_Master_Multiplier | Simplified_I_Gain |
+          Simplified_D_Gain | Simplified_Pi_Gain | Simplified_D_Max_Gain | Simplified_Feedforward_Gain |
+          Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain | Simplified_Dterm_Filter |
           Simplified_Dterm_Filter_Multiplier | Simplified_Gyro_Filter | Simplified_Gyro_Filter_Multiplier | Tpa_Mode |
-          Tpa_Rate | Tpa_Low_Always | Ez_Landing_Threshold | Ez_Landing_Limit | Ez_Landing_Speed |
-          Landing_Disarm_Threshold | Tlm_Inverted | Tlm_Halfduplex | Telemetry_1_Protocol | Telemetry_1_Baud |
-          Telemetry_2_Protocol | Telemetry_2_Baud | Telemetry_3_Protocol | Telemetry_3_Baud | Crsf_Tlm_Accgyro |
-          Frsky_Gps_Format | Frsky_Unit | Frsky_Vfas_Precision | Hott_Alarm_Int | Pid_In_Tlm | Report_Cell_Voltage |
-          Ibus_Sensor | Mavlink_Min_Txbuff | Mavlink_Ext_Status_Rate | Mavlink_Rc_Chan_Rate | Mavlink_Pos_Rate |
-          Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper |
-          Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
+          Tpa_Rate | Tpa_Low_Always | Tpa_Speed_Type | Tpa_Curve_Type | Tpa_Curve_Stall_Throttle |
+          Ez_Landing_Threshold | Ez_Landing_Limit | Ez_Landing_Speed | Landing_Disarm_Threshold | Spa_Roll_Mode |
+          Spa_Pitch_Mode | Spa_Yaw_Mode | Yaw_Type | Tlm_Inverted | Tlm_Halfduplex | Telemetry_1_Protocol |
+          Telemetry_1_Baud | Telemetry_2_Protocol | Telemetry_2_Baud | Telemetry_3_Protocol | Telemetry_3_Baud |
+          Crsf_Tlm_Accgyro | Frsky_Gps_Format | Frsky_Unit | Frsky_Vfas_Precision | Hott_Alarm_Int | Pid_In_Tlm |
+          Report_Cell_Voltage | Ibus_Sensor | Mavlink_Min_Txbuff | Mavlink_Ext_Status_Rate | Mavlink_Rc_Chan_Rate |
+          Mavlink_Pos_Rate | Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper
+          | Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
           Ledstrip_Beacon_Color | Ledstrip_Beacon_Percent | Ledstrip_Beacon_Armed_Only | Ledstrip_Brightness |
           Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Sdcard_Spi_Bus | Osd_Units
           | Osd_Rssi_Alarm | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol |
@@ -678,27 +705,32 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Roll_Rate_Limit | Pitch_Rate_Limit | Yaw_Rate_Limit | Serial_Update_Rate_Hz | Imu_Dcm_Kp | Imu_Dcm_Ki |
           Gps_Rescue_Min_Start_Dist | Gps_Rescue_Initial_Climb | Gps_Rescue_Ascend_Rate | Gps_Rescue_Return_Alt |
           Gps_Rescue_Ground_Speed | Gps_Rescue_Descent_Dist | Gps_Rescue_Descend_Rate | Gps_Lap_Timer_Min_Lap_Time_S |
-          Poshold_Opticalflow_Max_Range | Runaway_Takeoff_Deactivate_Delay | Dterm_Lpf1_Dyn_Min_Hz |
-          Dterm_Lpf1_Dyn_Max_Hz | Dterm_Notch_Hz | Dterm_Notch_Cutoff | Acc_Limit_Yaw | Acc_Limit | Crash_Dthreshold |
-          Crash_Gthreshold | Crash_Setpoint_Threshold | Crash_Time | Crash_Delay | Crash_Limit_Yaw | Pidsum_Limit |
-          Pidsum_Limit_Yaw | Yaw_Lowpass_Hz | Acro_Trainer_Lookahead_Ms | F_Pitch | F_Roll | F_Yaw | Horizon_Delay_Ms
-          | Chirp_Amplitude_Roll | Chirp_Amplitude_Pitch | Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz |
-          Chirp_Frequency_End_Deci_Hz | Tpa_Breakpoint | Tpa_Low_Breakpoint | Mavlink_Mah_As_Heading_Divisor |
-          Ledstrip_Beacon_Period_Ms | Ledstrip_Rainbow_Delta | Ledstrip_Rainbow_Freq | Osd_Link_Quality_Alarm |
-          Osd_Cap_Alarm | Osd_Alt_Alarm | Osd_Distance_Alarm | Osd_Tim1 | Osd_Tim2 | Osd_Vbat_Pos | Osd_Rssi_Pos |
-          Osd_Link_Quality_Pos | Osd_Link_Tx_Power_Pos | Osd_Rssi_Dbm_Pos | Osd_Rsnr_Pos | Osd_Tim_1_Pos |
-          Osd_Tim_2_Pos | Osd_Remaining_Time_Estimate_Pos | Osd_Flymode_Pos | Osd_Anti_Gravity_Pos | Osd_G_Force_Pos |
-          Osd_Throttle_Pos | Osd_Vtx_Channel_Pos | Osd_Crosshairs_Pos | Osd_Ah_Sbar_Pos | Osd_Ah_Pos | Osd_Current_Pos
-          | Osd_Mah_Drawn_Pos | Osd_Wh_Drawn_Pos | Osd_Motor_Diag_Pos | Osd_Craft_Name_Pos | Osd_Pilot_Name_Pos |
-          Osd_Gps_Speed_Pos | Osd_Gps_Lon_Pos | Osd_Gps_Lat_Pos | Osd_Gps_Lap_Curr_Pos | Osd_Gps_Lap_Prev_Pos |
-          Osd_Gps_Lap_Best3_Pos | Osd_Gps_Sats_Pos | Osd_Home_Dir_Pos | Osd_Home_Dist_Pos | Osd_Flight_Dist_Pos |
-          Osd_Compass_Bar_Pos | Osd_Altitude_Pos | Osd_Pid_Roll_Pos | Osd_Pid_Pitch_Pos | Osd_Pid_Yaw_Pos |
-          Osd_Debug_Pos | Osd_Debug2_Pos | Osd_Power_Pos | Osd_Pidrate_Profile_Pos | Osd_Warnings_Pos |
-          Osd_Avg_Cell_Voltage_Pos | Osd_Pit_Ang_Pos | Osd_Rol_Ang_Pos | Osd_Battery_Usage_Pos | Osd_Disarmed_Pos |
-          Osd_Nheading_Pos | Osd_Up_Down_Reference_Pos | Osd_Ready_Mode_Pos | Osd_Pos_Hold_Ready_Pos | Osd_Nvario_Pos
-          | Osd_Esc_Tmp_Pos | Osd_Esc_Rpm_Pos | Osd_Esc_Rpm_Freq_Pos | Osd_Rtc_Date_Time_Pos |
-          Osd_Adjustment_Range_Pos | Osd_Flip_Arrow_Pos | Osd_Core_Temp_Pos | Osd_Log_Status_Pos |
-          Osd_Stick_Overlay_Left_Pos | Osd_Stick_Overlay_Right_Pos | Osd_Rate_Profile_Name_Pos |
+          Poshold_Opticalflow_Max_Range | Launch_Detect_Velocity | Launch_Detect_Time | Launch_Idle_Delay |
+          Launch_Motor_Delay | Launch_Spinup_Time | Launch_Min_Time | Launch_Timeout | Launch_Max_Altitude |
+          Launch_End_Time | Runaway_Takeoff_Deactivate_Delay | Dterm_Lpf1_Dyn_Min_Hz | Dterm_Lpf1_Dyn_Max_Hz |
+          Dterm_Notch_Hz | Dterm_Notch_Cutoff | Acc_Limit_Yaw | Acc_Limit | Crash_Dthreshold | Crash_Gthreshold |
+          Crash_Setpoint_Threshold | Crash_Time | Crash_Delay | Crash_Limit_Yaw | Pidsum_Limit | Pidsum_Limit_Yaw |
+          Yaw_Lowpass_Hz | Acro_Trainer_Lookahead_Ms | F_Pitch | F_Roll | F_Yaw | Horizon_Delay_Ms |
+          Chirp_Amplitude_Roll | Chirp_Amplitude_Pitch | Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz |
+          Chirp_Frequency_End_Deci_Hz | Tpa_Breakpoint | Tpa_Low_Breakpoint | Tpa_Speed_Basic_Delay |
+          Tpa_Speed_Basic_Gravity | Tpa_Speed_Adv_Prop_Pitch | Tpa_Speed_Adv_Mass | Tpa_Speed_Adv_Drag_K |
+          Tpa_Speed_Adv_Thrust | Tpa_Speed_Max_Voltage | Tpa_Curve_Pid_Thr0 | Tpa_Curve_Pid_Thr100 | Spa_Roll_Center |
+          Spa_Roll_Width | Spa_Pitch_Center | Spa_Pitch_Width | Spa_Yaw_Center | Spa_Yaw_Width |
+          Mavlink_Mah_As_Heading_Divisor | Ledstrip_Beacon_Period_Ms | Ledstrip_Rainbow_Delta | Ledstrip_Rainbow_Freq
+          | Osd_Link_Quality_Alarm | Osd_Cap_Alarm | Osd_Alt_Alarm | Osd_Distance_Alarm | Osd_Tim1 | Osd_Tim2 |
+          Osd_Vbat_Pos | Osd_Rssi_Pos | Osd_Link_Quality_Pos | Osd_Link_Tx_Power_Pos | Osd_Rssi_Dbm_Pos | Osd_Rsnr_Pos
+          | Osd_Tim_1_Pos | Osd_Tim_2_Pos | Osd_Remaining_Time_Estimate_Pos | Osd_Flymode_Pos | Osd_Anti_Gravity_Pos |
+          Osd_G_Force_Pos | Osd_Throttle_Pos | Osd_Vtx_Channel_Pos | Osd_Crosshairs_Pos | Osd_Ah_Sbar_Pos | Osd_Ah_Pos
+          | Osd_Current_Pos | Osd_Mah_Drawn_Pos | Osd_Wh_Drawn_Pos | Osd_Motor_Diag_Pos | Osd_Craft_Name_Pos |
+          Osd_Pilot_Name_Pos | Osd_Gps_Speed_Pos | Osd_Gps_Lon_Pos | Osd_Gps_Lat_Pos | Osd_Gps_Lap_Curr_Pos |
+          Osd_Gps_Lap_Prev_Pos | Osd_Gps_Lap_Best3_Pos | Osd_Gps_Sats_Pos | Osd_Home_Dir_Pos | Osd_Home_Dist_Pos |
+          Osd_Flight_Dist_Pos | Osd_Compass_Bar_Pos | Osd_Altitude_Pos | Osd_Pid_Roll_Pos | Osd_Pid_Pitch_Pos |
+          Osd_Pid_Yaw_Pos | Osd_Debug_Pos | Osd_Debug2_Pos | Osd_Power_Pos | Osd_Pidrate_Profile_Pos |
+          Osd_Warnings_Pos | Osd_Avg_Cell_Voltage_Pos | Osd_Pit_Ang_Pos | Osd_Rol_Ang_Pos | Osd_Battery_Usage_Pos |
+          Osd_Disarmed_Pos | Osd_Nheading_Pos | Osd_Up_Down_Reference_Pos | Osd_Ready_Mode_Pos |
+          Osd_Pos_Hold_Ready_Pos | Osd_Nvario_Pos | Osd_Esc_Tmp_Pos | Osd_Esc_Rpm_Pos | Osd_Esc_Rpm_Freq_Pos |
+          Osd_Rtc_Date_Time_Pos | Osd_Adjustment_Range_Pos | Osd_Flip_Arrow_Pos | Osd_Core_Temp_Pos |
+          Osd_Log_Status_Pos | Osd_Stick_Overlay_Left_Pos | Osd_Stick_Overlay_Right_Pos | Osd_Rate_Profile_Name_Pos |
           Osd_Pid_Profile_Name_Pos | Osd_Battery_Profile_Name_Pos | Osd_Profile_Name_Pos | Osd_Rcchannels_Pos |
           Osd_Camera_Frame_Pos | Osd_Efficiency_Pos | Osd_Total_Flights_Pos | Osd_Aux_Pos | Osd_Sys_Goggle_Voltage_Pos
           | Osd_Sys_Vtx_Voltage_Pos | Osd_Sys_Bitrate_Pos | Osd_Sys_Delay_Pos | Osd_Sys_Distance_Pos | Osd_Sys_Lq_Pos
@@ -727,13 +759,14 @@ package body Adaflight.Config_Groups with SPARK_Mode is
         when Gyro_Offset_Yaw | Acc_Trim_Pitch | Acc_Trim_Roll | Acc_Calibration | Mag_Align_Roll | Mag_Align_Pitch |
           Mag_Align_Yaw | Mag_Calibration | Baro_Drift | Align_Board_Roll | Align_Board_Pitch | Align_Board_Yaw |
           Ibata_Scale | Ibata_Offset | Ibatv_Scale | Beeper_Frequency | Mag_Declination | Dterm_Lpf1_Static_Hz |
-          Dterm_Lpf2_Static_Hz | Frsky_Default_Lat | Frsky_Default_Long | Osd_Rssi_Dbm_Alarm | Osd_Rsnr_Alarm |
-          Osd_Esc_Rpm_Alarm | Osd_Esc_Current_Alarm | Opticalflow_Rotation | Timezone_Offset_Minutes => 32767,
+          Dterm_Lpf2_Static_Hz | Tpa_Speed_Pitch_Offset | Angle_Pitch_Offset | Frsky_Default_Lat | Frsky_Default_Long
+          | Osd_Rssi_Dbm_Alarm | Osd_Rsnr_Alarm | Osd_Esc_Rpm_Alarm | Osd_Esc_Current_Alarm | Opticalflow_Rotation |
+          Timezone_Offset_Minutes => 32767,
         when Rssi_Channel | Rssi_Src_Frame_Errors | Rssi_Offset | Rssi_Invert | Rx_Uart | Adc_Device |
           Input_Filtering_Mode | Blackbox_Uart | Tri_Unarmed_Servo | Gps_Uart | Auto_Profile_Cell_Count | Tpa_Low_Rate
-          | Telemetry_1_Uart | Telemetry_2_Uart | Telemetry_3_Uart | Osd_Uart | Osd_Rcchannels | Osd_Custom_Text_Uart
-          | Task_Statistics | Vtx_Uart | Vcd_H_Offset | Vcd_V_Offset | Displayport_Msp_Col_Adjust |
-          Displayport_Msp_Row_Adjust | Displayport_Max7456_Col_Adjust | Displayport_Max7456_Row_Adjust |
+          | Tpa_Curve_Expo | Telemetry_1_Uart | Telemetry_2_Uart | Telemetry_3_Uart | Osd_Uart | Osd_Rcchannels |
+          Osd_Custom_Text_Uart | Task_Statistics | Vtx_Uart | Vcd_H_Offset | Vcd_V_Offset | Displayport_Msp_Col_Adjust
+          | Displayport_Msp_Row_Adjust | Displayport_Max7456_Col_Adjust | Displayport_Max7456_Row_Adjust |
           Esc_Sensor_Uart | Frsky_Spi_Offset | Rangefinder_Uart | Opticalflow_Uart | Rcdevice_Uart | Msp_1_Uart |
           Msp_2_Uart | Msp_3_Uart | Stats_Min_Armed_Time_S | Altitude_Source | Altitude_Prefer_Baro |
           Gimbal_Roll_Rc_Gain | Gimbal_Pitch_Rc_Thr_Gain | Gimbal_Pitch_Rc_Low_Gain | Gimbal_Pitch_Rc_High_Gain |
@@ -781,31 +814,34 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           | Gps_Rescue_Alt_Mode | Gps_Rescue_Sanity_Checks | Gps_Rescue_Min_Sats | Gps_Rescue_Allow_Arming_Without_Fix
           | Gps_Rescue_Yaw_P | Gps_Lap_Timer_Gate_Tolerance_M | Deadband | Yaw_Deadband | Alt_Hold_Climb_Rate |
           Alt_Hold_Deadband | Pos_Hold_Deadband | Poshold_Position_Source | Poshold_Opticalflow_Quality_Min |
-          Pid_Process_Denom | Runaway_Takeoff_Prevention | Runaway_Takeoff_Deactivate_Throttle_Percent |
-          Dterm_Lpf1_Dyn_Expo | Dterm_Lpf1_Type | Dterm_Lpf2_Type | Vbat_Sag_Compensation | Pid_At_Min_Throttle |
-          Anti_Gravity_Gain | Anti_Gravity_Cutoff_Hz | Anti_Gravity_P_Gain | Crash_Recovery_Angle |
-          Crash_Recovery_Rate | Crash_Recovery | Iterm_Rotation | Iterm_Relax | Iterm_Relax_Type | Iterm_Relax_Cutoff
-          | Iterm_Windup | Throttle_Boost | Throttle_Boost_Cutoff | Acro_Trainer_Angle_Limit | Acro_Trainer_Debug_Axis
-          | Acro_Trainer_Gain | P_Pitch | I_Pitch | D_Pitch | P_Roll | I_Roll | D_Roll | P_Yaw | I_Yaw | D_Yaw |
-          Angle_P_Gain | Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit | Angle_Earth_Ref |
-          Horizon_Level_Strength | Horizon_Limit_Sticks | Horizon_Limit_Degrees | Horizon_Ignore_Sticks |
-          Chirp_Lag_Freq_Hz | Chirp_Lead_Freq_Hz | Chirp_Time_Seconds | Chirp_Repeat | D_Max_Roll | D_Max_Pitch |
-          D_Max_Yaw | D_Max_Gain | D_Max_Advance | Motor_Output_Limit | Launch_Control_Mode |
-          Launch_Trigger_Allow_Reset | Launch_Trigger_Throttle_Percent | Launch_Angle_Limit | Launch_Control_Gain |
-          Thrust_Linear | Feedforward_Transition | Feedforward_Averaging | Feedforward_Smooth_Factor |
-          Feedforward_Jitter_Factor | Feedforward_Boost | Feedforward_Max_Rate_Limit | Feedforward_Yaw_Hold_Gain |
-          Feedforward_Yaw_Hold_Time | Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain | Dyn_Idle_D_Gain |
-          Dyn_Idle_Max_Increase | Level_Race_Mode | Simplified_Pids_Mode | Simplified_Master_Multiplier |
-          Simplified_I_Gain | Simplified_D_Gain | Simplified_Pi_Gain | Simplified_D_Max_Gain |
-          Simplified_Feedforward_Gain | Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain | Simplified_Dterm_Filter |
+          Launch_Climb_Angle | Launch_Max_Angle | Launch_Detect_Accel | Launch_Idle_Throttle | Launch_Throttle |
+          Launch_Abort_Deadband | Launch_Abort_Angle | Pid_Process_Denom | Runaway_Takeoff_Prevention |
+          Runaway_Takeoff_Deactivate_Throttle_Percent | Dterm_Lpf1_Dyn_Expo | Dterm_Lpf1_Type | Dterm_Lpf2_Type |
+          Vbat_Sag_Compensation | Pid_At_Min_Throttle | Anti_Gravity_Gain | Anti_Gravity_Cutoff_Hz |
+          Anti_Gravity_P_Gain | Crash_Recovery_Angle | Crash_Recovery_Rate | Crash_Recovery | Iterm_Rotation |
+          Iterm_Relax | Iterm_Relax_Type | Iterm_Relax_Cutoff | Iterm_Windup | Throttle_Boost | Throttle_Boost_Cutoff
+          | Acro_Trainer_Angle_Limit | Acro_Trainer_Debug_Axis | Acro_Trainer_Gain | P_Pitch | I_Pitch | D_Pitch |
+          P_Roll | I_Roll | D_Roll | P_Yaw | I_Yaw | D_Yaw | S_Pitch | S_Roll | S_Yaw | Angle_P_Gain |
+          Angle_Feedforward | Angle_Feedforward_Smoothing_Ms | Angle_Limit | Angle_Earth_Ref | Horizon_Level_Strength
+          | Horizon_Limit_Sticks | Horizon_Limit_Degrees | Horizon_Ignore_Sticks | Chirp_Lag_Freq_Hz |
+          Chirp_Lead_Freq_Hz | Chirp_Time_Seconds | Chirp_Repeat | D_Max_Roll | D_Max_Pitch | D_Max_Yaw | D_Max_Gain |
+          D_Max_Advance | Motor_Output_Limit | Launch_Control_Mode | Launch_Trigger_Allow_Reset |
+          Launch_Trigger_Throttle_Percent | Launch_Angle_Limit | Launch_Control_Gain | Thrust_Linear |
+          Feedforward_Transition | Feedforward_Averaging | Feedforward_Smooth_Factor | Feedforward_Jitter_Factor |
+          Feedforward_Boost | Feedforward_Max_Rate_Limit | Feedforward_Yaw_Hold_Gain | Feedforward_Yaw_Hold_Time |
+          Dyn_Idle_Min_Rpm | Dyn_Idle_P_Gain | Dyn_Idle_I_Gain | Dyn_Idle_D_Gain | Dyn_Idle_Max_Increase |
+          Level_Race_Mode | Simplified_Pids_Mode | Simplified_Master_Multiplier | Simplified_I_Gain |
+          Simplified_D_Gain | Simplified_Pi_Gain | Simplified_D_Max_Gain | Simplified_Feedforward_Gain |
+          Simplified_Pitch_D_Gain | Simplified_Pitch_Pi_Gain | Simplified_Dterm_Filter |
           Simplified_Dterm_Filter_Multiplier | Simplified_Gyro_Filter | Simplified_Gyro_Filter_Multiplier | Tpa_Mode |
-          Tpa_Rate | Tpa_Low_Always | Ez_Landing_Threshold | Ez_Landing_Limit | Ez_Landing_Speed |
-          Landing_Disarm_Threshold | Tlm_Inverted | Tlm_Halfduplex | Telemetry_1_Protocol | Telemetry_1_Baud |
-          Telemetry_2_Protocol | Telemetry_2_Baud | Telemetry_3_Protocol | Telemetry_3_Baud | Crsf_Tlm_Accgyro |
-          Frsky_Gps_Format | Frsky_Unit | Frsky_Vfas_Precision | Hott_Alarm_Int | Pid_In_Tlm | Report_Cell_Voltage |
-          Ibus_Sensor | Mavlink_Min_Txbuff | Mavlink_Ext_Status_Rate | Mavlink_Rc_Chan_Rate | Mavlink_Pos_Rate |
-          Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper |
-          Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
+          Tpa_Rate | Tpa_Low_Always | Tpa_Speed_Type | Tpa_Curve_Type | Tpa_Curve_Stall_Throttle |
+          Ez_Landing_Threshold | Ez_Landing_Limit | Ez_Landing_Speed | Landing_Disarm_Threshold | Spa_Roll_Mode |
+          Spa_Pitch_Mode | Spa_Yaw_Mode | Yaw_Type | Tlm_Inverted | Tlm_Halfduplex | Telemetry_1_Protocol |
+          Telemetry_1_Baud | Telemetry_2_Protocol | Telemetry_2_Baud | Telemetry_3_Protocol | Telemetry_3_Baud |
+          Crsf_Tlm_Accgyro | Frsky_Gps_Format | Frsky_Unit | Frsky_Vfas_Precision | Hott_Alarm_Int | Pid_In_Tlm |
+          Report_Cell_Voltage | Ibus_Sensor | Mavlink_Min_Txbuff | Mavlink_Ext_Status_Rate | Mavlink_Rc_Chan_Rate |
+          Mavlink_Pos_Rate | Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper
+          | Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
           Ledstrip_Beacon_Color | Ledstrip_Beacon_Percent | Ledstrip_Beacon_Armed_Only | Ledstrip_Brightness |
           Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Sdcard_Spi_Bus | Osd_Units
           | Osd_Rssi_Alarm | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol |
@@ -846,27 +882,32 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Roll_Rate_Limit | Pitch_Rate_Limit | Yaw_Rate_Limit | Serial_Update_Rate_Hz | Imu_Dcm_Kp | Imu_Dcm_Ki |
           Gps_Rescue_Min_Start_Dist | Gps_Rescue_Initial_Climb | Gps_Rescue_Ascend_Rate | Gps_Rescue_Return_Alt |
           Gps_Rescue_Ground_Speed | Gps_Rescue_Descent_Dist | Gps_Rescue_Descend_Rate | Gps_Lap_Timer_Min_Lap_Time_S |
-          Poshold_Opticalflow_Max_Range | Runaway_Takeoff_Deactivate_Delay | Dterm_Lpf1_Dyn_Min_Hz |
-          Dterm_Lpf1_Dyn_Max_Hz | Dterm_Notch_Hz | Dterm_Notch_Cutoff | Acc_Limit_Yaw | Acc_Limit | Crash_Dthreshold |
-          Crash_Gthreshold | Crash_Setpoint_Threshold | Crash_Time | Crash_Delay | Crash_Limit_Yaw | Pidsum_Limit |
-          Pidsum_Limit_Yaw | Yaw_Lowpass_Hz | Acro_Trainer_Lookahead_Ms | F_Pitch | F_Roll | F_Yaw | Horizon_Delay_Ms
-          | Chirp_Amplitude_Roll | Chirp_Amplitude_Pitch | Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz |
-          Chirp_Frequency_End_Deci_Hz | Tpa_Breakpoint | Tpa_Low_Breakpoint | Mavlink_Mah_As_Heading_Divisor |
-          Ledstrip_Beacon_Period_Ms | Ledstrip_Rainbow_Delta | Ledstrip_Rainbow_Freq | Osd_Link_Quality_Alarm |
-          Osd_Cap_Alarm | Osd_Alt_Alarm | Osd_Distance_Alarm | Osd_Tim1 | Osd_Tim2 | Osd_Vbat_Pos | Osd_Rssi_Pos |
-          Osd_Link_Quality_Pos | Osd_Link_Tx_Power_Pos | Osd_Rssi_Dbm_Pos | Osd_Rsnr_Pos | Osd_Tim_1_Pos |
-          Osd_Tim_2_Pos | Osd_Remaining_Time_Estimate_Pos | Osd_Flymode_Pos | Osd_Anti_Gravity_Pos | Osd_G_Force_Pos |
-          Osd_Throttle_Pos | Osd_Vtx_Channel_Pos | Osd_Crosshairs_Pos | Osd_Ah_Sbar_Pos | Osd_Ah_Pos | Osd_Current_Pos
-          | Osd_Mah_Drawn_Pos | Osd_Wh_Drawn_Pos | Osd_Motor_Diag_Pos | Osd_Craft_Name_Pos | Osd_Pilot_Name_Pos |
-          Osd_Gps_Speed_Pos | Osd_Gps_Lon_Pos | Osd_Gps_Lat_Pos | Osd_Gps_Lap_Curr_Pos | Osd_Gps_Lap_Prev_Pos |
-          Osd_Gps_Lap_Best3_Pos | Osd_Gps_Sats_Pos | Osd_Home_Dir_Pos | Osd_Home_Dist_Pos | Osd_Flight_Dist_Pos |
-          Osd_Compass_Bar_Pos | Osd_Altitude_Pos | Osd_Pid_Roll_Pos | Osd_Pid_Pitch_Pos | Osd_Pid_Yaw_Pos |
-          Osd_Debug_Pos | Osd_Debug2_Pos | Osd_Power_Pos | Osd_Pidrate_Profile_Pos | Osd_Warnings_Pos |
-          Osd_Avg_Cell_Voltage_Pos | Osd_Pit_Ang_Pos | Osd_Rol_Ang_Pos | Osd_Battery_Usage_Pos | Osd_Disarmed_Pos |
-          Osd_Nheading_Pos | Osd_Up_Down_Reference_Pos | Osd_Ready_Mode_Pos | Osd_Pos_Hold_Ready_Pos | Osd_Nvario_Pos
-          | Osd_Esc_Tmp_Pos | Osd_Esc_Rpm_Pos | Osd_Esc_Rpm_Freq_Pos | Osd_Rtc_Date_Time_Pos |
-          Osd_Adjustment_Range_Pos | Osd_Flip_Arrow_Pos | Osd_Core_Temp_Pos | Osd_Log_Status_Pos |
-          Osd_Stick_Overlay_Left_Pos | Osd_Stick_Overlay_Right_Pos | Osd_Rate_Profile_Name_Pos |
+          Poshold_Opticalflow_Max_Range | Launch_Detect_Velocity | Launch_Detect_Time | Launch_Idle_Delay |
+          Launch_Motor_Delay | Launch_Spinup_Time | Launch_Min_Time | Launch_Timeout | Launch_Max_Altitude |
+          Launch_End_Time | Runaway_Takeoff_Deactivate_Delay | Dterm_Lpf1_Dyn_Min_Hz | Dterm_Lpf1_Dyn_Max_Hz |
+          Dterm_Notch_Hz | Dterm_Notch_Cutoff | Acc_Limit_Yaw | Acc_Limit | Crash_Dthreshold | Crash_Gthreshold |
+          Crash_Setpoint_Threshold | Crash_Time | Crash_Delay | Crash_Limit_Yaw | Pidsum_Limit | Pidsum_Limit_Yaw |
+          Yaw_Lowpass_Hz | Acro_Trainer_Lookahead_Ms | F_Pitch | F_Roll | F_Yaw | Horizon_Delay_Ms |
+          Chirp_Amplitude_Roll | Chirp_Amplitude_Pitch | Chirp_Amplitude_Yaw | Chirp_Frequency_Start_Deci_Hz |
+          Chirp_Frequency_End_Deci_Hz | Tpa_Breakpoint | Tpa_Low_Breakpoint | Tpa_Speed_Basic_Delay |
+          Tpa_Speed_Basic_Gravity | Tpa_Speed_Adv_Prop_Pitch | Tpa_Speed_Adv_Mass | Tpa_Speed_Adv_Drag_K |
+          Tpa_Speed_Adv_Thrust | Tpa_Speed_Max_Voltage | Tpa_Curve_Pid_Thr0 | Tpa_Curve_Pid_Thr100 | Spa_Roll_Center |
+          Spa_Roll_Width | Spa_Pitch_Center | Spa_Pitch_Width | Spa_Yaw_Center | Spa_Yaw_Width |
+          Mavlink_Mah_As_Heading_Divisor | Ledstrip_Beacon_Period_Ms | Ledstrip_Rainbow_Delta | Ledstrip_Rainbow_Freq
+          | Osd_Link_Quality_Alarm | Osd_Cap_Alarm | Osd_Alt_Alarm | Osd_Distance_Alarm | Osd_Tim1 | Osd_Tim2 |
+          Osd_Vbat_Pos | Osd_Rssi_Pos | Osd_Link_Quality_Pos | Osd_Link_Tx_Power_Pos | Osd_Rssi_Dbm_Pos | Osd_Rsnr_Pos
+          | Osd_Tim_1_Pos | Osd_Tim_2_Pos | Osd_Remaining_Time_Estimate_Pos | Osd_Flymode_Pos | Osd_Anti_Gravity_Pos |
+          Osd_G_Force_Pos | Osd_Throttle_Pos | Osd_Vtx_Channel_Pos | Osd_Crosshairs_Pos | Osd_Ah_Sbar_Pos | Osd_Ah_Pos
+          | Osd_Current_Pos | Osd_Mah_Drawn_Pos | Osd_Wh_Drawn_Pos | Osd_Motor_Diag_Pos | Osd_Craft_Name_Pos |
+          Osd_Pilot_Name_Pos | Osd_Gps_Speed_Pos | Osd_Gps_Lon_Pos | Osd_Gps_Lat_Pos | Osd_Gps_Lap_Curr_Pos |
+          Osd_Gps_Lap_Prev_Pos | Osd_Gps_Lap_Best3_Pos | Osd_Gps_Sats_Pos | Osd_Home_Dir_Pos | Osd_Home_Dist_Pos |
+          Osd_Flight_Dist_Pos | Osd_Compass_Bar_Pos | Osd_Altitude_Pos | Osd_Pid_Roll_Pos | Osd_Pid_Pitch_Pos |
+          Osd_Pid_Yaw_Pos | Osd_Debug_Pos | Osd_Debug2_Pos | Osd_Power_Pos | Osd_Pidrate_Profile_Pos |
+          Osd_Warnings_Pos | Osd_Avg_Cell_Voltage_Pos | Osd_Pit_Ang_Pos | Osd_Rol_Ang_Pos | Osd_Battery_Usage_Pos |
+          Osd_Disarmed_Pos | Osd_Nheading_Pos | Osd_Up_Down_Reference_Pos | Osd_Ready_Mode_Pos |
+          Osd_Pos_Hold_Ready_Pos | Osd_Nvario_Pos | Osd_Esc_Tmp_Pos | Osd_Esc_Rpm_Pos | Osd_Esc_Rpm_Freq_Pos |
+          Osd_Rtc_Date_Time_Pos | Osd_Adjustment_Range_Pos | Osd_Flip_Arrow_Pos | Osd_Core_Temp_Pos |
+          Osd_Log_Status_Pos | Osd_Stick_Overlay_Left_Pos | Osd_Stick_Overlay_Right_Pos | Osd_Rate_Profile_Name_Pos |
           Osd_Pid_Profile_Name_Pos | Osd_Battery_Profile_Name_Pos | Osd_Profile_Name_Pos | Osd_Rcchannels_Pos |
           Osd_Camera_Frame_Pos | Osd_Efficiency_Pos | Osd_Total_Flights_Pos | Osd_Aux_Pos | Osd_Sys_Goggle_Voltage_Pos
           | Osd_Sys_Vtx_Voltage_Pos | Osd_Sys_Bitrate_Pos | Osd_Sys_Delay_Pos | Osd_Sys_Distance_Pos | Osd_Sys_Lq_Pos
@@ -1044,5 +1085,13 @@ package body Adaflight.Config_Groups with SPARK_Mode is
             null;
       end case;
    end Set_Text;
+
+   function Wing_Defaults return Configuration is
+      C : Configuration := Defaults;
+   begin
+      C.Pid_Config := (Pid_Process_Denom => 1, Runaway_Takeoff_Prevention => 0, Runaway_Takeoff_Deactivate_Delay => 0,
+         Runaway_Takeoff_Deactivate_Throttle => 0);
+      return C;
+   end Wing_Defaults;
 
 end Adaflight.Config_Groups;
