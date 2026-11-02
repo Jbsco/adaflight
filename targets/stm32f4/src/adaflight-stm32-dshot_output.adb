@@ -131,6 +131,7 @@ package body Adaflight.STM32.DShot_Output is
         (Telemetry_State, Read_Counts, Quality, Decoder, Port_Inputs, Used, Pins, Configured,
          Adaflight.STM32.Motors.Telemetry_On, Commands, Adaflight.STM32.Time.Micros, Now_Ms);
       Adaflight.DShot_Debug.Record_Decode (Adaflight.STM32.Debug_Values.State, Decoder);
+      Adaflight.DShot_Debug.Record_Read (Adaflight.STM32.Debug_Values.State, Read_Counts);
    end Read_Ports;
 
    procedure Read_Telemetry (Done : out Boolean) is

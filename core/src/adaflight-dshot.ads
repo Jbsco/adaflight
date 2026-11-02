@@ -275,12 +275,20 @@ package Adaflight.DShot with SPARK_Mode, Pure is
    type Command_List is array (Motor_Index) of Unsigned_8;
    type Qualities is array (Motor_Index) of Quality;
 
-   --  The replies read and the invalid ones, and the edges of the first
-   --  motor's last invalid reply.
+   --  What the last bit-banged read wrote where upstream records a debug
+   --  value: the replies it read and the motors whose samples held none.
+   type Read_Taps is record
+      Reads   : Motor_Total := 0;
+      Missing : Motor_Total := 0;
+   end record;
+
+   --  The replies read and the invalid ones, the edges of the first motor's
+   --  last invalid reply, and the last bit-banged read's taps.
    type Read_Counts is record
       Reads    : Unsigned_32 := 0;
       Invalids : Unsigned_32 := 0;
       Saved    : Input_Buffer := (others => 0);
+      Taps     : Read_Taps;
    end record;
 
    --  The read after a frame: nothing without telemetry. Else each motor in

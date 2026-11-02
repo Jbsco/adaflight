@@ -12635,3 +12635,14 @@ Vectors in both DShot families select a mode before their steps and read eight v
 errors loop runs after each telemetry processing and each
 quality update. On the board, telemetry processing and the bit-banged read record after their updates, and the motor
 write records errors only while that mode is selected, so the loop copies no telemetry state otherwise.
+
+## D592. Debug values, bit-banged DShot reception (2026-11-01)
+
+Core `DShot` read counts now keep taps from the last bit-banged read: replies read and motors whose samples held no
+reply. Core `DShot_Debug` records reception counts of telemetry counts mode: replies read and missed after each
+bit-banged read, and timeouts after each wait that gave up on its ports. Each count rises on its slot only while that
+mode is selected, since upstream increments its logged value in place.
+
+Bit-banged read vectors gain two sequences;
+even ones select telemetry counts mode, an emulated wait counts one timeout when telemetry runs and a used port gave
+up, and every step prints eight values. On the board, bit-banged reads and waits record after each pass.

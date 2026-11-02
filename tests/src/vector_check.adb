@@ -38471,8 +38471,9 @@ procedure Vector_Check is
    BBR_Q      : Adaflight.DShot.Qualities;
    BBR_D      : Adaflight.DShot.Edge_Decoder;
    BBR_Ports  : Adaflight.DShot_Bitbang.Port_Inputs;
+   BBR_Dbg    : Adaflight.Debug.State;
 
-   procedure Check_BB_Read_Line is
+   procedure Check_BB_Read_Step is
       package D renames Adaflight.DShot;
       package B renames Adaflight.DShot_Bitbang;
       type Number_List is array (0 .. D.Max_Samples + 1) of Integer_64;
@@ -38500,7 +38501,7 @@ procedure Vector_Check is
          BBR_T.State := D.Invalid;
          BBR_Counts := (others => <>);
          BBR_Q := (others => <>);
-         BBR_D := (others => <>);
+         BBR_D := (Skip_Used => BBR_D.Skip_Used, others => <>);
       end if;
       for P in B.Port_Index loop
          Numbers (Str (10 + P));
@@ -38515,9 +38516,14 @@ procedure Vector_Check is
          Motors (M) := (Port => B.Port_Index (Values (0)), Pin => B.Pin_Number (Values (1)));
          Commands (M) := Interfaces.Unsigned_8 (Values (2));
       end loop;
+      if Int (7) /= 0 and then (for some P in 0 .. B.Port_Total (Int (6)) - 1 => BBR_Ports (P).Aborted) then
+         Adaflight.DShot_Debug.Record_Timeout (BBR_Dbg);
+      end if;
       B.Read_Replies (BBR_T, BBR_Counts, BBR_Q, BBR_D, BBR_Ports, B.Port_Total (Int (6)), Motors,
                       D.Motor_Total (Int (5)), Int (7) /= 0, Commands, Interfaces.Unsigned_32 (Int (8)),
                       Interfaces.Unsigned_32 (Int (9)));
+      Adaflight.DShot_Debug.Record_Read (BBR_Dbg, BBR_Counts);
+      Adaflight.DShot_Debug.Record_Decode (BBR_Dbg, BBR_D);
       Record_Int ("bbread.reads", Int (22), Integer_64 (BBR_Counts.Reads));
       Record_Int ("bbread.invalids", Int (23), Integer_64 (BBR_Counts.Invalids));
       Record_Int ("bbread.state", Int (24), D.Raw_State'Pos (BBR_T.State));
@@ -38535,6 +38541,21 @@ procedure Vector_Check is
       for P in B.Port_Index loop
          Record_Int ("bbread.aborted", Int (36 + P), Boolean'Pos (BBR_Ports (P).Aborted));
       end loop;
+   end Check_BB_Read_Step;
+
+   procedure Check_BB_Read_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "bbdebug" then
+         BBR_Dbg := (others => <>);
+         Adaflight.Debug.Select_Mode (BBR_Dbg, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "bbdbg" then
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("bbread.debug", Int (4 + J), Integer_64 (BBR_Dbg.Data (J)));
+         end loop;
+      else
+         Check_BB_Read_Step;
+      end if;
    end Check_BB_Read_Line;
 
    --  The bit-banged DShot setup: the timer map, its owners, the streams and

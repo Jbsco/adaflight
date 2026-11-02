@@ -5,6 +5,8 @@ with System;
 with System.Storage_Elements;
 with Adaflight.Board;
 with Adaflight.DShot;
+with Adaflight.DShot_Debug;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.PWM_Output;
 with Adaflight.STM32.GPIO;
@@ -741,6 +743,7 @@ package body Adaflight.STM32.Motors is
                   Ports (G).Aborted := True;
                end if;
             end loop;
+            Adaflight.DShot_Debug.Record_Timeout (Adaflight.STM32.Debug_Values.State);
             exit;
          end if;
          exit when not Pending;
