@@ -270,6 +270,17 @@ package Adaflight.Arming with SPARK_Mode is
    subtype Reason_Index is Natural range 0 .. 30;
    subtype Hold_Time is Integer range -32_768 .. 32_767;
 
+   --  What the runaway takeoff check wrote where upstream records a debug
+   --  value: from the receiver pass whether the deactivation delay runs and
+   --  the stable time in milliseconds, from the PID loop pass whether the
+   --  check is enabled and whether its activation delay runs.
+   type Runaway_Debug_Taps is record
+      Deactivating  : Boolean := False;
+      Deactivate_Ms : Time_Us := 0;
+      Enabled       : Boolean := False;
+      Activating    : Boolean := False;
+   end record;
+
    type State is record
       Armed                : Boolean := False;
       Was_Ever_Armed       : Boolean := False;
@@ -297,6 +308,7 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Deactivate_Us  : Time_Us := 0;
       Runaway_Accumulated_Us : Time_Us := 0;
       Runaway_Trigger_Us     : Time_Us := 0;
+      Runaway_Taps           : Runaway_Debug_Taps;
       Mode_Overrides         : Modes.Mask := (others => False);
       Trying                 : Arm_Delay := Not_Trying;
       Crash_Flip_Active      : Boolean := False;

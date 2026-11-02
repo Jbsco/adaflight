@@ -12696,3 +12696,11 @@ Core `GHST_Debug` records GHST mode (CRC error count, unknown frame count, uplin
 MSP mode's received request count. Responses sent, its other value, wait for an oracle of the board's MSP replies.
 Ghost vectors select a mode at initialization and read eight values after every step. On the board, each frame
 status and frame processing records right after it runs, so each tap is counted once.
+
+## D597. Debug values, runaway takeoff (2026-11-01)
+
+Core `Arming` now keeps runaway takeoff taps. From each receiver pass: whether the deactivation delay runs and the
+stable time so far in milliseconds, or none when the deactivation check is off. From each PID loop pass: whether the
+check is enabled and whether its activation delay runs. Core `Arming_Debug` records runaway takeoff mode from those
+taps after each pass. Base arming vectors select that mode on even sequences and read eight values after every
+step. On the board, the pilot's receiver and PID loop passes record after they run.
