@@ -11,6 +11,7 @@ with Adaflight.Modes;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile;
 with Adaflight.RC_Command;
+with Adaflight.Wing_Launch;
 package Adaflight.STM32.Pilot is
    subtype Time_Us is Interfaces.Unsigned_32;
    --  What the settings read beside the configuration: the sensors detected,
@@ -71,6 +72,11 @@ package Adaflight.STM32.Pilot is
    function Throttle_Raised return Boolean;
    function Crash_Flip_Active return Boolean;
    function Launch_Control_Active return Boolean;
+   --  The wing launch's pass over the angle targets the level controller
+   --  reads, and the launch's state for the controller and the mixer.
+   procedure Launch_Update
+     (Inp : Adaflight.Wing_Launch.Inputs; Angle_Roll, Angle_Pitch : in out Adaflight.Wing_Launch.Angle_Deg);
+   function Launch return Adaflight.Wing_Launch.Launch;
    function Airmode_Enabled return Boolean;
    function PID_Audio_Present return Boolean;
    --  The RC command's values the controller and the mixer read.
