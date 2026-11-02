@@ -116,6 +116,7 @@ package body Adaflight.STM32.Radio is
    Line        : USART.Half_Duplex := USART.Full_Duplex;
    Rx          : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
+   Serial_Provider : Natural := 0;
    UDP_Rx      : Adaflight.UDP_Receiver.State;
    Proto       : Adaflight.CRSF.State;
    FS          : Adaflight.Failsafe.State;
@@ -168,6 +169,26 @@ package body Adaflight.STM32.Radio is
    --  then left floating. The board drives no SRXL telemetry, so an SRXL
    --  receiver's line is left alone as the reference leaves it when the
    --  telemetry shares the port.
+   procedure Bind (B : Adaflight.RX_Bind.Bind) is
+      --  Sync, length, command type, receiver and flight controller addresses,
+      --  receiver bind subcommand, command check and frame check.
+      CRSF_Bind_Frame : constant Adaflight.Bytes.Byte_Array (0 .. 8) :=
+        (16#C8#, 16#07#, 16#32#, 16#EC#, 16#C8#, 16#10#, 16#01#, 16#9E#, 16#E8#);
+   begin
+      case B is
+         when Adaflight.RX_Bind.CRSF_Bind =>
+            if Open and then Kind = CRSF then
+               USART.Put (Port, CRSF_Bind_Frame);
+            end if;
+         when Adaflight.RX_Bind.SRXL2_Bind =>
+            if Open and then Kind = SRXL2 then
+               Adaflight.SRXL2.Bind (SRXL2_State);
+            end if;
+         when Adaflight.RX_Bind.SPI_Bind | Adaflight.RX_Bind.No_Bind =>
+            null;
+      end case;
+   end Bind;
+
    procedure Bind_At_Power_Up (C : in out Adaflight.Config_Groups.Configuration; Saved : out Boolean) is
       package SB renames Adaflight.Spektrum_Bind;
       Plug_Tag     : constant Natural := Natural (C.Rx_Config.Spektrum_Bind_Plug_Io_Tag);
@@ -250,6 +271,7 @@ package body Adaflight.STM32.Radio is
         R.Serialrx_Provider = SRXL_Provider and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
    begin
       Open := False;
+      Serial_Provider := Natural (R.Serialrx_Provider);
       ML.Open := False;
       Kind := (case R.Serialrx_Provider is
                   when SBUS_Provider => SBUS,
@@ -711,6 +733,10 @@ package body Adaflight.STM32.Radio is
    function Linked return Boolean is (Open);
 
    function Is_CRSF return Boolean is (Open and then Kind = CRSF);
+
+   function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
+
+   function Serial_Protocol return Natural is (Serial_Provider);
 
    function Display_Columns return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Screen.Cols));
 
