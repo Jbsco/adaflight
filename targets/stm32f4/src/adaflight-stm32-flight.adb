@@ -4121,6 +4121,12 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Main =>
             Tasks.Main;
          when Scheduler.Serial =>
+            if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.USB) then
+               Adaflight.Debug.Set (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.USB, 0,
+                                    Boolean'Pos (USB_Active));
+               Adaflight.Debug.Set (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.USB, 1,
+                                    Boolean'Pos (Adaflight.STM32.USB.Configured));
+            end if;
             Tasks.Serial (Inputs);
             Run_Stats_Save;
          when Scheduler.Gyro =>

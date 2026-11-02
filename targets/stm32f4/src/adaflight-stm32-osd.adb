@@ -2,6 +2,7 @@ with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.Debug;
 with Adaflight.Display_Port_MSP;
 with Adaflight.DShot;
 with Adaflight.MAX7456;
@@ -15,6 +16,7 @@ with Adaflight.OSD_Stats;
 with Adaflight.OSD_Warnings;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
@@ -406,6 +408,18 @@ package body Adaflight.STM32.OSD is
       Chip.Preinit (Dev, Chip_Config (C));
    end Preinit;
 
+   --  Gives the chip the selected debug mode and shows the values it records under its own modes.
+   procedure Link_Debug is
+      Values : Adaflight.Debug.State renames Adaflight.STM32.Debug_Values.State;
+   begin
+      Chip_State.Debug_Mode := Byte (Values.Selected);
+      if Adaflight.Debug.Selected (Values, Adaflight.Debug.MAX7456_Signal)
+        or else Adaflight.Debug.Selected (Values, Adaflight.Debug.MAX7456_SPI_Clock)
+      then
+         Values.Data := Adaflight.Debug.Values (Chip_State.Debug);
+      end if;
+   end Link_Debug;
+
    procedure Init
      (C : in out Adaflight.Config_Groups.Configuration; Feature_OSD : Boolean; Disable_Feature : out Boolean)
    is
@@ -422,8 +436,10 @@ package body Adaflight.STM32.OSD is
          return;
       end if;
       if Setting = Device_Pos (Adaflight.OSD_Task.Auto) or else Setting = Device_Pos (Adaflight.OSD_Task.MAX7456) then
+         Link_Debug;
          Chip_Port.Init (Dev, Chip_State, Port, Chip_Config (C), Video (C), Display (C), Overclock (C), Available,
                          Ready);
+         Link_Debug;
          if Available or else Setting = Device_Pos (Adaflight.OSD_Task.MAX7456) then
             Kind := Adaflight.OSD_Task.MAX7456;
             Present := Available;
@@ -471,8 +487,10 @@ package body Adaflight.STM32.OSD is
          Ready := DPM.Is_Ready;
          return;
       end if;
+      Link_Debug;
       Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Config (C), Video (C), Display (C), Overclock (C), Armed,
                              Rescan => True, Ready => Ready);
+      Link_Debug;
    end Check_Ready;
 
    function On_MSP return Boolean is (Present and then Kind = Adaflight.OSD_Task.MSP);
@@ -536,7 +554,9 @@ package body Adaflight.STM32.OSD is
       if On_MSP then
          Send_Draw;
       elsif Present then
+         Link_Debug;
          Chip_Port.Redraw (Dev, Chip_State, Armed);
+         Link_Debug;
       end if;
    end Menu_Redraw;
 
@@ -546,7 +566,9 @@ package body Adaflight.STM32.OSD is
       if On_MSP then
          Send_Heartbeat;
       elsif Present then
+         Link_Debug;
          Chip_Port.Heartbeat (Dev, Chip_State, Unused);
+         Link_Debug;
       end if;
    end Menu_Heartbeat;
 
@@ -1053,6 +1075,7 @@ package body Adaflight.STM32.OSD is
       --  The MSP display port is always ready, never mid-transfer, and its
       --  heartbeat and draw go out as the task's operations.
       if not On_MSP then
+         Link_Debug;
          case State is
             when Adaflight.OSD_Task.Init =>
                Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Settings, Video_Settings, Display_Settings,
@@ -1077,7 +1100,9 @@ package body Adaflight.STM32.OSD is
       if On_MSP then
          Execute_MSP (Result);
       else
+         Link_Debug;
          Execute (Result, F.Armed);
+         Link_Debug;
       end if;
       if State = Adaflight.OSD_Task.Draw_Element then
          Element_Us := Time.Micros - Start;

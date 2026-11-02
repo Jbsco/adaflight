@@ -12716,3 +12716,11 @@ Core `VTX_Debug` records Tramp mode (status, reply code, packed pit modes and po
 after each task call and SmartAudio mode after each call that took a settings reply. Both families' vectors select a
 mode after initialization and read eight values after every step. On the board, the VTX update records for whichever
 device runs. VTX MSP mode waits for the board's MSP descriptors.
+
+## D599. Debug values, MAX7456 and USB (2026-11-01)
+
+On the board, each MAX7456 call now gets the selected debug mode, and after it the board copies the driver's values,
+so signal and SPI clock modes reach blackbox and MSP. Core vectors already cover those driver values. The serial task
+records USB mode before its MSP work: cable inserted (detect pin high, or a host configured the port) and port
+configured. Upstream on F7 also counts an addressed or suspended port as connected. Our USB driver reports its
+configured state alone. Stack and flash test modes stay out, since upstream builds them only with optional features.
