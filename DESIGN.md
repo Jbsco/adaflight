@@ -12768,3 +12768,17 @@ takes zeroed data only and each receiver's init sets its state.
 A MAVLink telemetry port shared with another receiver protocol stays out, as our board shares no other receiver's
 port with telemetry. Our host smoke sends RC override frames on the receiver's port, reads channels over MSP and finds
 telemetry heartbeats on that port.
+
+## D604. SRXL2 receiver on the board (2026-11-02)
+
+Our board now opens an SRXL2 receiver, which upstream builds on every target, on one wire at 115200 baud. Core `SRXL2`
+takes each byte with its arrival time. Our UART has no idle-line interrupt, so the board reports each idle itself: one
+character time after a byte when the next byte comes later than that, or at the feed once that time has passed. A
+reply that no echo follows, as on the host, gets an idle of its own once its transmit queue empties. On STM32 lines
+its echo ends with an idle that does this.
+
+After each frame status the board re-opens its port when the link moves between 115200 and 400000 baud. Where
+processing is due, a waiting reply goes out once the bus has been quiet for two characters, as upstream decides. The
+protocol claims RSSI where no other source is set. Telemetry replies, VTX control frames and binding follow in later
+entries. Our host smoke sends channel data packets, reads channels over MSP, sees signal loss cleared and checks the
+options list.

@@ -450,6 +450,16 @@ def sumh_frame(channels_us):
     return bytes([0xA8, 0x00, 0x00]) + words + bytes([0x00, 0x00])
 
 
+def srxl2_frame(channels_us):
+    """An SRXL2 control data packet of channel data: no reply asked, full RSSI, no frame losses, a mask over
+    the first channels and a word per channel little-endian in 1/64 us from 988 us, then the CRC-16 high byte
+    first."""
+    ch = channels_us[:16]
+    body = bytes([0xA6, 0xCD, 12 + 2 * len(ch) + 2, 0x00, 0x00, 100, 0, 0]) + ((1 << len(ch)) - 1).to_bytes(4, "little") \
+        + b"".join(((v - 988) * 64).to_bytes(2, "little") for v in ch)
+    return body + crc16_xmodem(body).to_bytes(2, "big")
+
+
 def spektrum_frame(channels_us):
     """A Spektrum 2048 frame: the fade count and the DSMX 11 ms system byte, then seven channel words
     big-endian, each the channel number above an eleven-bit value in half microseconds from 988 us."""
@@ -1265,6 +1275,7 @@ def main():
             numbers = {int(w) for w in text.split() if w.isdigit()}
             check("options list the GPS, the OSD chip, the servos and the motor protocols",
                   {16412, 16416, 16420, 8230, 8231, 8232, 8233, 8235} <= numbers, text[-160:])
+            check("options list the SRXL2 receiver", 4105 in numbers, text[-160:])
             for feature, number in (("LTM_Telemetry", 12304), ("MAVLink_Telemetry", 12305), ("IBus_Telemetry", 12303),
                                     ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106),
                                     ("SUMH", 4107), ("MAVLink_Receiver", 4109)):
@@ -1890,7 +1901,8 @@ def main():
                                    ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
                                    ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
-                                   ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), [])):
+                                   ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), []),
+                                   ("SRXL2", srxl2_frame(us), [])):
             if name in receiver_features and not built(receiver_features[name]):
                 continue
             store = os.path.join(work, name.lower() + ".bin")
