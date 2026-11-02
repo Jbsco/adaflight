@@ -3050,6 +3050,9 @@ package body Adaflight.STM32.Flight is
            Float'Max (-1.0, Float'Min (1.0, Att_State.Rotation (Adaflight.Vectors.Z, C)));
       end loop;
       F.Launch_Control := Adaflight.STM32.Pilot.Launch_Control_Active;
+      F.Wing_Launch :=
+        Adaflight.Build_Features.Wing and then Adaflight.Wing_Launch.Is_Active (Adaflight.STM32.Pilot.Launch);
+      F.Wing_Launch_State := Adaflight.STM32.Pilot.Launch.Current;
       F.Acc_Present := Gyro_Report.Acc_Found;
       F.G_Force := Float'Max (0.0, Float'Min (100.0, Acc_State.Magnitude));
       F.Roll := Integer_16 (Att_State.Euler.Roll);

@@ -14,6 +14,7 @@ with Adaflight.Battery;
 with Adaflight.Flight_Plan_Capture;
 with Adaflight.Flight_Plan_Nav;
 with Adaflight.OSD_Format;
+with Adaflight.Wing_Launch;
 
 package Adaflight.OSD_Warnings with SPARK_Mode is
    use type Interfaces.Unsigned_32;
@@ -105,6 +106,9 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
       Pitch_Trim              : Integer_16 := 0;
       Throttle_Percent        : Integer range -100 .. 100 := 0;
       Launch_Throttle_Percent : Percent := 0;
+      --  A wing build's launch: whether it runs, and its stage.
+      Wing_Launch_Active      : Boolean := False;
+      Wing_Launch_State       : Adaflight.Wing_Launch.State := Adaflight.Wing_Launch.Idle;
       RSSI_Percent            : Percent := 0;
       RSSI_Dbm                : Integer_16 := 0;
       RSNR                    : Integer_16 := 0;

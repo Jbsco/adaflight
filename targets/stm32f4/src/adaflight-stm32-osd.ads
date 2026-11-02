@@ -17,6 +17,7 @@ with Adaflight.Scheduler;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.USART;
 with Adaflight.VTX_Table;
+with Adaflight.Wing_Launch;
 package Adaflight.STM32.OSD is
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
@@ -109,6 +110,9 @@ package Adaflight.STM32.OSD is
       VTX_Disable_Box   : Boolean := False;
       VTX_Table         : Adaflight.VTX_Table.Table;
       Launch_Control    : Boolean := False;
+      --  A wing build's launch: whether it runs, and its stage.
+      Wing_Launch       : Boolean := False;
+      Wing_Launch_State : Adaflight.Wing_Launch.State := Adaflight.Wing_Launch.Idle;
       Acc_Present       : Boolean := False;
       G_Force           : Float range 0.0 .. 100.0 := 0.0;
       Roll              : Interfaces.Integer_16 := 0;

@@ -957,6 +957,8 @@ package body Adaflight.STM32.OSD is
       W.Crash_Flip_Box := F.Crash_Flip_Box;
       W.Crash_Flip_Active := F.Crash_Flip_Active;
       W.Launch_Control_Active := F.Launch_Control;
+      W.Wing_Launch_Active := F.Wing_Launch;
+      W.Wing_Launch_State := F.Wing_Launch_State;
       W.Acc_Present := F.Acc_Present;
       W.Pitch_Decidegrees := F.Pitch;
       W.Throttle_Percent := F.Throttle_Percent;

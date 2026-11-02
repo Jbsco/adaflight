@@ -407,6 +407,24 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
                null;
          end case;
       end if;
+      if C.Enabled (Launch_Control) and then In_Flight.Wing_Launch_Active then
+         case In_Flight.Wing_Launch_State is
+            when Adaflight.Wing_Launch.Wait_Throttle =>
+               Set (Line, "RAISE THROTTLE");
+            when Adaflight.Wing_Launch.Motor_Idle =>
+               Set (Line, "LAUNCH IDLE");
+            when Adaflight.Wing_Launch.Wait_Detection =>
+               Set (Line, "READY TO LAUNCH");
+               Blinking := True;
+            when Adaflight.Wing_Launch.Finish =>
+               Set (Line, "LAUNCH FINISHING");
+            when Adaflight.Wing_Launch.Idle | Adaflight.Wing_Launch.Motor_Delay | Adaflight.Wing_Launch.Spinup
+               | Adaflight.Wing_Launch.In_Progress | Adaflight.Wing_Launch.Flying | Adaflight.Wing_Launch.Aborted =>
+               Set (Line, "LAUNCHING");
+         end case;
+         Attr := Info;
+         return;
+      end if;
       if In_Flight.Headfree_Mode then
          Set (Line, "HEADFREE");
          Attr := Warning;

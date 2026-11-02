@@ -12074,6 +12074,8 @@ procedure Vector_Check is
    --  from the start line, the rest per step, the line compared as bytes.
 
    OW_Seq    : Integer_64 := -1;
+   --  A wing build's warning run, whose steps end with the launch's state.
+   OW_Wing   : Boolean := False;
    OW_Config : Adaflight.OSD_Warnings.Settings;
    OW_Const  : Adaflight.OSD_Warnings.Inputs;
    OW_State  : Adaflight.OSD_Warnings.State;
@@ -12213,6 +12215,10 @@ procedure Vector_Check is
             Reported : Reports;
          begin
             OW_Read_Step (OW_Const, I, B);
+            if OW_Wing then
+               I.Wing_Launch_Active := Int (B + 40) /= 0;
+               I.Wing_Launch_State := Adaflight.Wing_Launch.State'Val (Int (B + 41));
+            end if;
             Render (OW_State, OW_Config, I, Line, Blinking, Attr, Reported);
             declare
                Actual : Byte_Array (0 .. Line.Length - 1);
@@ -12225,8 +12231,11 @@ procedure Vector_Check is
             Record_Int (Name & ".blink", Int (B + 35), Boolean'Pos (Blinking));
             Record_Int (Name & ".attr", Int (B + 36), Severity'Pos (Attr));
             Record_Int (Name & ".beeper", Int (B + 37), Boolean'Pos (Reported.Beeper_Shown));
-            Record_Int (Name & ".capread", Int (B + 38), Boolean'Pos (Reported.Capture_Read));
-            Record_Int (Name & ".capvalid", Int (B + 39), Boolean'Pos (OW_Valid_After (I, Reported)));
+            --  A wing build compiles out the capture message, so its runs read none.
+            if not OW_Wing then
+               Record_Int (Name & ".capread", Int (B + 38), Boolean'Pos (Reported.Capture_Read));
+               Record_Int (Name & ".capvalid", Int (B + 39), Boolean'Pos (OW_Valid_After (I, Reported)));
+            end if;
          end;
       end if;
    end Check_OSD_Warnings_Line;
@@ -40713,7 +40722,8 @@ procedure Vector_Check is
                   Check_Blackbox_Recorder_Line;
                elsif Kind = "posnav" then
                   Check_Position_Nav_Line;
-               elsif Kind = "osdwarn" then
+               elsif Kind = "osdwarn" or else Kind = "osdwarnwing" then
+                  OW_Wing := Kind = "osdwarnwing";
                   Check_OSD_Warnings_Line;
                elsif Kind = "msptun" then
                   Check_MSP_Tunnel_Line;
@@ -41173,6 +41183,8 @@ begin
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
+   Run (Dir & "/osdwarnwing.csv", "osdwarnwing");
+   OW_Wing := False;
    Run (Dir & "/msptun.csv", "msptun");
    Run (Dir & "/osdfmt.csv", "osdfmt");
    Run (Dir & "/vtxmsp.csv", "vtxmsp");
