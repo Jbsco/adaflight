@@ -44,6 +44,7 @@ FEATURES = [
     ("Barometer", 1024, "The barometer, or below that size when the board's configuration names one."),
     ("Pitot", 1024, "The pitot airspeed sensor."),
     ("Optical_Flow", 1024, "The optical flow sensors."),
+    ("SPI_Receiver", None, "The SPI receiver, when the board's configuration names its radio chip."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Named tables, strings and initialized data kept compressed in flash, unpacked at start "
@@ -54,13 +55,14 @@ FEATURES = [
 # configuration reset or a log start, never by the flight loop, and compressing below 80 percent.
 
 
-# Features a board's configuration turns on at any flash size by naming the define.
-BOARD_DEFINES = {"Compass": "USE_MAG", "Barometer": "USE_BARO"}
+# Features a board's configuration turns on at any flash size by naming one of the defines.
+BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",),
+                 "SPI_Receiver": ("USE_RX_SPI", "USE_RX_CC2500", "USE_RX_SX1280", "USE_RX_SX127X")}
 
 
 def selection(flash_kb: int, changes: str, defines: frozenset = frozenset()) -> dict:
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
-              or BOARD_DEFINES.get(name) in defines
+              or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
@@ -241,7 +243,8 @@ STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("Compass", "Adaflight.STM32.Compass", "adaflight-stm32-compass"),
          ("Barometer", "Adaflight.STM32.Baro", "adaflight-stm32-baro"),
          ("Pitot", "Adaflight.STM32.Pitot", "adaflight-stm32-pitot"),
-         ("Optical_Flow", "Adaflight.STM32.Optical_Flow", "adaflight-stm32-optical_flow")]
+         ("Optical_Flow", "Adaflight.STM32.Optical_Flow", "adaflight-stm32-optical_flow"),
+         ("SPI_Receiver", "Adaflight.STM32.RX_SPI", "adaflight-stm32-rx_spi")]
 
 
 def feature_units(chosen: dict) -> str:

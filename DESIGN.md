@@ -13139,3 +13139,22 @@ the old gyro handler.
 
 On the CLRacing F7 its code region grows by 512 bytes, for seven handlers and their attachment at start-up, and
 about 1800 bytes of its 480 KB code region stay free.
+
+## D631. SPI receiver device on the board (2026-11-02)
+
+A board whose configuration names an SPI radio chip now starts its receiver's device when the receiver feature
+selects an SPI receiver. The device follows the reference driver. Its select pin is pulled up and set high before
+the buses start. It then takes the bus and select pin from the configuration, runs in SPI mode 0 at 13.5 MHz, or
+6.5 MHz during start-up, and reads with dummy bytes of 0xFF. Its interrupt line registers with the dispatcher of
+D630, and each rising edge records its time as the frame time.
+
+The receiver core's SPI provider runs over this device. No protocol family runs on a board yet, so every
+protocol's start fails. As in the reference, the SPI provider then reports no frames and reads every channel as
+zero. The FrSky families come next.
+
+The SPI driver gains mode 0 for this device. Our device sets mode 0 and its divisor for each transfer, then puts
+its bus back in mode 3, which other devices on a shared bus expect.
+
+`tools/featuregen.py` turns on the SPI receiver for a board that names a CC2500, SX1280 or SX127X chip, and other
+builds compile a stub. CI builds an ALIENFLIGHTNGF7_RX image, an F722 board with a CC2500 receiver on SPI3. Its
+receiver code takes about 490 bytes, and 1347 bytes of its 480 KB code region stay free.

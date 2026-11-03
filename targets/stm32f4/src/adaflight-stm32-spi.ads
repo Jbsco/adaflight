@@ -1,6 +1,7 @@
---  The SPI buses of the STM32F405 as masters in mode 3, eight bits, most
---  significant bit first, with the select pins driven by the devices: a
---  polled full duplex transfer, and the clock divisor from a clock of 84 MHz.
+--  The SPI buses of the STM32F405 as masters in mode 3 unless a device sets
+--  mode 0, eight bits, most significant bit first, with the select pins
+--  driven by the devices: a polled full duplex transfer, and the clock
+--  divisor from a clock of 84 MHz.
 --  SPI2 and SPI3 run from a bus clock of half that, so their divisor is
 --  halved to give the same SPI clock.
 with Interfaces;
@@ -19,6 +20,9 @@ package Adaflight.STM32.SPI is
    --  The SPI clock of a divisor.
    function Clock_Of (Divisor : Interfaces.Unsigned_16) return Interfaces.Unsigned_32;
    procedure Set_Divisor (B : Bus; Divisor : Interfaces.Unsigned_16);
+   --  Mode 0, which samples on the clock's leading edge, or mode 3; between
+   --  transfers only.
+   procedure Set_Mode (B : Bus; Leading_Edge : Boolean);
    --  Every byte of Tx out, each byte in to Rx from its first index.
    procedure Transfer (B : Bus; Tx : Byte_Array; Rx : out Byte_Array)
      with Pre => Rx'Length >= Tx'Length;
