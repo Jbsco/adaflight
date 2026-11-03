@@ -4,6 +4,7 @@ with Adaflight.AK8975;
 with Adaflight.AK9916;
 with Adaflight.BMM350;
 with Adaflight.Board;
+with Adaflight.Build_Features;
 with Adaflight.Compass_Detect;
 with Adaflight.Compass_Detect.Scan;
 with Adaflight.Config_Runtime;
@@ -280,6 +281,9 @@ package body Adaflight.STM32.Compass is
       Virtual_Dev := False;
       Hardware_Id := CD.Hardware_None;
       Kind := CD.Virtual;
+      if not Adaflight.Build_Features.Compass then
+         return;
+      end if;
       Scan.Detect (Dev, B, Cfg, Gyro_Is_MPU9250 => False, Detected => Detected, Alignment => Alignment, Found => Found);
       if not Found then
          return;
@@ -330,17 +334,19 @@ package body Adaflight.STM32.Compass is
       Adaflight.Compass.Init (State, Settings);
    end Init;
 
-   function Detected return Boolean is (Found);
+   function Live return Boolean is (Adaflight.Build_Features.Compass and then Found);
+
+   function Detected return Boolean is (Live);
    function Hardware return Unsigned_8 is (Hardware_Id);
    function Bus_Type return Unsigned_8 is
-     (if not Found or else Virtual_Dev then 0 elsif Is_I2C (Dev) then 1 elsif Is_SPI (Dev) then 2 else 0);
+     (if not Live or else Virtual_Dev then 0 elsif Is_I2C (Dev) then 1 elsif Is_SPI (Dev) then 2 else 0);
    function Bus_Number return Natural is
-     (if not Found or else Virtual_Dev then 0
+     (if not Live or else Virtual_Dev then 0
       elsif Is_I2C (Dev) then I2C.Bus'Pos (Dev.I2C_Bus) + 1
       elsif Is_SPI (Dev) then SPI.Bus'Pos (Dev.SPI_Bus) + 1
       else 0);
    function Bus_Address return Unsigned_8 is
-     (if Found and then not Virtual_Dev and then Is_I2C (Dev) then Dev.Address else 0);
+     (if Live and then not Virtual_Dev and then Is_I2C (Dev) then Dev.Address else 0);
 
    procedure Update (Now_Us : Adaflight.Scheduler.Time_Us; Next_Period_Us : out Adaflight.Scheduler.Time_Delta) is
       Got    : Boolean := False;
@@ -349,7 +355,7 @@ package body Adaflight.STM32.Compass is
       A      : array (0 .. 2) of Interfaces.Integer_16 := (others => 0);
    begin
       Next_Period_Us := 0;
-      if not Found then
+      if not Live then
          return;
       end if;
       case Kind is
@@ -452,14 +458,14 @@ package body Adaflight.STM32.Compass is
 
    procedure Start_Calibration is
    begin
-      if Found then
+      if Live then
          Adaflight.Compass.Start_Calibration (State, Adaflight.STM32.Time.Micros);
       end if;
    end Start_Calibration;
 
-   function Calibrated return Boolean is (Found and then State.Calibrated);
+   function Calibrated return Boolean is (Live and then State.Calibrated);
    function Enabled_And_Calibrated return Boolean is
-     (Found and then Adaflight.Compass.Enabled_And_Calibrated (State));
+     (Live and then Adaflight.Compass.Enabled_And_Calibrated (State));
    function Field return Adaflight.Vectors.Vector3 is
      (X => State.Field (Adaflight.Vectors.X), Y => State.Field (Adaflight.Vectors.Y),
       Z => State.Field (Adaflight.Vectors.Z));

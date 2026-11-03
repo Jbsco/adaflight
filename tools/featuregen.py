@@ -5,7 +5,8 @@ usage: featuregen.py <configs dir> <board name> <output .ads> [features]
 
 The board's MCU, from its config.h in the board configuration repository, sets the flash size, and
 FLASH_KB in the environment sets it instead. Each feature is on when the flash is at least the size
-its entry names, and a feature with no size is off unless named. The features argument then adds or
+its entry names or when the board's configuration names its define (the compass and the barometer), and a
+feature with no size is off unless named. The features argument then adds or
 removes features by name, case ignored, each
 name with + or - in front (+ when there is none), separated by spaces or commas. Beside the package
 goes adaflight-checks.adc, the configuration pragmas of the board crate, which turn its run-time
@@ -39,6 +40,10 @@ FEATURES = [
     ("SUMD", 1024, "The SUMD receiver."),
     ("SUMH", 1024, "The SUMH receiver."),
     ("MAVLink_Receiver", 1024, "The MAVLink receiver."),
+    ("Compass", 1024, "The compass, or below that size when the board's configuration names one."),
+    ("Barometer", 1024, "The barometer, or below that size when the board's configuration names one."),
+    ("Pitot", 1024, "The pitot airspeed sensor."),
+    ("Optical_Flow", 1024, "The optical flow sensors."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Cold tables and initialized data kept compressed in flash, unpacked at start (STM32F7)."),
@@ -59,8 +64,13 @@ PACKED_TABLES = [
 ]
 
 
-def selection(flash_kb: int, changes: str) -> dict:
+# Features a board's configuration turns on at any flash size by naming the define.
+BOARD_DEFINES = {"Compass": "USE_MAG", "Barometer": "USE_BARO"}
+
+
+def selection(flash_kb: int, changes: str, defines: frozenset = frozenset()) -> dict:
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
+              or BOARD_DEFINES.get(name) in defines
               for name, size, _ in FEATURES}
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
@@ -177,7 +187,8 @@ def main() -> None:
         flash_kb = FLASH_KB[mcu]
     else:
         raise SystemExit(f"featuregen: no flash size for the MCU {mcu or 'of ' + board}; set FLASH_KB")
-    chosen = selection(flash_kb, sys.argv[4] if len(sys.argv) == 5 else "")
+    defines = frozenset(re.findall(r"^#define\s+(\w+)", text, re.M))
+    chosen = selection(flash_kb, sys.argv[4] if len(sys.argv) == 5 else "", defines)
     write(output, generate(board, mcu, flash_kb, chosen))
     write(output.parent / "adaflight-checks.adc", checks(chosen))
     write(output.parent / "packed_tables.ld", packed_tables(chosen))

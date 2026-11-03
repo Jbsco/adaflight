@@ -73,6 +73,9 @@ package body Adaflight.STM32.Optical_Flow is
       Found := False;
       Hardware_Id := Detect.Hardware_None;
       Dev.Period_Us := 0;
+      if not Adaflight.Build_Features.Optical_Flow then
+         return;
+      end if;
       Dev.Flow_Uart := O.Opticalflow_Uart;
       Probe.Detect
         (Dev, Adaflight.Build_Features.Rangefinder, O.Opticalflow_Hardware, C.Rangefinder_Config.Rangefinder_Hardware,
@@ -88,7 +91,9 @@ package body Adaflight.STM32.Optical_Flow is
       end if;
    end Init;
 
-   function Detected return Boolean is (Found);
+   function Live return Boolean is (Adaflight.Build_Features.Optical_Flow and then Found);
+
+   function Detected return Boolean is (Live);
    function Hardware return Interfaces.Unsigned_8 is (Hardware_Id);
    function Period_Us return Natural is (Dev.Period_Us);
 
@@ -100,14 +105,14 @@ package body Adaflight.STM32.Optical_Flow is
 
    procedure Update is
    begin
-      if Found and then Dev.Kind = Detect.UPT1 then
+      if Live and then Dev.Kind = Detect.UPT1 then
          Adaflight.STM32.Rangefinder.Update_UPT1;
       end if;
    end Update;
 
    procedure Process is
    begin
-      if Found then
+      if Live then
          Core.Process
            (Sensor,
             (if Dev.Kind = Detect.UPT1 then Adaflight.STM32.Rangefinder.UPT1_Flow else Adaflight.STM32.MT.Flow_Sample),
