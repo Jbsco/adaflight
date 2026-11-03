@@ -13033,3 +13033,24 @@ On the CLRacing F7 the code region shrinks by 18172 bytes and the stream grows b
 less (37630 over its 480 KB code region); about 17 KB of main RAM stays free. LZSS keeps about 73 percent of these
 tables, where it kept 47 percent of the cold list, so a stronger codec is the next step. In an emulated boot of that
 image, sampled words across the unpacked range match the image's sections and start-up reaches the flight setup.
+
+## D624. LZMA unpacking of packed data (2026-11-02)
+
+A packed STM32F7 build now stores its packed range as raw LZMA1 with the smallest model: no literal context bits,
+no literal position bits and no position bits. We measured codecs on the CLRacing F7's 62 KB range before building
+one: our LZSS took it to 34062 bytes, deflate to 27592, and LZMA to 22389, with larger LZMA models no better. Its
+model needs 3.5 KB of probabilities, which the unpacking keeps in free RAM past the packed range, so it costs no
+RAM after start-up.
+
+`Adaflight.LZMA` decodes in SPARK and proves with no assumption: every read stays in the stream, every write in the
+output, every copy within what is already written, and a malformed stream returns Truncated, Bad_Length or Bad_Data.
+Python's lzma module writes the stream, and `tools/lzma_ref.py` contains a second decoder that follows ours step
+for step. Its vectors replay drawn data and malformed streams with their status and output, and both decoders
+agreed on 1500 mutated streams.
+
+The unpacking's own tables stay in flash through their own section, since it reads them before the packed range
+exists. LZSS stays in the core with its vectors and leaves the images.
+
+On the CLRacing F7 the stream shrinks by 11690 bytes and the code grows by 1760, so the image needs 9930 bytes less
+(27700 over its 480 KB code region). In an emulated boot, 40 words sampled across the unpacked range match the
+image's sections and start-up reaches the flight setup.

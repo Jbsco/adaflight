@@ -128,6 +128,12 @@ SECTIONS
      PROVIDE_HIDDEN (__fini_array_end = .);
   } > flash
 
+  /* The unpacking's own tables stay in flash: it reads them before the packed range exists. */
+  .rodata_unpack :
+  {
+    *(.rodata.adaflight__lzma__*)
+  } > flash
+
   INCLUDE ram_early.ld
 
   .rodata :

@@ -1,7 +1,7 @@
 with System.Storage_Elements; use System.Storage_Elements;
 with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
-with Adaflight.LZSS;
+with Adaflight.LZMA;
 
 package body Adaflight.STM32.Data_Pack is
 
@@ -9,9 +9,10 @@ package body Adaflight.STM32.Data_Pack is
    Packed_End   : Character with Import, Convention => C, External_Name => "__packed_end";
    Rom_End      : Character with Import, Convention => C, External_Name => "__rom_end";
    Flash_End    : Character with Import, Convention => C, External_Name => "__flash_end";
+   Scratch      : Character with Import, Convention => C, External_Name => "__unpack_scratch";
 
    procedure Unpack is
-      use type Adaflight.LZSS.Status;
+      use type Adaflight.LZMA.Status;
       Length : constant Integer_Address := To_Integer (Packed_End'Address) - To_Integer (Packed_Start'Address);
       Room   : constant Integer_Address := To_Integer (Flash_End'Address) - To_Integer (Rom_End'Address);
    begin
@@ -23,10 +24,13 @@ package body Adaflight.STM32.Data_Pack is
            with Import, Address => Rom_End'Address;
          Target : Byte_Array (0 .. Natural (Length) - 1)
            with Import, Address => Packed_Start'Address;
-         Result : Adaflight.LZSS.Status;
+         --  The model's probabilities in the free RAM past the unpacked range.
+         M      : Adaflight.LZMA.Model
+           with Import, Address => Scratch'Address;
+         Result : Adaflight.LZMA.Status;
       begin
-         Adaflight.LZSS.Decode (Source, Target, Result);
-         if Result /= Adaflight.LZSS.Done then
+         Adaflight.LZMA.Decode (Source, Target, M, Result);
+         if Result /= Adaflight.LZMA.Done then
             loop
                null;
             end loop;

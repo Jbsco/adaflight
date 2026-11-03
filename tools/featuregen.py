@@ -139,6 +139,9 @@ ZEROED = """
 # A packed build keeps this much heap below the unpacked data, for the allocations of elaboration.
 HEAP_RESERVE = 4096
 
+# The RAM the unpacking's model takes past the packed range.
+UNPACK_SCRATCH = 4096
+
 # The run-time libraries' strings stay in flash: the start-up reads them before the unpacking.
 RUNTIME_LIBRARIES = "*libgnat.a:* *libgnarl.a:* *libgcc.a:* *libc.a:* *libm.a:*"
 
@@ -181,7 +184,11 @@ def ram_early(chosen: dict) -> str:
     . = ALIGN(0x4);
     __packed_end = .;
   } > sram_da AT > staging
-""")
+
+  /* The unpacking's model, in the RAM past the packed range for the start-up only. */
+  __unpack_scratch = __packed_end;
+  ASSERT (__unpack_scratch + UNPACK_SCRATCH <= ORIGIN (sram_da) + LENGTH (sram_da), "no room for the unpack model")
+""".replace("UNPACK_SCRATCH", str(UNPACK_SCRATCH)))
 
 
 def ram_late(chosen: dict) -> str:
@@ -201,6 +208,7 @@ def ram_late(chosen: dict) -> str:
   __data_words = (__data_end - __data_start) >> 2;
   __packed_start = __data_start;
   __packed_end = __data_start;
+  __unpack_scratch = __data_start;
 
   __ccmdata_load = __rom_end + (__data_words << 2);
   .ccmdata : AT (__ccmdata_load)
