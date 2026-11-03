@@ -150,9 +150,17 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    -------------
 
    procedure Receive (S : in out Stream; C : Byte; Last : Boolean; Clear_To_Send : in out Boolean;
-                      Received : out Payload) is
+                      Received : out Payload; Use_Checksum : Boolean := True) is
       R : Receive_State renames S.Receiver;
       V : Byte := C;
+
+      function Stored return Payload is
+        (Valid    => True,
+         Frame_Id => R.Rx (0),
+         Value_Id => Unsigned_16 (R.Rx (1)) or Interfaces.Shift_Left (Unsigned_16 (R.Rx (2)), 8),
+         Data     => Unsigned_32 (R.Rx (3)) or Interfaces.Shift_Left (Unsigned_32 (R.Rx (4)), 8)
+                     or Interfaces.Shift_Left (Unsigned_32 (R.Rx (5)), 16)
+                     or Interfaces.Shift_Left (Unsigned_32 (R.Rx (6)), 24));
    begin
       Received := (others => <>);
       if C = Start_Stop then
@@ -186,17 +194,16 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
             R.Rx (R.Rx_Count) := V;
             R.Rx_Count := R.Rx_Count + 1;
             R.Checksum := R.Checksum + Unsigned_16 (V);
+            if not Use_Checksum and then R.Rx_Count = 7 then
+               R.Skip := True;
+               Received := Stored;
+            end if;
          else
             R.Skip := True;
             R.Checksum := R.Checksum + Unsigned_16 (V);
             R.Checksum := (R.Checksum and 16#FF#) + Interfaces.Shift_Right (R.Checksum, 8);
             if R.Checksum = 16#FF# then
-               Received := (Valid    => True,
-                            Frame_Id => R.Rx (0),
-                            Value_Id => Unsigned_16 (R.Rx (1)) or Interfaces.Shift_Left (Unsigned_16 (R.Rx (2)), 8),
-                            Data     => Unsigned_32 (R.Rx (3)) or Interfaces.Shift_Left (Unsigned_32 (R.Rx (4)), 8)
-                                        or Interfaces.Shift_Left (Unsigned_32 (R.Rx (5)), 16)
-                                        or Interfaces.Shift_Left (Unsigned_32 (R.Rx (6)), 24));
+               Received := Stored;
             end if;
          end if;
       end if;
@@ -249,6 +256,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
          Byte (Interfaces.Shift_Right (Value, 16) and 16#FF#), Byte (Interfaces.Shift_Right (Value, 24)));
       Start    : constant Natural := (if FPort then 2 else 0);
    begin
+      O.Written := (Valid => True, Frame_Id => Frame_Id, Value_Id => Value_Id, Data => Value);
       if FPort then
          Send_Byte (O, FPort_Reply_Length, Checksum);
          Send_Byte (O, FPort_Reply_Type, Checksum);

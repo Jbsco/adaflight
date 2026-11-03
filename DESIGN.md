@@ -13214,3 +13214,21 @@ do not recompile. `SOURCE_DATE_EPOCH` sets that moment for a reproducible build.
 A packed STM32F7 build compiles this body outside link time optimization and leaves its strings in flash beside
 our decoder's. Before, the stamp sat in a compressed stream, whose size then moved by tens of bytes from one build
 of a source to the next. A packed image's flash use now follows its source alone.
+
+## D636. FrSky X telemetry processing (2026-11-03)
+
+FrSky X receivers now process their telemetry, as the reference does in a build with SmartPort telemetry. With
+the telemetry feature on and no serial SmartPort, an X receiver's start takes the SmartPort stream, and each
+telemetry frame it sends asks for processing. `FrSky_SPI.Process_Frame` then hands the SmartPort reader the
+bytes received in four sequence slots, up to its first complete payload, or clears it to send every 24 ms. One
+pass of SmartPort telemetry follows.
+
+A written payload joins the link's outgoing bytes behind a start byte and sensor id, byte stuffed, without a
+serial checksum. Our SmartPort reader gains a form without that checksum, whose seventh byte completes a payload.
+An MSP request over this link comes back to its caller for a resumed pass, as on a serial link.
+
+A retry reset of the sequence slots now also resets the processing position, as the reference does in a SmartPort
+build. A slot whose length byte claims more than five bytes gives at most five, where the reference reads past its
+five-byte buffer (DIVERGENCES). FrSky X vectors now run the reference SmartPort encoder with its voltage sensor and a
+transmitter that polls it, so their FIFO writes carry its frames. Our board runs this once room allows on its
+512 KB SPI receiver boards.

@@ -571,6 +571,8 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
          S.Response := Interfaces.Shift_Left (Unsigned_8 (S.Remote_Ack_Id), 4);
       end if;
       if S.Retry_Count = 5 then
+         S.To_Process_Id := 0;
+         S.To_Process_Index := 0;
          S.Remote_Ack_Id := 3;
          for K in Sequence_Id loop
             S.Remote (K).Needs_Processing := False;
@@ -663,6 +665,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   O.Tx_Data (K) := S.Frame (K);
                end loop;
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
+               if S.Telemetry_Enabled then
+                  S.Processing_Required := True;
+               end if;
                S.Protocol := Resume;
             end if;
          when Resume =>
@@ -727,6 +732,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
             S.Packet_Length := 32;
             S.Telemetry_Delay := 1_500;
       end case;
+      if C.Protocol /= FrSky_D then
+         S.Telemetry_Enabled := C.Telemetry and then Inp.SmartPort_Free;
+      end if;
       Claim_RSSI := True;
       S.Missing_Packets := 0;
       S.Timeout_Us := 50;
@@ -765,6 +773,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
    begin
       O := (others => <>);
       Result := None;
+      S.Processing_Required := False;
       case S.Protocol is
          when Init =>
             if Inp.Now_Ms - S.Start_Time_Ms > 10 then
@@ -890,5 +899,89 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
          Rc (0 .. 7) := Channels (0 .. 7);
       end if;
    end Set_Rc_Data;
+
+   -------------------
+   -- Process_Frame --
+   -------------------
+
+   procedure Process_Frame
+     (S           : in out State;
+      Now_Ms      : Unsigned_32;
+      Smart       : in out Adaflight.SmartPort_Telemetry.Stream;
+      Smart_Inp   : Adaflight.SmartPort_Telemetry.Inputs;
+      T           : in out Adaflight.MSP_Telemetry.Tunnel;
+      Resume      : Boolean;
+      MSP_Request : out Boolean)
+   is
+      package SP renames Adaflight.SmartPort_Telemetry;
+      O     : SP.Output;
+      Clear : Boolean := False;
+      P     : SP.Payload;
+
+      --  A byte into the ring of bytes the link sends.
+      procedure Put (B : Unsigned_8) is
+      begin
+         S.Out_Data (S.Out_Writer) := B;
+         S.Out_Writer := (S.Out_Writer + 1) mod Hub_Buffer_Size;
+      end Put;
+
+      procedure Put_Stuffed (B : Unsigned_8) is
+      begin
+         if B = SP.Escape or else B = SP.Start_Stop then
+            Put (SP.Escape);
+            Put (B xor SP.Escape_Xor);
+         else
+            Put (B);
+         end if;
+      end Put_Stuffed;
+   begin
+      MSP_Request := False;
+      if Resume then
+         O.Clear_To_Send := S.Smart_Clear;
+         SP.Process (Smart, Smart_Inp, 1, S.Smart_Clear, O, T, Resume => True);
+      else
+         if Now_Ms - S.Polling_Time_Ms > 24 then
+            S.Polling_Time_Ms := Now_Ms;
+            Clear := True;
+         else
+            while S.Remote (S.To_Process_Id).Needs_Processing and then not O.Received.Valid loop
+               if S.To_Process_Index >= Natural'Min (5, Natural (S.Remote (S.To_Process_Id).Data (0))) then
+                  S.To_Process_Index := 0;
+                  S.Remote (S.To_Process_Id).Needs_Processing := False;
+                  S.To_Process_Id := (S.To_Process_Id + 1) mod 4;
+                  exit when not S.Remote (S.To_Process_Id).Needs_Processing;
+               end if;
+               while S.To_Process_Index < Natural'Min (5, Natural (S.Remote (S.To_Process_Id).Data (0)))
+                 and then not O.Received.Valid
+               loop
+                  SP.Receive (Smart, S.Remote (S.To_Process_Id).Data (1 + S.To_Process_Index), True, Clear, P,
+                              Use_Checksum => False);
+                  if P.Valid then
+                     O.Received := P;
+                  end if;
+                  S.To_Process_Index := S.To_Process_Index + 1;
+               end loop;
+            end loop;
+         end if;
+         O.Clear_To_Send := Clear;
+         SP.Process (Smart, Smart_Inp, 1, Clear, O, T);
+      end if;
+      if O.MSP_Request then
+         S.Smart_Clear := O.Clear_To_Send;
+         MSP_Request := True;
+         return;
+      end if;
+      if O.Written.Valid then
+         Put (SP.Start_Stop);
+         Put (SP.Sensor_Id_1 and 16#1F#);
+         Put_Stuffed (O.Written.Frame_Id);
+         Put_Stuffed (Unsigned_8 (O.Written.Value_Id and 16#FF#));
+         Put_Stuffed (Unsigned_8 (Interfaces.Shift_Right (O.Written.Value_Id, 8)));
+         Put_Stuffed (Unsigned_8 (O.Written.Data and 16#FF#));
+         Put_Stuffed (Unsigned_8 (Interfaces.Shift_Right (O.Written.Data, 8) and 16#FF#));
+         Put_Stuffed (Unsigned_8 (Interfaces.Shift_Right (O.Written.Data, 16) and 16#FF#));
+         Put_Stuffed (Unsigned_8 (Interfaces.Shift_Right (O.Written.Data, 24)));
+      end if;
+   end Process_Frame;
 
 end Adaflight.FrSky_SPI;

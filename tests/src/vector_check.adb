@@ -14662,6 +14662,9 @@ procedure Vector_Check is
    FD_State  : FSP.State;
    FD_Config : FSP.Settings;
    FD_Rc     : FSP.Channel_Values := (others => 1_500);
+   --  The X link's SmartPort encoder, its voltage sensor alone enabled.
+   FD_Smart  : Adaflight.SmartPort_Telemetry.Stream;
+   FD_Tunnel : Adaflight.MSP_Telemetry.Tunnel;
 
    function FD_Hex (V : Natural; Width : Natural) return String is
       Digits_Of : constant String := "0123456789abcdef";
@@ -14868,6 +14871,20 @@ procedure Vector_Check is
                FD_Config.Hub.Pole_Count := 14;
                FD_Config.Hub.Acc_1G_Rec := Flt (33);
             end;
+            if FSP."/=" (FD_Config.Protocol, FSP.FrSky_D) then
+               declare
+                  use Adaflight.SmartPort_Telemetry;
+                  B : Build_Inputs;
+               begin
+                  for Se in Sensor loop
+                     B.Enabled (Se) := (Int (22) / 2 ** Sensor'Pos (Se)) mod 2 = 0;
+                  end loop;
+                  B.Voltage_Configured := NF >= 37 and then Int (37) = 1;
+                  FD_Smart := (others => <>);
+                  FD_Tunnel := (others => <>);
+                  Build (FD_Smart, B);
+               end;
+            end if;
             FSP.Start (FD_State, FD_Config, Inp, O, Ok, Claim);
             FD_Rc := (others => 1_500);
             Record_Int (Name & ".ok", Int (14), Boolean'Pos (Ok));
@@ -14929,9 +14946,20 @@ procedure Vector_Check is
             if Result = FSP.Data_Ready then
                FSP.Set_Rc_Data (FD_State, FD_Config, FD_Rc);
             end if;
+            if FD_State.Processing_Required then
+               declare
+                  Smart_Inp : Adaflight.SmartPort_Telemetry.Inputs;
+                  Request   : Boolean;
+               begin
+                  Smart_Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (11));
+                  Smart_Inp.Cell_Voltage_Cv := Interfaces.Unsigned_16 (Int (11) / 4);
+                  FSP.Process_Frame (FD_State, Inp.Now_Ms, FD_Smart, Smart_Inp, FD_Tunnel, False, Request);
+               end;
+            end if;
             FD_Calibrate (O);
             Record_Int (Name & ".result", Int (12), (case Result is when FSP.None => 0, when FSP.Bind_Done => 1,
-                                                                    when FSP.Data_Ready => 2));
+                                                                    when FSP.Data_Ready => 2)
+                                                    + (if FD_State.Processing_Required then 4 else 0));
             Record_Int (Name & ".state", Int (13), FSP.Protocol_State'Pos (FD_State.Protocol));
             Record_Int (Name & ".missing", Int (14), Integer_64 (FD_State.Missing_Packets));
             Record_Int (Name & ".timeout", Int (15), Integer_64 (FD_State.Timeout_Us));
