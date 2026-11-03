@@ -13054,3 +13054,14 @@ exists. LZSS stays in the core with its vectors and leaves the images.
 On the CLRacing F7 the stream shrinks by 11690 bytes and the code grows by 1760, so the image needs 9930 bytes less
 (27700 over its 480 KB code region). In an emulated boot, 40 words sampled across the unpacked range match the
 image's sections and start-up reaches the flight setup.
+
+## D625. Elaboration strings packed (2026-11-02)
+
+A packed STM32F7 build now also keeps its elaboration's string literals in its stream. Link time optimization
+places them in sections named after `adainit`, which our earlier patterns missed, and elaboration runs after the
+unpacking.
+
+On the CLRacing F7 these strings take 12692 bytes out of flash and add 5060 to the stream, so the image needs 7632
+bytes less (20068 over its 480 KB code region). Main RAM past packed data keeps 4428 bytes, room for the
+unpacking's model. In an emulated boot of that image linked with a larger flash region, 48 words sampled
+across unpacked data match its sections and start-up reaches flight setup.
