@@ -27,18 +27,45 @@ package body Adaflight.STM32.EXTI is
      with Volatile, Import, Address => System'To_Address (16#4002_3844#);
    SYSCFG_Bit : constant Unsigned_32 := 2 ** 14;
 
-   procedure Enable_Rising (P : Pin) is
+   --  The pin's port as its line's source.
+   procedure Route (P : Pin) is
       Line   : constant Natural := Natural (P.Number);
       Nibble : constant Natural := 4 * (Line mod 4);
       Source : constant Unsigned_32 := Unsigned_32 (Port_Name'Pos (P.Port));
    begin
       RCC_APB2ENR := RCC_APB2ENR or SYSCFG_Bit;
       EXTICR (Line / 4) := (EXTICR (Line / 4) and not Shift_Left (15, Nibble)) or Shift_Left (Source, Nibble);
+   end Route;
+
+   procedure Enable_Rising (P : Pin) is
+      Line : constant Natural := Natural (P.Number);
+   begin
+      Route (P);
       Regs.RTSR := Regs.RTSR or Shift_Left (1, Line);
       Regs.FTSR := Regs.FTSR and not Shift_Left (1, Line);
       Regs.PR := Shift_Left (1, Line);
       Regs.IMR := Regs.IMR or Shift_Left (1, Line);
    end Enable_Rising;
+
+   procedure Configure_Falling (P : Pin) is
+      Line : constant Natural := Natural (P.Number);
+   begin
+      Regs.IMR := Regs.IMR and not Shift_Left (1, Line);
+      Route (P);
+      Regs.FTSR := Regs.FTSR or Shift_Left (1, Line);
+      Regs.RTSR := Regs.RTSR and not Shift_Left (1, Line);
+      Regs.PR := Shift_Left (1, Line);
+   end Configure_Falling;
+
+   procedure Unmask (P : Pin) is
+   begin
+      Regs.IMR := Regs.IMR or Shift_Left (1, Natural (P.Number));
+   end Unmask;
+
+   procedure Mask (P : Pin) is
+   begin
+      Regs.IMR := Regs.IMR and not Shift_Left (1, Natural (P.Number));
+   end Mask;
 
    procedure Take_Pending (Mask : Adaflight.EXTI_Lines.Line_Mask; Active : out Adaflight.EXTI_Lines.Line_Mask) is
       Lines : constant Unsigned_32 := Regs.IMR and Regs.PR and Unsigned_32 (Mask);

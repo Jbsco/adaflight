@@ -44,6 +44,9 @@ package Adaflight.STM32.RX_SPI is
    function Last_Frame_Us return Adaflight.Receiver.Time_Us;
    --  Whether the protocol takes the RSSI when no other source is set.
    function Claims_RSSI return Boolean;
+   --  Whether the protocol takes the link quality, as CRSF reports it, when
+   --  no other source is set.
+   function Claims_Link_Quality return Boolean;
    --  Whether the receiver sends telemetry readings, and whether it took the
    --  hub stream or the SmartPort stream, which the serial telemetry then
    --  leaves alone.

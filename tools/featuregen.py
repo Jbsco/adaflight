@@ -48,6 +48,7 @@ FEATURES = [
     ("Optical_Flow", 1024, "The optical flow sensors."),
     ("SPI_Receiver", None, "The SPI receiver, when the board's configuration names its radio chip."),
     ("CC2500_Receiver", None, "The CC2500 SPI receiver families, when the board's configuration names the chip."),
+    ("SX1280_Receiver", None, "The ExpressLRS SPI receiver, when the board's configuration names the SX1280."),
     ("Debug_Values", 0, "The debug values the debug mode selects."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
@@ -62,7 +63,7 @@ FEATURES = [
 # Features a board's configuration turns on at any flash size by naming one of the defines.
 BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",),
                  "SPI_Receiver": ("USE_RX_SPI", "USE_RX_CC2500", "USE_RX_SX1280", "USE_RX_SX127X"),
-                 "CC2500_Receiver": ("USE_RX_CC2500",)}
+                 "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
 
 def selection(flash_kb: int, changes: str, defines: frozenset = frozenset()) -> dict:
@@ -280,7 +281,8 @@ STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("Pitot", "Adaflight.STM32.Pitot", "adaflight-stm32-pitot"),
          ("Optical_Flow", "Adaflight.STM32.Optical_Flow", "adaflight-stm32-optical_flow"),
          ("SPI_Receiver", "Adaflight.STM32.RX_SPI", "adaflight-stm32-rx_spi"),
-         ("CC2500_Receiver", "Adaflight.STM32.RX_SPI_CC2500", "adaflight-stm32-rx_spi_cc2500")]
+         ("CC2500_Receiver", "Adaflight.STM32.RX_SPI_CC2500", "adaflight-stm32-rx_spi_cc2500"),
+         ("SX1280_Receiver", "Adaflight.STM32.RX_SPI_SX1280", "adaflight-stm32-rx_spi_sx1280")]
 
 
 def feature_units(chosen: dict) -> str:

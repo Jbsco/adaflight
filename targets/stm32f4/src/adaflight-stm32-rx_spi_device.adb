@@ -20,6 +20,7 @@ package body Adaflight.STM32.RX_SPI_Device is
    Has_Exti      : Boolean := False;
    Exti_Occurred : Boolean := False with Atomic;
    Exti_Time     : Unsigned_32 := 0 with Atomic;
+   On_Edge       : Edge_Handler := null with Atomic;
 
    function Has_Tag (Tag : Byte) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
 
@@ -79,6 +80,9 @@ package body Adaflight.STM32.RX_SPI_Device is
    begin
       Exti_Time := Time.Micros;
       Exti_Occurred := True;
+      if On_Edge /= null then
+         On_Edge.all;
+      end if;
    end Exti_Edge;
 
    function Exti_Configured return Boolean is (Has_Exti);
@@ -107,6 +111,11 @@ package body Adaflight.STM32.RX_SPI_Device is
    end Reset_Exti;
 
    function Last_Exti_Time return Unsigned_32 is (Exti_Time);
+
+   procedure Set_Edge_Handler (H : Edge_Handler) is
+   begin
+      On_Edge := H;
+   end Set_Edge_Handler;
 
    --  One selection of the chip in mode 0 at its divisor, the bus left in
    --  mode 3 for the other devices.
@@ -162,4 +171,34 @@ package body Adaflight.STM32.RX_SPI_Device is
       Frame (Tx, Rx);
       Data := Rx (1 .. Data'Length);
    end Read_Command_Multi;
+
+   procedure Exchange (Data : in out Byte_Array) is
+      Tx : constant Byte_Array (0 .. Data'Length - 1) := Data;
+      Rx : Byte_Array (0 .. Data'Length - 1);
+   begin
+      Frame (Tx, Rx);
+      Data := Rx;
+   end Exchange;
+
+   procedure Send (Data : Byte_Array) is
+      Tx : constant Byte_Array (0 .. Data'Length - 1) := Data;
+      Rx : Byte_Array (0 .. Data'Length - 1);
+   begin
+      Frame (Tx, Rx);
+   end Send;
+
+   procedure Exchange_Pair (Head : Byte_Array; Tail : in out Byte_Array) is
+      Tx : constant Byte_Array (0 .. Head'Length + Tail'Length - 1) := Head & Tail;
+      Rx : Byte_Array (Tx'Range);
+   begin
+      Frame (Tx, Rx);
+      Tail := Rx (Head'Length .. Rx'Last);
+   end Exchange_Pair;
+
+   procedure Send_Pair (Head : Byte_Array; Tail : Byte_Array) is
+      Tx : constant Byte_Array (0 .. Head'Length + Tail'Length - 1) := Head & Tail;
+      Rx : Byte_Array (Tx'Range);
+   begin
+      Frame (Tx, Rx);
+   end Send_Pair;
 end Adaflight.STM32.RX_SPI_Device;

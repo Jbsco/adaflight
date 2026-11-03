@@ -79,6 +79,14 @@ package Adaflight.STM32.Radio is
    function Source return Adaflight.Receiver.Provider;
    --  An RSSI the SPI receiver's protocol measured, as the protocol source.
    procedure Set_Protocol_RSSI (Value : Interfaces.Unsigned_16; Direct : Boolean);
+   --  The link statistics an SPI receiver's protocol reports: through the
+   --  filters while connected, with the uplink power, and set directly
+   --  while not.
+   procedure Set_Protocol_Link
+     (RSSI     : Interfaces.Unsigned_16; RSSI_Dbm : Interfaces.Integer_16; RSNR : Interfaces.Integer_16;
+      LQ       : Interfaces.Unsigned_16; Uplink_mW : Interfaces.Unsigned_16; Connected : Boolean);
+   --  The RF mode an SPI receiver's protocol runs at.
+   procedure Set_Protocol_RF_Mode (Mode : Interfaces.Unsigned_8);
    function Serial_Protocol return Natural;
    --  The SmartPort tables an FPORT receiver's telemetry answers from, built
    --  when the receiver opened, and whether an FPORT receiver is open, which

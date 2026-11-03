@@ -2,13 +2,15 @@ with Adaflight.RX_SPI;
 with Adaflight.RX_SPI_Provider;
 with Adaflight.STM32.RX_SPI_CC2500;
 with Adaflight.STM32.RX_SPI_Device;
+with Adaflight.STM32.RX_SPI_SX1280;
 package body Adaflight.STM32.RX_SPI is
    package Layer renames Adaflight.RX_SPI;
    use type Layer.Family;
 
    Spi_Config     : Adaflight.Config_Groups.Rx_Spi_Config_Record;
    CC2500_Config  : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
-   Exti_Pull_Down : constant Boolean := False;
+   ELRS_Config    : Adaflight.Config_Groups.Rx_Express_Lrs_Spi_Config_Record;
+   Exti_Pull_Down : Boolean := False;
    Channels       : Natural := 0;
    RSSI_Claimed   : Boolean := False;
    Telemetry_On   : Boolean := False;
@@ -21,8 +23,9 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_Device.Init (Spi_Config, Ok);
    end Device_Init;
 
-   --  The FrSky, SFHSS and Redpine families run on the board; every other
-   --  protocol's start fails.
+   --  The FrSky, SFHSS, Redpine and ExpressLRS families run on the board;
+   --  every other protocol's start fails. ExpressLRS takes its interrupt line
+   --  pulled down.
    procedure Family_Init (F : Layer.Family; Ok : out Boolean) is
    begin
       case F is
@@ -32,6 +35,9 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
+         when Layer.ExpressLRS =>
+            Exti_Pull_Down := True;
+            RX_SPI_SX1280.ExpressLRS_Init (Spi_Config, ELRS_Config, Ok, Channels, RSSI_Claimed);
          when others =>
             Ok := False;
       end case;
@@ -53,6 +59,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Data_Received (R);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Data_Received (R);
+         when Layer.ExpressLRS =>
+            RX_SPI_SX1280.ExpressLRS_Data_Received (R);
          when others =>
             R := (others => False);
       end case;
@@ -77,12 +85,19 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Set_Channels (Data);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Set_Channels (Data);
+         when Layer.ExpressLRS =>
+            RX_SPI_SX1280.ExpressLRS_Set_Channels (Data);
          when others =>
             null;
       end case;
    end Family_Set_Channels;
 
-   procedure Family_Stop (F : Layer.Family) is null;
+   procedure Family_Stop (F : Layer.Family) is
+   begin
+      if F = Layer.ExpressLRS then
+         RX_SPI_SX1280.ExpressLRS_Stop;
+      end if;
+   end Family_Stop;
 
    package Provider is new Adaflight.RX_SPI_Provider
      (Device_Init          => Device_Init,
@@ -107,6 +122,7 @@ package body Adaflight.STM32.RX_SPI is
       Telemetry_On := Telemetry;
       Spi_Config := C.Rx_Spi_Config;
       CC2500_Config := C.Rx_Cc2500_Spi_Config;
+      ELRS_Config := C.Rx_Express_Lrs_Spi_Config;
       Provider.Init (State, C.Rx_Spi_Config.Rx_Spi_Protocol, Ok, Providing);
       Started := Ok and then Providing;
    end Init;
@@ -156,12 +172,16 @@ package body Adaflight.STM32.RX_SPI is
          RX_SPI_CC2500.SFHSS_Request_Bind;
       elsif Started and then State.Selected = Layer.Redpine then
          RX_SPI_CC2500.Redpine_Request_Bind;
+      elsif Started and then State.Selected = Layer.ExpressLRS then
+         RX_SPI_SX1280.ExpressLRS_Request_Bind;
       end if;
    end Bind;
 
    function Last_Frame_Us return Adaflight.Receiver.Time_Us is (Frame_Us);
 
    function Claims_RSSI return Boolean is (Started and then RSSI_Claimed);
+
+   function Claims_Link_Quality return Boolean is (Started and then State.Selected = Layer.ExpressLRS);
 
    function Takes_Readings return Boolean is (Started and then State.Selected = Layer.FrSky);
 
@@ -195,6 +215,9 @@ package body Adaflight.STM32.RX_SPI is
    begin
       if Started and then State.Selected in Layer.FrSky | Layer.SFHSS | Layer.Redpine then
          RX_SPI_CC2500.Take_Save (C, Requested, Notify);
+      elsif Started and then State.Selected = Layer.ExpressLRS then
+         RX_SPI_SX1280.Take_Save (C, Requested);
+         Notify := False;
       else
          Requested := False;
          Notify := False;

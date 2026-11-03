@@ -13305,3 +13305,23 @@ family's start fails, so our SPI receiver reports nothing for those protocols.
 
 An AlienFlight NG F7 ELRS, which has an SX1280 and no CC2500, goes from 3358 to 18856 bytes of free flash,
 room ExpressLRS needs. CI builds that board too.
+
+## D643. ExpressLRS over SPI receivers on boards (2026-11-03)
+
+SX1280 receivers on boards now run ExpressLRS, when a board's configuration defines `USE_RX_SX1280`. Our SX1280
+core runs its interrupt chain from the receiver's interrupt line and from the radio's busy pin, each transfer
+finished in place. TIM5 at 1 MHz drives its tick and tock: its handler runs our receiver's timer update, then the
+radio's tick or tock step, then programs the next half-period.
+
+Our receiver core records each request the reference makes of its radio and timer as a count: configuration,
+output power, reception start, timer period, counter reset, run state, configuration save and link report. After
+each call, board code acts on what changed, configuration first, then power, time base, timer, reception,
+save and report. A chain that re-arms the receiver line while that line is high queues the edge, and the chain
+runs again once it ends, where the reference nests it.
+
+Receiver task calls check the bind pin and blink the LED through the SPI radio core, as other SPI families do.
+ExpressLRS claims RSSI and, as CRSF reports it, link quality, and writes UID, rate and model id back to
+configuration when it changes them. ExpressLRS telemetry, which reference builds always send, and MSP packets from a
+transmitter come in a later step.
+
+On an AlienFlight NG F7 ELRS this costs 11024 bytes of flash, 7832 left.
