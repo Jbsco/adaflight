@@ -13359,3 +13359,16 @@ chunk when the transmitter's next MSP frame arrives, as the reference does. A pr
 and the reply frame between interrupt and task.
 
 On an AlienFlight NG F7 ELRS this costs 1182 bytes of flash, 6650 left.
+
+## D646. Stack check builds (2026-11-03)
+
+A stack check build (`FEATURES=+stack_check`) fills the main stack with 16#A5# at flight start, from its bottom up
+to 256 bytes below that frame, and runs its stack check task at 10 Hz, as reference stack check builds do. That
+task finds the lowest byte that differs from that pattern, and status then shows the bytes used after the stack
+size and top. Default builds leave that task off. Since the paint runs after elaboration, on packed F7 images it
+also covers the elaboration code left at the stack's bottom.
+
+Status now reports stack size and top from linker symbols, where it showed a fixed 32768 bytes and 16#2002_0000#.
+
+A static analysis of our call graph puts the deepest paths near 36 KB: OSD task, CLI defaults, and MSP processing
+with a configuration reset. A stack check image on the bench measures what flight actually uses.

@@ -50,6 +50,7 @@ FEATURES = [
     ("CC2500_Receiver", None, "The CC2500 SPI receiver families, when the board's configuration names the chip."),
     ("SX1280_Receiver", None, "The ExpressLRS SPI receiver, when the board's configuration names the SX1280."),
     ("Debug_Values", 0, "The debug values the debug mode selects."),
+    ("Stack_Check", None, "The main stack's use measured from a pattern filled at start, shown in status."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Named tables, strings and initialized data kept compressed in flash, unpacked at start "

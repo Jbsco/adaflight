@@ -158,6 +158,7 @@ with Adaflight.STM32.USART;
 with Adaflight.Stream_Buffers;
 with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
+with Adaflight.STM32.Stack_Check;
 with Adaflight.Vectors;
 package body Adaflight.STM32.Flight is
    package CLI renames Adaflight.STM32.Console.CLI;
@@ -171,7 +172,6 @@ package body Adaflight.STM32.Flight is
    use type Adaflight.STM32.Gyro.Read_Mode;
 
    Baud       : constant := 115_200;
-   Stack_Size : constant := 32_768;
    UART1_Id   : constant Adaflight.Serial_Feature_Map.Port_Id := 51;
    VCP_Id     : constant Adaflight.Serial_Feature_Map.Port_Id := 20;
 
@@ -693,8 +693,9 @@ package body Adaflight.STM32.Flight is
                           Internal_ADC  => True,
                           Vref_Mv       => 3300,
                           Core_Temp_C   => 0,
-                          Stack_Total   => Stack_Size,
-                          Stack_High    => 16#2002_0000#,
+                          Stack_Check   => Adaflight.Build_Features.Stack_Check,
+                          Stack_Total   => Adaflight.STM32.Stack_Check.Total,
+                          Stack_High    => Adaflight.STM32.Stack_Check.High,
                           Storage_Size  => Adaflight.STM32.Memory.Config_Size,
                           others        => <>));
 
@@ -1156,7 +1157,8 @@ package body Adaflight.STM32.Flight is
          LED_Strip => Adaflight.Build_Features.LED_Strip,
          Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.Build_Features.Compass,
          Pitot => Adaflight.Build_Features.Pitot, Optical_Flow => Adaflight.Build_Features.Optical_Flow,
-         Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0, others => False);
+         Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0,
+         Stack_Check => Adaflight.Build_Features.Stack_Check, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
       Feature_Optical_Flow : constant Unsigned_32 := 16#0000_0100#;
@@ -4391,6 +4393,8 @@ package body Adaflight.STM32.Flight is
                   Write_Configuration;
                end if;
             end;
+         when Scheduler.Stack_Check =>
+            Env.Status.Stack_Used := Adaflight.STM32.Stack_Check.Used;
          when others =>
             null;
       end case;
@@ -4448,6 +4452,9 @@ package body Adaflight.STM32.Flight is
 
    procedure Init is
    begin
+      if Adaflight.Build_Features.Stack_Check then
+         Adaflight.STM32.Stack_Check.Paint;
+      end if;
       Adaflight.STM32.MCU.Init_Persistent;
       Adaflight.STM32.MCU.Check_Bootloader_Request;
       Adaflight.STM32.Time.Init;
