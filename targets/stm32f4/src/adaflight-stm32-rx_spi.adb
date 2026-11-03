@@ -11,6 +11,7 @@ package body Adaflight.STM32.RX_SPI is
    Exti_Pull_Down : constant Boolean := False;
    Channels       : Natural := 0;
    RSSI_Claimed   : Boolean := False;
+   Telemetry_On   : Boolean := False;
    State          : Layer.State;
    Frame_Us       : Adaflight.Receiver.Time_Us := 0;
    Started        : Boolean := False;
@@ -26,7 +27,7 @@ package body Adaflight.STM32.RX_SPI is
    begin
       case F is
          when Layer.FrSky =>
-            RX_SPI_CC2500.FrSky_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
+            RX_SPI_CC2500.FrSky_Init (Spi_Config, CC2500_Config, Telemetry_On, Ok, Channels, RSSI_Claimed);
          when others =>
             Ok := False;
       end case;
@@ -84,9 +85,10 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_Device.Preinit (C.Rx_Spi_Config);
    end Preinit;
 
-   procedure Init (C : Adaflight.Config_Groups.Configuration) is
+   procedure Init (C : Adaflight.Config_Groups.Configuration; Telemetry : Boolean) is
       Ok, Providing : Boolean;
    begin
+      Telemetry_On := Telemetry;
       Spi_Config := C.Rx_Spi_Config;
       CC2500_Config := C.Rx_Cc2500_Spi_Config;
       Provider.Init (State, C.Rx_Spi_Config.Rx_Spi_Protocol, Ok, Providing);
@@ -133,6 +135,20 @@ package body Adaflight.STM32.RX_SPI is
    function Last_Frame_Us return Adaflight.Receiver.Time_Us is (Frame_Us);
 
    function Claims_RSSI return Boolean is (Started and then RSSI_Claimed);
+
+   function Takes_Readings return Boolean is (Started and then State.Selected = Layer.FrSky);
+
+   function Hub_Taken return Boolean is (Takes_Readings and then RX_SPI_CC2500.FrSky_Hub_Taken);
+
+   procedure Set_Readings (R : Telemetry_Readings) is
+   begin
+      RX_SPI_CC2500.Set_Readings (R);
+   end Set_Readings;
+
+   procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings) is
+   begin
+      RX_SPI_CC2500.Set_Hub_Settings (S);
+   end Set_Hub_Settings;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
    begin

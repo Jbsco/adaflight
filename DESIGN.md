@@ -13189,3 +13189,18 @@ board without an interrupt pin fails its start before it resets and checks the c
 
 On an ALIENFLIGHTNGF7_RX image the family takes about 8 KB of code and 6 KB of RAM, and 696 bytes of its 480 KB
 code region stay free with debug values off (D632).
+
+## D634. FrSky D telemetry over the SPI receiver (2026-11-03)
+
+With the telemetry feature on, a board's FrSky D receiver now takes the hub telemetry stream at its start, before
+telemetry starts, as the reference's start-up order gives it. Our serial hub then stays closed. The receiver's
+hub settings come from the same conversion the serial hub uses.
+
+Before each frame check the flight loop hands the receiver its readings: hub inputs while it owns the hub stream,
+external and RSSI analog samples, and battery voltage in hundredths and tenths of a volt. FrSky D frames carry A1
+and RSSI from these whether hub telemetry runs or not, and FrSky X frames carry A1. Builds without an SPI receiver
+compile this flight code away.
+
+On an ALIENFLIGHTNGF7_RX image the readings take about 600 bytes, and 129 bytes of its 480 KB code region stay
+free, close to what a build time stamp moves its stream by. FrSky X telemetry needs its SmartPort source ported
+first.

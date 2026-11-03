@@ -3,7 +3,7 @@ package body Adaflight.STM32.RX_SPI is
 
    procedure Preinit (C : Adaflight.Config_Groups.Configuration) is null;
 
-   procedure Init (C : Adaflight.Config_Groups.Configuration) is null;
+   procedure Init (C : Adaflight.Config_Groups.Configuration; Telemetry : Boolean) is null;
 
    procedure Frame_Status (Report : out Adaflight.Receiver.Frame_Report) is
    begin
@@ -27,6 +27,14 @@ package body Adaflight.STM32.RX_SPI is
    function Last_Frame_Us return Adaflight.Receiver.Time_Us is (0);
 
    function Claims_RSSI return Boolean is (False);
+
+   function Takes_Readings return Boolean is (False);
+
+   function Hub_Taken return Boolean is (False);
+
+   procedure Set_Readings (R : Telemetry_Readings) is null;
+
+   procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings) is null;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       pragma Unreferenced (C);
