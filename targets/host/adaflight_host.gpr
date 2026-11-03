@@ -41,6 +41,10 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
       for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
+      for Body ("Adaflight.STM32.Compass") use Adaflight_Feature_Units.Compass_Body;
+      for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
+      for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
+      for Body ("Adaflight.STM32.Optical_Flow") use Adaflight_Feature_Units.Optical_Flow_Body;
    end Naming;
 
    package Compiler is

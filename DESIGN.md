@@ -13112,3 +13112,14 @@ On the CLRacing F7 the code region shrinks by 3072 bytes, so the image fits its 
 bytes to spare. In an emulated boot of that image, start-up reaches flight setup and 62 of 63
 words sampled across unpacked data match its sections. The other word is a calibration variable that flight setup
 writes.
+
+## D629. Stub bodies for left-out sensors (2026-11-02)
+
+A build without the compass, barometer, pitot or optical flow sensor now compiles a stub body for that board unit,
+through the feature units project of D626. Each stub answers as its real unit does with the feature off: not
+detected, no hardware, zero readings and no calibration. Real units returned early from start-up without their
+feature, yet their task code, bus drivers and probes stayed linked.
+
+On the CLRacing F7, which builds none of the four, the code region shrinks by 508 bytes, so the image has 2356
+bytes of its 480 KB code region to spare. A build time stamp inside packed data moves stream size by tens of bytes
+between builds.

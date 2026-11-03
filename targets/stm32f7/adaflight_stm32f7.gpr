@@ -22,6 +22,10 @@ project Adaflight_Stm32f7 is
       for Body ("Adaflight.STM32.I2C") use "adaflight-stm32-i2c__stm32f7.adb";
       for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
+      for Body ("Adaflight.STM32.Compass") use Adaflight_Feature_Units.Compass_Body;
+      for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
+      for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
+      for Body ("Adaflight.STM32.Optical_Flow") use Adaflight_Feature_Units.Optical_Flow_Body;
    end Naming;
    for Object_Dir use "obj/" & Adaflight_Stm32f7_Config.Build_Profile;
    for Create_Missing_Dirs use "True";

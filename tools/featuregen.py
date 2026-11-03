@@ -237,7 +237,11 @@ def ram_late(chosen: dict) -> str:
 # Board units a build replaces with stub bodies when it leaves their feature out: the feature, the unit and the
 # source file stem; the stub body is the stem with "__off".
 STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
-         ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd")]
+         ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd"),
+         ("Compass", "Adaflight.STM32.Compass", "adaflight-stm32-compass"),
+         ("Barometer", "Adaflight.STM32.Baro", "adaflight-stm32-baro"),
+         ("Pitot", "Adaflight.STM32.Pitot", "adaflight-stm32-pitot"),
+         ("Optical_Flow", "Adaflight.STM32.Optical_Flow", "adaflight-stm32-optical_flow")]
 
 
 def feature_units(chosen: dict) -> str:
