@@ -4,6 +4,7 @@ with Adaflight.CC2500;
 with Adaflight.FrSky_SPI;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.Redpine;
 with Adaflight.SFHSS;
 with Adaflight.SPI_Radio;
 with Adaflight.STM32.GPIO;
@@ -15,10 +16,12 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    package SR renames Adaflight.SPI_Radio;
    package FS renames Adaflight.FrSky_SPI;
    package SF renames Adaflight.SFHSS;
+   package RP renames Adaflight.Redpine;
    use type SR.Op_Kind;
    use type FS.Received;
    use type FS.SPI_Protocol;
    use type SF.Received;
+   use type RP.Received;
 
    type Chip is limited null record;
 
@@ -89,7 +92,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
 
    --  The family the receiver started, whose calibration and bind data the
    --  operations reach.
-   type Active_Family is (FrSky_Family, SFHSS_Family);
+   type Active_Family is (FrSky_Family, SFHSS_Family, Redpine_Family);
    Active : Active_Family := FrSky_Family;
 
    Settings    : FS.Settings;
@@ -98,6 +101,11 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    SF_Settings : SF.Settings;
    SF_State    : SF.State;
    SF_Trial    : SF.State;
+   RP_Settings : RP.Settings;
+   RP_State    : RP.State;
+   RP_Trial    : RP.State;
+   Craft_Armed : Boolean := False;
+   VTX_Wanted  : RP.VTX_Request;
    Ops         : SR.Output;
    Cal         : FS.Calibration_Table := (others => (others => 0));
    Save_Wanted : Boolean := False;
@@ -149,6 +157,15 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
                   Table (I) := Cal (I);
                end loop;
                SF.Set_Calibration (SF_State, Table);
+            end;
+         when Redpine_Family =>
+            declare
+               Table : RP.Calibration_Table;
+            begin
+               for I in Table'Range loop
+                  Table (I) := Cal (I);
+               end loop;
+               RP.Set_Calibration (RP_State, Table);
             end;
       end case;
    end Calibrate;
@@ -290,6 +307,24 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       S.Pins := Pins_Of (Spi, R);
       return S;
    end SFHSS_Settings_Of;
+
+   function Redpine_Settings_Of
+     (Spi : Adaflight.Config_Groups.Rx_Spi_Config_Record; R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record)
+      return RP.Settings
+   is
+      S : RP.Settings;
+   begin
+      S.Auto_Bind := R.Auto_Bind /= 0;
+      for I in S.Bind_Tx_Id'Range loop
+         S.Bind_Tx_Id (I) := R.Bind_Tx_Id (I);
+      end loop;
+      S.Bind_Offset := R.Bind_Offset;
+      for I in S.Bind_Hop_Data'Range loop
+         S.Bind_Hop_Data (I) := R.Bind_Hop_Data (I);
+      end loop;
+      S.Pins := Pins_Of (Spi, R);
+      return S;
+   end Redpine_Settings_Of;
 
    function Bind_Level return Boolean is (if Has_Bind then GPIO.Is_High (Bind_Pin) else True);
 
@@ -532,6 +567,104 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       SF.Request_Bind (SF_State);
    end SFHSS_Request_Bind;
 
+   procedure Redpine_Init
+     (Spi    : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500 : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Ok     : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
+   is
+      Inp     : RP.Inputs;
+      Split   : Natural;
+      Exti_Ok : Boolean;
+   begin
+      Ok := False;
+      Channels := 0;
+      Claim_RSSI := False;
+      Active := Redpine_Family;
+      RP_Settings := Redpine_Settings_Of (Spi, CC2500);
+      Pins_Init (Spi, CC2500, Exti_Ok);
+      if not Exti_Ok then
+         return;
+      end if;
+      Inp.Now_Us := Time.Micros;
+      Inp.Now_Ms := Time.Millis;
+      Inp.Bind_Pin_Level := Bind_Level;
+      RP.Start (RP_Trial, RP_Settings, Inp, Ops, Ok, Claim_RSSI);
+      Split := First_Of (Ops, SR.Reset);
+      if Split = 0 then
+         RP_State := RP_Trial;
+         Run (Ops, 1, Ops.Count);
+      else
+         Run (Ops, 1, Split - 1);
+         Detect_Chip (Inp.Chip_Ok);
+         RP.Start (RP_State, RP_Settings, Inp, Ops, Ok, Claim_RSSI);
+         Run (Ops, Split + 1, Ops.Count);
+      end if;
+      Channels := RP.Channel_Count;
+   end Redpine_Init;
+
+   procedure Redpine_Data_Received (R : out Adaflight.RX_SPI.Received) is
+      Inp            : RP.Inputs;
+      Trial_Settings : RP.Settings := RP_Settings;
+      Result         : RP.Received;
+      Split          : Natural;
+   begin
+      Inp.Now_Us := Time.Micros;
+      Inp.Now_Ms := Time.Millis;
+      Inp.Exti := RX_SPI_Device.Exti_State;
+      if Inp.Exti then
+         Radio_Chip.Read_Register (Dev, Rx_Bytes_Register, Inp.Rx_Bytes);
+      end if;
+      Inp.Bind_Pin_Level := Bind_Level;
+      RP_Trial := RP_State;
+      RP.Data_Received (RP_Trial, Trial_Settings, Inp, Ops, Result);
+      Split := First_Of (Ops, SR.Read_Fifo);
+      if Split = 0 then
+         RP_State := RP_Trial;
+         RP_Settings := Trial_Settings;
+         Run (Ops, 1, Ops.Count);
+      else
+         Run (Ops, 1, Split - 1);
+         declare
+            Count : constant Natural := Natural'Min (Natural (Ops.Ops (Split).A), RP.Fifo_Size);
+            Data  : Byte_Array (0 .. Count - 1);
+         begin
+            Radio_Chip.Read_FIFO (Dev, Data);
+            for I in Data'Range loop
+               Inp.Fifo (I) := Data (I);
+            end loop;
+         end;
+         RP.Data_Received (RP_State, RP_Settings, Inp, Ops, Result);
+         Run (Ops, Split + 1, Ops.Count);
+      end if;
+      R := (Bind => Result = RP.Bind_Done, Data => Result = RP.Data_Ready, Processing_Required => False);
+   end Redpine_Data_Received;
+
+   procedure Redpine_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data) is
+      Rc  : RP.Channel_Values;
+      VTX : RP.VTX_Request;
+   begin
+      for I in Rc'Range loop
+         Rc (I) := Data (I);
+      end loop;
+      RP.Set_Rc_Data (RP_State, Craft_Armed, Rc, VTX);
+      for I in Rc'Range loop
+         Data (I) := Rc (I);
+      end loop;
+      if VTX.Present then
+         VTX_Wanted := VTX;
+      end if;
+   end Redpine_Set_Channels;
+
+   procedure Redpine_Request_Bind is
+   begin
+      RP.Request_Bind (RP_State);
+   end Redpine_Request_Bind;
+
+   procedure Set_Armed (Armed : Boolean) is
+   begin
+      Craft_Armed := Armed;
+   end Set_Armed;
+
    function FrSky_Hub_Taken return Boolean is (State.Telemetry_Enabled and then Settings.Protocol = FS.FrSky_D);
 
    function FrSky_SmartPort_Taken return Boolean is
@@ -559,19 +692,38 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Smart_Values := V;
    end Set_SmartPort_Values;
 
-   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
+   procedure Take_Save
+     (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean; Notify : out Boolean)
+   is
       R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record renames C.Rx_Cc2500_Spi_Config;
    begin
-      Requested := Save_Wanted;
-      Save_Wanted := False;
-      if not Requested then
+      Notify := VTX_Wanted.Present;
+      if Notify then
+         C.Vtx_Settings_Config.Band := VTX_Wanted.Band + 1;
+         C.Vtx_Settings_Config.Channel := VTX_Wanted.Channel;
+         C.Vtx_Settings_Config.Power := VTX_Wanted.Power;
+         VTX_Wanted := (others => <>);
+      end if;
+      Requested := Save_Wanted or else Notify;
+      if not Save_Wanted then
          return;
       end if;
+      Save_Wanted := False;
       if Active = SFHSS_Family then
          for I in SF_Settings.Bind_Tx_Id'Range loop
             R.Bind_Tx_Id (I) := SF_Settings.Bind_Tx_Id (I);
          end loop;
          R.Bind_Offset := SF_Settings.Bind_Offset;
+         return;
+      end if;
+      if Active = Redpine_Family then
+         for I in RP_Settings.Bind_Tx_Id'Range loop
+            R.Bind_Tx_Id (I) := RP_Settings.Bind_Tx_Id (I);
+         end loop;
+         R.Bind_Offset := RP_Settings.Bind_Offset;
+         for I in RP_Settings.Bind_Hop_Data'Range loop
+            R.Bind_Hop_Data (I) := RP_Settings.Bind_Hop_Data (I);
+         end loop;
          return;
       end if;
       for I in Settings.Bind_Tx_Id'Range loop

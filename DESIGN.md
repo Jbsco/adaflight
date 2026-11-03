@@ -13284,3 +13284,15 @@ Without an interrupt line, chip start-up stops before its amplifier, transmit an
 other sources. SFHSS starts anyway, where FrSky fails.
 
 On an AlienFlight NG F7 RX this costs 2647 bytes of flash, 6024 left.
+
+## D641. Redpine over SPI receivers on boards (2026-11-03)
+
+CC2500 receivers on boards now run Redpine, as reference CC2500 builds do. Its calls go through FrSky's operation
+runner with its own state and calibration table, and its start fails without an interrupt line or a chip, as
+FrSky's does. A bind saves its transmitter ID, offset and hop table.
+
+A Redpine status frame received while disarmed sets VTX band, channel and power. Flight passes its armed state to
+our receiver every loop, and a status frame's settings go into configuration with a save, a reload and one
+confirmation beep, as reference save-and-notify does.
+
+On an AlienFlight NG F7 RX this costs 2684 bytes of flash, 3340 left.
