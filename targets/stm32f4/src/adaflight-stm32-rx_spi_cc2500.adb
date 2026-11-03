@@ -88,6 +88,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    Ops         : SR.Output;
    Cal         : FS.Calibration_Table := (others => (others => 0));
    Save_Wanted : Boolean := False;
+   Readings    : Adaflight.STM32.RX_SPI.Telemetry_Readings;
 
    function Has_Tag (Tag : Byte) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
 
@@ -236,16 +237,16 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          LED           => Has_Tag (Spi.Led_Io_Tag),
          LED_Inversion => Spi.Led_Inversion /= 0,
          Bind          => Has_Tag (Spi.Bind_Io_Tag));
-      S.Telemetry := False;
       return S;
    end Settings_Of;
 
    function Bind_Level return Boolean is (if Has_Bind then GPIO.Is_High (Bind_Pin) else True);
 
    procedure FrSky_Init
-     (Spi    : Adaflight.Config_Groups.Rx_Spi_Config_Record;
-      CC2500 : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
-      Ok     : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
+     (Spi       : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500    : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Telemetry : Boolean;
+      Ok        : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
    is
       Inp   : FS.Inputs;
       Split : Natural;
@@ -254,6 +255,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Channels := 0;
       Claim_RSSI := False;
       Settings := Settings_Of (Spi, CC2500);
+      Settings.Telemetry := Telemetry;
       Output_Pin (SR.LED, Spi.Led_Io_Tag);
       Has_Bind := Has_Tag (Spi.Bind_Io_Tag);
       if Has_Bind then
@@ -305,6 +307,11 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          Radio_Chip.Read_Register (Dev, Rx_Bytes_Register, Inp.Rx_Bytes);
       end if;
       Inp.Bind_Pin_Level := Bind_Level;
+      Inp.ADC_External := Readings.ADC_External;
+      Inp.ADC_RSSI := Readings.ADC_RSSI;
+      Inp.Battery_Voltage := Readings.Centivolts;
+      Inp.Legacy_Voltage := Readings.Decivolts;
+      Inp.Hub := Readings.Hub;
       Trial_State := State;
       FS.Data_Received (Trial_State, Trial_Settings, Inp, Ops, Result);
       Split := First_Of (Ops, SR.Read_Fifo);
@@ -345,6 +352,18 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    begin
       FS.Request_Bind (State);
    end FrSky_Request_Bind;
+
+   function FrSky_Hub_Taken return Boolean is (State.Telemetry_Enabled);
+
+   procedure Set_Readings (R : Adaflight.STM32.RX_SPI.Telemetry_Readings) is
+   begin
+      Readings := R;
+   end Set_Readings;
+
+   procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings) is
+   begin
+      Settings.Hub := S;
+   end Set_Hub_Settings;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record renames C.Rx_Cc2500_Spi_Config;

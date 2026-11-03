@@ -4644,15 +4644,23 @@ package body Adaflight.STM32.Flight is
       Rescue_Settings := Adaflight.Config_Runtime.GPS_Rescue_Settings_Of
         (Config.Gps_Rescue_Config, Config.Autopilot_Config, Config.Gps_Config);
       Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
-      Adaflight.STM32.FrSky_Hub.Init
-        (Config, Runtime_Features,
-         Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
-           (Config.Telemetry_Config, Config.Motor_Config,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
-             Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected),
-            Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
-            GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
-            Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
+      declare
+         Hub_Settings : constant Adaflight.FrSky_Hub_Telemetry.Settings :=
+           Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
+             (Config.Telemetry_Config, Config.Motor_Config,
+              (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
+               Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.STM32.Compass.Detected),
+              Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
+              GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
+              Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal)));
+      begin
+         --  An SPI receiver that took the hub stream at its start keeps it.
+         if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.Hub_Taken then
+            Adaflight.STM32.RX_SPI.Set_Hub_Settings (Hub_Settings);
+         else
+            Adaflight.STM32.FrSky_Hub.Init (Config, Runtime_Features, Hub_Settings);
+         end if;
+      end;
       if not Adaflight.STM32.Radio.Is_FPort then
          Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       end if;
@@ -4770,6 +4778,16 @@ package body Adaflight.STM32.Flight is
             Now_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
             Bound  : Boolean;
          begin
+            if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.Takes_Readings then
+               Adaflight.STM32.RX_SPI.Set_Readings
+                 ((Hub          =>
+                     (if Adaflight.STM32.RX_SPI.Hub_Taken then FrSky_Hub_Inputs
+                      else (others => <>)),
+                   ADC_External => Unsigned_16 (Natural'Min (65_535, Analog (External_Input))),
+                   ADC_RSSI     => Unsigned_16 (Natural'Min (65_535, Analog (RSSI_Input))),
+                   Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
+                   Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
+            end if;
             Adaflight.STM32.Radio.Frame_Check
               (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
                Adaflight.RX_Task.In_Progress (RX_State));

@@ -309,7 +309,7 @@ package body Adaflight.STM32.Radio is
                                   when MAVLink => Adaflight.MAVLink.Channel_Count,
                                   when SRXL2 => Adaflight.Receiver.Channel_Count)));
       if Rx_Settings.Source in Adaflight.Receiver.SPI then
-         Adaflight.STM32.RX_SPI.Init (Config);
+         Adaflight.STM32.RX_SPI.Init (Config, (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
          Rx_Settings.Reported_Channels := Adaflight.STM32.RX_SPI.Channel_Count;
       end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
