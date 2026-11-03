@@ -13123,3 +13123,19 @@ feature, yet their task code, bus drivers and probes stayed linked.
 On the CLRacing F7, which builds none of the four, the code region shrinks by 508 bytes, so the image has 2356
 bytes of its 480 KB code region to spare. A build time stamp inside packed data moves stream size by tens of bytes
 between builds.
+
+## D630. Shared external interrupt dispatch (2026-11-02)
+
+One dispatcher now owns a board's seven external interrupt vectors. Each vector's handler takes its lines that
+are enabled and pending, clears their pending flags, then calls each line's callback, highest line first, as the
+reference does. A driver registers its line's callback before it enables the line. Gyro data ready is the first
+line to use it. Lines 10 to 15 share one vector, so an SPI receiver's interrupt line can sit beside the gyro's, as
+on a board with the receiver on line 15 and the gyro on line 14.
+
+`Adaflight.EXTI_Lines` contains each vector's line mask and takes the highest pending line. Its proof shows that
+the taken line was pending and is cleared, and that no higher line was pending. We prove it because it runs in
+every external interrupt, where a run-time error would stop the board. All seven handlers run at the priority of
+the old gyro handler.
+
+On the CLRacing F7 its code region grows by 512 bytes, for seven handlers and their attachment at start-up, and
+about 1800 bytes of its 480 KB code region stay free.

@@ -1,5 +1,3 @@
-with Ada.Interrupts.Names;
-with System;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Gyro_Detect;
@@ -9,6 +7,7 @@ with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.EXTI;
+with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
@@ -89,33 +88,11 @@ package body Adaflight.STM32.Gyro is
    Gyro_Found : Boolean := False;
    Polled_Temperature : Interfaces.Integer_16 := Interfaces.Integer_16'First;
 
-   --  The interrupt of a pin's external interrupt line.
-   function Line_Interrupt (Line : Pin_Number) return Ada.Interrupts.Interrupt_ID is
-     (case Line is
-         when 0      => Ada.Interrupts.Names.EXTI0_Interrupt,
-         when 1      => Ada.Interrupts.Names.EXTI1_Interrupt,
-         when 2      => Ada.Interrupts.Names.EXTI2_Interrupt,
-         when 3      => Ada.Interrupts.Names.EXTI3_Interrupt,
-         when 4      => Ada.Interrupts.Names.EXTI4_Interrupt,
-         when 5 .. 9 => Ada.Interrupts.Names.EXTI9_5_Interrupt,
-         when others => Ada.Interrupts.Names.EXTI15_10_Interrupt);
-
-   --  The data ready line's interrupt counts and times the sample in the
+   --  The data ready line's callback counts and times the sample in the
    --  layer.
-   protected Data_Ready with Interrupt_Priority => System.Interrupt_Priority'First is
-      function Count return Unsigned_32;
-   private
-      procedure Handler with Attach_Handler => Line_Interrupt (Adaflight.Board.Gyro_1_EXTI_Pin.Number);
-   end Data_Ready;
-
-   protected body Data_Ready is
-      function Count return Unsigned_32 is (State.Detected_EXTI);
-
-      procedure Handler is
-      begin
-         EXTI.Clear_Pending (Bus.Line.Number);
-         Layer.Interrupt (Bus, State);
-      end Handler;
+   procedure Data_Ready is
+   begin
+      Layer.Interrupt (Bus, State);
    end Data_Ready;
 
    procedure Select_Chip (D : Device) is
@@ -202,6 +179,7 @@ package body Adaflight.STM32.Gyro is
    begin
       GPIO.Enable_Port (D.Line.Port);
       GPIO.Set_Input (D.Line);
+      EXTI_Dispatch.Register (D.Line.Number, Data_Ready'Access);
       EXTI.Enable_Rising (D.Line);
    end Enable_Interrupt;
 
@@ -351,7 +329,7 @@ package body Adaflight.STM32.Gyro is
          when Layer.EXTI_Int     => Interrupt,
          when Layer.EXTI_No_Int  => No_Interrupt);
 
-   function Interrupt_Count return Unsigned_32 is (Data_Ready.Count);
+   function Interrupt_Count return Unsigned_32 is (State.Detected_EXTI);
 
    function Sync_Cycles return Unsigned_32 is (State.Sync_EXTI);
 
