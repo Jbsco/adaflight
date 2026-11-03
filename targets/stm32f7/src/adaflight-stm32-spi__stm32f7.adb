@@ -138,6 +138,12 @@ package body Adaflight.STM32.SPI is
       Regs (B).CR1 := (Regs (B).CR1 and not Rate_Mask) or Shift_Left (Bits, Rate_Shift);
    end Set_Divisor;
 
+   procedure Set_Mode (B : Bus; Leading_Edge : Boolean) is
+      Bits : constant Unsigned_32 := Clock_Idle_High or Clock_Phase_Second;
+   begin
+      Regs (B).CR1 := (if Leading_Edge then Regs (B).CR1 and not Bits else Regs (B).CR1 or Bits);
+   end Set_Mode;
+
    procedure Transfer (B : Bus; Tx : Byte_Array; Rx : out Byte_Array) is
       R : constant Conversions.Object_Pointer := Regs (B);
    begin

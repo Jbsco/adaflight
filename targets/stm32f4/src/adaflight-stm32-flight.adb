@@ -126,6 +126,7 @@ with Adaflight.STM32.Radio;
 with Adaflight.STM32.Rangefinder;
 with Adaflight.STM32.RunCam;
 with Adaflight.STM32.RTC;
+with Adaflight.STM32.RX_SPI;
 with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
 with Adaflight.SmartAudio;
@@ -952,6 +953,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.OSD.Preinit (Config);
       Adaflight.STM32.SD.Preinit (Config);
       Adaflight.STM32.Flash_Chip.Preinit (Config);
+      Adaflight.STM32.RX_SPI.Preinit (Config);
       if Adaflight.Board.Has_I2C1 then
          Adaflight.STM32.I2C.Init (Adaflight.STM32.I2C.I2C1, Adaflight.Board.I2C1_SCL_Pin, Adaflight.Board.I2C1_SDA_Pin);
       end if;

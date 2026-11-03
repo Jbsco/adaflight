@@ -31,6 +31,7 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.RX_SPI;
 with Adaflight.UDP_Receiver;
 with Adaflight.STM32.Time;
 with Adaflight.SRXL_Display_Port;
@@ -305,6 +306,10 @@ package body Adaflight.STM32.Radio is
                                   when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count,
                                   when MAVLink => Adaflight.MAVLink.Channel_Count,
                                   when SRXL2 => Adaflight.Receiver.Channel_Count)));
+      if Rx_Settings.Source in Adaflight.Receiver.SPI then
+         Adaflight.STM32.RX_SPI.Init (Config);
+         Rx_Settings.Reported_Channels := Adaflight.STM32.RX_SPI.Channel_Count;
+      end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
@@ -963,6 +968,9 @@ package body Adaflight.STM32.Radio is
                end;
          end case;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.SPI and then not Task_In_Progress then
+         Adaflight.STM32.RX_SPI.Frame_Status (Status);
+      end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
          declare
             Fresh  : Boolean;
@@ -1188,6 +1196,19 @@ package body Adaflight.STM32.Radio is
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SRXL2.Read_Raw (SRXL2_State, Ch)));
                end loop;
          end case;
+      end if;
+      if Rx_Settings.Source in Adaflight.Receiver.SPI then
+         if Rx.Aux_Required then
+            Adaflight.STM32.RX_SPI.Process_Frame;
+         end if;
+         for Ch in Adaflight.Receiver.Channel loop
+            declare
+               Value : Float;
+            begin
+               Adaflight.STM32.RX_SPI.Read_Raw (Ch, Value);
+               Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Value));
+            end;
+         end loop;
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.UDP then
          for Ch in Adaflight.UDP_Receiver.Channel loop

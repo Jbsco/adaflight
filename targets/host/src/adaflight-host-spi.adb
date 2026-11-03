@@ -521,6 +521,8 @@ package body Adaflight.STM32.SPI is
 
    procedure Set_Divisor (B : Bus; Divisor : Interfaces.Unsigned_16) is null;
 
+   procedure Set_Mode (B : Bus; Leading_Edge : Boolean) is null;
+
    procedure Transfer (B : Bus; Tx : Byte_Array; Rx : out Byte_Array) is
    begin
       if B = SPI3 and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Flash_CS_Pin) then
