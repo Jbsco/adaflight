@@ -4662,7 +4662,12 @@ package body Adaflight.STM32.Flight is
          end if;
       end;
       if not Adaflight.STM32.Radio.Is_FPort then
-         Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
+         --  An SPI receiver that took the SmartPort stream at its start keeps it.
+         if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.SmartPort_Taken then
+            Adaflight.STM32.RX_SPI.Set_SmartPort_Build (SmartPort_Build);
+         else
+            Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
+         end if;
       end if;
       if Adaflight.Build_Features.LTM_Telemetry then
          Adaflight.STM32.LTM.Init (Config, Runtime_Features);

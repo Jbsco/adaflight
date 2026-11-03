@@ -13261,3 +13261,15 @@ data takes a function address in that range, or a branch reaches it from outside
 Free flash grows from 2823 to 11608 bytes on a CLRacing F7, and from 1049 to 9843 bytes on an AlienFlight NG F7
 RX. Start-up decodes about 21 KB more: 6.0 million more instructions in emulation, about 28 ms at 216 MHz and one
 instruction per cycle.
+
+## D639. FrSky X telemetry over SPI receivers on boards (2026-11-03)
+
+FrSky X protocols on an SPI receiver now run their telemetry on boards. A frame that asks for processing gets a
+processing pass in its receiver task, with SmartPort values that FPort telemetry also reads. An MSP request over
+that link goes to serial SmartPort telemetry's processor, and the pass finishes with its reply.
+
+A receiver that takes the SmartPort stream at its start keeps it: serial SmartPort telemetry then stays closed, and
+the receiver builds its value tables from sensors. Since D636, hub telemetry counted as taken for any FrSky protocol
+with telemetry. It now counts only for FrSky D.
+
+On an AlienFlight NG F7 RX this costs 1172 bytes of flash, 8671 left.

@@ -2,6 +2,7 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.CC2500;
 with Adaflight.FrSky_SPI;
+with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.SPI_Radio;
 with Adaflight.STM32.GPIO;
@@ -14,6 +15,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    package FS renames Adaflight.FrSky_SPI;
    use type SR.Op_Kind;
    use type FS.Received;
+   use type FS.SPI_Protocol;
 
    type Chip is limited null record;
 
@@ -89,6 +91,14 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    Cal         : FS.Calibration_Table := (others => (others => 0));
    Save_Wanted : Boolean := False;
    Readings    : Adaflight.STM32.RX_SPI.Telemetry_Readings;
+   --  The X telemetry's SmartPort stream, its values, the MSP tunnel over the
+   --  link and the processor's reply to its request.
+   Smart        : Adaflight.SmartPort_Telemetry.Stream;
+   Smart_Values : Adaflight.SmartPort_Telemetry.Inputs;
+   Tunnel       : Adaflight.MSP_Telemetry.Tunnel;
+   Reply        : Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) := (others => 0);
+   MSP_Wanted   : Boolean := False;
+   MSP_Ack      : constant := 1;
 
    function Has_Tag (Tag : Byte) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
 
@@ -333,8 +343,30 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          FS.Data_Received (State, Settings, Inp, Ops, Result);
          Run (Ops, Split + 1, Ops.Count);
       end if;
-      R := (Bind => Result = FS.Bind_Done, Data => Result = FS.Data_Ready, Processing_Required => False);
+      R := (Bind => Result = FS.Bind_Done, Data => Result = FS.Data_Ready,
+            Processing_Required => State.Processing_Required);
    end FrSky_Data_Received;
+
+   procedure FrSky_Process_Frame (R : out Adaflight.RX_SPI.Received) is
+   begin
+      FS.Process_Frame (State, Time.Millis, Smart, Smart_Values, Tunnel, Resume => False, MSP_Request => MSP_Wanted);
+      R := (others => False);
+   end FrSky_Process_Frame;
+
+   function FrSky_MSP_Pending return Boolean is (MSP_Wanted);
+
+   procedure FrSky_Answer_MSP is
+      Count          : Natural;
+      Failed         : Boolean;
+      Unused_Request : Boolean;
+   begin
+      MSP_Wanted := False;
+      Answer (Tunnel.Request_Command, Adaflight.MSP_Telemetry.Request_Data (Tunnel), Reply, Count, Failed);
+      Adaflight.MSP_Telemetry.Prepare_Reply
+        (Tunnel, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack), Reply (0 .. Count - 1));
+      FS.Process_Frame (State, Time.Millis, Smart, Smart_Values, Tunnel, Resume => True,
+                        MSP_Request => Unused_Request);
+   end FrSky_Answer_MSP;
 
    procedure FrSky_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data) is
       Rc : FS.Channel_Values;
@@ -353,7 +385,10 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       FS.Request_Bind (State);
    end FrSky_Request_Bind;
 
-   function FrSky_Hub_Taken return Boolean is (State.Telemetry_Enabled);
+   function FrSky_Hub_Taken return Boolean is (State.Telemetry_Enabled and then Settings.Protocol = FS.FrSky_D);
+
+   function FrSky_SmartPort_Taken return Boolean is
+     (State.Telemetry_Enabled and then Settings.Protocol /= FS.FrSky_D);
 
    procedure Set_Readings (R : Adaflight.STM32.RX_SPI.Telemetry_Readings) is
    begin
@@ -364,6 +399,18 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    begin
       Settings.Hub := S;
    end Set_Hub_Settings;
+
+   procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs) is
+   begin
+      Smart := (others => <>);
+      Tunnel := (others => <>);
+      Adaflight.SmartPort_Telemetry.Build (Smart, B);
+   end Set_SmartPort_Build;
+
+   procedure Set_SmartPort_Values (V : Adaflight.SmartPort_Telemetry.Inputs) is
+   begin
+      Smart_Values := V;
+   end Set_SmartPort_Values;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record renames C.Rx_Cc2500_Spi_Config;

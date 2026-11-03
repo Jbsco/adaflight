@@ -1016,6 +1016,7 @@ package body Adaflight.STM32.Radio is
 
    procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean) is
       use type Adaflight.GHST.MSP_Kind;
+      procedure SPI_Process_Frame is new Adaflight.STM32.RX_SPI.Process_Frame (Answer, SmartPort_Values);
       Raw             : Adaflight.Receiver.Raw_Values := (others => 0.0);
       Override        : Adaflight.Receiver.Override_Report;
       Frame_Processed : Boolean;
@@ -1214,7 +1215,7 @@ package body Adaflight.STM32.Radio is
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.SPI then
          if Rx.Aux_Required then
-            Adaflight.STM32.RX_SPI.Process_Frame;
+            SPI_Process_Frame;
          end if;
          for Ch in Adaflight.Receiver.Channel loop
             declare

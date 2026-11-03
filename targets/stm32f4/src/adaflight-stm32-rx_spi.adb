@@ -51,9 +51,13 @@ package body Adaflight.STM32.RX_SPI is
    end Family_Data_Received;
 
    procedure Family_Process_Frame (F : Layer.Family; R : out Layer.Received) is
-      pragma Unreferenced (F);
    begin
-      R := (others => False);
+      case F is
+         when Layer.FrSky =>
+            RX_SPI_CC2500.FrSky_Process_Frame (R);
+         when others =>
+            R := (others => False);
+      end case;
    end Family_Process_Frame;
 
    procedure Family_Set_Channels (F : Layer.Family; Data : in out Layer.Channel_Data) is
@@ -105,8 +109,15 @@ package body Adaflight.STM32.RX_SPI is
    end Frame_Status;
 
    procedure Process_Frame is
+      procedure Answer_MSP is new RX_SPI_CC2500.FrSky_Answer_MSP (Answer);
    begin
+      if SmartPort_Taken then
+         RX_SPI_CC2500.Set_SmartPort_Values (SmartPort_Values);
+      end if;
       Provider.Process_Frame (State);
+      if SmartPort_Taken and then RX_SPI_CC2500.FrSky_MSP_Pending then
+         Answer_MSP;
+      end if;
    end Process_Frame;
 
    function Channel_Count return Natural is (Channels);
@@ -140,6 +151,8 @@ package body Adaflight.STM32.RX_SPI is
 
    function Hub_Taken return Boolean is (Takes_Readings and then RX_SPI_CC2500.FrSky_Hub_Taken);
 
+   function SmartPort_Taken return Boolean is (Takes_Readings and then RX_SPI_CC2500.FrSky_SmartPort_Taken);
+
    procedure Set_Readings (R : Telemetry_Readings) is
    begin
       RX_SPI_CC2500.Set_Readings (R);
@@ -149,6 +162,11 @@ package body Adaflight.STM32.RX_SPI is
    begin
       RX_SPI_CC2500.Set_Hub_Settings (S);
    end Set_Hub_Settings;
+
+   procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs) is
+   begin
+      RX_SPI_CC2500.Set_SmartPort_Build (B);
+   end Set_SmartPort_Build;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
    begin

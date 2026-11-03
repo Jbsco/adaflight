@@ -2,9 +2,11 @@
 --  protocol's family started from the configuration, the frame check, the
 --  frame processing and the channel reads.
 with Interfaces;
+with Adaflight.Bytes;
 with Adaflight.Config_Groups;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.Receiver;
+with Adaflight.SmartPort_Telemetry;
 package Adaflight.STM32.RX_SPI is
    --  The readings a receiver's telemetry sends: the hub stream's inputs, the
    --  external and RSSI analog samples and the battery voltage in hundredths
@@ -24,6 +26,13 @@ package Adaflight.STM32.RX_SPI is
    --  reports nothing and the channels read zero.
    procedure Init (C : Adaflight.Config_Groups.Configuration; Telemetry : Boolean);
    procedure Frame_Status (Report : out Adaflight.Receiver.Frame_Report);
+   --  The processing a frame status asked for, with the SmartPort values a
+   --  receiver's telemetry sends, and an MSP request completed over its link
+   --  answered through Answer.
+   generic
+      with procedure Answer (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                             Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
+      with function SmartPort_Values return Adaflight.SmartPort_Telemetry.Inputs;
    procedure Process_Frame;
    --  The channels the protocol carries.
    function Channel_Count return Natural;
@@ -36,11 +45,15 @@ package Adaflight.STM32.RX_SPI is
    --  Whether the protocol takes the RSSI when no other source is set.
    function Claims_RSSI return Boolean;
    --  Whether the receiver sends telemetry readings, and whether it took the
-   --  hub stream, which the serial hub then leaves alone.
+   --  hub stream or the SmartPort stream, which the serial telemetry then
+   --  leaves alone.
    function Takes_Readings return Boolean;
    function Hub_Taken return Boolean;
+   function SmartPort_Taken return Boolean;
    procedure Set_Readings (R : Telemetry_Readings);
    procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings);
+   --  The SmartPort stream's value tables from the sensors.
+   procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs);
    --  The bind data into the configuration when a completed bind asked to
    --  save it, once.
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean);
