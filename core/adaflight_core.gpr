@@ -18,6 +18,10 @@ project Adaflight_Core is
       case Adaflight_Core_Config.Build_Profile is
          when "release" =>
             for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120");
+            --  The unpacking's decoder runs before the packed data exists, so it stays outside link time
+            --  optimization: its constants keep its object file's name, which the packing leaves in flash.
+            for Switches ("adaflight-lzma.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
          when others =>
             for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
       end case;

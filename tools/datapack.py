@@ -10,6 +10,7 @@ checks that it fits between __rom_end and the end of the flash region, and write
 image: sector0.bin with the vector table and the code of sector 0, and code.bin with the code from sector 2
 followed by the stream at __rom_end.
 """
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -41,6 +42,33 @@ def symbols(elf: Path) -> dict:
     return out
 
 
+# The code that runs before the packed range exists: the unpacking, its decoder and the cache start-up.
+EARLY_CODE = ("adaflight_data_pack_unpack", "adaflight__lzma__", "adaflight__stm32__cache__")
+
+
+def early_references(elf: Path, start: int, end: int) -> list:
+    """The addresses past start and before end that the code running before the unpacking loads, from its literal
+    pools and its movw and movt pairs; start itself is the unpacking's target."""
+    found = []
+    functions = sorted({p[2] for p in (line.split() for line in run("arm-eabi-nm", str(elf)).splitlines())
+                        if len(p) == 3 and p[1] in "Tt" and p[2].startswith(EARLY_CODE)})
+    for name in functions:
+        low = {}
+        for line in run("arm-eabi-objdump", "-d", f"--disassemble={name}", str(elf)).splitlines():
+            m = re.search(r"\.word\s+0x([0-9a-f]{8})", line)
+            if m and start < int(m.group(1), 16) < end:
+                found.append((name, int(m.group(1), 16)))
+            m = re.search(r"\bmovw\s+(r\d+), #(\d+)", line)
+            if m:
+                low[m.group(1)] = int(m.group(2))
+            m = re.search(r"\bmovt\s+(r\d+), #(\d+)", line)
+            if m and m.group(1) in low:
+                value = (int(m.group(2)) << 16) | low[m.group(1)]
+                if start < value < end:
+                    found.append((name, value))
+    return found
+
+
 def section_bytes(elf: Path, name: str, scratch: Path) -> bytes:
     run("arm-eabi-objcopy", "-O", "binary", f"--only-section={name}", str(elf), str(scratch))
     return scratch.read_bytes()
@@ -56,6 +84,10 @@ def main() -> None:
     if secs.get(".ccmdata", (0, 0, 0))[0]:
         raise SystemExit("datapack: a packed image cannot hold .ccmdata, which the run-time library copies")
     start, end = syms["__packed_start"], syms["__packed_end"]
+    early = early_references(elf, start, end)
+    if early:
+        raise SystemExit("datapack: code that runs before the unpacking reads packed data: "
+                         + ", ".join(f"{name} {address:#010x}" for name, address in early))
     raw = bytearray(end - start)
     scratch = elf.parent / "datapack.tmp"
     for name in (".packed_tables", ".data"):
