@@ -204,4 +204,82 @@ package body Adaflight.ExpressLRS_Telemetry with SPARK_Mode is
       end if;
    end Unlock;
 
+   -----------
+   -- Start --
+   -----------
+
+   procedure Start (P : in out Payload_Schedule; R : in out Receiver; Inp : Start_Inputs) is
+      function Enabled (Mask : Interfaces.Unsigned_32) return Boolean is (((not Inp.Disabled_Sensors) and Mask) /= 0);
+      Voltage       : constant := 2 ** 0;
+      Current       : constant := 2 ** 1;
+      Fuel          : constant := 2 ** 2;
+      Mode          : constant := 2 ** 3;
+      Pitch         : constant := 2 ** 7;
+      Roll          : constant := 2 ** 8;
+      Heading       : constant := 2 ** 9;
+      Altitude      : constant := 2 ** 10;
+      Lat_Long      : constant := 2 ** 12;
+      Ground_Speed  : constant := 2 ** 13;
+   begin
+      if not Inp.Telemetry_Feature then
+         return;
+      end if;
+      if Inp.Accelerometer and then Enabled (Pitch or Roll or Heading) then
+         P.Sensors (Attitude) := True;
+      end if;
+      if (Inp.Voltage_Configured and then Enabled (Voltage))
+        or else (Inp.Amperage_Configured and then Enabled (Current or Fuel))
+      then
+         P.Sensors (Battery) := True;
+      end if;
+      if Enabled (Mode) then
+         P.Sensors (Flight_Mode) := True;
+      end if;
+      if Inp.GPS_Feature and then Enabled (Altitude or Lat_Long or Ground_Speed or Heading) then
+         P.Sensors (GPS) := True;
+      end if;
+      Reset_Receiver (R);
+      P.MSP_Reply_Pending := False;
+      P.Device_Info_Pending := False;
+   end Start;
+
+   ----------
+   -- Next --
+   ----------
+
+   procedure Next (P : in out Payload_Schedule; Kind : out Next_Payload) is
+      Frames : constant array (Payload_Type) of Next_Payload :=
+        (GPS => GPS_Frame, Battery => Battery_Frame, Attitude => Attitude_Frame, Flight_Mode => Flight_Mode_Frame);
+      Turn   : constant Payload_Type := P.Index;
+   begin
+      if P.Device_Info_Pending then
+         Kind := Device_Info;
+         P.Device_Info_Pending := False;
+      elsif P.MSP_Reply_Pending then
+         Kind := MSP_Reply;
+         P.MSP_Reply_Pending := False;
+      else
+         Kind := (if P.Sensors (Turn) then Frames (Turn) else None);
+         P.Index := (if Turn = Payload_Type'Last then Payload_Type'First else Payload_Type'Succ (Turn));
+      end if;
+   end Next;
+
+   -----------------
+   -- Process_MSP --
+   -----------------
+
+   procedure Process_MSP (P : in out Payload_Schedule; Kind : MSP_Kind; Buffered : Boolean) is
+   begin
+      case Kind is
+         when Ping =>
+            P.Device_Info_Pending := True;
+         when MSP_Frame =>
+            if Buffered then
+               P.MSP_Reply_Pending := True;
+            end if;
+         when Other =>
+            null;
+      end case;
+   end Process_MSP;
+
 end Adaflight.ExpressLRS_Telemetry;

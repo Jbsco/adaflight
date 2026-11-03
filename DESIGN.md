@@ -13325,3 +13325,18 @@ configuration when it changes them. ExpressLRS telemetry, which reference builds
 transmitter come in a later step.
 
 On an AlienFlight NG F7 ELRS this costs 11024 bytes of flash, 7832 left.
+
+## D644. ExpressLRS telemetry payload schedule (2026-11-03)
+
+Our ExpressLRS telemetry core now chooses the payloads its sender offers. Start, with the telemetry feature on,
+adds a payload to the set for each group of sensors that allows it: GPS with the GPS feature, battery with a
+configured voltage or current meter, attitude with an accelerometer, and flight mode. Each needs one of its
+telemetry sensors left enabled. Start also clears the MSP receiver's position and the waiting replies. With the
+feature off it changes nothing, and a second start adds to the set, as reference start does.
+
+A device information reply goes first, then an MSP reply, then the payload whose turn it is when its sensors are
+on. The turn moves on either way. A device ping from the transmitter asks for the device information; an MSP request
+or write that the MSP handler buffered asks for a reply.
+
+Vectors drive reference telemetry code through random features, sensor masks, battery meters and MSP frames, with
+payload requests between them.
