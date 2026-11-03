@@ -5,9 +5,10 @@ usage: datapack.py <elf>
 
 Runs in the crate directory with the ARM toolchain on the path. The linker placed the packed tables and the
 initialized data in RAM with load addresses in the staging region; this reads their bytes, compresses the range
-from __packed_start to __packed_end with tools/lzss.py, checks the stream decodes back, checks that it fits between
-__rom_end and the end of the flash region, and writes the flash files beside the image: sector0.bin with the vector
-table and the code of sector 0, and code.bin with the code from sector 2 followed by the stream at __rom_end.
+from __packed_start to __packed_end as an LZMA stream (tools/lzma_ref.py), checks the stream decodes back,
+checks that it fits between __rom_end and the end of the flash region, and writes the flash files beside the
+image: sector0.bin with the vector table and the code of sector 0, and code.bin with the code from sector 2
+followed by the stream at __rom_end.
 """
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lzss  # noqa: E402
+import lzma_ref  # noqa: E402
 
 
 def run(*args) -> str:
@@ -60,8 +61,8 @@ def main() -> None:
     for name in (".packed_tables", ".data"):
         size, vma, _ = secs[name]
         raw[vma - start:vma - start + size] = section_bytes(elf, name, scratch)
-    stream = lzss.compress(bytes(raw))
-    back, status = lzss.decompress(stream, len(raw))
+    stream = lzma_ref.compress(bytes(raw))
+    back, status = lzma_ref.decompress(stream, len(raw))
     if status != "done" or back != bytes(raw):
         raise SystemExit("datapack: the stream does not decode back to the packed range")
     rom_end, flash_end = syms["__rom_end"], syms["__flash_end"]

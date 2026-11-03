@@ -325,6 +325,7 @@ with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Frames;
 with Adaflight.MAVLink_Mission;
 with Adaflight.MAVLink_Telemetry;
+with Adaflight.LZMA;
 with Adaflight.LZSS;
 with Adaflight.Sim_FDM;
 
@@ -38409,6 +38410,23 @@ procedure Vector_Check is
       end;
    end Joined;
 
+   procedure Check_LZMA_Line is
+      package L renames Adaflight.LZMA;
+      Size   : constant Natural := Natural (Int (4));
+      Target : Byte_Array (0 .. Size - 1);
+      M      : L.Model;
+      Result : L.Status;
+   begin
+      L.Decode (Joined (6, Positive (Int (5))), Target, M, Result);
+      Record_Text ("lzma.status", Str (3),
+                   (case Result is
+                       when L.Done       => "done",
+                       when L.Truncated  => "truncated",
+                       when L.Bad_Length => "bad_length",
+                       when L.Bad_Data   => "bad_data"));
+      Record_Bytes ("lzma.output", Joined (7 + Natural (Int (5)), Positive (Int (6 + Natural (Int (5))))), Target);
+   end Check_LZMA_Line;
+
    procedure Check_LZSS_Line is
       package L renames Adaflight.LZSS;
       Size   : constant Natural := Natural (Int (4));
@@ -41044,6 +41062,8 @@ procedure Vector_Check is
                   Check_IMU_Sim_Line;
                elsif Kind = "lzss" then
                   Check_LZSS_Line;
+               elsif Kind = "lzma" then
+                  Check_LZMA_Line;
                elsif Kind = "simfdm" then
                   Check_Sim_FDM_Line;
                elsif Kind = "dshotcapture" then
@@ -41450,6 +41470,7 @@ begin
    Run (Dir & "/dshotcapture.csv", "dshotcapture");
    Run (Dir & "/simfdm.csv", "simfdm");
    Run (Dir & "/lzss.csv", "lzss");
+   Run (Dir & "/lzma.csv", "lzma");
    Run (Dir & "/imusim.csv", "imusim");
    Run (Dir & "/dshotread.csv", "dshotread");
    Check_Twiddles;
