@@ -51,7 +51,7 @@ project Adaflight_Stm32f7 is
 
    package Linker is
       for Switches ("Ada") use
-        ("-flto", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+        ("-flto", "-flto-partition=one", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
          "-Wl,--enable-non-contiguous-regions", "-Wl,--no-warn-rwx-segments",
          "-Wl,--defsym=__stack_size=32768",
          "-L" & Project'Project_Dir & "gen",

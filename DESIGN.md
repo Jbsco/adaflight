@@ -13232,3 +13232,14 @@ build. A slot whose length byte claims more than five bytes gives at most five, 
 five-byte buffer (DIVERGENCES). FrSky X vectors now run the reference SmartPort encoder with its voltage sensor and a
 transmitter that polls it, so their FIFO writes carry its frames. Our board runs this once room allows on its
 512 KB SPI receiver boards.
+
+## D637. One link time optimization partition (2026-11-03)
+
+Board images now link with a single link time optimization partition. With several partitions, each one kept its
+own copy of read-only constants its functions shared, and the optimizer saw each partition alone. One partition
+keeps one copy and lets the optimizer see the whole program, at the cost of a serial final compile of about 24 s
+for an STM32F7 image.
+
+The default STM32F4 image shrinks by 10340 bytes of code. On the CLRacing F7 free flash grows from 1837 to 2823
+bytes, and its packed range, which start-up unpacks into RAM, shrinks by 7252 bytes. Marking start-up procedures
+cold for GCC grew that image by about 1 KB instead, so they stay unmarked.
