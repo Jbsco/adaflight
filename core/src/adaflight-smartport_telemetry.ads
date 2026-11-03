@@ -181,6 +181,8 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
       --  A complete MSP request waits for the processor; the caller prepares
       --  the reply in the tunnel and resumes the pass.
       MSP_Request   : Boolean := False;
+      --  The payload of the frame written, for a link that frames it itself.
+      Written       : Payload;
    end record;
 
    --  The tables from the configuration and the sensors present.
@@ -193,9 +195,10 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
           Post => O.Count <= Max_Tx;
 
    --  One byte of the line; Last marks the last byte waiting, when a poll
-   --  of this sensor clears it to send.
+   --  of this sensor clears it to send. Without the checksum, the seventh
+   --  byte of a frame completes its payload.
    procedure Receive (S : in out Stream; C : Byte; Last : Boolean; Clear_To_Send : in out Boolean;
-                      Received : out Payload);
+                      Received : out Payload; Use_Checksum : Boolean := True);
 
    --  The next value within the attempts allowed, once cleared to send, in
    --  the FPORT reply when FPort asks for it.

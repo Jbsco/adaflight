@@ -13,6 +13,8 @@
 with Interfaces;
 with Adaflight.SPI_Radio;
 with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.MSP_Telemetry;
+with Adaflight.SmartPort_Telemetry;
 
 package Adaflight.FrSky_SPI with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -122,6 +124,14 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Hub_Sent          : Natural range 0 .. Hub_Buffer_Size := 0;
       Hub_Acknowledged  : Natural range 0 .. Hub_Buffer_Size := 0;
       Hub_Id_Expected   : Unsigned_8 := 0;
+      --  The X telemetry's processing: whether the last call asked for it,
+      --  the last poll's time, the received frame and byte it reached, and
+      --  the clearance an MSP request left for its resumed pass.
+      Processing_Required : Boolean := False;
+      Polling_Time_Ms     : Unsigned_32 := 0;
+      To_Process_Id       : Sequence_Id := 0;
+      To_Process_Index    : Natural range 0 .. 5 := 0;
+      Smart_Clear         : Boolean := False;
    end record;
 
    subtype Output is Adaflight.SPI_Radio.Output;
@@ -144,6 +154,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Hub             : Adaflight.FrSky_Hub_Telemetry.Inputs;
       Chip_Ok         : Boolean := True;
       Hub_Free        : Boolean := True;
+      SmartPort_Free  : Boolean := True;
    end record;
 
    type Received is (None, Bind_Done, Data_Ready);
@@ -167,6 +178,21 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
 
    Max_Channels : constant := 16;
    type Channel_Values is array (0 .. Max_Channels - 1) of Unsigned_16;
+
+   --  The X telemetry's processing after a frame that asked for it: every
+   --  24 ms a poll clears it to send, otherwise the received telemetry bytes
+   --  go through the SmartPort reader up to the first complete payload; then
+   --  one pass of the SmartPort telemetry, whose written payload joins the
+   --  bytes the link sends. MSP_Request asks the caller for the processor's
+   --  reply, and a call with Resume then finishes the pass.
+   procedure Process_Frame
+     (S           : in out State;
+      Now_Ms      : Unsigned_32;
+      Smart       : in out Adaflight.SmartPort_Telemetry.Stream;
+      Smart_Inp   : Adaflight.SmartPort_Telemetry.Inputs;
+      T           : in out Adaflight.MSP_Telemetry.Tunnel;
+      Resume      : Boolean;
+      MSP_Request : out Boolean);
 
    --  The channels a protocol carries: eight for D8, sixteen for X.
    function Channel_Count (C : Settings) return Natural is (if C.Protocol = FrSky_D then 8 else 16);
