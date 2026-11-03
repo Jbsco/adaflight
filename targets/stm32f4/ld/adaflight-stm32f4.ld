@@ -167,11 +167,14 @@ SECTIONS
   __ccmdata_words = (__ccmdata_end - __ccmdata_start) >> 2;
 
   /* Zeroed data placed in the core coupled memory by its section name: the
-     menu's state and target, which the main RAM cannot hold. */
+     menu's state and target, and the flight loop's configuration and context,
+     for the main RAM the stack takes. */
   .ccmbss (NOLOAD) : {
    . = ALIGN(0x8);
    __ccmbss_start = .;
    *(.bss.ccm .bss.ccm.*)
+   *(.bss.adaflight__stm32__flight__config)
+   *(.bss.adaflight__stm32__flight__ctx)
    . = ALIGN(0x8);
    __ccmbss_end = .;
   } > ccm

@@ -13372,3 +13372,14 @@ Status now reports stack size and top from linker symbols, where it showed a fix
 
 A static analysis of our call graph puts the deepest paths near 36 KB: OSD task, CLI defaults, and MSP processing
 with a configuration reset. A stack check image on the bench measures what flight actually uses.
+
+## D647. Main stack of 40 KB (2026-11-03)
+
+A stack check image on a Talon F7 measured 33,612 bytes of main stack use, with OSD over MSP and CLI running. F405
+images and 1 MB F7 images linked a 32,768 byte main stack with interrupt stacks right below it, so such a load
+could overwrite them. Both crates now link 40,960 bytes. Packed F7 images, whose stack was boot code plus 16 KB
+(37,272 bytes on CLRACINGF7), take 40,960 bytes too, and ALIENFLIGHTNGF7_RX keeps 6,216 bytes of main RAM above it.
+
+F405 main RAM had 7,184 bytes free above its stack. Flight configuration (5,000 bytes) and context (4,552 bytes)
+now sit in core coupled memory, as on packed F7 images. Neither one is a DMA buffer. F405 DMA cannot reach core
+coupled memory. CLRACINGF4 then keeps 8,544 bytes free above its stack and 3,952 bytes of core coupled memory.
