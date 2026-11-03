@@ -1,5 +1,6 @@
 with "config/adaflight_host_config.gpr";
 with "adaflight_core.gpr";
+with "gen/adaflight_feature_units.gpr";
 project Adaflight_Host is
    for Source_Dirs use ("src/", "../stm32f4/src/", "gen/", "config/");
    for Object_Dir use "obj/" & Adaflight_Host_Config.Build_Profile;
@@ -18,7 +19,7 @@ project Adaflight_Host is
       "adaflight-stm32-sound.adb", "adaflight-stm32-spi.adb",
       "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight-stm32-usb.adb",
       "adaflight-stm32-i2c.adb",
-      "adaflight_stm32f4.adb");
+      "adaflight_stm32f4.adb") & Adaflight_Feature_Units.Excluded;
 
    package Naming is
       for Body ("Adaflight.STM32.ADC") use "adaflight-host-adc.adb";
@@ -38,6 +39,8 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.Time") use "adaflight-host-time.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-host-usart.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
+      for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
+      for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
    end Naming;
 
    package Compiler is

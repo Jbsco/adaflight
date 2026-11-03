@@ -13065,3 +13065,15 @@ On the CLRacing F7 these strings take 12692 bytes out of flash and add 5060 to t
 bytes less (20068 over its 480 KB code region). Main RAM past packed data keeps 4428 bytes, room for the
 unpacking's model. In an emulated boot of that image linked with a larger flash region, 48 words sampled
 across unpacked data match its sections and start-up reaches flight setup.
+
+## D626. Stub bodies for left-out units (2026-11-02)
+
+A build that leaves out the menu system or SD card logging now compiles stub bodies for the menu and SD card units
+in place of their own. `tools/featuregen.py` writes `gen/adaflight_feature_units.gpr`, which names each unit's
+body and the source it leaves out, and the board crates take both from it. Each stub keeps its unit's spec and
+answers as that unit did with its feature off. Two answers differ: the SD card summary reports no card and the
+menu takes no CRSF or SRXL screen, as upstream builds without those features do.
+
+The real bodies kept their state and its elaboration in builds without the feature, since an Ada object cannot be
+left out by a condition. On the CLRacing F7 the core coupled memory falls from 54552 to 20696 bytes in use and the
+image needs 2150 bytes less (17918 over its 480 KB code region).
