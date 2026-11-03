@@ -114,6 +114,12 @@ def either(defines: dict, *names: str) -> str:
     return next((defines[n] for n in names if n in defines), "")
 
 
+def timer_number(text) -> int:
+    """A timer instance's number, as TIM5 gives 5, zero when the board names none."""
+    m = re.fullmatch(r"TIM(\d+)", (text or "").strip())
+    return int(m.group(1)) if m else 0
+
+
 def rx_spi_protocol(text) -> int:
     """A receiver protocol name's number, zero when the board names none."""
     text = (text or "").strip()
@@ -193,9 +199,9 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
     out.append("   --  motors', the LED strip's, the camera control and the ESC serial pins,")
-    out.append("   --  the ADC devices' DMA options, the SPI receiver's pins, bus, protocol")
-    out.append("   --  and radio pins, and the default receiver feature, the host defaults")
-    out.append("   --  where the board names none.")
+    out.append("   --  the ADC devices' DMA options, the SPI receiver's pins, bus, protocol,")
+    out.append("   --  radio pins and ExpressLRS timer, and the default receiver feature,")
+    out.append("   --  the host defaults where the board names none.")
     ALIGNMENTS = {"ALIGN_DEFAULT": 0, "CW0_DEG": 1, "CW90_DEG": 2, "CW180_DEG": 3, "CW270_DEG": 4, "CW0_DEG_FLIP": 5,
                   "CW90_DEG_FLIP": 6, "CW180_DEG_FLIP": 7, "CW270_DEG_FLIP": 8}
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
@@ -247,6 +253,7 @@ def generate(config: Path, overrides: dict) -> str:
            ("RX_SPI_Default_Protocol", rx_spi_protocol(defines.get("RX_SPI_DEFAULT_PROTOCOL"))),
            ("RX_SPI_LED_Inverted", "True" if "RX_SPI_LED_INVERTED" in defines else "False"),
            ("CC2500_Chip_Detection", "False" if "RX_CC2500_SPI_DISABLE_CHIP_DETECTION" in defines else "True"),
+           ("ELRS_Timer", timer_number(defines.get("RX_EXPRESSLRS_TIMER_INSTANCE"))),
            ("Default_RX_Feature", rx_feature(defines.get("DEFAULT_RX_FEATURE")))]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:

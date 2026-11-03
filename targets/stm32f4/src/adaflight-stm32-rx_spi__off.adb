@@ -31,6 +31,8 @@ package body Adaflight.STM32.RX_SPI is
 
    function Claims_RSSI return Boolean is (False);
 
+   function Claims_Link_Quality return Boolean is (False);
+
    function Takes_Readings return Boolean is (False);
 
    function Hub_Taken return Boolean is (False);

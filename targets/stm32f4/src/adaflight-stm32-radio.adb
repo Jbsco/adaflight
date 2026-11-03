@@ -352,7 +352,9 @@ package body Adaflight.STM32.Radio is
             elsif R.Rssi_Src_Frame_Errors /= 0 then Adaflight.Receiver.Frame_Errors
             else Adaflight.Receiver.None),
          Protocol_Quality =>
-           (if not Open then Adaflight.Receiver.None
+           (if Rx_Settings.Source in Adaflight.Receiver.SPI and then Adaflight.STM32.RX_SPI.Claims_Link_Quality
+            then Adaflight.Receiver.CRSF
+            elsif not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.CRSF
             elsif Kind = GHST then Adaflight.Receiver.GHST
             elsif Kind = MAVLink then Adaflight.Receiver.Mavlink
@@ -751,6 +753,31 @@ package body Adaflight.STM32.Radio is
    end Push_CRSF_Frame;
 
    function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
+
+   procedure Set_Protocol_Link
+     (RSSI     : Interfaces.Unsigned_16; RSSI_Dbm : Interfaces.Integer_16; RSNR : Interfaces.Integer_16;
+      LQ       : Interfaces.Unsigned_16; Uplink_mW : Interfaces.Unsigned_16; Connected : Boolean)
+   is
+      package R renames Adaflight.Receiver;
+   begin
+      if Connected then
+         R.Set_RSSI (Rx, R.Unsigned_16 (RSSI), R.Rx_Protocol);
+         R.Set_RSSI_Dbm (Rx, R.Signed_16 (RSSI_Dbm), R.Rx_Protocol);
+         R.Set_RSNR (Rx, R.Signed_16 (RSNR));
+         R.Set_Link_Quality_Direct (Rx, R.Unsigned_16 (LQ));
+         R.Set_Uplink_Power (Rx, R.Unsigned_16 (Uplink_mW));
+      else
+         R.Set_RSSI_Direct (Rx, R.Unsigned_16 (RSSI), R.Rx_Protocol);
+         R.Set_RSSI_Dbm_Direct (Rx, R.Signed_16 (RSSI_Dbm), R.Rx_Protocol);
+         R.Set_RSNR_Direct (Rx, R.Signed_16 (RSNR));
+         R.Set_Link_Quality_Direct (Rx, R.Unsigned_16 (LQ));
+      end if;
+   end Set_Protocol_Link;
+
+   procedure Set_Protocol_RF_Mode (Mode : Interfaces.Unsigned_8) is
+   begin
+      Adaflight.Receiver.Set_RF_Mode (Rx, Adaflight.Receiver.Byte (Mode));
+   end Set_Protocol_RF_Mode;
 
    procedure Set_Protocol_RSSI (Value : Interfaces.Unsigned_16; Direct : Boolean) is
    begin
