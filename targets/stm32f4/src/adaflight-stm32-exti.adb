@@ -40,8 +40,10 @@ package body Adaflight.STM32.EXTI is
       Regs.IMR := Regs.IMR or Shift_Left (1, Line);
    end Enable_Rising;
 
-   procedure Clear_Pending (Line : Pin_Number) is
+   procedure Take_Pending (Mask : Adaflight.EXTI_Lines.Line_Mask; Active : out Adaflight.EXTI_Lines.Line_Mask) is
+      Lines : constant Unsigned_32 := Regs.IMR and Regs.PR and Unsigned_32 (Mask);
    begin
-      Regs.PR := Shift_Left (1, Natural (Line));
-   end Clear_Pending;
+      Regs.PR := Lines;
+      Active := Adaflight.EXTI_Lines.Line_Mask (Lines);
+   end Take_Pending;
 end Adaflight.STM32.EXTI;
