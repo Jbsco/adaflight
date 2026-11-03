@@ -10,7 +10,10 @@ package body Adaflight.STM32.RX_SPI is
       Report := (others => False);
    end Frame_Status;
 
-   procedure Process_Frame is null;
+   procedure Process_Frame is
+   begin
+      null;
+   end Process_Frame;
 
    function Channel_Count return Natural is (0);
 
@@ -32,9 +35,13 @@ package body Adaflight.STM32.RX_SPI is
 
    function Hub_Taken return Boolean is (False);
 
+   function SmartPort_Taken return Boolean is (False);
+
    procedure Set_Readings (R : Telemetry_Readings) is null;
 
    procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings) is null;
+
+   procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs) is null;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       pragma Unreferenced (C);
