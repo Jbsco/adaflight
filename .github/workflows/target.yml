@@ -74,3 +74,6 @@ jobs:
 
       - name: Build the STM32F7 image with an SPI receiver
         run: CRATE=stm32f7 BOARD=ALIENFLIGHTNGF7_RX bash target.do
+
+      - name: Build the STM32F7 image with an SPI receiver and no CC2500
+        run: CRATE=stm32f7 BOARD=ALIENFLIGHTNGF7_ELRS bash target.do

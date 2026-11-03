@@ -18,7 +18,7 @@ ADAFLIGHT_DEBUG_VALUES="$(python3 ../../tools/featuregen.py --feature Debug_Valu
 export ADAFLIGHT_DEBUG_VALUES
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
-echo "target: features $(sed -n 's/^ *\([A-Za-z_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
+echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
     gen/adaflight-build_features.ads | tr '\n' ' ')"
 if [ "$CRATE" = stm32f7 ] && grep -q "Packed_Data *: constant Boolean := True" gen/adaflight-build_features.ads; then
     alr -n exec -- python3 -I ../../tools/datapack.py "bin/adaflight_$CRATE"

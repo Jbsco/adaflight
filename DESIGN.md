@@ -13296,3 +13296,12 @@ our receiver every loop, and a status frame's settings go into configuration wit
 confirmation beep, as reference save-and-notify does.
 
 On an AlienFlight NG F7 RX this costs 2684 bytes of flash, 3340 left.
+
+## D642. CC2500 receivers only with the chip (2026-11-03)
+
+SPI receiver builds now link CC2500 families (FrSky, SFHSS and Redpine) only when a board's configuration
+defines `USE_RX_CC2500`, as reference builds do. Other SPI receiver builds use a stub body, in which each CC2500
+family's start fails, so our SPI receiver reports nothing for those protocols.
+
+An AlienFlight NG F7 ELRS, which has an SX1280 and no CC2500, goes from 3358 to 18856 bytes of free flash,
+room ExpressLRS needs. CI builds that board too.
