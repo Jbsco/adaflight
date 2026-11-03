@@ -1,6 +1,6 @@
 --  The CC2500 receivers on the board: the chip's registers over the SPI
 --  receiver's device, the operations a family hands back run in order, and
---  the FrSky family's calls with the measurements each one reads.
+--  the FrSky and SFHSS families' calls with the measurements each one reads.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
@@ -19,6 +19,15 @@ package Adaflight.STM32.RX_SPI_CC2500 is
    procedure FrSky_Data_Received (R : out Adaflight.RX_SPI.Received);
    procedure FrSky_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data);
    procedure FrSky_Request_Bind;
+   --  The SFHSS family started, with its channel count and whether it takes
+   --  the RSSI; it starts whether or not the chip answers.
+   procedure SFHSS_Init
+     (Spi    : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500 : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Ok     : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean);
+   procedure SFHSS_Data_Received (R : out Adaflight.RX_SPI.Received);
+   procedure SFHSS_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data);
+   procedure SFHSS_Request_Bind;
    --  Whether the FrSky D telemetry took the hub stream at start-up, and the
    --  FrSky X telemetry the SmartPort stream.
    function FrSky_Hub_Taken return Boolean;

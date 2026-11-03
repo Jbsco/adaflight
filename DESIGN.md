@@ -13273,3 +13273,14 @@ the receiver builds its value tables from sensors. Since D636, hub telemetry cou
 with telemetry. It now counts only for FrSky D.
 
 On an AlienFlight NG F7 RX this costs 1172 bytes of flash, 8671 left.
+
+## D640. SFHSS over SPI receivers on boards (2026-11-03)
+
+CC2500 receivers on boards now run SFHSS, as reference CC2500 builds do. Its calls go through FrSky's operation
+runner, with each family's state and calibration table kept apart, and a bind saves its transmitter ID and offset.
+Pin setup and chip detection are shared with FrSky.
+
+Without an interrupt line, chip start-up stops before its amplifier, transmit and antenna pins and leaves RSSI to
+other sources. SFHSS starts anyway, where FrSky fails.
+
+On an AlienFlight NG F7 RX this costs 2647 bytes of flash, 6024 left.

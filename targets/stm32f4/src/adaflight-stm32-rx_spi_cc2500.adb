@@ -4,6 +4,7 @@ with Adaflight.CC2500;
 with Adaflight.FrSky_SPI;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.SFHSS;
 with Adaflight.SPI_Radio;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Radio;
@@ -13,9 +14,11 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    use type Interfaces.Unsigned_8;
    package SR renames Adaflight.SPI_Radio;
    package FS renames Adaflight.FrSky_SPI;
+   package SF renames Adaflight.SFHSS;
    use type SR.Op_Kind;
    use type FS.Received;
    use type FS.SPI_Protocol;
+   use type SF.Received;
 
    type Chip is limited null record;
 
@@ -84,9 +87,17 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    Bind_Pin    : Pin := (Port_A, 0);
    Has_Bind    : Boolean := False;
 
+   --  The family the receiver started, whose calibration and bind data the
+   --  operations reach.
+   type Active_Family is (FrSky_Family, SFHSS_Family);
+   Active : Active_Family := FrSky_Family;
+
    Settings    : FS.Settings;
    State       : FS.State;
    Trial_State : FS.State;
+   SF_Settings : SF.Settings;
+   SF_State    : SF.State;
+   SF_Trial    : SF.State;
    Ops         : SR.Output;
    Cal         : FS.Calibration_Table := (others => (others => 0));
    Save_Wanted : Boolean := False;
@@ -127,7 +138,19 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          Radio_Chip.Read_Register (Dev, FSCAL2, Cal (C) (1));
          Radio_Chip.Read_Register (Dev, FSCAL1, Cal (C) (2));
       end loop;
-      FS.Set_Calibration (State, Cal);
+      case Active is
+         when FrSky_Family =>
+            FS.Set_Calibration (State, Cal);
+         when SFHSS_Family =>
+            declare
+               Table : SF.Calibration_Table;
+            begin
+               for I in Table'Range loop
+                  Table (I) := Cal (I);
+               end loop;
+               SF.Set_Calibration (SF_State, Table);
+            end;
+      end case;
    end Calibrate;
 
    --  The operations First to Last in order. A FIFO read happened before the
@@ -221,6 +244,17 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          when 18     => FS.FrSky_X_LBT_V2,
          when others => FS.FrSky_D);
 
+   function Pins_Of
+     (Spi : Adaflight.Config_Groups.Rx_Spi_Config_Record; R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record)
+      return SR.Pins is
+     (Chip_Detect   => R.Chip_Detect_Enabled /= 0,
+      Tx_Enable     => Has_Tag (R.Tx_En_Io_Tag),
+      LNA           => Has_Tag (R.Lna_En_Io_Tag),
+      Antenna       => Has_Tag (R.Ant_Sel_Io_Tag),
+      LED           => Has_Tag (Spi.Led_Io_Tag),
+      LED_Inversion => Spi.Led_Inversion /= 0,
+      Bind          => Has_Tag (Spi.Bind_Io_Tag));
+
    function Settings_Of
      (Spi : Adaflight.Config_Groups.Rx_Spi_Config_Record; R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record)
       return FS.Settings
@@ -239,33 +273,34 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       S.Rx_Num := R.Rx_Num;
       S.A1 := (if R.A1_Source <= FS.A1_Source'Pos (FS.A1_Source'Last) then FS.A1_Source'Val (R.A1_Source)
                else FS.Battery_Voltage);
-      S.Pins :=
-        (Chip_Detect   => R.Chip_Detect_Enabled /= 0,
-         Tx_Enable     => Has_Tag (R.Tx_En_Io_Tag),
-         LNA           => Has_Tag (R.Lna_En_Io_Tag),
-         Antenna       => Has_Tag (R.Ant_Sel_Io_Tag),
-         LED           => Has_Tag (Spi.Led_Io_Tag),
-         LED_Inversion => Spi.Led_Inversion /= 0,
-         Bind          => Has_Tag (Spi.Bind_Io_Tag));
+      S.Pins := Pins_Of (Spi, R);
       return S;
    end Settings_Of;
 
+   function SFHSS_Settings_Of
+     (Spi : Adaflight.Config_Groups.Rx_Spi_Config_Record; R : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record)
+      return SF.Settings
+   is
+      S : SF.Settings;
+   begin
+      for I in S.Bind_Tx_Id'Range loop
+         S.Bind_Tx_Id (I) := R.Bind_Tx_Id (I);
+      end loop;
+      S.Bind_Offset := R.Bind_Offset;
+      S.Pins := Pins_Of (Spi, R);
+      return S;
+   end SFHSS_Settings_Of;
+
    function Bind_Level return Boolean is (if Has_Bind then GPIO.Is_High (Bind_Pin) else True);
 
-   procedure FrSky_Init
-     (Spi       : Adaflight.Config_Groups.Rx_Spi_Config_Record;
-      CC2500    : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
-      Telemetry : Boolean;
-      Ok        : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
+   --  The LED and bind pins, then with the interrupt line configured the
+   --  amplifier, transmit and antenna pins; false without the line.
+   procedure Pins_Init
+     (Spi     : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500  : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Exti_Ok : out Boolean)
    is
-      Inp   : FS.Inputs;
-      Split : Natural;
    begin
-      Ok := False;
-      Channels := 0;
-      Claim_RSSI := False;
-      Settings := Settings_Of (Spi, CC2500);
-      Settings.Telemetry := Telemetry;
       Output_Pin (SR.LED, Spi.Led_Io_Tag);
       Has_Bind := Has_Tag (Spi.Bind_Io_Tag);
       if Has_Bind then
@@ -273,12 +308,46 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          GPIO.Enable_Port (Bind_Pin.Port);
          GPIO.Set_Input (Bind_Pin, GPIO.Up);
       end if;
-      if not RX_SPI_Device.Exti_Configured then
+      Exti_Ok := RX_SPI_Device.Exti_Configured;
+      if not Exti_Ok then
          return;
       end if;
       Output_Pin (SR.LNA_Enable, CC2500.Lna_En_Io_Tag);
       Output_Pin (SR.Tx_Enable, CC2500.Tx_En_Io_Tag);
       Output_Pin (SR.Antenna_Select, CC2500.Ant_Sel_Io_Tag);
+   end Pins_Init;
+
+   --  The chip reset and its identity read: part 16#80#, version 3.
+   procedure Detect_Chip (Ok : out Boolean) is
+      Reset_Ok      : Boolean;
+      Part, Version : Byte;
+   begin
+      Radio_Chip.Reset (Dev, Reset_Ok);
+      Radio_Chip.Read_Register (Dev, Part_Register, Part);
+      Radio_Chip.Read_Register (Dev, Version_Register, Version);
+      Ok := Part = 16#80# and then Version = 16#03#;
+   end Detect_Chip;
+
+   procedure FrSky_Init
+     (Spi       : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500    : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Telemetry : Boolean;
+      Ok        : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
+   is
+      Inp     : FS.Inputs;
+      Split   : Natural;
+      Exti_Ok : Boolean;
+   begin
+      Ok := False;
+      Channels := 0;
+      Claim_RSSI := False;
+      Active := FrSky_Family;
+      Settings := Settings_Of (Spi, CC2500);
+      Settings.Telemetry := Telemetry;
+      Pins_Init (Spi, CC2500, Exti_Ok);
+      if not Exti_Ok then
+         return;
+      end if;
       Inp.Now_Us := Time.Micros;
       Inp.Now_Ms := Time.Millis;
       Inp.Bind_Pin_Level := Bind_Level;
@@ -289,15 +358,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          Run (Ops, 1, Ops.Count);
       else
          Run (Ops, 1, Split - 1);
-         declare
-            Reset_Ok      : Boolean;
-            Part, Version : Byte;
-         begin
-            Radio_Chip.Reset (Dev, Reset_Ok);
-            Radio_Chip.Read_Register (Dev, Part_Register, Part);
-            Radio_Chip.Read_Register (Dev, Version_Register, Version);
-            Inp.Chip_Ok := Part = 16#80# and then Version = 16#03#;
-         end;
+         Detect_Chip (Inp.Chip_Ok);
          FS.Start (State, Settings, Inp, Ops, Ok, Claim_RSSI);
          Run (Ops, Split + 1, Ops.Count);
       end if;
@@ -385,6 +446,92 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       FS.Request_Bind (State);
    end FrSky_Request_Bind;
 
+   --  Without the interrupt line the chip's start stops before its pins and
+   --  the RSSI; the protocol starts all the same.
+   procedure SFHSS_Init
+     (Spi    : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500 : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Ok     : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean)
+   is
+      Inp     : SF.Inputs;
+      Split   : Natural;
+      Exti_Ok : Boolean;
+   begin
+      Active := SFHSS_Family;
+      SF_Settings := SFHSS_Settings_Of (Spi, CC2500);
+      Pins_Init (Spi, CC2500, Exti_Ok);
+      Inp.Now_Us := Time.Micros;
+      Inp.Now_Ms := Time.Millis;
+      Inp.Bind_Pin_Level := Bind_Level;
+      SF.Start (SF_Trial, SF_Settings, Inp, Ops, Ok, Claim_RSSI);
+      Split := First_Of (Ops, SR.Reset);
+      if Split = 0 then
+         SF_State := SF_Trial;
+         Run (Ops, 1, Ops.Count);
+      else
+         Run (Ops, 1, Split - 1);
+         Detect_Chip (Inp.Chip_Ok);
+         SF.Start (SF_State, SF_Settings, Inp, Ops, Ok, Claim_RSSI);
+         Run (Ops, Split + 1, Ops.Count);
+      end if;
+      Claim_RSSI := Claim_RSSI and then Exti_Ok;
+      Channels := SF.Channel_Count;
+   end SFHSS_Init;
+
+   procedure SFHSS_Data_Received (R : out Adaflight.RX_SPI.Received) is
+      Inp            : SF.Inputs;
+      Trial_Settings : SF.Settings := SF_Settings;
+      Result         : SF.Received;
+      Split          : Natural;
+   begin
+      Inp.Now_Us := Time.Micros;
+      Inp.Now_Ms := Time.Millis;
+      Inp.Exti := RX_SPI_Device.Exti_State;
+      if Inp.Exti then
+         Radio_Chip.Read_Register (Dev, Rx_Bytes_Register, Inp.Rx_Bytes);
+      end if;
+      Inp.Bind_Pin_Level := Bind_Level;
+      SF_Trial := SF_State;
+      SF.Data_Received (SF_Trial, Trial_Settings, Inp, Ops, Result);
+      Split := First_Of (Ops, SR.Read_Fifo);
+      if Split = 0 then
+         SF_State := SF_Trial;
+         SF_Settings := Trial_Settings;
+         Run (Ops, 1, Ops.Count);
+      else
+         Run (Ops, 1, Split - 1);
+         declare
+            Count : constant Natural := Natural'Min (Natural (Ops.Ops (Split).A), SF.Fifo_Size);
+            Data  : Byte_Array (0 .. Count - 1);
+         begin
+            Radio_Chip.Read_FIFO (Dev, Data);
+            for I in Data'Range loop
+               Inp.Fifo (I) := Data (I);
+            end loop;
+         end;
+         SF.Data_Received (SF_State, SF_Settings, Inp, Ops, Result);
+         Run (Ops, Split + 1, Ops.Count);
+      end if;
+      R := (Bind => Result = SF.Bind_Done, Data => Result = SF.Data_Ready, Processing_Required => False);
+   end SFHSS_Data_Received;
+
+   procedure SFHSS_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data) is
+      Rc : SF.Channel_Values;
+   begin
+      for I in Rc'Range loop
+         Rc (I) := Data (I);
+      end loop;
+      SF.Set_Rc_Data (SF_State, Rc);
+      for I in Rc'Range loop
+         Data (I) := Rc (I);
+      end loop;
+   end SFHSS_Set_Channels;
+
+   procedure SFHSS_Request_Bind is
+   begin
+      SF.Request_Bind (SF_State);
+   end SFHSS_Request_Bind;
+
    function FrSky_Hub_Taken return Boolean is (State.Telemetry_Enabled and then Settings.Protocol = FS.FrSky_D);
 
    function FrSky_SmartPort_Taken return Boolean is
@@ -418,6 +565,13 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Requested := Save_Wanted;
       Save_Wanted := False;
       if not Requested then
+         return;
+      end if;
+      if Active = SFHSS_Family then
+         for I in SF_Settings.Bind_Tx_Id'Range loop
+            R.Bind_Tx_Id (I) := SF_Settings.Bind_Tx_Id (I);
+         end loop;
+         R.Bind_Offset := SF_Settings.Bind_Offset;
          return;
       end if;
       for I in Settings.Bind_Tx_Id'Range loop
