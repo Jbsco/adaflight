@@ -13170,3 +13170,22 @@ request's proof job leaves out a naming variant such as that off spec, which its
 `tools/featuregen.py` chooses this feature, and its new `--feature` form prints it for `target.do`, which sets
 that variable before a build. Other builds, tests and proofs keep debug values. On an ALIENFLIGHTNGF7_RX image
 free flash grows from 1347 to 9056 bytes, and other images do not change.
+
+## D633. FrSky SPI receivers on the board (2026-11-02)
+
+A board with a CC2500 now runs FrSky D and X over the SPI receiver device of D631. Each family call hands back its
+chip operations in order, and the board runs them: strobes, register, FIFO and block writes, power, delays, pins,
+RSSI and channel calibration, each as the reference's driver takes it.
+
+Two operations need a value from the chip before a call can finish: the chip check after its reset at start-up
+and a packet's FIFO read. For those the board first calls the family on a copy of its state, runs the operations
+up to that one and reads the chip. It then makes the real call with that value and runs the remaining operations.
+A call without either operation keeps its trial result, so it runs once.
+
+A completed bind saves its transmitter id, offset, hop table and receiver number through our configuration save,
+and the bind command now requests a bind. Protocol RSSI reaches the receiver core as its protocol source, which
+the family claims when no other source is set. FrSky telemetry follows later, so the family runs with it off. A
+board without an interrupt pin fails its start before it resets and checks the chip (DIVERGENCES).
+
+On an ALIENFLIGHTNGF7_RX image the family takes about 8 KB of code and 6 KB of RAM, and 696 bytes of its 480 KB
+code region stay free with debug values off (D632).

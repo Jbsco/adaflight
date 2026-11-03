@@ -1,26 +1,35 @@
 with Adaflight.RX_SPI;
 with Adaflight.RX_SPI_Provider;
+with Adaflight.STM32.RX_SPI_CC2500;
 with Adaflight.STM32.RX_SPI_Device;
 package body Adaflight.STM32.RX_SPI is
    package Layer renames Adaflight.RX_SPI;
+   use type Layer.Family;
 
-   Device_Config  : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+   Spi_Config     : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+   CC2500_Config  : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
    Exti_Pull_Down : constant Boolean := False;
-   Channels       : constant Natural := 0;
+   Channels       : Natural := 0;
+   RSSI_Claimed   : Boolean := False;
    State          : Layer.State;
    Frame_Us       : Adaflight.Receiver.Time_Us := 0;
    Started        : Boolean := False;
 
    procedure Device_Init (Ok : out Boolean) is
    begin
-      RX_SPI_Device.Init (Device_Config, Ok);
+      RX_SPI_Device.Init (Spi_Config, Ok);
    end Device_Init;
 
-   --  No family runs on the board yet, so every protocol's start fails.
+   --  The FrSky family runs on the board; every other protocol's start
+   --  fails.
    procedure Family_Init (F : Layer.Family; Ok : out Boolean) is
-      pragma Unreferenced (F);
    begin
-      Ok := False;
+      case F is
+         when Layer.FrSky =>
+            RX_SPI_CC2500.FrSky_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
+         when others =>
+            Ok := False;
+      end case;
    end Family_Init;
 
    procedure Exti_Init is
@@ -31,9 +40,13 @@ package body Adaflight.STM32.RX_SPI is
    procedure Dispatch_Enable is null;
 
    procedure Family_Data_Received (F : Layer.Family; R : out Layer.Received) is
-      pragma Unreferenced (F);
    begin
-      R := (others => False);
+      case F is
+         when Layer.FrSky =>
+            RX_SPI_CC2500.FrSky_Data_Received (R);
+         when others =>
+            R := (others => False);
+      end case;
    end Family_Data_Received;
 
    procedure Family_Process_Frame (F : Layer.Family; R : out Layer.Received) is
@@ -42,7 +55,15 @@ package body Adaflight.STM32.RX_SPI is
       R := (others => False);
    end Family_Process_Frame;
 
-   procedure Family_Set_Channels (F : Layer.Family; Data : in out Layer.Channel_Data) is null;
+   procedure Family_Set_Channels (F : Layer.Family; Data : in out Layer.Channel_Data) is
+   begin
+      case F is
+         when Layer.FrSky =>
+            RX_SPI_CC2500.FrSky_Set_Channels (Data);
+         when others =>
+            null;
+      end case;
+   end Family_Set_Channels;
 
    procedure Family_Stop (F : Layer.Family) is null;
 
@@ -66,7 +87,8 @@ package body Adaflight.STM32.RX_SPI is
    procedure Init (C : Adaflight.Config_Groups.Configuration) is
       Ok, Providing : Boolean;
    begin
-      Device_Config := C.Rx_Spi_Config;
+      Spi_Config := C.Rx_Spi_Config;
+      CC2500_Config := C.Rx_Cc2500_Spi_Config;
       Provider.Init (State, C.Rx_Spi_Config.Rx_Spi_Protocol, Ok, Providing);
       Started := Ok and then Providing;
    end Init;
@@ -101,5 +123,23 @@ package body Adaflight.STM32.RX_SPI is
       Provider.Stop (State);
    end Stop;
 
+   procedure Bind is
+   begin
+      if Started and then State.Selected = Layer.FrSky then
+         RX_SPI_CC2500.FrSky_Request_Bind;
+      end if;
+   end Bind;
+
    function Last_Frame_Us return Adaflight.Receiver.Time_Us is (Frame_Us);
+
+   function Claims_RSSI return Boolean is (Started and then RSSI_Claimed);
+
+   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
+   begin
+      if Started and then State.Selected = Layer.FrSky then
+         RX_SPI_CC2500.Take_Save (C, Requested);
+      else
+         Requested := False;
+      end if;
+   end Take_Save;
 end Adaflight.STM32.RX_SPI;

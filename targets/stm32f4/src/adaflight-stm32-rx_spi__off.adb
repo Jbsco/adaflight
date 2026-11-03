@@ -22,6 +22,16 @@ package body Adaflight.STM32.RX_SPI is
 
    procedure Stop is null;
 
+   procedure Bind is null;
+
    function Last_Frame_Us return Adaflight.Receiver.Time_Us is (0);
+
+   function Claims_RSSI return Boolean is (False);
+
+   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
+      pragma Unreferenced (C);
+   begin
+      Requested := False;
+   end Take_Save;
 
 end Adaflight.STM32.RX_SPI;

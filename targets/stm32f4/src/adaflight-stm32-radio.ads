@@ -77,6 +77,8 @@ package Adaflight.STM32.Radio is
    procedure Push_CRSF_Frame (Data : Adaflight.Bytes.Byte_Array);
    --  The receiver's source and serial protocol as its start set them.
    function Source return Adaflight.Receiver.Provider;
+   --  An RSSI the SPI receiver's protocol measured, as the protocol source.
+   procedure Set_Protocol_RSSI (Value : Interfaces.Unsigned_16; Direct : Boolean);
    function Serial_Protocol return Natural;
    --  The SmartPort tables an FPORT receiver's telemetry answers from, built
    --  when the receiver opened, and whether an FPORT receiver is open, which
