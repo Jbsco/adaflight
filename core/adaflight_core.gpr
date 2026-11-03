@@ -14,6 +14,25 @@ project Adaflight_Core is
      external ("ADAFLIGHT_CORE_LIBRARY_TYPE", external ("LIBRARY_TYPE", "static"));
    for Library_Kind use Library_Type;
 
+   --  A build without debug values takes the debug build spec that turns them off.
+   type Switch is ("on", "off");
+   Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
+   case Debug_Values is
+      when "on" =>
+         for Excluded_Source_Files use ("adaflight-debug_build__off.ads");
+      when "off" =>
+         for Excluded_Source_Files use ("adaflight-debug_build.ads");
+   end case;
+
+   package Naming is
+      case Debug_Values is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Debug_Build") use "adaflight-debug_build__off.ads";
+      end case;
+   end Naming;
+
    package Compiler is
       case Adaflight_Core_Config.Build_Profile is
          when "release" =>

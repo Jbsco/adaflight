@@ -2,6 +2,7 @@
 """Generate the Ada package of the features one build contains.
 
 usage: featuregen.py <configs dir> <board name> <output .ads> [features]
+       featuregen.py --feature <name> <configs dir> <board name> [features]
 
 The board's MCU, from its config.h in the board configuration repository, sets the flash size, and
 FLASH_KB in the environment sets it instead. Each feature is on when the flash is at least the size
@@ -11,8 +12,9 @@ removes features by name, case ignored, each
 name with + or - in front (+ when there is none), separated by spaces or commas. Beside the package
 goes adaflight-checks.adc, the configuration pragmas of the board crate, which turn its run-time
 checks off when Board_Checks is off, and the STM32F7 linker script's RAM sections. A feature
-with a negative size is on below that size instead. The output is deterministic for the same inputs, so a build
-regenerates it without a diff.
+with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less with an SPI
+receiver, for the receiver's room. The output is deterministic for the same inputs, so a build regenerates it
+without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
 """
 import os
 import re
@@ -45,6 +47,7 @@ FEATURES = [
     ("Pitot", 1024, "The pitot airspeed sensor."),
     ("Optical_Flow", 1024, "The optical flow sensors."),
     ("SPI_Receiver", None, "The SPI receiver, when the board's configuration names its radio chip."),
+    ("Debug_Values", 0, "The debug values the debug mode selects."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Named tables, strings and initialized data kept compressed in flash, unpacked at start "
@@ -64,6 +67,8 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset()) -> 
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
               or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
+    if chosen.get("SPI_Receiver") and flash_kb <= 512:
+        chosen["Debug_Values"] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
         if not token:
@@ -268,10 +273,8 @@ def write(path: Path, text: str) -> None:
         path.write_text(text)
 
 
-def main() -> None:
-    if len(sys.argv) not in (4, 5):
-        raise SystemExit(__doc__)
-    configs, board, output = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+def board_selection(configs: Path, board: str, changes: str) -> tuple:
+    """The board's MCU, its flash size and the features chosen for it."""
     text = find_config(configs, board).read_text()
     m = re.search(r"^#define\s+FC_TARGET_MCU\s+(\w+)", text, re.M)
     mcu = m.group(1) if m else ""
@@ -282,7 +285,21 @@ def main() -> None:
     else:
         raise SystemExit(f"featuregen: no flash size for the MCU {mcu or 'of ' + board}; set FLASH_KB")
     defines = frozenset(re.findall(r"^#define\s+(\w+)", text, re.M))
-    chosen = selection(flash_kb, sys.argv[4] if len(sys.argv) == 5 else "", defines)
+    return mcu, flash_kb, selection(flash_kb, changes, defines)
+
+
+def main() -> None:
+    if len(sys.argv) in (5, 6) and sys.argv[1] == "--feature":
+        name = sys.argv[2]
+        _, _, chosen = board_selection(Path(sys.argv[3]), sys.argv[4], sys.argv[5] if len(sys.argv) == 6 else "")
+        if name not in chosen:
+            raise SystemExit(f"featuregen: unknown feature {name}")
+        print("on" if chosen[name] else "off")
+        return
+    if len(sys.argv) not in (4, 5):
+        raise SystemExit(__doc__)
+    configs, board, output = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+    mcu, flash_kb, chosen = board_selection(configs, board, sys.argv[4] if len(sys.argv) == 5 else "")
     write(output, generate(board, mcu, flash_kb, chosen))
     write(output.parent / "adaflight-checks.adc", checks(chosen))
     write(output.parent / "ram_early.ld", ram_early(chosen))

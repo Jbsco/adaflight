@@ -3,7 +3,8 @@
 body changed against the base, a generic unit through its instantiations, since GNATprove
 analyzes a generic only there. With --all, every unit of the core the same way, for the
 nightly run; with --shard k/n, the k-th of n groups of about equal source, counting a
-generic's source for its instantiation.
+generic's source for its instantiation. A naming variant (a stem with a double underscore),
+which the core project takes in place of its default by a scenario variable, is left out.
 Usage: changed-units.py <base-ref> | --all [--shard k/n]."""
 import pathlib
 import re
@@ -47,7 +48,7 @@ else:
     changed = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"],
                              check=True, capture_output=True, text=True).stdout.split()
 selected = {pathlib.Path(c).stem for c in changed
-            if c.startswith("core/src/") and c.endswith((".ads", ".adb"))}
+            if c.startswith("core/src/") and c.endswith((".ads", ".adb")) and "__" not in pathlib.Path(c).stem}
 pending = sorted(name for name in selected if is_generic(name))
 expanded = set()
 while pending:

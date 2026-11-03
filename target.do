@@ -12,6 +12,10 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
     echo "target: the board configuration submodule is not checked out (git submodule update --init)"
     exit 1
 fi
+BOARD_NAME="${BOARD:-$([ "$CRATE" = stm32f7 ] && echo KAKUTEF7 || echo CLRACINGF4)}"
+ADAFLIGHT_DEBUG_VALUES="$(python3 ../../tools/featuregen.py --feature Debug_Values ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_DEBUG_VALUES
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 echo "target: features $(sed -n 's/^ *\([A-Za-z_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
