@@ -204,6 +204,28 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_CC2500.Set_SmartPort_Build (B);
    end Set_SmartPort_Build;
 
+   procedure Start_ExpressLRS_Telemetry (Inp : Adaflight.ExpressLRS_Telemetry.Start_Inputs) is
+   begin
+      if Started and then State.Selected = Layer.ExpressLRS then
+         RX_SPI_SX1280.Start_Telemetry (Inp);
+      end if;
+   end Start_ExpressLRS_Telemetry;
+
+   procedure Set_Telemetry_Sources (Src : Adaflight.CRSF_Telemetry.Sources) is
+   begin
+      if Started and then State.Selected = Layer.ExpressLRS then
+         RX_SPI_SX1280.Set_Telemetry_Sources (Src);
+      end if;
+   end Set_Telemetry_Sources;
+
+   procedure Serve_ExpressLRS_MSP is
+      procedure Serve is new RX_SPI_SX1280.Serve_MSP (Answer);
+   begin
+      if Started and then State.Selected = Layer.ExpressLRS then
+         Serve;
+      end if;
+   end Serve_ExpressLRS_MSP;
+
    procedure Set_Armed (Armed : Boolean) is
    begin
       RX_SPI_CC2500.Set_Armed (Armed);

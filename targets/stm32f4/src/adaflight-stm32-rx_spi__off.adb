@@ -45,6 +45,15 @@ package body Adaflight.STM32.RX_SPI is
 
    procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs) is null;
 
+   procedure Start_ExpressLRS_Telemetry (Inp : Adaflight.ExpressLRS_Telemetry.Start_Inputs) is null;
+
+   procedure Set_Telemetry_Sources (Src : Adaflight.CRSF_Telemetry.Sources) is null;
+
+   procedure Serve_ExpressLRS_MSP is
+   begin
+      null;
+   end Serve_ExpressLRS_MSP;
+
    procedure Set_Armed (Armed : Boolean) is null;
 
    procedure Take_Save

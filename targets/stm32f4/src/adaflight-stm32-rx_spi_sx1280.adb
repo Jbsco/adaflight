@@ -3,6 +3,8 @@ with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.ExpressLRS;
 with Adaflight.ExpressLRS_Receiver;
+with Adaflight.MSP_Telemetry;
+with Adaflight.Stream_Buffers;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.SPI_Radio;
 with Adaflight.SX1280;
@@ -13,14 +15,18 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.RX_SPI_Device;
 with Adaflight.STM32.Time;
+with System;
 package body Adaflight.STM32.RX_SPI_SX1280 is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use type Adaflight.ExpressLRS.Frequency_Domain;
    package ER renames Adaflight.ExpressLRS_Receiver;
    package SR renames Adaflight.SPI_Radio;
+   package Tlm renames Adaflight.ExpressLRS_Telemetry;
+   package CT renames Adaflight.CRSF_Telemetry;
    use type ER.Packet_Status;
    use type ER.Tick_Tock;
+   use type Adaflight.ExpressLRS_Telemetry.Next_Payload;
    use type SR.Pin;
 
    type Chip is limited null record;
@@ -168,6 +174,71 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
    Receiver : ER.Receiver;
    Settings : ER.Settings;
    Payload  : ER.Packet := (others => 0);
+   --  The telemetry's payload schedule and the readings its frames send.
+   Schedule : Tlm.Payload_Schedule;
+   Readings : CT.Sources;
+   MSP_Seen : Interfaces.Unsigned_32 := 0;
+
+   --  The MSP frames from the transmitter the telemetry task has yet to
+   --  serve, each after its length as the reference buffers them, whether
+   --  one arrived since the task last looked, and the reply frame the next
+   --  MSP reply payload sends; shared by the radio's interrupt and the task.
+   MSP_Buffer_Size : constant := 96;
+   MSP_Frame_Size  : constant := 8;
+   MSP_Offset      : constant := 5;
+
+   protected MSP_Box with Priority => System.Interrupt_Priority'First is
+      procedure Put (Frame : Tlm.MSP_Buffer);
+      procedure Arrived (Any : out Boolean);
+      procedure Take (Frames : out Byte_Array; Count : out Natural);
+      procedure Set_Reply (Frame : Byte_Array);
+      procedure Reply (Frame : out Byte_Array; Length : out Natural);
+   private
+      Frames      : Byte_Array (0 .. MSP_Buffer_Size - 1) := (others => 0);
+      Waiting     : Natural range 0 .. MSP_Buffer_Size := 0;
+      New_Frame   : Boolean := False;
+      Reply_Frame : Byte_Array (0 .. CT.Frame_Size_Max - 1) := (others => 0);
+      Reply_Last  : Natural range 0 .. CT.Frame_Size_Max := 0;
+   end MSP_Box;
+
+   protected body MSP_Box is
+      procedure Put (Frame : Tlm.MSP_Buffer) is
+      begin
+         if Waiting + 1 + MSP_Frame_Size <= MSP_Buffer_Size then
+            Frames (Waiting) := MSP_Frame_Size;
+            Frames (Waiting + 1 .. Waiting + MSP_Frame_Size) := Frame (MSP_Offset .. MSP_Offset + MSP_Frame_Size - 1);
+            Waiting := Waiting + 1 + MSP_Frame_Size;
+            New_Frame := True;
+         end if;
+      end Put;
+
+      procedure Arrived (Any : out Boolean) is
+      begin
+         Any := New_Frame;
+         New_Frame := False;
+      end Arrived;
+
+      procedure Take (Frames : out Byte_Array; Count : out Natural) is
+      begin
+         Count := Waiting;
+         Frames (Frames'First .. Frames'First + Waiting - 1) := MSP_Box.Frames (0 .. Waiting - 1);
+         Waiting := 0;
+      end Take;
+
+      --  The reply's frame, and the schedule told a reply waits.
+      procedure Set_Reply (Frame : Byte_Array) is
+      begin
+         Reply_Last := Frame'Length;
+         Reply_Frame (0 .. Frame'Length - 1) := Frame;
+         Tlm.Process_MSP (Schedule, Tlm.MSP_Frame, Buffered => True);
+      end Set_Reply;
+
+      procedure Reply (Frame : out Byte_Array; Length : out Natural) is
+      begin
+         Length := Reply_Last;
+         Frame (Frame'First .. Frame'First + Reply_Last - 1) := Reply_Frame (0 .. Reply_Last - 1);
+      end Reply;
+   end MSP_Box;
 
    procedure Apply_Timer;
 
@@ -189,11 +260,44 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       Requested := ER.Telemetry_Response_Required (Receiver);
    end Telemetry_Requested;
 
+   --  The next payload when the link offers one: connected, with telemetry
+   --  at its rate, and the sender idle.
    procedure Do_Telemetry (D : in out Chip) is
       pragma Unreferenced (D);
-      None : constant Byte_Array (1 .. 0) := (others => 0);
+      use type Adaflight.ExpressLRS.Telemetry_Ratio;
+      use type ER.Connection_State;
+      Frame  : Byte_Array (0 .. CT.Frame_Size_Max - 1) := (others => 0);
+      S      : Adaflight.Stream_Buffers.Stream;
+      Kind   : Tlm.Next_Payload := Tlm.None;
+      Length : Natural := 0;
    begin
-      ER.Do_Telemetry (Receiver, None, Has_Next => False);
+      Adaflight.Stream_Buffers.Init (S, 0, CT.Frame_Size_Max);
+      if Receiver.Connection = ER.Connected
+        and then Adaflight.ExpressLRS.Rates_2400 (Receiver.Rate).Ratio /= Adaflight.ExpressLRS.No_Telemetry
+        and then not Tlm.Is_Active (Receiver.Sender)
+      then
+         Tlm.Next (Schedule, Kind);
+         case Kind is
+            when Tlm.Device_Info =>
+               CT.Write_Device_Info (Frame, S, Readings.Name (1 .. Readings.Name_Last));
+            when Tlm.GPS_Frame =>
+               CT.Write_GPS (Frame, S, Readings.GPS);
+            when Tlm.Battery_Frame =>
+               CT.Write_Battery (Frame, S, Readings.Battery);
+            when Tlm.Attitude_Frame =>
+               CT.Write_Attitude (Frame, S, Readings.Attitude);
+            when Tlm.Flight_Mode_Frame =>
+               CT.Write_Flight_Mode (Frame, S, Readings.Flight, Readings.GPS.Satellites, Readings.GPS.Fix);
+            when Tlm.MSP_Reply =>
+               MSP_Box.Reply (Frame, Length);
+            when Tlm.None =>
+               null;
+         end case;
+      end if;
+      if Kind /= Tlm.MSP_Reply then
+         Length := S.Next;
+      end if;
+      ER.Do_Telemetry (Receiver, Frame (0 .. Length - 1), Has_Next => Kind /= Tlm.None);
    end Do_Telemetry;
 
    procedure Telemetry_Buffer (D : in out Chip; Data : out Byte_Array) is
@@ -256,6 +360,17 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       SX.Get_Last_Packet_Stats (Radio_State, RSSI, SNR);
       ER.Process_Packet (Receiver, Settings, P, Timestamp, Time.Millis, RSSI, SNR, Payload, Result);
       Apply_Timer;
+      if Receiver.MSP_Ready_Count /= MSP_Seen then
+         MSP_Seen := Receiver.MSP_Ready_Count;
+         case Tlm.Kind_Of (Receiver.MSP_Frame) is
+            when Tlm.Ping =>
+               Tlm.Process_MSP (Schedule, Tlm.Ping, Buffered => False);
+            when Tlm.MSP_Frame =>
+               MSP_Box.Put (Receiver.MSP_Frame);
+            when Tlm.Other =>
+               null;
+         end case;
+      end if;
       Status := Byte (ER.Packet_Status'Pos (Result));
    end Process_Packet;
 
@@ -467,6 +582,7 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       Settings.Model_Id := ELRS.Model_Id;
       ER.Init (Receiver, Settings, Time.Millis);
       Seen := (others => <>);
+      MSP_Seen := 0;
       Apply;
       RX_SPI_Device.Set_Edge_Handler (Receiver_Edge'Access);
       ELRS_Timer.Enable_Interrupt;
@@ -512,6 +628,82 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       ER.Stop (Receiver, Settings);
       Apply;
    end ExpressLRS_Stop;
+
+   --  The MSP over the link: the tunnel, the processor's answer, and whether
+   --  a reply has chunks left to send.
+   Tunnel      : Adaflight.MSP_Telemetry.Tunnel;
+   MSP_Answer  : Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) := (others => 0);
+   Chunks_Left : Boolean := False;
+   MSP_Ack     : constant := 1;
+
+   procedure Serve_MSP is
+      use type Adaflight.MSP_Telemetry.Outcome;
+      Any    : Boolean;
+      Frames : Byte_Array (0 .. MSP_Buffer_Size - 1) := (others => 0);
+      Count  : Natural;
+
+      --  The reply's next chunk as the reply frame.
+      procedure Send_Chunk is
+         Chunk  : Adaflight.MSP_Telemetry.Chunk_Buffer;
+         Length : Natural;
+         Frame  : Byte_Array (0 .. CT.Frame_Size_Max - 1) := (others => 0);
+         S      : Adaflight.Stream_Buffers.Stream;
+      begin
+         Adaflight.MSP_Telemetry.Send_Reply (Tunnel, CT.MSP_Payload_Max, Chunk, Length, Chunks_Left);
+         Adaflight.Stream_Buffers.Init (S, 0, CT.Frame_Size_Max);
+         CT.Write_MSP_Response (Frame, S, CT.Address_Radio_Transmitter, Chunk (0 .. Length - 1));
+         MSP_Box.Set_Reply (Frame (0 .. S.Next - 1));
+      end Send_Chunk;
+   begin
+      MSP_Box.Arrived (Any);
+      if not Any then
+         return;
+      end if;
+      if Chunks_Left then
+         Send_Chunk;
+         return;
+      end if;
+      MSP_Box.Take (Frames, Count);
+      declare
+         Pos          : Natural := 0;
+         Length       : Natural;
+         Outcome      : Adaflight.MSP_Telemetry.Outcome;
+         Unused_Write : Boolean;
+         Reply_Count  : Natural;
+         Failed       : Boolean;
+         Replied      : Boolean := False;
+      begin
+         while Pos < Count loop
+            Length := Natural (Frames (Pos));
+            Adaflight.MSP_Telemetry.Handle_Frame (Tunnel, Frames (Pos + 1 .. Pos + Length), Outcome, Unused_Write);
+            if Outcome = Adaflight.MSP_Telemetry.Request_Ready then
+               Answer (Tunnel.Request_Command, Adaflight.MSP_Telemetry.Request_Data (Tunnel), MSP_Answer, Reply_Count,
+                       Failed);
+               Adaflight.MSP_Telemetry.Prepare_Reply
+                 (Tunnel, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack),
+                  MSP_Answer (0 .. Reply_Count - 1));
+            end if;
+            if Outcome /= Adaflight.MSP_Telemetry.Ignored then
+               Send_Chunk;
+               Replied := True;
+            end if;
+            Pos := Pos + 1 + Length;
+         end loop;
+         if not Replied then
+            Tlm.Process_MSP (Schedule, Tlm.MSP_Frame, Buffered => True);
+         end if;
+      end;
+   end Serve_MSP;
+
+   procedure Start_Telemetry (Inp : Tlm.Start_Inputs) is
+   begin
+      Tlm.Start (Schedule, Receiver.MSP, Inp);
+   end Start_Telemetry;
+
+   procedure Set_Telemetry_Sources (Src : CT.Sources) is
+   begin
+      Readings := Src;
+   end Set_Telemetry_Sources;
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       E : Adaflight.Config_Groups.Rx_Express_Lrs_Spi_Config_Record renames C.Rx_Express_Lrs_Spi_Config;

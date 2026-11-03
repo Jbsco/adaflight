@@ -25,6 +25,15 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
 
    procedure ExpressLRS_Stop is null;
 
+   procedure Start_Telemetry (Inp : Adaflight.ExpressLRS_Telemetry.Start_Inputs) is null;
+
+   procedure Set_Telemetry_Sources (Src : Adaflight.CRSF_Telemetry.Sources) is null;
+
+   procedure Serve_MSP is
+   begin
+      null;
+   end Serve_MSP;
+
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
       pragma Unreferenced (C);
    begin
