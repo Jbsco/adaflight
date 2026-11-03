@@ -1261,6 +1261,10 @@ package Adaflight.Config_Groups with SPARK_Mode is
    --  defaults the wing build sets otherwise.
    function Wing_Defaults return Configuration;
 
+   --  The groups whose defaults the wing build sets otherwise, written over
+   --  the multirotor ones in C.
+   procedure Apply_Wing_Groups (C : in out Configuration);
+
    --  The profiles a setting has: one for a setting outside the profiles.
    function Profile_Count (S : Setting) return Positive is
      (case S is

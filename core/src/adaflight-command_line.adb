@@ -4239,16 +4239,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       if Group = 0 then
          Put_Hash_Line (Into, "resetting to defaults");
-         C := Config_Reset.Reset (Board, Wing);
+         Config_Reset.Reset (Board, Wing, C);
       else
          Put (Into, CRLF & "# resetting group ");
          Put_Decimal (Into, Integer_64 (Group));
          Put (Into, " to defaults" & CRLF);
          declare
-            Reset : constant Configuration := Config_Reset.Reset (Board, Wing);
+            Reset : Configuration;
             Kept  : Config_Codec.Data;
             Fresh : Config_Codec.Data;
          begin
+            Config_Reset.Reset (Board, Wing, Reset);
             Config_Codec.Encode (C, Kept);
             Config_Codec.Encode (Reset, Fresh);
             pragma Assert (Config_Codec.Groups_Within);
