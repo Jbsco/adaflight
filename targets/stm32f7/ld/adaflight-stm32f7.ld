@@ -43,8 +43,9 @@
    the MCU's memory layout comes from gen/memory.ld (tools/memorygen.py), with the vector
    table and the code that fits beside it in flash sector 0, sector 1 kept for the
    configuration store, the rest of the code from sector 2, and the core coupled memory on
-   the data tightly coupled memory. A packed build's tables and initialized data load from the staging region,
-   which is never flashed: tools/datapack.py stores them compressed after .rodata. */
+   the data tightly coupled memory. The RAM sections come from gen/ram_early.ld and gen/ram_late.ld
+   (tools/featuregen.py): a packed build's named tables, strings and initialized data load from the
+   staging region, which is never flashed, and tools/datapack.py stores them compressed after .rodata. */
 INCLUDE memory.ld
 REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
@@ -127,7 +128,7 @@ SECTIONS
      PROVIDE_HIDDEN (__fini_array_end = .);
   } > flash
 
-  INCLUDE packed_tables.ld
+  INCLUDE ram_early.ld
 
   .rodata :
   {
@@ -137,44 +138,7 @@ SECTIONS
     __rom_end = .;
   } > flash
 
-  INCLUDE data_section.ld
-
-  /* Zeroed data placed in the core coupled memory by its section name: the
-     menu's state and target, which the main RAM cannot hold. */
-  .ccmbss (NOLOAD) : {
-   . = ALIGN(0x8);
-   __ccmbss_start = .;
-   *(.bss.ccm .bss.ccm.*)
-   . = ALIGN(0x8);
-   __ccmbss_end = .;
-  } > ccm
-
-  .bss (NOLOAD): {
-   . = ALIGN(0x8);
-   __bss_start = .;
-
-   *(.bss .bss.*)
-   *(COMMON)
-
-   . = ALIGN(0x8);    /* Align the stack to 64 bits */
-   __bss_end = .;
-
-   __interrupt_stack_start = .;
-   *(.noinit.interrupt_stacks)
-   . = ALIGN(0x8);
-   __interrupt_stack_end = .;
-
-   __stack_start = .;
-   . += DEFINED (__stack_size) ? __stack_size : _DEFAULT_STACK_SIZE;
-   . = ALIGN(0x8);
-   __stack_end = .;
-
-   _end = .;
-   __heap_start = .;
-   __heap_end = ORIGIN(sram_bs) + LENGTH(sram_bs);
-  } > sram_bs
-
-  __bss_words = (__bss_end - __bss_start) >> 2;
+  INCLUDE ram_late.ld
 
   /* DWARF debug sections.
      Symbols in the DWARF debugging sections are relative to the beginning
