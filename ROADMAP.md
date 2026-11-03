@@ -34,7 +34,9 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the
-  configuration path.
+  configuration path. For boards short of flash, a fit view: the feature set as blocks of decreasing size
+  along a bar of the target's flash, its limit marked by a line and features past it in red. Checking or
+  unchecking a feature redraws the bar, and flashing waits until the selection fits.
 
 ## After parity
 
