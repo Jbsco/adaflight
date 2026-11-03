@@ -83,7 +83,7 @@ package body Adaflight.MSP_Board_In with SPARK_Mode is
             Set_Signature (C, Board, Request, R);
          when Reset_Config_Command =>
             if not Armed then
-               C := Config_Reset.Reset (Board, Wing);
+               Config_Reset.Reset (Board, Wing, C);
                E.Save := True;
                E.Reboot := True;
                E.Reply_Value := 1;

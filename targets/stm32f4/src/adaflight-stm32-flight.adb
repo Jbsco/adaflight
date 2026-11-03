@@ -888,10 +888,12 @@ package body Adaflight.STM32.Flight is
    --  information taken in, and the mode boxes offered; Success says the
    --  image held every group.
    procedure Load_Configuration (Success : out Boolean) is
+      Fresh    : Adaflight.Config_Groups.Configuration;
       Defaults : Adaflight.Config_Codec.Data;
       Data     : Adaflight.Config_Codec.Data;
    begin
-      Adaflight.Config_Codec.Encode (Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing), Defaults);
+      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Fresh);
+      Adaflight.Config_Codec.Encode (Fresh, Defaults);
       Adaflight.Config_Store.Load
         (Adaflight.STM32.Flash.Config, Adaflight.Config_Codec.Registry, Defaults, Data, Hashes, Success);
       Adaflight.Config_Codec.Decode (Data, Config);
@@ -905,7 +907,7 @@ package body Adaflight.STM32.Flight is
    procedure Reset_Configuration is
       Unused_Success : Boolean;
    begin
-      Config := Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
+      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Config);
       for I in Board_Identifier'Range loop
          Config.System_Config.Board_Identifier (I - 1) := Character'Pos (Board_Identifier (I));
       end loop;

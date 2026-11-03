@@ -13399,3 +13399,15 @@ check two more paths: unpacking within 8,192 bytes above its model, and elaborat
 
 CLRACINGF4 reaches 36,860 of 40,960 bytes on its OSD task path. CLRACINGF7 reaches 36,332, with unpacking at 280 of
 8,192 and elaboration at 10,748 of 20,072.
+
+## D649. Configuration reset in place (2026-11-03)
+
+`Config_Reset.Reset` now has a procedure form that writes a reset configuration into its argument. Its function
+form returned a 5,000 byte record from a 10,064 byte frame, and each caller that assigned the result held another
+copy. CLI `defaults`, MSP reset, flight's reset and configuration load now call the procedure. Elaboration keeps
+the function, which returns through the procedure. `Config_Groups.Apply_Wing_Groups` writes the wing build's groups
+over multirotor defaults in place, so a wing reset needs no copy either, and `Wing_Defaults` calls it.
+
+On CLRACINGF4 the deepest path through CLI `defaults` falls from 35,184 to 24,316 bytes, through MSP on a receiver
+link from 34,368 to 24,448, and through configuration load from 27,464 to 26,348. Packed F7 elaboration falls from
+10,748 to 5,748 bytes.

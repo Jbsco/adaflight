@@ -1086,11 +1086,16 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       end case;
    end Set_Text;
 
-   function Wing_Defaults return Configuration is
-      C : Configuration := Defaults;
+   procedure Apply_Wing_Groups (C : in out Configuration) is
    begin
       C.Pid_Config := (Pid_Process_Denom => 1, Runaway_Takeoff_Prevention => 0, Runaway_Takeoff_Deactivate_Delay => 0,
          Runaway_Takeoff_Deactivate_Throttle => 0);
+   end Apply_Wing_Groups;
+
+   function Wing_Defaults return Configuration is
+      C : Configuration := Defaults;
+   begin
+      Apply_Wing_Groups (C);
       return C;
    end Wing_Defaults;
 
