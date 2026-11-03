@@ -13016,3 +13016,20 @@ optical flow checks for a build without them.
 
 On the CLRacing F7, whose configuration names neither, the image needs 14581 bytes less (42432 over its 480 KB code
 region, measured by a link with a larger region and the packed data stream).
+
+## D623. Named tables and strings packed (2026-11-02)
+
+A packed STM32F7 build now keeps every named read-only table of ours and every string literal outside the run-time
+libraries in its compressed stream, where it kept a fixed list of cold tables before. Anonymous constants and jump
+tables stay in flash, and run-time library strings stay there because start-up reads them before unpacking.
+
+`tools/featuregen.py` writes the RAM layout as two linker script parts. A packed build places zeroed data, the
+stacks and a 4 KB heap first, then initialized data and the packed tables, so packed tables take main RAM that
+otherwise held only an unused heap. A plain build keeps its layout after `.rodata`. The linker cannot spill a
+pattern this wide from RAM back to flash, since it refuses the move once relaxation has sized the sections, so the
+packed set is fixed by its patterns.
+
+On the CLRacing F7 the code region shrinks by 18172 bytes and the stream grows by 13357, so the image needs 4802 bytes
+less (37630 over its 480 KB code region); about 17 KB of main RAM stays free. LZSS keeps about 73 percent of these
+tables, where it kept 47 percent of the cold list, so a stronger codec is the next step. In an emulated boot of that
+image, sampled words across the unpacked range match the image's sections and start-up reaches the flight setup.
