@@ -54,7 +54,11 @@ package Adaflight.STM32.RX_SPI is
    procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings);
    --  The SmartPort stream's value tables from the sensors.
    procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs);
+   --  Whether the craft is armed, which a receiver's status frames read.
+   procedure Set_Armed (Armed : Boolean);
    --  The bind data into the configuration when a completed bind asked to
-   --  save it, once.
-   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean);
+   --  save it, or the VTX settings a status frame asked for, once; Notify for
+   --  a save the pilot hears confirmed.
+   procedure Take_Save
+     (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean; Notify : out Boolean);
 end Adaflight.STM32.RX_SPI;

@@ -1,6 +1,7 @@
 --  The CC2500 receivers on the board: the chip's registers over the SPI
 --  receiver's device, the operations a family hands back run in order, and
---  the FrSky and SFHSS families' calls with the measurements each one reads.
+--  the FrSky, SFHSS and Redpine families' calls with the measurements each
+--  one reads.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
@@ -28,6 +29,17 @@ package Adaflight.STM32.RX_SPI_CC2500 is
    procedure SFHSS_Data_Received (R : out Adaflight.RX_SPI.Received);
    procedure SFHSS_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data);
    procedure SFHSS_Request_Bind;
+   --  The Redpine family started, with its channel count and whether it takes
+   --  the RSSI; false when the chip does not start.
+   procedure Redpine_Init
+     (Spi    : Adaflight.Config_Groups.Rx_Spi_Config_Record;
+      CC2500 : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+      Ok     : out Boolean; Channels : out Natural; Claim_RSSI : out Boolean);
+   procedure Redpine_Data_Received (R : out Adaflight.RX_SPI.Received);
+   procedure Redpine_Set_Channels (Data : in out Adaflight.RX_SPI.Channel_Data);
+   procedure Redpine_Request_Bind;
+   --  Whether the craft is armed, which a Redpine status frame reads.
+   procedure Set_Armed (Armed : Boolean);
    --  Whether the FrSky D telemetry took the hub stream at start-up, and the
    --  FrSky X telemetry the SmartPort stream.
    function FrSky_Hub_Taken return Boolean;
@@ -47,6 +59,8 @@ package Adaflight.STM32.RX_SPI_CC2500 is
                              Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
    procedure FrSky_Answer_MSP;
    --  The bind data into the configuration when a completed bind asked to
-   --  save it, once.
-   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean);
+   --  save it, or the VTX settings a status frame asked for, once; Notify for
+   --  a save the pilot hears confirmed.
+   procedure Take_Save
+     (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean; Notify : out Boolean);
 end Adaflight.STM32.RX_SPI_CC2500;

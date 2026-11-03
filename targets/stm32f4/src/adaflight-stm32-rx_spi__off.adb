@@ -43,10 +43,15 @@ package body Adaflight.STM32.RX_SPI is
 
    procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs) is null;
 
-   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
+   procedure Set_Armed (Armed : Boolean) is null;
+
+   procedure Take_Save
+     (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean; Notify : out Boolean)
+   is
       pragma Unreferenced (C);
    begin
       Requested := False;
+      Notify := False;
    end Take_Save;
 
 end Adaflight.STM32.RX_SPI;

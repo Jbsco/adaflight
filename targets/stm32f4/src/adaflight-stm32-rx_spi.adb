@@ -21,8 +21,8 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_Device.Init (Spi_Config, Ok);
    end Device_Init;
 
-   --  The FrSky and SFHSS families run on the board; every other protocol's
-   --  start fails.
+   --  The FrSky, SFHSS and Redpine families run on the board; every other
+   --  protocol's start fails.
    procedure Family_Init (F : Layer.Family; Ok : out Boolean) is
    begin
       case F is
@@ -30,6 +30,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.FrSky_Init (Spi_Config, CC2500_Config, Telemetry_On, Ok, Channels, RSSI_Claimed);
          when Layer.SFHSS =>
             RX_SPI_CC2500.SFHSS_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
+         when Layer.Redpine =>
+            RX_SPI_CC2500.Redpine_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
          when others =>
             Ok := False;
       end case;
@@ -49,6 +51,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.FrSky_Data_Received (R);
          when Layer.SFHSS =>
             RX_SPI_CC2500.SFHSS_Data_Received (R);
+         when Layer.Redpine =>
+            RX_SPI_CC2500.Redpine_Data_Received (R);
          when others =>
             R := (others => False);
       end case;
@@ -71,6 +75,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.FrSky_Set_Channels (Data);
          when Layer.SFHSS =>
             RX_SPI_CC2500.SFHSS_Set_Channels (Data);
+         when Layer.Redpine =>
+            RX_SPI_CC2500.Redpine_Set_Channels (Data);
          when others =>
             null;
       end case;
@@ -148,6 +154,8 @@ package body Adaflight.STM32.RX_SPI is
          RX_SPI_CC2500.FrSky_Request_Bind;
       elsif Started and then State.Selected = Layer.SFHSS then
          RX_SPI_CC2500.SFHSS_Request_Bind;
+      elsif Started and then State.Selected = Layer.Redpine then
+         RX_SPI_CC2500.Redpine_Request_Bind;
       end if;
    end Bind;
 
@@ -176,12 +184,20 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_CC2500.Set_SmartPort_Build (B);
    end Set_SmartPort_Build;
 
-   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
+   procedure Set_Armed (Armed : Boolean) is
    begin
-      if Started and then State.Selected in Layer.FrSky | Layer.SFHSS then
-         RX_SPI_CC2500.Take_Save (C, Requested);
+      RX_SPI_CC2500.Set_Armed (Armed);
+   end Set_Armed;
+
+   procedure Take_Save
+     (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean; Notify : out Boolean)
+   is
+   begin
+      if Started and then State.Selected in Layer.FrSky | Layer.SFHSS | Layer.Redpine then
+         RX_SPI_CC2500.Take_Save (C, Requested, Notify);
       else
          Requested := False;
+         Notify := False;
       end if;
    end Take_Save;
 end Adaflight.STM32.RX_SPI;

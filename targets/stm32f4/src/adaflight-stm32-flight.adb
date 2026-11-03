@@ -4780,9 +4780,14 @@ package body Adaflight.STM32.Flight is
             end if;
          end;
          declare
-            Now_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
-            Bound  : Boolean;
+            Now_Us         : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+            Bound          : Boolean;
+            Notify         : Boolean;
+            Unused_Success : Boolean;
          begin
+            if Adaflight.Build_Features.SPI_Receiver then
+               Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
+            end if;
             if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.Takes_Readings then
                Adaflight.STM32.RX_SPI.Set_Readings
                  ((Hub          =>
@@ -4796,9 +4801,13 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Radio.Frame_Check
               (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
                Adaflight.RX_Task.In_Progress (RX_State));
-            Adaflight.STM32.RX_SPI.Take_Save (Config, Bound);
+            Adaflight.STM32.RX_SPI.Take_Save (Config, Bound, Notify);
             if Bound then
                Write_Configuration;
+               if Notify then
+                  Load_Configuration (Unused_Success);
+                  Confirmation_Beeps (1);
+               end if;
             end if;
          end;
          if Scheduler.Failsafe_Due (Sched, Adaflight.STM32.Time.Millis) then
