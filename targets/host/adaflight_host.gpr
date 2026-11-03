@@ -46,6 +46,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
       for Body ("Adaflight.STM32.Optical_Flow") use Adaflight_Feature_Units.Optical_Flow_Body;
       for Body ("Adaflight.STM32.RX_SPI") use Adaflight_Feature_Units.RX_SPI_Body;
+      for Body ("Adaflight.STM32.RX_SPI_CC2500") use Adaflight_Feature_Units.RX_SPI_CC2500_Body;
    end Naming;
 
    package Compiler is
