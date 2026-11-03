@@ -3,8 +3,8 @@
 # generated from the pinned board configuration repository (BOARD, CLRACINGF4 or KAKUTEF7 when
 # unset), the build's features from the board's flash size, FLASH_KB and FEATURES, the crate builds
 # in its release profile with the Alire ARM toolchain and the runtime it names or generates, and the
-# image's section sizes and features are shown. A packed STM32F7 build then packs its tables and data and writes
-# its flash files.
+# image's section sizes and features are shown. Its deepest call paths must fit its main stack. A packed STM32F7
+# build then packs its tables and data and writes its flash files.
 set -e
 CRATE="${CRATE:-stm32f4}"
 cd "$(dirname "$0")/targets/$CRATE"
@@ -18,6 +18,7 @@ ADAFLIGHT_DEBUG_VALUES="$(python3 ../../tools/featuregen.py --feature Debug_Valu
 export ADAFLIGHT_DEBUG_VALUES
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
+alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
     gen/adaflight-build_features.ads | tr '\n' ' ')"
 if [ "$CRATE" = stm32f7 ] && grep -q "Packed_Data *: constant Boolean := True" gen/adaflight-build_features.ads; then
