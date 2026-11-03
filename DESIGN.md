@@ -13204,3 +13204,13 @@ compile this flight code away.
 On an ALIENFLIGHTNGF7_RX image the readings take about 600 bytes, and 129 bytes of its 480 KB code region stay
 free, close to what a build time stamp moves its stream by. FrSky X telemetry needs its SmartPort source ported
 first.
+
+## D635. Build stamp outside the packed data (2026-11-03)
+
+An image's build date and time now come from `Adaflight.STM32.Build_Stamp`, whose body `tools/stampgen.py`
+writes before every build, in the form of GNAT's compilation date and time. Only that body changes, so its users
+do not recompile. `SOURCE_DATE_EPOCH` sets that moment for a reproducible build.
+
+A packed STM32F7 build compiles this body outside link time optimization and leaves its strings in flash beside
+our decoder's. Before, the stamp sat in a compressed stream, whose size then moved by tens of bytes from one build
+of a source to the next. A packed image's flash use now follows its source alone.

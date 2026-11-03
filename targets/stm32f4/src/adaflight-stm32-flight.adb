@@ -1,5 +1,4 @@
 with Ada.Real_Time; use Ada.Real_Time;
-with GNAT.Source_Info;
 with Interfaces; use Interfaces;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
@@ -14,6 +13,7 @@ with Adaflight.Blackbox;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
+with Adaflight.STM32.Build_Stamp;
 with Adaflight.STM32.Timers;
 with Adaflight.Timer_Tables;
 with Adaflight.Build_Features;
@@ -560,8 +560,8 @@ package body Adaflight.STM32.Flight is
       V.Firmware.Patch := Version_Patch;
       V.Firmware.Version := Text (Version_Text);
       V.Firmware.MCU_Name := Text (Adaflight.Board.MCU_Name);
-      V.Firmware.Build_Date := GNAT.Source_Info.Compilation_Date;
-      V.Firmware.Build_Time := GNAT.Source_Info.Compilation_Time;
+      V.Firmware.Build_Date := Adaflight.STM32.Build_Stamp.Build_Date;
+      V.Firmware.Build_Time := Adaflight.STM32.Build_Stamp.Build_Time;
       V.Firmware.Revision := "0000000";
       V.Firmware.UID := (UID (1), UID (2), UID (3));
       V.Firmware.Options := Common.Build_Options (Image_Options.Numbers);
@@ -627,8 +627,8 @@ package body Adaflight.STM32.Flight is
       F.Firmware_Version := Log_Text (Version_Text);
       F.Git_Revision := Log_Text ("0000000");
       F.Target_Name := Log_Text (Adaflight.Board.MCU_Name);
-      F.Build_Date := Log_Text (GNAT.Source_Info.Compilation_Date);
-      F.Build_Time := Log_Text (GNAT.Source_Info.Compilation_Time);
+      F.Build_Date := Log_Text (Adaflight.STM32.Build_Stamp.Build_Date);
+      F.Build_Time := Log_Text (Adaflight.STM32.Build_Stamp.Build_Time);
       F.Manufacturer_Id := Log_Text (Adaflight.Board.Manufacturer_ID);
       F.Board_Name := Log_Text (Adaflight.Board.Board_Name);
       F.Start_Date_Time := Log_Text (Adaflight.STM32.RTC.Start_Text);
@@ -640,8 +640,8 @@ package body Adaflight.STM32.Flight is
       Firmware        => CLI.To_Identity ("Adaflight"),
       Target          => CLI.To_Identity (Adaflight.Board.Board_Name),
       Version         => CLI.To_Identity (Version_Text),
-      Build_Date      => CLI.To_Identity (GNAT.Source_Info.Compilation_Date),
-      Build_Time      => CLI.To_Identity (GNAT.Source_Info.Compilation_Time),
+      Build_Date      => CLI.To_Identity (Adaflight.STM32.Build_Stamp.Build_Date),
+      Build_Time      => CLI.To_Identity (Adaflight.STM32.Build_Stamp.Build_Time),
       Revision        => CLI.To_Identity ("0000000"),
       MCU_Id          => (UID (1), UID (2), UID (3)),
       Now_Us          => 0,

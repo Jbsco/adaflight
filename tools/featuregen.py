@@ -159,7 +159,7 @@ UNPACK_SCRATCH = 4096
 # Read-only data that stays in flash: the run-time libraries' and the unpacking's own, which the start-up reads
 # before the unpacking; the unpacking's units build outside link time optimization to keep their file names.
 RUNTIME_LIBRARIES = ("*libgnat.a:* *libgnarl.a:* *libgcc.a:* *libc.a:* *libm.a:* *:adaflight-lzma.o "
-                     "*adaflight-stm32-data_pack.o")
+                     "*adaflight-stm32-data_pack.o *adaflight-stm32-build_stamp.o")
 
 
 def ram_early(chosen: dict) -> str:

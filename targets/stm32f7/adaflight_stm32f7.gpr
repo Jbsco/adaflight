@@ -41,6 +41,9 @@ project Adaflight_Stm32f7 is
             --  The unpacking runs before the packed data exists; see the core's decoder.
             for Switches ("adaflight-stm32-data_pack.adb") use
               Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
+            --  The build stamp changes with every build, so it stays out of the packed data.
+            for Switches ("adaflight-stm32-build_stamp.adb") use
+              Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
          when others =>
             for Default_Switches ("Ada") use Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
       end case;
