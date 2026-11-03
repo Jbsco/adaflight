@@ -5,6 +5,7 @@
 --  selects nothing. A value stored from a rounded float wraps into sixteen
 --  bits as the reference's conversion does.
 with Interfaces;
+with Adaflight.Debug_Build;
 
 package Adaflight.Debug with SPARK_Mode is
    use type Interfaces.Integer_16;
@@ -40,7 +41,8 @@ package Adaflight.Debug with SPARK_Mode is
       Data     : Values := (others => 0);
    end record;
 
-   function Selected (S : State; M : Mode) return Boolean is (S.Selected = Mode'Pos (M));
+   function Selected (S : State; M : Mode) return Boolean is
+     (Adaflight.Debug_Build.Values and then S.Selected = Mode'Pos (M));
 
    --  The configuration's debug mode number.
    procedure Select_Mode (S : in out State; Number : Interfaces.Unsigned_8)

@@ -13158,3 +13158,14 @@ its bus back in mode 3, which other devices on a shared bus expect.
 `tools/featuregen.py` turns on the SPI receiver for a board that names a CC2500, SX1280 or SX127X chip, and other
 builds compile a stub. CI builds an ALIENFLIGHTNGF7_RX image, an F722 board with a CC2500 receiver on SPI3. Its
 receiver code takes about 490 bytes, and 1347 bytes of its 480 KB code region stay free.
+
+## D632. Debug values off in 512 KB SPI receiver builds (2026-11-02)
+
+A build of 512 KB or less with an SPI receiver now leaves out its debug values, for its receiver's room. Our core
+project takes one of two specs of `Adaflight.Debug_Build` by its scenario variable `ADAFLIGHT_DEBUG_VALUES`. In a
+build without debug values `Debug.Selected` answers false, so each recorder's work folds away at compile time.
+Its debug mode setting stays, and values read zero in MSP replies, flight logs and OSD elements.
+
+`tools/featuregen.py` chooses this feature, and its new `--feature` form prints it for `target.do`, which sets
+that variable before a build. Other builds, tests and proofs keep debug values. On an ALIENFLIGHTNGF7_RX image
+free flash grows from 1347 to 9056 bytes, and other images do not change.
