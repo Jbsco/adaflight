@@ -33,6 +33,9 @@ project Adaflight_Stm32f7 is
       case Adaflight_Stm32f7_Config.Build_Profile is
          when "release" =>
             for Default_Switches ("Ada") use Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120");
+            --  The unpacking runs before the packed data exists; see the core's decoder.
+            for Switches ("adaflight-stm32-data_pack.adb") use
+              Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
          when others =>
             for Default_Switches ("Ada") use Adaflight_Stm32f7_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
       end case;

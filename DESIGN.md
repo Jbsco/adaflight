@@ -13077,3 +13077,25 @@ menu takes no CRSF or SRXL screen, as upstream builds without those features do.
 The real bodies kept their state and its elaboration in builds without the feature, since an Ada object cannot be
 left out by a condition. On the CLRacing F7 the core coupled memory falls from 54552 to 20696 bytes in use and the
 image needs 2150 bytes less (17918 over its 480 KB code region).
+
+## D627. Anonymous read-only data packed (2026-11-02)
+
+A packed STM32F7 build now keeps its anonymous read-only data in the stream too: constant aggregates, bounds of
+arrays and jump tables outside the run-time libraries. They need main RAM, which three changes free. Six zeroed
+objects of the main RAM move to the core coupled memory by their section names: UART receive buffers, flight
+configuration, MSP context, scheduler, MSP lines and OSD context, none of them a DMA target. The unpacking's model
+moves from past the packed range to the bottom of the main stack, which start-up does not reach.
+
+Code that runs before the unpacking must read nothing packed. Link time optimization mixes every unit's anonymous
+constants into shared partitions, so our decoder and unpacking compile outside it, and packing leaves their
+object files' read-only data in flash with run-time library data. An exclusion written inside a section list
+covers only its first section name in GNU ld, so ours stands before the list.
+
+`tools/datapack.py` now refuses an
+image whose unpacking, decoder or cache start-up loads an address inside the packed range, from its literal pools
+and its movw and movt pairs; it caught both faults while we built this.
+
+On the CLRacing F7 the code region shrinks by 18496 bytes and the stream grows by 1733, so the image needs 16830
+bytes less (1088 over its 480 KB code region). Main RAM keeps 15140 bytes past the packed range and the core coupled
+memory 15184. In an emulated boot of that image linked with a larger flash region, 63 words sampled across unpacked
+data match its sections and start-up reaches flight setup.
