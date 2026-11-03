@@ -1,37 +1,41 @@
 package body Adaflight.Servo_Rules with SPARK_Mode is
 
-   function R (Target, Input : Unsigned_8; Rate : Integer_8) return Rule is
-     (Target => Target, Input => Input, Rate => Rate, Speed => 0, Min => 0, Max => 100, Box => 0);
-
-   Tri_Rules : constant Rule_List := (1 => R (5, 2, 100), others => <>);
+   Tri_Rules : constant Rule_List := (1 => (5, 2, 100, 0, 0, 100, 0), others => (0, 0, 0, 0, 0, 0, 0));
 
    Bicopter_Rules : constant Rule_List :=
-     (R (4, 2, 100), R (4, 1, -100), R (5, 2, 100), R (5, 1, 100), others => <>);
+     ((4, 2, 100, 0, 0, 100, 0), (4, 1, -100, 0, 0, 100, 0), (5, 2, 100, 0, 0, 100, 0), (5, 1, 100, 0, 0, 100, 0),
+      others => (0, 0, 0, 0, 0, 0, 0));
 
-   Gimbal_Rules : constant Rule_List := (R (0, 12, 125), R (1, 13, 125), others => <>);
+   Gimbal_Rules : constant Rule_List :=
+     ((0, 12, 125, 0, 0, 100, 0), (1, 13, 125, 0, 0, 100, 0), others => (0, 0, 0, 0, 0, 0, 0));
 
    Flying_Wing_Rules : constant Rule_List :=
-     (R (3, 0, 100), R (3, 1, 100), R (4, 0, -100), R (4, 1, 100), R (7, 3, 100), others => <>);
+     ((3, 0, 100, 0, 0, 100, 0), (3, 1, 100, 0, 0, 100, 0), (4, 0, -100, 0, 0, 100, 0), (4, 1, 100, 0, 0, 100, 0),
+      (7, 3, 100, 0, 0, 100, 0), others => (0, 0, 0, 0, 0, 0, 0));
 
    Airplane_Rules : constant Rule_List :=
-     (R (3, 0, 100), R (4, 0, 100), R (5, 2, 100), R (6, 1, 100), R (7, 3, 100), others => <>);
+     ((3, 0, 100, 0, 0, 100, 0), (4, 0, 100, 0, 0, 100, 0), (5, 2, 100, 0, 0, 100, 0), (6, 1, 100, 0, 0, 100, 0),
+      (7, 3, 100, 0, 0, 100, 0), others => (0, 0, 0, 0, 0, 0, 0));
 
    Heli_Rules : constant Rule_List :=
-     (R (0, 1, -50), R (0, 0, -87), R (0, 8, 100), R (1, 1, -50), R (1, 0, 87), R (1, 8, 100), R (2, 1, 100),
-      R (2, 8, 100), R (3, 2, 100));
+     ((0, 1, -50, 0, 0, 100, 0), (0, 0, -87, 0, 0, 100, 0), (0, 8, 100, 0, 0, 100, 0), (1, 1, -50, 0, 0, 100, 0),
+      (1, 0, 87, 0, 0, 100, 0), (1, 8, 100, 0, 0, 100, 0), (2, 1, 100, 0, 0, 100, 0), (2, 8, 100, 0, 0, 100, 0),
+      (3, 2, 100, 0, 0, 100, 0));
 
-   Dualcopter_Rules : constant Rule_List := (R (4, 1, 100), R (5, 0, 100), others => <>);
+   Dualcopter_Rules : constant Rule_List :=
+     ((4, 1, 100, 0, 0, 100, 0), (5, 0, 100, 0, 0, 100, 0), others => (0, 0, 0, 0, 0, 0, 0));
 
    Singlecopter_Rules : constant Rule_List :=
-     (R (3, 2, 100), R (3, 1, 100), R (4, 2, 100), R (4, 1, 100), R (5, 2, 100), R (5, 0, 100), R (6, 2, 100),
-      R (6, 0, 100), others => <>);
+     ((3, 2, 100, 0, 0, 100, 0), (3, 1, 100, 0, 0, 100, 0), (4, 2, 100, 0, 0, 100, 0), (4, 1, 100, 0, 0, 100, 0),
+      (5, 2, 100, 0, 0, 100, 0), (5, 0, 100, 0, 0, 100, 0), (6, 2, 100, 0, 0, 100, 0), (6, 0, 100, 0, 0, 100, 0),
+      others => (0, 0, 0, 0, 0, 0, 0));
 
    procedure Mode_Rules
      (O : Mixer_Init.Options; Mode : Mixer_Init.Mixer_Mode; Rules : out Rule_List; Count : out Rule_Count)
    is
       use Mixer_Init;
    begin
-      Rules := (others => <>);
+      Rules := (others => (0, 0, 0, 0, 0, 0, 0));
       Count := 0;
       case Mode is
          when Tri =>

@@ -13099,3 +13099,16 @@ On the CLRacing F7 the code region shrinks by 18496 bytes and the stream grows b
 bytes less (1088 over its 480 KB code region). Main RAM keeps 15140 bytes past the packed range and the core coupled
 memory 15184. In an emulated boot of that image linked with a larger flash region, 63 words sampled across unpacked
 data match its sections and start-up reaches flight setup.
+
+## D628. Mixer and servo tables as static data (2026-11-02)
+
+Mixer and servo rule tables now spell out every element, unused ones included, so GNAT emits them as static
+read-only data. An aggregate with a box (`others => <>`) or a constructor function makes GNAT build its table at
+start-up in elaboration code, and a packed build keeps that code uncompressed in flash. As static data these tables
+join other named tables in the packed stream. Values stay the same: unused motor weights and servo rules are zero,
+and each servo rule keeps speed 0, range 0 to 100 and no mode box.
+
+On the CLRacing F7 the code region shrinks by 3072 bytes, so the image fits its 480 KB code region with about 1900
+bytes to spare. In an emulated boot of that image, start-up reaches flight setup and 62 of 63
+words sampled across unpacked data match its sections. The other word is a calibration variable that flight setup
+writes.
