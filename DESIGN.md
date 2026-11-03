@@ -13164,7 +13164,8 @@ receiver code takes about 490 bytes, and 1347 bytes of its 480 KB code region st
 A build of 512 KB or less with an SPI receiver now leaves out its debug values, for its receiver's room. Our core
 project takes one of two specs of `Adaflight.Debug_Build` by its scenario variable `ADAFLIGHT_DEBUG_VALUES`. In a
 build without debug values `Debug.Selected` answers false, so each recorder's work folds away at compile time.
-Its debug mode setting stays, and values read zero in MSP replies, flight logs and OSD elements.
+Its debug mode setting stays, and values read zero in MSP replies, flight logs and OSD elements. A pull
+request's proof job leaves out a naming variant such as that off spec, which its default project excludes.
 
 `tools/featuregen.py` chooses this feature, and its new `--feature` form prints it for `target.do`, which sets
 that variable before a build. Other builds, tests and proofs keep debug values. On an ALIENFLIGHTNGF7_RX image
