@@ -48,3 +48,8 @@ command = ["sh", "-c", "python3 ../../tools/memorygen.py ../../third_party/board
 [[actions]]
 type = "pre-build"
 command = ["sh", "-c", "python3 ../../tools/featuregen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-build_features.ads \"${FEATURES:-}\""]
+
+# The build stamp's body, the date and time of each build (tools/stampgen.py).
+[[actions]]
+type = "pre-build"
+command = ["python3", "../../tools/stampgen.py", "gen/adaflight-stm32-build_stamp.adb"]
