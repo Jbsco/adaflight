@@ -13243,3 +13243,21 @@ for an STM32F7 image.
 The default STM32F4 image shrinks by 10340 bytes of code. On the CLRacing F7 free flash grows from 1837 to 2823
 bytes, and its packed range, which start-up unpacks into RAM, shrinks by 7252 bytes. Marking start-up procedures
 cold for GCC grew that image by about 1 KB instead, so they stay unmarked.
+
+## D638. Elaboration code unpacked into the main stack (2026-11-03)
+
+A packed STM32F7 image now stores its elaboration code in its packed stream. Our linker script places adainit and
+each unit's elaboration procedures in RAM at the bottom of main stack, which now follows the packed range, with
+load addresses in staging memory. Start-up unpacks them with initialized data, writes data cache lines back over
+that range and drops instruction cache contents. Main then calls adainit through a linker veneer, and calls from
+that code into flash go through veneers in RAM. Once elaboration returns, main stack takes that RAM back.
+
+RAM sections now come before code in our linker script, so its boot code section takes those functions first.
+
+Main stack keeps 16 KB above that code for elaboration, which used 10748 bytes in emulation on a CLRacing F7. To
+keep that room, main stack grows past 32 KB by 4480 bytes on that board. datapack refuses an image in which code or
+data takes a function address in that range, or a branch reaches it from outside, other than main's veneer.
+
+Free flash grows from 2823 to 11608 bytes on a CLRacing F7, and from 1049 to 9843 bytes on an AlienFlight NG F7
+RX. Start-up decodes about 21 KB more: 6.0 million more instructions in emulation, about 28 ms at 216 MHz and one
+instruction per cycle.

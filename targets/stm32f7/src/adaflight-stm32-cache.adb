@@ -12,6 +12,7 @@ package body Adaflight.STM32.Cache is
    ICIALLU : Interfaces.Unsigned_32 with Volatile, Import, Address => System'To_Address (16#E000_EF50#);
    DCIMVAC : Interfaces.Unsigned_32 with Volatile, Import, Address => System'To_Address (16#E000_EF5C#);
    DCISW   : Interfaces.Unsigned_32 with Volatile, Import, Address => System'To_Address (16#E000_EF60#);
+   DCCMVAC : Interfaces.Unsigned_32 with Volatile, Import, Address => System'To_Address (16#E000_EF68#);
    DC      : constant Interfaces.Unsigned_32 := 2 ** 16;
    IC      : constant Interfaces.Unsigned_32 := 2 ** 17;
    Line    : constant := 32;
@@ -56,6 +57,21 @@ package body Adaflight.STM32.Cache is
       end loop;
       Barrier;
    end Invalidate_Data;
+
+   procedure Sync_Code (Address : System.Address; Length : Natural) is
+      use System.Storage_Elements;
+      Start : constant Integer_Address := To_Integer (Address);
+      Next  : Integer_Address := Start - Start mod Line;
+   begin
+      Barrier;
+      while Next < Start + Integer_Address (Length) loop
+         DCCMVAC := Interfaces.Unsigned_32 (Next);
+         Next := Next + Line;
+      end loop;
+      Barrier;
+      ICIALLU := 0;
+      Barrier;
+   end Sync_Code;
 
    type Start_Hook is access procedure with Convention => C;
    Entry_Hook : constant Start_Hook := Enable'Access

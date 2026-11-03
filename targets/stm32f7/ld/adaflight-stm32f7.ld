@@ -44,8 +44,9 @@
    table and the code that fits beside it in flash sector 0, sector 1 kept for the
    configuration store, the rest of the code from sector 2, and the core coupled memory on
    the data tightly coupled memory. The RAM sections come from gen/ram_early.ld and gen/ram_late.ld
-   (tools/featuregen.py): a packed build's named tables, strings and initialized data load from the
-   staging region, which is never flashed, and tools/datapack.py stores them compressed after .rodata. */
+   (tools/featuregen.py): a packed build's named tables, strings, initialized data and elaboration code load
+   from the staging region, which is never flashed, and tools/datapack.py stores them compressed after .rodata.
+   ram_early.ld comes before the code, so its elaboration code section takes those functions first. */
 INCLUDE memory.ld
 REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
@@ -61,6 +62,8 @@ ENTRY(_start_rom);
 
 SECTIONS
 {
+  INCLUDE ram_early.ld
+
   .vectors :
   {
     KEEP (*(.vectors))
@@ -133,8 +136,6 @@ SECTIONS
   {
     *(.rodata.adaflight__lzma__*)
   } > flash
-
-  INCLUDE ram_early.ld
 
   .rodata :
   {
