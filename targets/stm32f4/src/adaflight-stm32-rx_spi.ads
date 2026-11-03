@@ -15,6 +15,13 @@ package Adaflight.STM32.RX_SPI is
    function Channel_Count return Natural;
    procedure Read_Raw (Ch : Natural; Value : out Float);
    procedure Stop;
+   --  A bind request from the bind command.
+   procedure Bind;
    --  The time of the last frame, the interrupt edge that announced it.
    function Last_Frame_Us return Adaflight.Receiver.Time_Us;
+   --  Whether the protocol takes the RSSI when no other source is set.
+   function Claims_RSSI return Boolean;
+   --  The bind data into the configuration when a completed bind asked to
+   --  save it, once.
+   procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean);
 end Adaflight.STM32.RX_SPI;

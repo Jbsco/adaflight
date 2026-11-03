@@ -4768,10 +4768,15 @@ package body Adaflight.STM32.Flight is
          end;
          declare
             Now_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+            Bound  : Boolean;
          begin
             Adaflight.STM32.Radio.Frame_Check
               (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
                Adaflight.RX_Task.In_Progress (RX_State));
+            Adaflight.STM32.RX_SPI.Take_Save (Config, Bound);
+            if Bound then
+               Write_Configuration;
+            end if;
          end;
          if Scheduler.Failsafe_Due (Sched, Adaflight.STM32.Time.Millis) then
             Check_Failsafe;

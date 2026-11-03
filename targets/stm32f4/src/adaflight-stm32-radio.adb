@@ -185,7 +185,9 @@ package body Adaflight.STM32.Radio is
             if Open and then Kind = SRXL2 then
                Adaflight.SRXL2.Bind (SRXL2_State);
             end if;
-         when Adaflight.RX_Bind.SPI_Bind | Adaflight.RX_Bind.No_Bind =>
+         when Adaflight.RX_Bind.SPI_Bind =>
+            Adaflight.STM32.RX_SPI.Bind;
+         when Adaflight.RX_Bind.No_Bind =>
             null;
       end case;
    end Bind;
@@ -341,7 +343,9 @@ package body Adaflight.STM32.Radio is
       Adaflight.Receiver.Init
         (Rx, Rx_Settings, Now_Ms,
          Protocol_RSSI    =>
-           (if not Open then Adaflight.Receiver.None
+           (if Rx_Settings.Source in Adaflight.Receiver.SPI and then Adaflight.STM32.RX_SPI.Claims_RSSI
+            then Adaflight.Receiver.Rx_Protocol
+            elsif not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.Protocol_CRSF
             elsif Kind = MAVLink then Adaflight.Receiver.Protocol_Mavlink
             elsif Kind in FPort | GHST | SRXL2 then Adaflight.Receiver.Rx_Protocol
@@ -747,6 +751,17 @@ package body Adaflight.STM32.Radio is
    end Push_CRSF_Frame;
 
    function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
+
+   procedure Set_Protocol_RSSI (Value : Interfaces.Unsigned_16; Direct : Boolean) is
+   begin
+      if Direct then
+         Adaflight.Receiver.Set_RSSI_Direct
+           (Rx, Adaflight.Receiver.Unsigned_16 (Value), Adaflight.Receiver.Rx_Protocol);
+      else
+         Adaflight.Receiver.Set_RSSI
+           (Rx, Adaflight.Receiver.Unsigned_16 (Value), Adaflight.Receiver.Rx_Protocol);
+      end if;
+   end Set_Protocol_RSSI;
 
    function Serial_Protocol return Natural is (Serial_Provider);
 
