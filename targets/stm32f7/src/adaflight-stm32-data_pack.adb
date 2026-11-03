@@ -2,11 +2,14 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.LZMA;
+with Adaflight.STM32.Cache;
 
 package body Adaflight.STM32.Data_Pack is
 
    Packed_Start : Character with Import, Convention => C, External_Name => "__packed_start";
    Packed_End   : Character with Import, Convention => C, External_Name => "__packed_end";
+   Boot_Start   : Character with Import, Convention => C, External_Name => "__boot_start";
+   Boot_End     : Character with Import, Convention => C, External_Name => "__boot_end";
    Rom_End      : Character with Import, Convention => C, External_Name => "__rom_end";
    Flash_End    : Character with Import, Convention => C, External_Name => "__flash_end";
    Scratch      : Character with Import, Convention => C, External_Name => "__unpack_scratch";
@@ -24,7 +27,7 @@ package body Adaflight.STM32.Data_Pack is
            with Import, Address => Rom_End'Address;
          Target : Byte_Array (0 .. Natural (Length) - 1)
            with Import, Address => Packed_Start'Address;
-         --  The model's probabilities in the free RAM past the unpacked range.
+         --  The model's probabilities in the main stack, below the start-up's frames.
          M      : Adaflight.LZMA.Model
            with Import, Address => Scratch'Address;
          Result : Adaflight.LZMA.Status;
@@ -35,6 +38,8 @@ package body Adaflight.STM32.Data_Pack is
                null;
             end loop;
          end if;
+         Adaflight.STM32.Cache.Sync_Code
+           (Boot_Start'Address, Natural (To_Integer (Boot_End'Address) - To_Integer (Boot_Start'Address)));
       end;
    end Unpack;
 

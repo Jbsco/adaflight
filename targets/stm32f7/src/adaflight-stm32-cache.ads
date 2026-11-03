@@ -12,4 +12,8 @@ package Adaflight.STM32.Cache is
    --  read after a flash erase or program sees the memory.
    procedure Invalidate_Data (Address : System.Address; Length : Natural);
 
+   --  The data cache lines holding Length bytes from Address written to the
+   --  memory and the instruction cache dropped, so code written there runs.
+   procedure Sync_Code (Address : System.Address; Length : Natural);
+
 end Adaflight.STM32.Cache;
