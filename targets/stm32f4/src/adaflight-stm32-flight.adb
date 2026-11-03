@@ -4166,9 +4166,16 @@ package body Adaflight.STM32.Flight is
       end case;
    end Run_RunCam;
 
+   procedure Serve_ExpressLRS_MSP is new Adaflight.STM32.RX_SPI.Serve_ExpressLRS_MSP (Telemetry_Request);
+
    procedure Run_Telemetry (Now_Us : Scheduler.Time_Us) is
+      Src : constant Adaflight.CRSF_Telemetry.Sources := Telemetry_Sources;
    begin
-      Telemetry_Step (Now_Us, Telemetry_Sources);
+      Telemetry_Step (Now_Us, Src);
+      if Adaflight.Build_Features.SPI_Receiver then
+         Adaflight.STM32.RX_SPI.Set_Telemetry_Sources (Src);
+         Serve_ExpressLRS_MSP;
+      end if;
    end Run_Telemetry;
 
    --  A task's body between the scheduler's execution prologue and
@@ -4661,6 +4668,15 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.FrSky_Hub.Init (Config, Runtime_Features, Hub_Settings);
          end if;
       end;
+      if Adaflight.Build_Features.SPI_Receiver then
+         Adaflight.STM32.RX_SPI.Start_ExpressLRS_Telemetry
+           ((Telemetry_Feature   => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
+             GPS_Feature         => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
+             Accelerometer       => Gyro_Report.Acc_Found,
+             Voltage_Configured  => Adaflight.Battery."/=" (Battery_Settings.Voltage_Meter, Adaflight.Battery.None),
+             Amperage_Configured => Adaflight.Battery."/=" (Battery_Settings.Current_Meter, Adaflight.Battery.None),
+             Disabled_Sensors    => Config.Telemetry_Config.Disabled_Sensors));
+      end if;
       if not Adaflight.STM32.Radio.Is_FPort then
          --  An SPI receiver that took the SmartPort stream at its start keeps it.
          if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.SmartPort_Taken then

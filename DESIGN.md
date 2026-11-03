@@ -13340,3 +13340,22 @@ or write that the MSP handler buffered asks for a reply.
 
 Vectors drive reference telemetry code through random features, sensor masks, battery meters and MSP frames, with
 payload requests between them.
+
+## D645. ExpressLRS telemetry on boards (2026-11-03)
+
+ExpressLRS receivers on boards now send telemetry. A telemetry slot offers a payload when its link is connected at
+a rate with telemetry and its sender is idle. Our payload schedule then picks it, and board code writes that CRSF
+frame: device information, GPS, battery, attitude or flight mode. Frame writers are those serial CRSF telemetry
+uses.
+
+Flight starts the schedule with its telemetry and GPS features, accelerometer, battery meters and disabled
+sensors, and hands the receiver each telemetry task's readings. A device ping from the transmitter asks for the
+device information.
+
+MSP requests and writes from the transmitter queue in the radio's interrupt, up to the 96 bytes the reference
+buffers. Each telemetry task run serves them through our MSP tunnel core and the answer serial MSP uses, writes
+the reply's chunk as a CRSF MSP response, and marks an MSP reply waiting. A reply with chunks left sends its next
+chunk when the transmitter's next MSP frame arrives, as the reference does. A protected object shares the queue
+and the reply frame between interrupt and task.
+
+On an AlienFlight NG F7 ELRS this costs 1182 bytes of flash, 6650 left.

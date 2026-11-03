@@ -4,6 +4,8 @@
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
+with Adaflight.CRSF_Telemetry;
+with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.Receiver;
 with Adaflight.SmartPort_Telemetry;
@@ -57,6 +59,16 @@ package Adaflight.STM32.RX_SPI is
    procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings);
    --  The SmartPort stream's value tables from the sensors.
    procedure Set_SmartPort_Build (B : Adaflight.SmartPort_Telemetry.Build_Inputs);
+   --  The ExpressLRS telemetry's start, and the readings its frames send as
+   --  the telemetry task last read them.
+   procedure Start_ExpressLRS_Telemetry (Inp : Adaflight.ExpressLRS_Telemetry.Start_Inputs);
+   procedure Set_Telemetry_Sources (Src : Adaflight.CRSF_Telemetry.Sources);
+   --  The ExpressLRS MSP frames since the last run, a completed request
+   --  answered through Answer.
+   generic
+      with procedure Answer (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                             Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
+   procedure Serve_ExpressLRS_MSP;
    --  Whether the craft is armed, which a receiver's status frames read.
    procedure Set_Armed (Armed : Boolean);
    --  The bind data into the configuration when a completed bind asked to
