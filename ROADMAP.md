@@ -28,9 +28,10 @@ Silver with no assume, and pass the gates on `main`.
   support.
 - Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds STM32F405 images.
   `targets/host` runs flight software on host, its UARTs and USB port on TCP ports. `targets/stm32f7`
-  builds STM32F7 images. Then H7 and other families Betaflight runs on, plus a physics simulator link
-  for host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, ADC on DMA, DShot on timers
-  and bit-banged on GPIO ports.
+  builds STM32F7 images. 512 KB boards pack cold tables, initialized data and elaboration code, which
+  start-up unpacks into RAM. Cold code unpacked on demand is under study. Then H7 and other families
+  Betaflight runs on, plus a physics simulator link for host target. Drivers for SPI, I2C, DMA, timers,
+  USB, flash, SD card, ADC on DMA, DShot on timers and bit-banged on GPIO ports.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the
