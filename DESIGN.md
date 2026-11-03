@@ -13411,3 +13411,15 @@ over multirotor defaults in place, so a wing reset needs no copy either, and `Wi
 On CLRACINGF4 the deepest path through CLI `defaults` falls from 35,184 to 24,316 bytes, through MSP on a receiver
 link from 34,368 to 24,448, and through configuration load from 27,464 to 26,348. Packed F7 elaboration falls from
 10,748 to 5,748 bytes.
+
+## D650. OSD task states in frames of their own (2026-11-03)
+
+Four OSD task states declare a page write list (4,996 bytes) or a draw operation list (3,080 bytes). Only one state
+runs per update, but GCC inlined them all into the board's OSD run and gave each list its own space in one frame.
+Each of those states now runs in a nested procedure marked `No_Inline`, so its list takes a frame of its own, and
+GNATprove still analyzes each call in context. Initialization is marked `No_Inline` too. `Set_Clocks` fills a copy
+of the draw context in place, where a function returned it as a second 3,116 byte copy.
+
+On CLRACINGF4 the OSD path falls from 36,860 to 31,012 bytes and stays the deepest. Draw operation lists still pass
+through a 3,080 byte temporary where a draw procedure resets its output by aggregate. A stack check image with this
+change and D649 measured 27,740 bytes in use on a Talon, where D647 measured 33,612.
