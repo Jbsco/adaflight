@@ -9,6 +9,8 @@ The board's MCU sets the image's features through its flash size. A board with 1
     FEATURES="+Menus" FLASH_KB=512 bash target.do   # a 512 KB board with its menu system
     FLASH_KB=512 bash host.do                 # the host smoke on those features
 
+`target.do` also checks each image's deepest call paths against its main stack. `tools/stackdepth.py` adds up function frames along each path from start-up and fails a build whose path leaves less than 1,024 bytes of stack. In a packed image, unpacking must fit above its model and elaboration above boot code.
+
 The STM32F4 image is flashed through the STM32 bootloader over USB with the board in DFU mode, as two files, the code from sector 2 and then the vector table at the flash's start, so the configuration stored in sector 1 stays in place. The bootloader leaves through the address of the last write, so the vector table goes last:
 
     cd targets/stm32f4

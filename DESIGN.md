@@ -13383,3 +13383,19 @@ could overwrite them. Both crates now link 40,960 bytes. Packed F7 images, whose
 F405 main RAM had 7,184 bytes free above its stack. Flight configuration (5,000 bytes) and context (4,552 bytes)
 now sit in core coupled memory, as on packed F7 images. Neither one is a DMA buffer. F405 DMA cannot reach core
 coupled memory. CLRACINGF4 then keeps 8,544 bytes free above its stack and 3,952 bytes of core coupled memory.
+
+## D648. Stack depth check (2026-11-03)
+
+Each image build now checks its deepest call paths against its main stack, so a path that outgrows it fails the
+build. `tools/stackdepth.py` reads an image's disassembly. A function's frame is the sum of its pushes and constant
+stack pointer subtractions. A call is a branch to another function, through a long branch veneer where the linker
+placed one, and start-up calls each `.init_array` entry.
+
+Each path must leave 1,024 bytes for an interrupt's exception frame, 104 bytes with floating point state, and for
+frames sized at run time, which count as zero. Calls through registers count as zero too. Those reachable from
+start-up are a jump into ROM bootloader and calls in run-time library kernel, start-up and exit code. Interrupt
+handlers run on their own stack through a run-time library table, so this check leaves them out. Packed F7 images
+check two more paths: unpacking within 8,192 bytes above its model, and elaboration above boot code.
+
+CLRACINGF4 reaches 36,860 of 40,960 bytes on its OSD task path. CLRACINGF7 reaches 36,332, with unpacking at 280 of
+8,192 and elaboration at 10,748 of 20,072.
