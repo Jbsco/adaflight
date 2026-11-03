@@ -7073,6 +7073,64 @@ procedure Vector_Check is
       end if;
    end Check_Telemetry_Line;
 
+   Sched   : Adaflight.ExpressLRS_Telemetry.Payload_Schedule;
+   Sched_R : Adaflight.ExpressLRS_Telemetry.Receiver;
+
+   procedure Check_ELRS_Schedule_Line is
+      package T renames Adaflight.ExpressLRS_Telemetry;
+      Name : constant String := Str (1);
+
+      procedure Expect_State (S : Positive) is
+         Mask : Integer_64 := 0;
+      begin
+         for P in T.Payload_Type loop
+            if Sched.Sensors (P) then
+               Mask := Mask + 2 ** T.Payload_Type'Pos (P);
+            end if;
+         end loop;
+         Record_Int (Name & ".sensors", Int (S), Mask);
+         Record_Int (Name & ".index", Int (S + 1), Integer_64 (T.Payload_Type'Pos (Sched.Index)));
+         Record_Int (Name & ".devinfo", Int (S + 2), Boolean'Pos (Sched.Device_Info_Pending));
+         Record_Int (Name & ".mspreply", Int (S + 3), Boolean'Pos (Sched.MSP_Reply_Pending));
+         Record_Int (Name & ".mspoffset", Int (S + 4), Integer_64 (Sched_R.Offset));
+         Record_Int (Name & ".msppackage", Int (S + 5), Integer_64 (Sched_R.Current_Package));
+         Record_Int (Name & ".mspconfirm", Int (S + 6), Boolean'Pos (Sched_R.Confirm));
+      end Expect_State;
+   begin
+      if Name = "elspre" then
+         Sched := (others => <>);
+         Sched_R := (others => <>);
+         Sched_R.Length := T.MSP_Buffer_Size;
+         Sched_R.Offset := Natural (Int (4));
+         Sched_R.Current_Package := Byte (Int (5));
+         Sched_R.Confirm := Int (6) /= 0;
+         Sched.Device_Info_Pending := Int (7) /= 0;
+         Sched.MSP_Reply_Pending := Int (8) /= 0;
+      elsif Name = "elsinit" then
+         T.Start (Sched, Sched_R,
+                  (Telemetry_Feature   => Int (4) /= 0, GPS_Feature => Int (5) /= 0, Accelerometer => Int (6) /= 0,
+                   Voltage_Configured  => Int (7) /= 0, Amperage_Configured => Int (8) /= 0,
+                   Disabled_Sensors    => Interfaces.Unsigned_32 (Int (9))));
+         Expect_State (10);
+      elsif Name = "elsnext" then
+         declare
+            Kind : T.Next_Payload;
+         begin
+            T.Next (Sched, Kind);
+            Record_Int (Name & ".kind", Int (4), T.Next_Payload'Pos (Kind));
+            Expect_State (5);
+         end;
+      elsif Name = "elsmsp" then
+         declare
+            Frame : T.MSP_Buffer := (others => 0);
+         begin
+            Frame (2) := Byte (Int (4));
+            T.Process_MSP (Sched, T.Kind_Of (Frame), Int (5) /= 0);
+            Expect_State (6);
+         end;
+      end if;
+   end Check_ELRS_Schedule_Line;
+
    BB_Buffer : Byte_Array (0 .. 63) := (others => 0);
    BB_Stream : Adaflight.Stream_Buffers.Stream;
 
@@ -40698,6 +40756,8 @@ procedure Vector_Check is
                   Check_ELRS_Line;
                elsif Kind = "elrstlm" then
                   Check_Telemetry_Line;
+               elsif Kind = "elrssched" then
+                  Check_ELRS_Schedule_Line;
                elsif Kind = "bbenc" then
                   Check_Blackbox_Line;
                elsif Kind = "text" then
@@ -41198,6 +41258,7 @@ begin
    Run (Dir & "/mspserial.csv", "mspserial");
    Run (Dir & "/elrs.csv", "elrs");
    Run (Dir & "/elrstlm.csv", "elrstlm");
+   Run (Dir & "/elrssched.csv", "elrssched");
    Run (Dir & "/bbenc.csv", "bbenc");
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
