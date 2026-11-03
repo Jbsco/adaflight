@@ -21,13 +21,15 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_Device.Init (Spi_Config, Ok);
    end Device_Init;
 
-   --  The FrSky family runs on the board; every other protocol's start
-   --  fails.
+   --  The FrSky and SFHSS families run on the board; every other protocol's
+   --  start fails.
    procedure Family_Init (F : Layer.Family; Ok : out Boolean) is
    begin
       case F is
          when Layer.FrSky =>
             RX_SPI_CC2500.FrSky_Init (Spi_Config, CC2500_Config, Telemetry_On, Ok, Channels, RSSI_Claimed);
+         when Layer.SFHSS =>
+            RX_SPI_CC2500.SFHSS_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
          when others =>
             Ok := False;
       end case;
@@ -45,6 +47,8 @@ package body Adaflight.STM32.RX_SPI is
       case F is
          when Layer.FrSky =>
             RX_SPI_CC2500.FrSky_Data_Received (R);
+         when Layer.SFHSS =>
+            RX_SPI_CC2500.SFHSS_Data_Received (R);
          when others =>
             R := (others => False);
       end case;
@@ -65,6 +69,8 @@ package body Adaflight.STM32.RX_SPI is
       case F is
          when Layer.FrSky =>
             RX_SPI_CC2500.FrSky_Set_Channels (Data);
+         when Layer.SFHSS =>
+            RX_SPI_CC2500.SFHSS_Set_Channels (Data);
          when others =>
             null;
       end case;
@@ -140,6 +146,8 @@ package body Adaflight.STM32.RX_SPI is
    begin
       if Started and then State.Selected = Layer.FrSky then
          RX_SPI_CC2500.FrSky_Request_Bind;
+      elsif Started and then State.Selected = Layer.SFHSS then
+         RX_SPI_CC2500.SFHSS_Request_Bind;
       end if;
    end Bind;
 
@@ -170,7 +178,7 @@ package body Adaflight.STM32.RX_SPI is
 
    procedure Take_Save (C : in out Adaflight.Config_Groups.Configuration; Requested : out Boolean) is
    begin
-      if Started and then State.Selected = Layer.FrSky then
+      if Started and then State.Selected in Layer.FrSky | Layer.SFHSS then
          RX_SPI_CC2500.Take_Save (C, Requested);
       else
          Requested := False;
