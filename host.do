@@ -8,5 +8,5 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
     exit 1
 fi
 alr -n build
-python3 ../../tools/host-smoke.py bin/adaflight_host
+python3 -u ../../tools/host-smoke.py bin/adaflight_host
 echo "host: ok"
