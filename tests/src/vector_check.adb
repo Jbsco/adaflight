@@ -30011,6 +30011,9 @@ procedure Vector_Check is
       Codec.Decode (Input, C);
       H.Gyro_Sample_Rate_Hz := Fix.Gyro_Rate (Int (4));
       H.Motors := Fix.Motor_Count (Int (5));
+      if Str (1) = "fixrx" then
+         H.Default_RX_Feature := Fix.Feature_RX_SPI;
+      end if;
       for T in H.Timers'Range loop
          H.Timers (T) := Fix.Timer_Kind'Val (Natural (T) mod 3);
       end loop;

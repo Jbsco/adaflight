@@ -39,6 +39,14 @@ def pin_literal(text: str) -> str:
     return f"(Port_{m.group(1)}, {int(m.group(2))})"
 
 
+RX_SPI_PROTOCOLS = {"RX_SPI_NRF24_V202_250K": 0, "RX_SPI_NRF24_V202_1M": 1, "RX_SPI_NRF24_SYMA_X": 2,
+                    "RX_SPI_NRF24_SYMA_X5C": 3, "RX_SPI_NRF24_CX10": 4, "RX_SPI_NRF24_CX10A": 5,
+                    "RX_SPI_NRF24_H8_3D": 6, "RX_SPI_FRSKY_D": 8, "RX_SPI_FRSKY_X": 9, "RX_SPI_A7105_FLYSKY": 10,
+                    "RX_SPI_A7105_FLYSKY_2A": 11, "RX_SPI_NRF24_KN": 12, "RX_SPI_SFHSS": 13,
+                    "RX_SPI_CYRF6936_DSM": 14, "RX_SPI_FRSKY_X_LBT": 15, "RX_SPI_REDPINE": 16,
+                    "RX_SPI_FRSKY_X_V2": 17, "RX_SPI_FRSKY_X_LBT_V2": 18, "RX_SPI_EXPRESSLRS": 19}
+RX_FEATURES = {"FEATURE_RX_PPM": 1, "FEATURE_RX_SERIAL": 8, "FEATURE_RX_PARALLEL_PWM": 2 ** 13,
+               "FEATURE_RX_MSP": 2 ** 14, "FEATURE_RX_SPI": 2 ** 25}
 BLACKBOX_DEVICES = {"BLACKBOX_DEVICE_NONE": 0, "BLACKBOX_DEVICE_FLASH": 1, "BLACKBOX_DEVICE_SDCARD": 2,
                     "BLACKBOX_DEVICE_SERIAL": 3}
 VOLTAGE_SOURCES = {"VOLTAGE_METER_NONE": 0, "VOLTAGE_METER_ADC": 1, "VOLTAGE_METER_ESC": 2}
@@ -99,6 +107,29 @@ def serial_port(text) -> int:
     if m.group(4):
         return 50 + int(m.group(4))
     return -1
+
+
+def either(defines: dict, *names: str) -> str:
+    """The value of the first of these names the configuration defines, empty for none."""
+    return next((defines[n] for n in names if n in defines), "")
+
+
+def rx_spi_protocol(text) -> int:
+    """A receiver protocol name's number, zero when the board names none."""
+    text = (text or "").strip()
+    if not text:
+        return 0
+    if text not in RX_SPI_PROTOCOLS:
+        raise SystemExit(f"boardgen: unknown SPI receiver protocol {text}")
+    return RX_SPI_PROTOCOLS[text]
+
+
+def rx_feature(text) -> int:
+    """The default receiver feature's bit, the serial receiver when the board names none."""
+    text = (text or "FEATURE_RX_SERIAL").strip()
+    if text not in RX_FEATURES:
+        raise SystemExit(f"boardgen: unknown receiver feature {text}")
+    return RX_FEATURES[text]
 
 
 def find_config(configs: Path, board: str) -> Path:
@@ -162,8 +193,9 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
     out.append("   --  motors', the LED strip's, the camera control and the ESC serial pins,")
-    out.append("   --  and the ADC devices' DMA options, the host defaults where the board")
-    out.append("   --  names none.")
+    out.append("   --  the ADC devices' DMA options, the SPI receiver's pins, bus, protocol")
+    out.append("   --  and radio pins, and the default receiver feature, the host defaults")
+    out.append("   --  where the board names none.")
     ALIGNMENTS = {"ALIGN_DEFAULT": 0, "CW0_DEG": 1, "CW90_DEG": 2, "CW180_DEG": 3, "CW270_DEG": 4, "CW0_DEG_FLIP": 5,
                   "CW90_DEG_FLIP": 6, "CW180_DEG_FLIP": 7, "CW270_DEG_FLIP": 8}
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
@@ -176,7 +208,16 @@ def generate(config: Path, overrides: dict) -> str:
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
         + [("LED_Strip_Tag", "LED_STRIP_PIN"), ("Camera_Control_Tag", "CAMERA_CONTROL_PIN"),
-           ("ESC_Serial_Tag", "ESCSERIAL_PIN")]
+           ("ESC_Serial_Tag", "ESCSERIAL_PIN"), ("RX_SPI_CS_Tag", "RX_SPI_CS_PIN"),
+           ("RX_SPI_EXTI_Tag", "RX_SPI_EXTI_PIN"), ("RX_SPI_Bind_Tag", "RX_SPI_BIND_PIN"),
+           ("RX_SPI_LED_Tag", "RX_SPI_LED_PIN")]
+    tags = [(name, defines.get(define, "")) for name, define in tags] \
+        + [(name, either(defines, *alternatives)) for name, alternatives in
+           (("ELRS_Reset_Tag", ("RX_EXPRESSLRS_SPI_RESET_PIN", "RX_SPI_EXPRESSLRS_RESET_PIN")),
+            ("ELRS_Busy_Tag", ("RX_EXPRESSLRS_SPI_BUSY_PIN", "RX_SPI_EXPRESSLRS_BUSY_PIN")),
+            ("CC2500_TX_En_Tag", ("RX_CC2500_SPI_TX_EN_PIN", "RX_SPI_CC2500_TX_EN_PIN")),
+            ("CC2500_LNA_En_Tag", ("RX_CC2500_SPI_LNA_EN_PIN", "RX_SPI_CC2500_LNA_EN_PIN")),
+            ("CC2500_Ant_Sel_Tag", ("RX_CC2500_SPI_ANT_SEL_PIN", "RX_SPI_CC2500_ANT_SEL_PIN")))]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
@@ -201,10 +242,15 @@ def generate(config: Path, overrides: dict) -> str:
         + [("MSP_UART", serial_port(defines.get("MSP_UART"))),
            ("Use_MSP_UART", serial_port(defines.get("USE_MSP_UART"))),
            ("MSP_Display_Port_UART", serial_port(defines.get("MSP_DISPLAYPORT_UART")))] \
-        + [(f"ADC{i}_DMA_Option", number(defines.get(f"ADC{i}_DMA_OPT"), -1)) for i in range(1, 4)]
+        + [(f"ADC{i}_DMA_Option", number(defines.get(f"ADC{i}_DMA_OPT"), -1)) for i in range(1, 4)] \
+        + [("RX_SPI_Device", spi_device(defines.get("RX_SPI_INSTANCE", ""))),
+           ("RX_SPI_Default_Protocol", rx_spi_protocol(defines.get("RX_SPI_DEFAULT_PROTOCOL"))),
+           ("RX_SPI_LED_Inverted", "True" if "RX_SPI_LED_INVERTED" in defines else "False"),
+           ("CC2500_Chip_Detection", "False" if "RX_CC2500_SPI_DISABLE_CHIP_DETECTION" in defines else "True"),
+           ("Default_RX_Feature", rx_feature(defines.get("DEFAULT_RX_FEATURE")))]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
-        out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")
+        out.append(f"   {name.ljust(column)} : constant := {pin_tag(define)};")
     for name, value in defaults:
         kind = "Boolean " if value in ("True", "False") else ""
         out.append(f"   {name.ljust(column)} : constant {kind}:= {value};")

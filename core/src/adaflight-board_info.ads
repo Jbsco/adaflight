@@ -106,6 +106,23 @@ package Adaflight.Board_Info with SPARK_Mode is
       ADC_DMA_Options    : Adaflight.Config_Groups.Integer_8_List_3 :=
         (1, Interfaces.Integer_8 (-1), Interfaces.Integer_8 (-1));
       ESC_Serial_Tag     : Interfaces.Unsigned_8 := 0;
+      --  The SPI receiver's default protocol, bus, select, interrupt, bind
+      --  and LED pins with the LED's inversion, the ExpressLRS radio's
+      --  reset and busy pins, and the CC2500 radio's chip detection and
+      --  amplifier pins; none when the board names no SPI receiver.
+      RX_SPI_Protocol     : Interfaces.Unsigned_8 := 0;
+      RX_SPI_Bus          : Interfaces.Unsigned_8 := 0;
+      RX_SPI_CS_Tag       : Interfaces.Unsigned_8 := 0;
+      RX_SPI_EXTI_Tag     : Interfaces.Unsigned_8 := 0;
+      RX_SPI_Bind_Tag     : Interfaces.Unsigned_8 := 0;
+      RX_SPI_LED_Tag      : Interfaces.Unsigned_8 := 0;
+      RX_SPI_LED_Inverted : Boolean := False;
+      ELRS_Reset_Tag      : Interfaces.Unsigned_8 := 0;
+      ELRS_Busy_Tag       : Interfaces.Unsigned_8 := 0;
+      CC2500_Chip_Detect  : Boolean := True;
+      CC2500_TX_En_Tag    : Interfaces.Unsigned_8 := 0;
+      CC2500_LNA_En_Tag   : Interfaces.Unsigned_8 := 0;
+      CC2500_Ant_Sel_Tag  : Interfaces.Unsigned_8 := 0;
       --  The ports a fresh configuration's MSP slots name: the board's
       --  first port, the USB one, then the target's MSP UARTs.
       MSP_First_Port        : Serial_Port := 20;

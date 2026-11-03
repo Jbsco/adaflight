@@ -272,6 +272,19 @@ package body Adaflight.STM32.Flight is
       MSP_Display_Port_UART => Adaflight.Board.MSP_Display_Port_UART,
       Timer_Map             => Timer_Defaults,
       Camera_Control_Tag    => Adaflight.Board.Camera_Control_Tag,
+      RX_SPI_Protocol       => Adaflight.Board.RX_SPI_Default_Protocol,
+      RX_SPI_Bus            => Adaflight.Board.RX_SPI_Device,
+      RX_SPI_CS_Tag         => Adaflight.Board.RX_SPI_CS_Tag,
+      RX_SPI_EXTI_Tag       => Adaflight.Board.RX_SPI_EXTI_Tag,
+      RX_SPI_Bind_Tag       => Adaflight.Board.RX_SPI_Bind_Tag,
+      RX_SPI_LED_Tag        => Adaflight.Board.RX_SPI_LED_Tag,
+      RX_SPI_LED_Inverted   => Adaflight.Board.RX_SPI_LED_Inverted,
+      ELRS_Reset_Tag        => Adaflight.Board.ELRS_Reset_Tag,
+      ELRS_Busy_Tag         => Adaflight.Board.ELRS_Busy_Tag,
+      CC2500_Chip_Detect    => Adaflight.Board.CC2500_Chip_Detection,
+      CC2500_TX_En_Tag      => Adaflight.Board.CC2500_TX_En_Tag,
+      CC2500_LNA_En_Tag     => Adaflight.Board.CC2500_LNA_En_Tag,
+      CC2500_Ant_Sel_Tag    => Adaflight.Board.CC2500_Ant_Sel_Tag,
       ADC_DMA_Options       => (Adaflight.Board.ADC1_DMA_Option, Adaflight.Board.ADC2_DMA_Option,
                                 Adaflight.Board.ADC3_DMA_Option),
       ESC_Serial_Tag        => Adaflight.Board.ESC_Serial_Tag);
@@ -713,7 +726,7 @@ package body Adaflight.STM32.Flight is
    procedure Fix_Configuration is
       Hardware : constant Adaflight.Config_Fix.Hardware :=
         (Gyro_Sample_Rate_Hz => Ctx.Gyro_Sample_Rate_Hz, UDP_Receiver => Adaflight.STM32.MCU.UDP_Receiver_Available,
-         others => <>);
+         Default_RX_Feature => Adaflight.Board.Default_RX_Feature, others => <>);
       Results  : Adaflight.Config_Fix.Results;
    begin
       Adaflight.Config_Fix.Fix (Config, Hardware, Ports, Runtime_Features, Results);
