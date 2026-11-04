@@ -52,7 +52,7 @@ package Adaflight.Filters with SPARK_Mode, Pure is
    procedure PT1_Update_Cutoff (F : in out PT1; K : Unit_Interval)
      with Post => F.K = K and then F.State = F.State'Old;
    procedure PT1_Apply (F : in out PT1; Input : Signal; Output : out Signal)
-     with Inline, Post => Output = F.State and then F.K = F.K'Old;
+     with Inline_Always, Post => Output = F.State and then F.K = F.K'Old;
 
    function PT2_Gain (Cutoff : Frequency; Dt : Period) return Unit_Interval;
    function PT2_Gain_From_Delay (Delay_S : Delay_Seconds; Dt : Period) return Unit_Interval;
@@ -61,7 +61,7 @@ package Adaflight.Filters with SPARK_Mode, Pure is
    procedure PT2_Update_Cutoff (F : in out PT2; K : Unit_Interval)
      with Post => F.K = K and then F.State = F.State'Old and then F.State1 = F.State1'Old;
    procedure PT2_Apply (F : in out PT2; Input : Signal; Output : out Signal)
-     with Inline, Post => Output = F.State and then F.K = F.K'Old;
+     with Inline_Always, Post => Output = F.State and then F.K = F.K'Old;
 
    function PT3_Gain (Cutoff : Frequency; Dt : Period) return Unit_Interval;
    function PT3_Gain_From_Delay (Delay_S : Delay_Seconds; Dt : Period) return Unit_Interval;
@@ -71,7 +71,7 @@ package Adaflight.Filters with SPARK_Mode, Pure is
      with Post => F.K = K and then F.State = F.State'Old
        and then F.State1 = F.State1'Old and then F.State2 = F.State2'Old;
    procedure PT3_Apply (F : in out PT3; Input : Signal; Output : out Signal)
-     with Inline, Post => Output = F.State and then F.K = F.K'Old;
+     with Inline_Always, Post => Output = F.State and then F.K = F.K'Old;
 
    ---------------------------------------------------------------------------
    --  State-variable filters in topology-preserving transform form

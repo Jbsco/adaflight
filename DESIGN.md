@@ -13485,3 +13485,13 @@ in place.
 
 A Talon A/B measured its PID task at 117 to 120 µs against 129 to 132 µs with D655 alone, and PID task rates of
 4.0 kHz against 3.9 to 4.0 kHz.
+
+## D657. Filter steps inlined (2026-11-04)
+
+`Lerp`, `PT1_Apply`, `PT2_Apply` and `PT3_Apply` carried `Inline`, which GCC weighs against size at `-Os`, and it
+left them as calls. A PID task profile on a Talon put about 4.5 percent of its samples in `Lerp`, which each filter
+stage calls, and calls from ITCM code reach it through a veneer into flash. All four now carry `Inline_Always`, for
+about 1 KB more code in an F7 image.
+
+A Talon A/B measured its PID task at 110 to 112 µs against 119 to 120 µs with D656. With only `Lerp` forced inline
+it measured 116 to 119 µs.

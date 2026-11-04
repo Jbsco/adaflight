@@ -78,7 +78,7 @@ package Adaflight.Maths with SPARK_Mode, Pure is
    --  saturation only absorbs the rounding of the last operation at the
    --  bound itself, which no physical signal reaches.
    function Lerp (From : Signal; To : Signal; K : Unit_Interval) return Signal
-     with Inline;
+     with Inline_Always;
 
    function Constrain (Value : Integer_32; Low : Integer_32; High : Integer_32)
      return Integer_32
