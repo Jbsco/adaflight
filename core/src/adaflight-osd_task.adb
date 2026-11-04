@@ -82,28 +82,27 @@ package body Adaflight.OSD_Task with SPARK_Mode is
        Launch_Time_Us => O.Page.Launch_Time_Us,
        Armed          => C.Page_Inputs.Armed));
 
-   function Draw_Context (O : OSD; C : Context; Clock_Us : Unsigned_32) return Adaflight.OSD_Draw.Context
-     with Post => Adaflight.OSD_Draw.Context_Valid (Draw_Context'Result) = Adaflight.OSD_Draw.Context_Valid (C.Draw)
-                  and then Draw_Context'Result.Inputs.Motors = C.Draw.Inputs.Motors
+   procedure Set_Clocks (O : OSD; C : Context; Clock_Us : Unsigned_32; X : in out Adaflight.OSD_Draw.Context)
+     with Post => Adaflight.OSD_Draw.Context_Valid (X) = Adaflight.OSD_Draw.Context_Valid (X)'Old
+                  and then X.Inputs.Motors = X.Inputs.Motors'Old
    is
-      X : Adaflight.OSD_Draw.Context := C.Draw;
    begin
       X.Inputs.Clocks := Clocks (O, C, Clock_Us);
       X.Inputs.Aux_Value := O.Page.Aux_Value;
-      return X;
-   end Draw_Context;
+   end Set_Clocks;
 
    procedure Analyze
      (O : in out OSD; C : Context; Clock_Us : Unsigned_32; Sched : in out Adaflight.Scheduler.State;
       Result : in out Ops)
      with Global => null
    is
+      X : Adaflight.OSD_Draw.Context := C.Draw;
       D : Adaflight.OSD_Draw.Ops;
    begin
       Adaflight.Scheduler.Ignore_Task_Exec_Time (Sched);
       Adaflight.OSD_Elements.Add_Active_Elements (O.Active, C.Positions, 1, C.Element_Inputs);
-      Adaflight.OSD_Draw.Draw_Backgrounds
-        (O.Cycle, O.Active, C.Positions, O.Blink, O.Render, Draw_Context (O, C, Clock_Us), O.Craft, D);
+      Set_Clocks (O, C, Clock_Us, X);
+      Adaflight.OSD_Draw.Draw_Backgrounds (O.Cycle, O.Active, C.Positions, O.Blink, O.Render, X, O.Craft, D);
       Add_Draw_Ops (Result, D);
    end Analyze;
 
@@ -129,6 +128,7 @@ package body Adaflight.OSD_Task with SPARK_Mode is
       O.Active := (others => <>);
       Analyze (O, C, Clock_Us, Sched, Result);
    end Complete_Initialization;
+   pragma No_Inline (Complete_Initialization);
 
    procedure Update_Check
      (O : in out OSD; C : Context; Now_Us : Unsigned_32; Transfer_In_Progress : Boolean; Due : out Boolean)
@@ -161,6 +161,83 @@ package body Adaflight.OSD_Task with SPARK_Mode is
       Sched : in out Adaflight.Scheduler.State; Result : out Ops)
    is
       Current : constant Task_State := O.State;
+
+      --  The states with a write or operation list run in frames of their own.
+      procedure Run_Stats_1;
+      pragma No_Inline (Run_Stats_1);
+      procedure Run_Refresh_Stats;
+      pragma No_Inline (Run_Refresh_Stats);
+      procedure Run_Draw_Element;
+      pragma No_Inline (Run_Draw_Element);
+      procedure Run_Display_Element;
+      pragma No_Inline (Run_Display_Element);
+
+      procedure Run_Stats_1 is
+         R       : Adaflight.OSD_Stats.Readings := C.Readings;
+         Armed   : Boolean;
+         Cleared : Boolean;
+         Refresh : Boolean;
+         W       : Adaflight.OSD_Page.Writes;
+      begin
+         R.Acceleration := O.Page.G_Force;
+         Adaflight.OSD_Page.Process_Stats_1 (O.Page, O.Stats, C.Page_Settings, C.Page_Inputs, R, Armed, Cleared,
+                                             Refresh);
+         if Armed then
+            Adaflight.OSD_Page.Show_Armed (C.Page_Settings, C.Page_Inputs, W);
+            Add_Page_Writes (Result, W);
+         elsif Cleared then
+            Add (Result, (Kind => Clear, Attr => 0, others => <>));
+         end if;
+         O.State := (if Refresh then Refresh_Stats else Process_Stats_2);
+      end Run_Stats_1;
+
+      procedure Run_Refresh_Stats is
+         W         : Adaflight.OSD_Page.Writes;
+         Completed : Boolean := True;
+      begin
+         if Adaflight.OSD_Page.Page_Ready (O.Stats, C.Page) then
+            Adaflight.OSD_Page.Refresh_Stats (O.Page, C.Page_Settings, O.Stats, C.Page, W, Completed);
+            Add_Page_Writes (Result, W);
+         end if;
+         if Completed then
+            O.State := Process_Stats_2;
+         end if;
+      end Run_Refresh_Stats;
+
+      procedure Run_Draw_Element is
+         Element : constant Natural := O.Cycle.Active_Number;
+         Exec    : constant Unsigned_32 := Draw_End_Us - Clock_Us;
+         X       : Adaflight.OSD_Draw.Context := C.Draw;
+         D       : Adaflight.OSD_Draw.Ops;
+      begin
+         Set_Clocks (O, C, Clock_Us, X);
+         Adaflight.OSD_Draw.Draw_Next
+           (O.Cycle, O.Active, C.Positions, O.Blink, C.Device_Blink, O.Render, O.Warnings, X, O.Craft,
+            O.More_Elements, D);
+         Add_Draw_Ops (Result, D);
+         if Exec > Interfaces.Shift_Right (O.Element_Time (Element), Exec_Time_Shift) then
+            O.Element_Time (Element) := Interfaces.Shift_Left (Exec, Exec_Time_Shift);
+         elsif O.Element_Time (Element) > 0 then
+            O.Element_Time (Element) := O.Element_Time (Element) - 1;
+         end if;
+         if Adaflight.OSD_Draw.Render_Pending (O.Cycle) then
+            O.State := Display_Element;
+         elsif not O.More_Elements then
+            O.State := After_Elements (C);
+         end if;
+      end Run_Draw_Element;
+
+      procedure Run_Display_Element is
+         Pending : Boolean;
+         D       : Adaflight.OSD_Draw.Ops;
+      begin
+         Adaflight.OSD_Draw.Display_Active (O.Cycle, O.Active, O.Blink, Pending, D);
+         Add_Draw_Ops (Result, D);
+         if not Pending then
+            O.State := (if O.More_Elements then Draw_Element else After_Elements (C));
+         end if;
+      end Run_Display_Element;
+
    begin
       Result := (others => <>);
       if O.State /= Update_Canvas then
@@ -190,37 +267,9 @@ package body Adaflight.OSD_Task with SPARK_Mode is
             end if;
             O.State := Process_Stats_1;
          when Process_Stats_1 =>
-            declare
-               R       : Adaflight.OSD_Stats.Readings := C.Readings;
-               Armed   : Boolean;
-               Cleared : Boolean;
-               Refresh : Boolean;
-               W       : Adaflight.OSD_Page.Writes;
-            begin
-               R.Acceleration := O.Page.G_Force;
-               Adaflight.OSD_Page.Process_Stats_1 (O.Page, O.Stats, C.Page_Settings, C.Page_Inputs, R, Armed, Cleared,
-                                                   Refresh);
-               if Armed then
-                  Adaflight.OSD_Page.Show_Armed (C.Page_Settings, C.Page_Inputs, W);
-                  Add_Page_Writes (Result, W);
-               elsif Cleared then
-                  Add (Result, (Kind => Clear, Attr => 0, others => <>));
-               end if;
-               O.State := (if Refresh then Refresh_Stats else Process_Stats_2);
-            end;
+            Run_Stats_1;
          when Refresh_Stats =>
-            declare
-               W         : Adaflight.OSD_Page.Writes;
-               Completed : Boolean := True;
-            begin
-               if Adaflight.OSD_Page.Page_Ready (O.Stats, C.Page) then
-                  Adaflight.OSD_Page.Refresh_Stats (O.Page, C.Page_Settings, O.Stats, C.Page, W, Completed);
-                  Add_Page_Writes (Result, W);
-               end if;
-               if Completed then
-                  O.State := Process_Stats_2;
-               end if;
-            end;
+            Run_Refresh_Stats;
          when Process_Stats_2 =>
             declare
                Skip    : Boolean;
@@ -266,37 +315,9 @@ package body Adaflight.OSD_Task with SPARK_Mode is
                O.State := Draw_Element;
             end if;
          when Draw_Element =>
-            declare
-               Element : constant Natural := O.Cycle.Active_Number;
-               Exec    : constant Unsigned_32 := Draw_End_Us - Clock_Us;
-               D       : Adaflight.OSD_Draw.Ops;
-            begin
-               Adaflight.OSD_Draw.Draw_Next
-                 (O.Cycle, O.Active, C.Positions, O.Blink, C.Device_Blink, O.Render, O.Warnings,
-                  Draw_Context (O, C, Clock_Us), O.Craft, O.More_Elements, D);
-               Add_Draw_Ops (Result, D);
-               if Exec > Interfaces.Shift_Right (O.Element_Time (Element), Exec_Time_Shift) then
-                  O.Element_Time (Element) := Interfaces.Shift_Left (Exec, Exec_Time_Shift);
-               elsif O.Element_Time (Element) > 0 then
-                  O.Element_Time (Element) := O.Element_Time (Element) - 1;
-               end if;
-               if Adaflight.OSD_Draw.Render_Pending (O.Cycle) then
-                  O.State := Display_Element;
-               elsif not O.More_Elements then
-                  O.State := After_Elements (C);
-               end if;
-            end;
+            Run_Draw_Element;
          when Display_Element =>
-            declare
-               Pending : Boolean;
-               D       : Adaflight.OSD_Draw.Ops;
-            begin
-               Adaflight.OSD_Draw.Display_Active (O.Cycle, O.Active, O.Blink, Pending, D);
-               Add_Draw_Ops (Result, D);
-               if not Pending then
-                  O.State := (if O.More_Elements then Draw_Element else After_Elements (C));
-               end if;
-            end;
+            Run_Display_Element;
          when Refresh_Prearm =>
             declare
                X, Y     : Unsigned_8;
