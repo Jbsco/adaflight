@@ -1,3 +1,5 @@
+with Interfaces;
+with System.Machine_Code;
 with System.Storage_Elements; use System.Storage_Elements;
 with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -18,7 +20,23 @@ package body Adaflight.STM32.Data_Pack is
       use type Adaflight.LZMA.Status;
       Length : constant Integer_Address := To_Integer (Packed_End'Address) - To_Integer (Packed_Start'Address);
       Room   : constant Integer_Address := To_Integer (Flash_End'Address) - To_Integer (Rom_End'Address);
+      ITCM_Start : Character with Import, Convention => C, External_Name => "__itcm_start";
+      ITCM_End   : Character with Import, Convention => C, External_Name => "__itcm_end";
+      ITCM_Load  : Character with Import, Convention => C, External_Name => "__itcm_load";
+      Words      : constant Integer_Address := (To_Integer (ITCM_End'Address) - To_Integer (ITCM_Start'Address)) / 4;
    begin
+      if Words > 0 then
+         declare
+            type Word_Array is array (Integer_Address range <>) of Interfaces.Unsigned_32;
+            From : constant Word_Array (0 .. Words - 1) with Import, Address => ITCM_Load'Address;
+            To   : Word_Array (0 .. Words - 1) with Import, Address => ITCM_Start'Address;
+         begin
+            for K in To'Range loop
+               To (K) := From (K);
+            end loop;
+            System.Machine_Code.Asm ("dsb" & ASCII.LF & ASCII.HT & "isb", Volatile => True);
+         end;
+      end if;
       if not Adaflight.Build_Features.Packed_Data or else Length <= 0 then
          return;
       end if;

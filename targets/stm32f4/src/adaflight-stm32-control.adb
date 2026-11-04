@@ -149,6 +149,9 @@ package body Adaflight.STM32.Control is
 
    --  The controller's loop over the rates, the RC command's setpoints and
    --  feedforward, the modes and the attitude.
+   --  PID task's two largest steps run from STM32F7 instruction tightly coupled memory.
+   procedure Run_Controller;
+   pragma Linker_Section (Run_Controller, ".itcm_text");
    procedure Run_Controller is
       Controller_Start : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Micros;
       Inp   : Adaflight.PID_Controller.Inputs;
@@ -211,6 +214,8 @@ package body Adaflight.STM32.Control is
    --  stick deflections, the rates, the tilt and the attitude, with the
    --  autopilot's throttle under altitude hold or the GPS rescue; the
    --  throttle step noted for the gyro's dynamic lowpass.
+   procedure Run_Mixer;
+   pragma Linker_Section (Run_Mixer, ".itcm_text");
    procedure Run_Mixer is
       Inp   : Adaflight.Mixer.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
