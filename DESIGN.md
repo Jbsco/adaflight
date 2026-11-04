@@ -13423,3 +13423,10 @@ of the draw context in place, where a function returned it as a second 3,116 byt
 On CLRACINGF4 the OSD path falls from 36,860 to 31,012 bytes and stays the deepest. Draw operation lists still pass
 through a 3,080 byte temporary where a draw procedure resets its output by aggregate. A stack check image with this
 change and D649 measured 27,740 bytes in use on a Talon, where D647 measured 33,612.
+
+## D651. Flash erase step only while erasing (2026-11-03)
+
+Main task runs a flash erase step on every call. Its board side declared a 17.9 KB flash output record, which
+default-initializes element by element, and with a chip present it read the chip's status, before the file system
+checked for an erase in progress. Reference checks its erase state first. `Erase_Step` now checks it first, so an
+idle main task does neither.

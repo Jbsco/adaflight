@@ -471,13 +471,16 @@ package body Adaflight.STM32.Flash_Chip is
    end Close;
 
    procedure Erase_Step is
-      Ready : Boolean;
-      O     : FS.Output;
    begin
-      if FS.Is_Supported (State) then
-         Device_Ready (Ready);
-         FS.Erase_Async (State, Ready, O);
-         Execute (O);
+      if FS.Is_Supported (State) and then State.Erasing then
+         declare
+            Ready : Boolean;
+            O     : FS.Output;
+         begin
+            Device_Ready (Ready);
+            FS.Erase_Async (State, Ready, O);
+            Execute (O);
+         end;
       end if;
    end Erase_Step;
 
