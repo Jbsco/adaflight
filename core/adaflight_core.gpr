@@ -41,6 +41,17 @@ project Adaflight_Core is
             --  optimization: its constants keep its object file's name, which the packing leaves in flash.
             for Switches ("adaflight-lzma.adb") use
               Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
+            --  Filter task units build for speed.
+            for Switches ("adaflight-gyro_filters.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-O2");
+            for Switches ("adaflight-dyn_notch.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-O2");
+            for Switches ("adaflight-sdft.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-O2");
+            for Switches ("adaflight-rpm_filter.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-O2");
+            for Switches ("adaflight-filters.adb") use
+              Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-O2");
          when others =>
             for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
       end case;

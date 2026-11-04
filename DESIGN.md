@@ -13504,3 +13504,13 @@ start read also with CYCLETIME, which reference reads under these same modes.
 
 A Talon A/B measured its PID task at 106 to 109 µs against 111 to 112 µs with D657. With PIDLOOP selected, its four
 debug values read 1, 16 to 23, 35 and 14 µs.
+
+## D659. Filter task units built for speed (2026-11-04)
+
+Core units of gyro filtering (`Gyro_Filters`, `Dyn_Notch`, `SDFT`, `RPM_Filter` and `Filters`) now build at `-O2`
+within an image built at `-Os`. On a Talon F722 that adds about 2.8 KB of code and leaves about 9 KB free in its
+code region. Reference builds these for speed as well, together with its PID controller and mixer. Adaflight keeps
+PID controller and mixer at `-Os`, where `-O2` measured no gain on PID task for 8.5 KB more code, and a whole image
+at `-O2` no longer fits an F722.
+
+A Talon A/B measured its FILTER task at 30 to 32 µs against 37 µs on main, with PID task unchanged.
