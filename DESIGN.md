@@ -13495,3 +13495,12 @@ about 1 KB more code in an F7 image.
 
 A Talon A/B measured its PID task at 110 to 112 µs against 119 to 120 µs with D656. With only `Lerp` forced inline
 it measured 116 to 119 µs.
+
+## D658. PID task timing reads by debug mode (2026-11-04)
+
+PID task read board time around its gyro step, controller, motor update and blackbox step on every run, for
+timings that only debug mode PIDLOOP publishes. Those reads now run only with PIDLOOP selected, and motor update's
+start read also with CYCLETIME, which reference reads under these same modes.
+
+A Talon A/B measured its PID task at 106 to 109 µs against 111 to 112 µs with D657. With PIDLOOP selected, its four
+debug values read 1, 16 to 23, 35 and 14 µs.

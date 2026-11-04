@@ -153,7 +153,9 @@ package body Adaflight.STM32.Control is
    procedure Run_Controller;
    pragma Linker_Section (Run_Controller, ".itcm_text");
    procedure Run_Controller is
-      Controller_Start : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Timed : constant Boolean :=
+        Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.PID_Loop);
+      Controller_Start : constant Interfaces.Unsigned_32 := (if Timed then Adaflight.STM32.Time.Micros else 0);
       Inp   : Adaflight.PID_Controller.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
@@ -203,7 +205,9 @@ package body Adaflight.STM32.Control is
       Adaflight.PID_Debug.Record_Loop
         (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Inp,
          Adaflight.STM32.Debug_Values.Axis);
-      Controller_Us_Last := Adaflight.STM32.Time.Micros - Controller_Start;
+      if Timed then
+         Controller_Us_Last := Adaflight.STM32.Time.Micros - Controller_Start;
+      end if;
    end Run_Controller;
 
    procedure Runaway_Check is
@@ -222,10 +226,12 @@ package body Adaflight.STM32.Control is
       Inp   : Adaflight.Mixer.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
-      Motor_Start_Us := Adaflight.STM32.Time.Micros;
       if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.Cycle_Time) then
+         Motor_Start_Us := Adaflight.STM32.Time.Micros;
          Motor_Interval_Last := Motor_Start_Us - Previous_Motor_Start_Us;
          Previous_Motor_Start_Us := Motor_Start_Us;
+      elsif Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.PID_Loop) then
+         Motor_Start_Us := Adaflight.STM32.Time.Micros;
       end if;
       Inp.RC_Throttle := Float'Max (1_000.0, Float'Min (2_000.0, Adaflight.STM32.Pilot.Throttle_Command));
       Inp.RC_Data_Throttle := Float'Max (750.0, Float'Min (2_250.0, Current.RC_Data_Throttle));
@@ -289,7 +295,9 @@ package body Adaflight.STM32.Control is
            (Adaflight.STM32.Debug_Values.State, Adaflight.STM32.DShot_Output.Telemetry,
             Adaflight.STM32.DShot_Output.Qualities, Mix_Config.Count, Adaflight.STM32.Motors.Telemetry_On);
       end if;
-      Motor_Us_Last := Adaflight.STM32.Time.Micros - Motor_Start_Us;
+      if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.PID_Loop) then
+         Motor_Us_Last := Adaflight.STM32.Time.Micros - Motor_Start_Us;
+      end if;
    end Write_Motors;
 
    --  The servo mixer's loop over the arming, the passthrough, the servo
@@ -331,10 +339,14 @@ package body Adaflight.STM32.Control is
    end Write_Servos;
 
    procedure Run_Blackbox is
-      Start : constant Interfaces.Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Timed : constant Boolean :=
+        Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.PID_Loop);
+      Start : constant Interfaces.Unsigned_32 := (if Timed then Adaflight.STM32.Time.Micros else 0);
    begin
       Adaflight.STM32.Blackbox.Update;
-      Subprocess_Us_Last := Adaflight.STM32.Time.Micros - Start;
+      if Timed then
+         Subprocess_Us_Last := Adaflight.STM32.Time.Micros - Start;
+      end if;
    end Run_Blackbox;
 
    package Loop_Pass is new Adaflight.Main_Loop
