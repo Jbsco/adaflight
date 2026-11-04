@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that an STM32 image's deepest call paths fit its main stack.
 
-usage: stackdepth.py <elf>
+usage: stackdepth.py <elf> [--paths N]
 
 Runs in the crate directory with the ARM toolchain on the path. A function's frame is the sum of its pushes and of
 the constants it subtracts from the stack pointer. A call is a branch to another function, through a long branch
@@ -9,7 +9,9 @@ veneer where the linker placed one, and the run-time library's start calls each 
 must leave MARGIN bytes for an interrupt's exception frame and frames sized at run time: the start's path through
 main within the whole stack, and in a packed image the unpacking's path within the stack above its model and the
 elaboration's path within the stack above the boot code. Calls through registers and frames sized at run time count
-as nothing and are listed with each path, and a path stops at a function it already passed through.
+as nothing and are listed with each path, and a path stops at a function it already passed through. With --paths N
+the start's check also lists up to N - 1 further paths, each one the deepest path that avoids the largest frame of
+every path listed before it.
 """
 import re
 import subprocess
@@ -86,8 +88,8 @@ def graph(elf: Path) -> tuple:
     return frame, calls, indirect, dynamic
 
 
-def deepest(root: str, frame: dict, calls: dict) -> list:
-    """The deepest path from root, by the sum of its frames."""
+def deepest(root: str, frame: dict, calls: dict, avoid: frozenset = frozenset()) -> list:
+    """The deepest path from root, by the sum of its frames, through no function in avoid."""
     memo = {}
 
     def walk(f: str, path: frozenset) -> list:
@@ -95,7 +97,7 @@ def deepest(root: str, frame: dict, calls: dict) -> list:
             return memo[f]
         best = []
         for g in sorted(calls.get(f, ())):
-            if g not in path:
+            if g not in path and g not in avoid:
                 p = walk(g, path | {g})
                 if sum(frame.get(h, 0) for h in p) > sum(frame.get(h, 0) for h in best):
                     best = p
@@ -114,10 +116,17 @@ def symbols(elf: Path) -> dict:
     return out
 
 
+def show(f: str, frame: dict, indirect: dict, dynamic: dict) -> None:
+    notes = (f", {indirect[f]} calls through registers" if indirect.get(f) else "") + \
+        (f", {dynamic[f]} frames sized at run time" if dynamic.get(f) else "")
+    print(f"  {frame.get(f, 0):6d} {f}{notes}")
+
+
 def main() -> None:
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 4) or len(sys.argv) == 4 and (sys.argv[2] != "--paths" or not sys.argv[3].isdigit()):
         raise SystemExit(__doc__)
     elf = Path(sys.argv[1])
+    more = int(sys.argv[3]) - 1 if len(sys.argv) == 4 else 0
     frame, calls, indirect, dynamic = graph(elf)
     syms = symbols(elf)
     sys.setrecursionlimit(20000)
@@ -133,10 +142,15 @@ def main() -> None:
         print(f"stackdepth: {phase} path {depth} of {room} bytes, {room - depth - MARGIN} to spare after a margin "
               f"of {MARGIN}")
         for f in path:
-            notes = (f", {indirect[f]} calls through registers" if indirect.get(f) else "") + \
-                (f", {dynamic[f]} frames sized at run time" if dynamic.get(f) else "")
-            print(f"  {frame.get(f, 0):6d} {f}{notes}")
+            show(f, frame, indirect, dynamic)
         failed = failed or depth + MARGIN > room
+        avoid = frozenset()
+        for k in range(more if phase == "start" else 0):
+            avoid = avoid | {max(path[len(head) - 1:], key=lambda f: frame.get(f, 0))}
+            path = head[:-1] + deepest(head[-1], frame, calls, avoid)
+            print(f"stackdepth: start path {k + 2}, {sum(frame.get(f, 0) for f in path)} bytes")
+            for f in path:
+                show(f, frame, indirect, dynamic)
     if failed:
         raise SystemExit("stackdepth: a path does not fit its stack with the margin")
 
