@@ -13514,3 +13514,12 @@ controller or mixer measured no gain beyond noise, five filter units together ov
 and a whole image at `-O2` no longer fits an F722.
 
 A Talon A/B measured its FILTER task at 32 to 34 µs against 36 to 38 µs on main.
+
+## D660. MAVLink link state by build feature (2026-11-04)
+
+MAVLink link state (5,528 bytes, mostly its message queue) sat in core coupled memory in every image, also in
+512 KB builds where both MAVLink features are off. It is now an array of one state with either feature and of none
+without, behind static feature checks at each use, so a build without MAVLink gives that RAM back. An STM32F411
+has 128 KB of RAM and no core coupled memory, and a build for one runs about 14 KB over.
+
+A 512 KB F4 build without MAVLink measured 22,072 bytes of core coupled memory against 27,600 on main.

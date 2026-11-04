@@ -118,9 +118,9 @@ package body Adaflight.STM32.MAVLink is
       if not Running then
          return;
       end if;
-      if Shared_On then
+      if Adaflight.STM32.MAVLink_Link.Present and then Shared_On then
          Commands.Process_Queue
-           (Station, Tlm, Tlm_Set, Station_Set, Cmd, Adaflight.STM32.MAVLink_Link.State, Replies, R);
+           (Station, Tlm, Tlm_Set, Station_Set, Cmd, Adaflight.STM32.MAVLink_Link.Slot (1), Replies, R);
       else
          Adaflight.STM32.USART.Take (Port_Of.Line, Input, Count);
          for I in 0 .. Count - 1 loop
@@ -135,9 +135,10 @@ package body Adaflight.STM32.MAVLink is
       end if;
       Put (Replies.Data (1 .. Replies.Length));
       --  The receiver's last radio status, where one runs.
-      Tx_Valid := Adaflight.STM32.MAVLink_Link.Open and then Adaflight.STM32.MAVLink_Link.State.Tx_Buffer_Valid;
+      Tx_Valid := Adaflight.STM32.MAVLink_Link.Present and then Adaflight.STM32.MAVLink_Link.Open
+        and then Adaflight.STM32.MAVLink_Link.Slot (1).Tx_Buffer_Valid;
       Tx_Should := Tx_Valid
-        and then Adaflight.MAVLink.Should_Send_Telemetry (Adaflight.STM32.MAVLink_Link.State, Min_Free);
+        and then Adaflight.MAVLink.Should_Send_Telemetry (Adaflight.STM32.MAVLink_Link.Slot (1), Min_Free);
       Telemetry.Handle
         (Tlm, Tlm_Set, Inp, Now_Us, Now_Ms, Tx_Valid => Tx_Valid, Tx_Should_Send => Tx_Should, O => Stream);
       Adaflight.MAVLink_Debug.Record_Telemetry

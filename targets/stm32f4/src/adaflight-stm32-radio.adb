@@ -433,7 +433,7 @@ package body Adaflight.STM32.Radio is
                          (Adaflight.Config_Fix.Serial_Options, Adaflight.Config_Fix.Serial_Assignments (Config),
                           SFM.MAVLink, Port_Ids (Link));
                   begin
-                     Adaflight.MAVLink.Init (ML.State, Rx_Settings.Mid_RC);
+                     Adaflight.MAVLink.Init (ML.Slot (1), Rx_Settings.Mid_RC);
                      USART.Init
                        (Link, (if Baud = 0 then MAVLink_Baud else Positive (SFM.Rate_Of (Baud))), Line => Line,
                         Inverted => Inverted);
@@ -963,12 +963,12 @@ package body Adaflight.STM32.Radio is
                if Adaflight.Build_Features.MAVLink_Receiver then
                   for I in 0 .. Count - 1 loop
                      Adaflight.MAVLink.Receive_Byte
-                       (ML.State, Rx, Natural (Input (I)), Times (I));
+                       (ML.Slot (1), Rx, Natural (Input (I)), Times (I));
                      Adaflight.MAVLink_Debug.Record_Receiver
-                       (Adaflight.STM32.Debug_Values.State, ML.State);
+                       (Adaflight.STM32.Debug_Values.State, ML.Slot (1));
                   end loop;
                   if not Task_In_Progress then
-                     Adaflight.MAVLink.Frame_Status (ML.State, Status);
+                     Adaflight.MAVLink.Frame_Status (ML.Slot (1), Status);
                   end if;
                end if;
             when SRXL2 =>
@@ -1231,7 +1231,7 @@ package body Adaflight.STM32.Radio is
             when MAVLink =>
                if Adaflight.Build_Features.MAVLink_Receiver then
                   for Ch in Adaflight.MAVLink.Channel loop
-                     Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.MAVLink.Read_Raw (ML.State, Ch)));
+                     Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.MAVLink.Read_Raw (ML.Slot (1), Ch)));
                   end loop;
                end if;
             when SRXL2 =>
@@ -1316,7 +1316,7 @@ package body Adaflight.STM32.Radio is
          when FPort => FPort_State.Last_Frame_Time_Us,
          when GHST => GHST_State.Last_Frame_Time_Us,
          when Jeti => Jeti_State.Last_Frame_Time_Us,
-         when MAVLink => ML.State.Last_Frame_Time_Us,
+         when MAVLink => (if Adaflight.Build_Features.MAVLink_Receiver then ML.Slot (1).Last_Frame_Time_Us else 0),
          when SRXL2 => SRXL2_State.Last_Frame_Time_Us);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
