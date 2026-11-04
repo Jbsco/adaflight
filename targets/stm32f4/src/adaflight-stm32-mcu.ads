@@ -22,8 +22,8 @@ package Adaflight.STM32.MCU is
      with No_Return;
    --  At the start, before the board's devices: a pending bootloader request
    --  cleared, USB D+ driven low so the host sees the device leave, and the
-   --  jump into the system memory's bootloader with the clocks and interrupts
-   --  back as a reset leaves them.
+   --  jump into the system memory's bootloader with the clocks, interrupts,
+   --  vector table and stack selection back as a reset leaves them.
    procedure Check_Bootloader_Request;
    --  The host image's simulator link: whether the image runs against a
    --  simulator, its packets read once a pass, and the attitude quaternion

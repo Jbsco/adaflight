@@ -13446,3 +13446,21 @@ so both return the values they returned before.
 GNAT warns that an unchecked conversion of `Ada.Real_Time.Time` depends on runtime representation. `Micros` and
 `Millis` read ticks that way (D652), from the 64-bit word of the pinned toolchain's light tasking runtime, so a
 narrow `pragma Warnings` turns off that one message around the conversion.
+
+## D654. ROM bootloader entry (2026-11-03)
+
+`bl`, and bootloader reboots from MSP and MAVLink, store a request, reset, and jump into ROM bootloader early in
+next start. On a Talon F722 that left a silent board: no CLI, no MSP, no USB control replies and no DFU device.
+Two faults sat on this path.
+
+Our jump ran from an Ada task on its process stack, with CONTROL selecting it. After `msr msp`, ROM thread code kept
+that stack pointer while its exceptions took main stack, both at ROM's stack top, so exception frames overwrote its
+own stack. Jump now clears BASEPRI and CONTROL, and points VTOR at ROM's vector table, since address 0 is ITCM RAM
+on an F7.
+
+With ROM running, host still kept our serial device, since nothing showed it a disconnect. A host side port reset
+brought up `STM32 BOOTLOADER` (0483:df11). Start now drives D+ low for 200 ms before its jump, as our USB start
+does, so a host sees this device leave and enumerates ROM's DFU device.
+
+On a Talon, an image with both changes brought up `STM32 BOOTLOADER` after `bl`, and a round trip of `bl`,
+`dfu-util` flash and restart needed no boot button.
