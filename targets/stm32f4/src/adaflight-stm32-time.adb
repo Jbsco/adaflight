@@ -1,4 +1,5 @@
 with Ada.Real_Time; use Ada.Real_Time;
+with Ada.Unchecked_Conversion;
 with Interfaces; use Interfaces;
 with System;
 package body Adaflight.STM32.Time is
@@ -20,30 +21,32 @@ package body Adaflight.STM32.Time is
       DWT_CTRL := DWT_CTRL or Cycle_Counter_Enable;
    end Init;
 
-   --  The clock since boot as whole seconds and the rest, which keeps the
-   --  conversions within the integer range at any uptime.
-   procedure Since_Boot (Seconds : out Unsigned_64; Rest : out Time_Span) is
-      Count : Seconds_Count;
+   --  The runtime clock counts ticks from zero at boot.
+   function Ticks is new Ada.Unchecked_Conversion (Ada.Real_Time.Time, Unsigned_64);
+   Ticks_Per_Us : constant Unsigned_32 := Unsigned_32 (Microseconds (1) / Time_Span_Unit);
+
+   --  N divided by D below 2 ** 16: a long division in 16-bit digits, each
+   --  step one 32-bit hardware divide.
+   function Divide (N : Unsigned_64; D : Unsigned_32) return Unsigned_64 is
+      Q : Unsigned_64 := 0;
+      R : Unsigned_32 := 0;
    begin
-      Split (Clock, Count, Rest);
-      Seconds := Unsigned_64 (Count);
-   end Since_Boot;
+      for K in reverse 0 .. 3 loop
+         declare
+            Digit : constant Unsigned_32 := Unsigned_32 (Shift_Right (N, 16 * K) and 16#FFFF#);
+            Part  : constant Unsigned_32 := Shift_Left (R, 16) or Digit;
+         begin
+            Q := Shift_Left (Q, 16) or Unsigned_64 (Part / D);
+            R := Part mod D;
+         end;
+      end loop;
+      return Q;
+   end Divide;
 
    function Millis return Unsigned_32 is
-      Seconds : Unsigned_64;
-      Rest    : Time_Span;
-   begin
-      Since_Boot (Seconds, Rest);
-      return Unsigned_32 ((Seconds * 1_000 + Unsigned_64 (Rest / Milliseconds (1))) mod 2 ** 32);
-   end Millis;
+     (Unsigned_32 (Divide (Divide (Ticks (Clock), Ticks_Per_Us), 1_000) mod 2 ** 32));
 
-   function Micros return Unsigned_32 is
-      Seconds : Unsigned_64;
-      Rest    : Time_Span;
-   begin
-      Since_Boot (Seconds, Rest);
-      return Unsigned_32 ((Seconds * 1_000_000 + Unsigned_64 (Rest / Microseconds (1))) mod 2 ** 32);
-   end Micros;
+   function Micros return Unsigned_32 is (Unsigned_32 (Divide (Ticks (Clock), Ticks_Per_Us) mod 2 ** 32));
 
    function Cycle_Count return Unsigned_32 is (DWT_CYCCNT);
 

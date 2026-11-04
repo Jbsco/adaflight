@@ -13430,3 +13430,13 @@ Main task runs a flash erase step on every call. Its board side declared a 17.9 
 default-initializes element by element, and with a chip present it read the chip's status, before the file system
 checked for an erase in progress. Reference checks its erase state first. `Erase_Step` now checks it first, so an
 idle main task does neither.
+
+## D652. Time base by tick division (2026-11-03)
+
+Board `Micros` and `Millis` split the runtime clock into seconds and a rest, then divided the rest by a microsecond
+or millisecond span. On a Cortex-M those were two and four 64-bit library divisions per call. A profile of the PID
+task on a Talon put about 14 percent of its samples in timekeeping.
+
+Both now take the clock's tick count, which starts at zero at boot, and divide it by ticks per microsecond in four
+16-bit digits, one hardware divide each. `Millis` divides that result by 1,000 the same way. Quotients are exact,
+so both return the values they returned before.
