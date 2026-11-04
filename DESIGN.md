@@ -13523,3 +13523,12 @@ without, behind static feature checks at each use, so a build without MAVLink gi
 has 128 KB of RAM and no core coupled memory, and a build for one runs about 14 KB over.
 
 A 512 KB F4 build without MAVLink measured 22,072 bytes of core coupled memory against 27,600 on main.
+
+## D661. UART rings by board ports (2026-11-04)
+
+UART receive and transmit rings took about 1.55 KB per port for all six ports on every board, also for ports a
+board lacks, which never start. Rings are now numbered over ports a board has, in port order, and each operation on
+a port without one returns nothing taken, no room and empty.
+
+CLRACINGF4 wires four ports and measured 6,224 bytes of rings against 9,328 on main. GEPRCF411 and MAMBAF411 wire
+two, which gives back about 6.2 KB toward their 128 KB of RAM.
