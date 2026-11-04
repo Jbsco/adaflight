@@ -119,6 +119,9 @@ package body Adaflight.STM32.USB is
       Listener.Start;
    end Init;
 
+   --  The host's port has no D+ line, and its client stays connected.
+   procedure Disconnect is null;
+
    function Configured return Boolean is (Line.Connected);
 
    function Line_Rate return Interfaces.Unsigned_32 is (0);

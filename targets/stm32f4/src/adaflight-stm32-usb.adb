@@ -510,14 +510,7 @@ package body Adaflight.STM32.USB is
       function Control_Count return Interfaces.Unsigned_32 is (D.Control_Count);
    end Controller;
 
-   --  The disconnect pulse of the reference's port open, D+ held low for 200
-   --  milliseconds so a host still holding the previous connection sees a new
-   --  device, then the pins and clocks, then the controller as the
-   --  reference's device start brings it up: the core reset on the embedded
-   --  transceiver with bus sensing off, device mode, the full-speed device
-   --  with its FIFOs, every endpoint disabled, the interrupts, and the global
-   --  interrupt last.
-   procedure Init (Product : String) is
+   procedure Disconnect is
    begin
       GPIO.Enable_Port (Port_A);
       GPIO.Set_Output (DP);
@@ -525,6 +518,17 @@ package body Adaflight.STM32.USB is
       GPIO.Set_Low (DP);
       Adaflight.STM32.Time.Delay_Ms (200);
       GPIO.Set_High (DP);
+   end Disconnect;
+
+   --  The disconnect pulse of the reference's port open, so a host still
+   --  holding the previous connection sees a new device, then the pins and
+   --  clocks, then the controller as the reference's device start brings it
+   --  up: the core reset on the embedded transceiver with bus sensing off,
+   --  device mode, the full-speed device with its FIFOs, every endpoint
+   --  disabled, the interrupts, and the global interrupt last.
+   procedure Init (Product : String) is
+   begin
+      Disconnect;
       GPIO.Set_Alternate (DM, 10, Rate => GPIO.Very_High);
       GPIO.Set_Alternate (DP, 10, Rate => GPIO.Very_High);
       RCC_APB2ENR := RCC_APB2ENR or 2 ** 14;

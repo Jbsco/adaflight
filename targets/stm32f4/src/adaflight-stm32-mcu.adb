@@ -1,6 +1,7 @@
 with System;
 with System.Machine_Code;
 with Adaflight.STM32.Memory;
+with Adaflight.STM32.USB;
 package body Adaflight.STM32.MCU is
    use type Interfaces.Unsigned_32;
    subtype Word is Interfaces.Unsigned_32;
@@ -99,6 +100,7 @@ package body Adaflight.STM32.MCU is
          return;
       end if;
       Backup (Object_Reset_Reason) := 0;
+      Adaflight.STM32.USB.Disconnect;
       System.Machine_Code.Asm ("cpsid i", Volatile => True);
       SYST_CSR := 0;
       for I in ICER'Range loop
