@@ -21,8 +21,11 @@ package body Adaflight.STM32.Time is
       DWT_CTRL := DWT_CTRL or Cycle_Counter_Enable;
    end Init;
 
-   --  The runtime clock counts ticks from zero at boot.
+   --  The runtime clock counts ticks from zero at boot, in the 64-bit word
+   --  of the pinned toolchain's runtime.
+   pragma Warnings (Off, "representation of ""Time"" values may change between GNAT versions");
    function Ticks is new Ada.Unchecked_Conversion (Ada.Real_Time.Time, Unsigned_64);
+   pragma Warnings (On, "representation of ""Time"" values may change between GNAT versions");
    Ticks_Per_Us : constant Unsigned_32 := Unsigned_32 (Microseconds (1) / Time_Span_Unit);
 
    --  N divided by D below 2 ** 16: a long division in 16-bit digits, each
