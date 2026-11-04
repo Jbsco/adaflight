@@ -4286,7 +4286,9 @@ package body Adaflight.STM32.Flight is
             Run_Receiver (Before);
          when Scheduler.PID =>
             declare
-               Gyro_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros - Before;
+               Gyro_Us : constant Unsigned_32 :=
+                 (if Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.PID_Loop)
+                  then Adaflight.STM32.Time.Micros - Before else 0);
             begin
                Run_Control (Before);
                Adaflight.Loop_Debug.Record_PID_Loop
