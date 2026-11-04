@@ -13532,3 +13532,13 @@ a port without one returns nothing taken, no room and empty.
 
 CLRACINGF4 wires four ports and measured 6,224 bytes of rings against 9,328 on main. GEPRCF411 and MAMBAF411 wire
 two, which gives back about 6.2 KB toward their 128 KB of RAM.
+
+## D662. Further stack paths in depth check (2026-11-04)
+
+`tools/stackdepth.py` takes `--paths N` to list up to N - 1 further paths from start-up. Each is the deepest path
+that avoids the largest frame of every path listed before it, so frames past the deepest one show up without a
+rebuild. A build checks only its deepest path, as before.
+
+A 512 KB F4 build lists OSD at 30,460 bytes first. PID task flash chip writes, close, erase and flush follow at
+24,656 to 25,152 bytes, each through a flash output frame of about 17.9 KB, and then MSP's argument handling at
+23,912 bytes. An STM32F411 stack under 24 KB needs these three cut.
