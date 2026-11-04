@@ -13504,3 +13504,13 @@ start read also with CYCLETIME, which reference reads under these same modes.
 
 A Talon A/B measured its PID task at 106 to 109 µs against 111 to 112 µs with D657. With PIDLOOP selected, its four
 debug values read 1, 16 to 23, 35 and 14 µs.
+
+## D659. Dynamic notch built for speed (2026-11-04)
+
+Core unit `Dyn_Notch` now builds at `-O2` within an image built at `-Os`, for about 300 bytes more code on a Talon
+F722 and 800 bytes on ALIENFLIGHTNGF7_RX, which keeps about 1.7 KB of its flash free. Reference builds its filter,
+SDFT, dynamic notch, RPM filter, PID and mixer sources for speed. On a Talon, `-O2` on gyro filters, filters, PID
+controller or mixer measured no gain beyond noise, five filter units together overflowed ALIENFLIGHTNGF7_RX flash,
+and a whole image at `-O2` no longer fits an F722.
+
+A Talon A/B measured its FILTER task at 32 to 34 µs against 36 to 38 µs on main.
