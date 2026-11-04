@@ -17,8 +17,8 @@ package body Adaflight.STM32.Pilot is
    Conds        : Adaflight.Modes.Conditions;
    RC           : Adaflight.RC_Command.State;
    RC_Config    : Adaflight.RC_Command.Config;
-   Runtime      : Adaflight.PID_Config.Runtime;
-   PID          : Adaflight.PID_Profile.Profile;
+   Runtime      : aliased Adaflight.PID_Config.Runtime;
+   PID          : aliased Adaflight.PID_Profile.Profile;
    Mode         : Adaflight.Mixer_Init.Mixer_Mode := Adaflight.Mixer_Init.Quad_X;
    Launch_Set   : Adaflight.Wing_Launch.Settings;
    --  The position controller's yaw from its last run, and the stick
@@ -206,9 +206,9 @@ package body Adaflight.STM32.Pilot is
       Adaflight.Arming_Debug.Record_Runaway_Loop (Adaflight.STM32.Debug_Values.State, Arm);
    end Runaway_Check;
 
-   function Loop_Runtime return Adaflight.PID_Config.Runtime is (Runtime);
+   function Loop_Runtime return Runtime_View is (Runtime'Access);
 
-   function Profile return Adaflight.PID_Profile.Profile is (PID);
+   function Profile return Profile_View is (PID'Access);
 
    function Mixer_Mode return Adaflight.Mixer_Init.Mixer_Mode is (Mode);
 

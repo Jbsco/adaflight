@@ -65,8 +65,10 @@ package Adaflight.STM32.Pilot is
    procedure Runaway_Check
      (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values; Now_Us : Time_Us;
       Step : in out Adaflight.Arming.Outputs);
-   function Loop_Runtime return Adaflight.PID_Config.Runtime;
-   function Profile return Adaflight.PID_Profile.Profile;
+   type Runtime_View is access constant Adaflight.PID_Config.Runtime;
+   type Profile_View is access constant Adaflight.PID_Profile.Profile;
+   function Loop_Runtime return Runtime_View;
+   function Profile return Profile_View;
    function Mixer_Mode return Adaflight.Mixer_Init.Mixer_Mode;
    function Sticks_Arm return Boolean;
    function Throttle_Raised return Boolean;

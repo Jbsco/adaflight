@@ -62,12 +62,12 @@ package body Adaflight.STM32.Control is
         (Config.Mixer_Config, Config.Motor_Config, Config.Flight3_D_Config, Config.Rx_Config,
          Config.Control_Rate_Profiles (R), Config.Pid_Profiles (P), Config.Battery_Profiles (B),
          Config.Custom_Motor_Mixer, Runtime_Features, Options);
-      Adaflight.PID_Controller.Init (Ctl, Adaflight.STM32.Pilot.Profile, Adaflight.STM32.Pilot.Loop_Runtime);
+      Adaflight.PID_Controller.Init (Ctl, Adaflight.STM32.Pilot.Profile.all, Adaflight.STM32.Pilot.Loop_Runtime.all);
       Adaflight.PID_Controller.Set_Stabilisation (Ctl, Stabilised);
       Mix := (others => <>);
-      Adaflight.Mixer.Init_RPM_Limiter (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Battery_Voltage);
+      Adaflight.Mixer.Init_RPM_Limiter (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime.all, Battery_Voltage);
       Adaflight.Mixer.Init_Dyn_Idle
-        (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile,
+        (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime.all, Adaflight.STM32.Pilot.Profile.all,
          DShot_Telemetry => Adaflight.STM32.Motors.Telemetry_Configured (Config), Motor_Idle => Natural'Min (2_000, Natural (Config.Motor_Config.Motor_Idle)));
       Last_Step := Mix.Dyn_LPF_Previous_Step;
       Step_Changed := False;
@@ -198,9 +198,11 @@ package body Adaflight.STM32.Control is
       Inp.Below_Landing_Altitude := Current.Below_Landing;
       Inp.Launch_Mode := Modes (Adaflight.Arming.Launch_Mode);
       Inp.Launch_Handover := Adaflight.STM32.Pilot.Launch.Handover;
-      Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
+      Adaflight.PID_Controller.Update
+        (Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Adaflight.STM32.Pilot.Profile.all, Inp);
       Adaflight.PID_Debug.Record_Loop
-        (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Inp, Adaflight.STM32.Debug_Values.Axis);
+        (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Inp,
+         Adaflight.STM32.Debug_Values.Axis);
       Controller_Us_Last := Adaflight.STM32.Time.Micros - Controller_Start;
    end Run_Controller;
 
@@ -267,7 +269,7 @@ package body Adaflight.STM32.Control is
          Inp.Motor_Enabled (M) := Adaflight.STM32.Motors.Motor_Enabled (M);
       end loop;
       Adaflight.Mixer.Update
-        (Mix, Mix_Config, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
+        (Mix, Mix_Config, Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Adaflight.STM32.Pilot.Profile.all, Inp);
       Adaflight.Mixer_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, Mix);
       if not Inp.Armed then
          for M in 0 .. Mix_Config.Count - 1 loop
