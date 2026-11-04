@@ -1,6 +1,7 @@
 with System;
 with System.Machine_Code;
 with Adaflight.STM32.Memory;
+with Adaflight.STM32.USB;
 package body Adaflight.STM32.MCU is
    use type Interfaces.Unsigned_32;
    subtype Word is Interfaces.Unsigned_32;
@@ -99,6 +100,7 @@ package body Adaflight.STM32.MCU is
          return;
       end if;
       Backup (Object_Reset_Reason) := 0;
+      Adaflight.STM32.USB.Disconnect;
       System.Machine_Code.Asm ("cpsid i", Volatile => True);
       SYST_CSR := 0;
       for I in ICER'Range loop
@@ -121,12 +123,13 @@ package body Adaflight.STM32.MCU is
       RCC_CIR := 0;
       RCC_APB2ENR := RCC_APB2ENR or SYSCFGEN;
       MEMRMP := 1;
-      VTOR := 0;
+      VTOR := Adaflight.STM32.Memory.Bootloader_Address;
       Stack_Top := Boot_Stack;
       Entry_Point := Boot_Entry;
       System.Machine_Code.Asm
-        ("msr msp, %0" & ASCII.LF & ASCII.HT & "cpsie i" & ASCII.LF & ASCII.HT & "bx %1",
-         Inputs   => (Word'Asm_Input ("r", Stack_Top), Word'Asm_Input ("r", Entry_Point)),
+        ("msr msp, %0" & ASCII.LF & ASCII.HT & "msr basepri, %2" & ASCII.LF & ASCII.HT & "msr control, %2" & ASCII.LF &
+         ASCII.HT & "isb" & ASCII.LF & ASCII.HT & "cpsie i" & ASCII.LF & ASCII.HT & "bx %1",
+         Inputs   => (Word'Asm_Input ("r", Stack_Top), Word'Asm_Input ("r", Entry_Point), Word'Asm_Input ("r", 0)),
          Volatile => True);
    end Check_Bootloader_Request;
 

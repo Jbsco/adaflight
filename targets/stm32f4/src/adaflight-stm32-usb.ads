@@ -9,6 +9,9 @@ package Adaflight.STM32.USB is
    --  The pins, the clock and the controller in device mode, with the product
    --  name the host reads.
    procedure Init (Product : String);
+   --  D+ held low for 200 milliseconds and then released, so a host still
+   --  holding the connection sees the device leave.
+   procedure Disconnect;
    --  Whether the host configured the port.
    function Configured return Boolean;
    --  Bytes toward the host, taken while no transfer runs and up to the free
