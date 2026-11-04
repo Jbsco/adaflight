@@ -86,7 +86,16 @@ package body Adaflight.STM32.USART is
       Head  : Ring_Index := 0;
       Fill  : Natural range 0 .. Ring_Size := 0;
    end record;
-   type Rings is array (Number) of Ring;
+   --  Each port the board has takes a ring, numbered in port order; a port it lacks takes none.
+   Slots : constant := Boolean'Pos (Adaflight.Board.Has_UART1) + Boolean'Pos (Adaflight.Board.Has_UART2)
+     + Boolean'Pos (Adaflight.Board.Has_UART3) + Boolean'Pos (Adaflight.Board.Has_UART4)
+     + Boolean'Pos (Adaflight.Board.Has_UART5) + Boolean'Pos (Adaflight.Board.Has_UART6);
+   function Slot_Of (N : Number) return Natural is
+     (if not Present (N) then 0
+      else 1 + Boolean'Pos (N > UART1 and then Present (UART1)) + Boolean'Pos (N > UART2 and then Present (UART2))
+        + Boolean'Pos (N > UART3 and then Present (UART3)) + Boolean'Pos (N > UART4 and then Present (UART4))
+        + Boolean'Pos (N > UART5 and then Present (UART5)));
+   type Rings is array (1 .. Slots) of Ring;
 
    --  A transmit ring: the bytes queued, the next to send and the count.
    type Send_Ring is record
@@ -94,7 +103,7 @@ package body Adaflight.STM32.USART is
       Head  : Ring_Index := 0;
       Fill  : Natural range 0 .. Ring_Size := 0;
    end record;
-   type Send_Rings is array (Number) of Send_Ring;
+   type Send_Rings is array (1 .. Slots) of Send_Ring;
 
    protected Receivers with Interrupt_Priority => System.Interrupt_Priority'First is
       procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
@@ -117,69 +126,92 @@ package body Adaflight.STM32.USART is
    protected body Receivers is
       procedure Receive (N : Number) is
          Regs : Registers with Import, Address => Base (N);
-         Q    : Ring renames Queues (N);
+         S    : constant Natural := Slot_Of (N);
          Now  : Interfaces.Unsigned_32;
          Slot : Ring_Index;
       begin
-         if (Regs.ISR and Overrun) /= 0 then
-            Regs.ICR := Overrun;
+         if S = 0 then
+            return;
          end if;
-         while (Regs.ISR and Receive_Not_Empty) /= 0 loop
-            Now := Time.Micros;
-            declare
-               Value : constant Unsigned_32 := Regs.RDR and 16#FF#;
-            begin
-               if Q.Fill < Ring_Size then
-                  Slot := (Q.Head + Q.Fill) mod Ring_Size;
-                  Q.Bytes (Slot) := Byte (Value);
-                  Q.Times (Slot) := Now;
-                  Q.Fill := Q.Fill + 1;
-               end if;
-            end;
-         end loop;
+         declare
+            Q : Ring renames Queues (S);
+         begin
+            if (Regs.ISR and Overrun) /= 0 then
+               Regs.ICR := Overrun;
+            end if;
+            while (Regs.ISR and Receive_Not_Empty) /= 0 loop
+               Now := Time.Micros;
+               declare
+                  Value : constant Unsigned_32 := Regs.RDR and 16#FF#;
+               begin
+                  if Q.Fill < Ring_Size then
+                     Slot := (Q.Head + Q.Fill) mod Ring_Size;
+                     Q.Bytes (Slot) := Byte (Value);
+                     Q.Times (Slot) := Now;
+                     Q.Fill := Q.Fill + 1;
+                  end if;
+               end;
+            end loop;
+         end;
       end Receive;
 
       --  The transmit register filled from the ring while the interrupt is
       --  on; an empty ring turns the interrupt off.
       procedure Send (N : Number) is
          Regs : Registers with Import, Address => Base (N);
-         Q    : Send_Ring renames Sends (N);
+         S    : constant Natural := Slot_Of (N);
       begin
-         if (Regs.CR1 and Transmit_Interrupt) = 0 or else (Regs.ISR and Register_Empty) = 0 then
+         if S = 0 then
             return;
          end if;
-         if Q.Fill = 0 then
-            Regs.CR1 := Regs.CR1 and not Transmit_Interrupt;
-         else
-            Regs.TDR := Unsigned_32 (Q.Bytes (Q.Head));
-            Q.Head := (Q.Head + 1) mod Ring_Size;
-            Q.Fill := Q.Fill - 1;
+         declare
+            Q : Send_Ring renames Sends (S);
+         begin
+            if (Regs.CR1 and Transmit_Interrupt) = 0 or else (Regs.ISR and Register_Empty) = 0 then
+               return;
+            end if;
             if Q.Fill = 0 then
                Regs.CR1 := Regs.CR1 and not Transmit_Interrupt;
+            else
+               Regs.TDR := Unsigned_32 (Q.Bytes (Q.Head));
+               Q.Head := (Q.Head + 1) mod Ring_Size;
+               Q.Fill := Q.Fill - 1;
+               if Q.Fill = 0 then
+                  Regs.CR1 := Regs.CR1 and not Transmit_Interrupt;
+               end if;
             end if;
-         end if;
+         end;
       end Send;
 
       procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
          Regs : Registers with Import, Address => Base (N);
-         Q    : Send_Ring renames Sends (N);
+         S    : constant Natural := Slot_Of (N);
       begin
-         Taken := Natural'Min (Data'Length, Ring_Size - Q.Fill);
-         for K in 0 .. Taken - 1 loop
-            Q.Bytes ((Q.Head + Q.Fill + K) mod Ring_Size) := Data (Data'First + K);
-         end loop;
-         Q.Fill := Q.Fill + Taken;
-         if Q.Fill > 0 then
-            Regs.CR1 := Regs.CR1 or Transmit_Interrupt;
+         Taken := 0;
+         if S = 0 then
+            return;
          end if;
+         declare
+            Q : Send_Ring renames Sends (S);
+         begin
+            Taken := Natural'Min (Data'Length, Ring_Size - Q.Fill);
+            for K in 0 .. Taken - 1 loop
+               Q.Bytes ((Q.Head + Q.Fill + K) mod Ring_Size) := Data (Data'First + K);
+            end loop;
+            Q.Fill := Q.Fill + Taken;
+            if Q.Fill > 0 then
+               Regs.CR1 := Regs.CR1 or Transmit_Interrupt;
+            end if;
+         end;
       end Queue;
 
-      function Free (N : Number) return Natural is (Ring_Size - Sends (N).Fill);
+      function Free (N : Number) return Natural is
+        (if Slot_Of (N) = 0 then 0 else Ring_Size - Sends (Slot_Of (N)).Fill);
 
       function Empty (N : Number) return Boolean is
          Regs : Registers with Import, Address => Base (N);
       begin
-         return Sends (N).Fill = 0 and then (Regs.ISR and Register_Empty) /= 0;
+         return Slot_Of (N) = 0 or else (Sends (Slot_Of (N)).Fill = 0 and then (Regs.ISR and Register_Empty) /= 0);
       end Empty;
 
       procedure Handler_1 is
@@ -217,17 +249,27 @@ package body Adaflight.STM32.USART is
       end Handler_6;
 
       procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
-         Q : Ring renames Queues (N);
+         S : constant Natural := Slot_Of (N);
       begin
-         Count := Natural'Min (Into'Length, Q.Fill);
-         Into := (others => 0);
-         Times := (others => 0);
-         for K in 0 .. Count - 1 loop
-            Into (Into'First + K) := Q.Bytes ((Q.Head + K) mod Ring_Size);
-            Times (Times'First + K) := Q.Times ((Q.Head + K) mod Ring_Size);
-         end loop;
-         Q.Head := (Q.Head + Count) mod Ring_Size;
-         Q.Fill := Q.Fill - Count;
+         if S = 0 then
+            Count := 0;
+            Into := (others => 0);
+            Times := (others => 0);
+            return;
+         end if;
+         declare
+            Q : Ring renames Queues (S);
+         begin
+            Count := Natural'Min (Into'Length, Q.Fill);
+            Into := (others => 0);
+            Times := (others => 0);
+            for K in 0 .. Count - 1 loop
+               Into (Into'First + K) := Q.Bytes ((Q.Head + K) mod Ring_Size);
+               Times (Times'First + K) := Q.Times ((Q.Head + K) mod Ring_Size);
+            end loop;
+            Q.Head := (Q.Head + Count) mod Ring_Size;
+            Q.Fill := Q.Fill - Count;
+         end;
       end Take;
    end Receivers;
 
