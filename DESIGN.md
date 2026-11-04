@@ -13440,3 +13440,9 @@ task on a Talon put about 14 percent of its samples in timekeeping.
 Both now take the clock's tick count, which starts at zero at boot, and divide it by ticks per microsecond in four
 16-bit digits, one hardware divide each. `Millis` divides that result by 1,000 the same way. Quotients are exact,
 so both return the values they returned before.
+
+## D653. Time conversion warning (2026-11-03)
+
+GNAT warns that an unchecked conversion of `Ada.Real_Time.Time` depends on runtime representation. `Micros` and
+`Millis` read ticks that way (D652), from the 64-bit word of the pinned toolchain's light tasking runtime, so a
+narrow `pragma Warnings` turns off that one message around the conversion.
