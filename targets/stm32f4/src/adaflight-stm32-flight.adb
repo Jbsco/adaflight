@@ -2589,7 +2589,7 @@ package body Adaflight.STM32.Flight is
       pragma Unreferenced (Now_Us);
       F : Adaflight.STM32.Blackbox.Facts;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
-      Profile : constant Adaflight.PID_Profile.Profile := Adaflight.STM32.Pilot.Profile;
+      Profile : Adaflight.PID_Profile.Profile renames Adaflight.STM32.Pilot.Profile.all;
       Small_Angle : constant Boolean := Upright;
    begin
       F.Now_Ms := Adaflight.STM32.Time.Millis;

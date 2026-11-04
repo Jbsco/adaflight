@@ -13453,14 +13453,14 @@ narrow `pragma Warnings` turns off that one message around the conversion.
 next start. On a Talon F722 that left a silent board: no CLI, no MSP, no USB control replies and no DFU device.
 Two faults sat on this path.
 
-Our jump ran from an Ada task on its process stack, with CONTROL selecting it. After `msr msp`, ROM thread code kept
+Jump ran from an Ada task on its process stack, with CONTROL selecting it. After `msr msp`, ROM thread code kept
 that stack pointer while its exceptions took main stack, both at ROM's stack top, so exception frames overwrote its
 own stack. Jump now clears BASEPRI and CONTROL, and points VTOR at ROM's vector table, since address 0 is ITCM RAM
 on an F7.
 
-With ROM running, host still kept our serial device, since nothing showed it a disconnect. A host side port reset
-brought up `STM32 BOOTLOADER` (0483:df11). Start now drives D+ low for 200 ms before its jump, as our USB start
-does, so a host sees this device leave and enumerates ROM's DFU device.
+With ROM running, host still kept Adaflight's serial device, since nothing showed it a disconnect. A host side port
+reset brought up `STM32 BOOTLOADER` (0483:df11). Start now drives D+ low for 200 ms before its jump, as USB start
+already does, so a host sees this device leave and enumerates ROM's DFU device.
 
 On a Talon, an image with both changes brought up `STM32 BOOTLOADER` after `bl`, and a round trip of `bl`,
 `dfu-util` flash and restart needed no boot button.
@@ -13474,4 +13474,14 @@ before it unpacks packed data. An F4 links that section into flash with its othe
 
 A Talon A/B measured its PID task at 128 to 131 µs against 154 to 157 µs on main, with PID task rates of 3.9 to
 4.0 kHz against 3.6 to 3.8 kHz. Reference runs its fast code from ITCM RAM too, and its other code through ITCM
-flash interface with ART accelerator. Ours runs other code from AXI flash through cache.
+flash interface with ART accelerator. Adaflight runs other code from AXI flash through cache.
+
+## D656. PID profile and loop settings in place (2026-11-04)
+
+`Pilot.Profile` and `Pilot.Loop_Runtime` returned their PID profile (500 bytes) and loop settings (484 bytes) by
+copy. A PID task run called them five times, each a `memcpy` into a stack temporary from code in flash, about 2.4 KB
+per run. Both now return an access constant view of their stored record, so controller, mixer and blackbox read it
+in place.
+
+A Talon A/B measured its PID task at 117 to 120 µs against 129 to 132 µs with D655 alone, and PID task rates of
+4.0 kHz against 3.9 to 4.0 kHz.
