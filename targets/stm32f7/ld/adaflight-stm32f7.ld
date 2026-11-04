@@ -80,6 +80,17 @@ SECTIONS
     *(.gnu.warning)
   } > flash
 
+  /* The flight loop's hottest procedures, run from the instruction tightly coupled memory; the data pack's start
+     copies them there from their load address in flash. */
+  .itcm_text :
+  {
+    __itcm_start = .;
+    *(.itcm_text .itcm_text.*)
+    . = ALIGN(0x4);
+    __itcm_end = .;
+  } > itcm AT > flash
+  __itcm_load = LOADADDR(.itcm_text);
+
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } > flash
   /* .ARM.exidx is 4-bytes aligned, so __exidx_start needs to be
      aligned too. Note that assigning the location counter also makes

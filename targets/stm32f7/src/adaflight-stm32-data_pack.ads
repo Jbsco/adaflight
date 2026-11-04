@@ -1,6 +1,7 @@
---  A packed image's start: the cold tables, initialized data and
---  elaboration code unpacked into RAM from their compressed stream after
---  .rodata, before elaboration.
+--  An STM32F7 image's start: the code that runs from the instruction
+--  tightly coupled memory copied there, then in a packed image the cold
+--  tables, initialized data and elaboration code unpacked into RAM from
+--  their compressed stream after .rodata, before elaboration.
 --  The run-time library calls it through its .init_array entry once the
 --  clocks run; a plain image's empty range leaves it with nothing to do.
 package Adaflight.STM32.Data_Pack is

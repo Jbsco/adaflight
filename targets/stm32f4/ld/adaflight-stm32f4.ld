@@ -72,6 +72,7 @@ SECTIONS
   .text :
   {
     *(.text .text.* .gnu.linkonce.t*)
+    *(.itcm_text .itcm_text.*)
     *(.gnu.warning)
   } > flash
 

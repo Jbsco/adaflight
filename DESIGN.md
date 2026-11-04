@@ -13464,3 +13464,14 @@ does, so a host sees this device leave and enumerates ROM's DFU device.
 
 On a Talon, an image with both changes brought up `STM32 BOOTLOADER` after `bl`, and a round trip of `bl`,
 `dfu-util` flash and restart needed no boot button.
+
+## D655. PID task steps in ITCM RAM (2026-11-04)
+
+A PID task profile on a Talon F722 found no single hot spot after D652, while its loop runs about 55 KB of code
+through a 16 KB instruction cache. On an F7, `Run_Controller` and `Run_Mixer`, its two largest steps at 14 KB, now
+link into section `.itcm_text`, which runs from 16 KB ITCM RAM and loads from flash. Image start copies it there
+before it unpacks packed data. An F4 links that section into flash with its other code.
+
+A Talon A/B measured its PID task at 128 to 131 µs against 154 to 157 µs on main, with PID task rates of 3.9 to
+4.0 kHz against 3.6 to 3.8 kHz. Reference runs its fast code from ITCM RAM too, and its other code through ITCM
+flash interface with ART accelerator. Ours runs other code from AXI flash through cache.
