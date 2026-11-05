@@ -17,6 +17,12 @@ package Model_Device is
 
    procedure Set_Present (Present : Boolean);
 
+   --  A protected device refuses its option bytes' address with a vendor error until an unprotect
+   --  request erases the flash.
+   procedure Set_Protected (Locked : Boolean);
+
+   function Is_Protected return Boolean;
+
    function Is_Present return Boolean;
 
    --  The next Count erases stay busy until a clear status request.

@@ -34,8 +34,8 @@ Silver with no assume, and pass the gates on `main`.
   USB, flash, SD card, ADC on DMA, DShot on timers and bit-banged on GPIO ports.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
-  tool over DFU, `tools/dfu`, erases, writes, verifies and starts images; the Betaflight flasher's
-  read protection check and faster transfers follow, then the configuration path. For boards short of flash, a fit view: the feature set as blocks of decreasing size
+  tool over DFU, `tools/dfu`, checks read protection, erases, writes, verifies and starts images;
+  faster transfers follow, then the configuration path. For boards short of flash, a fit view: the feature set as blocks of decreasing size
   along a bar of the target's flash, its limit marked by a line and features past it in red. Checking or
   unchecking a feature redraws the bar, and flashing waits until the selection fits.
 

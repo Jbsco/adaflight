@@ -13640,3 +13640,14 @@ as dfu-util does (`docs/upstream/dfu-megabyte-pages.md`). Transfer size falls ba
 configuration descriptor has no functional descriptor, without the separate descriptor request the configurator
 makes. Its read protection check through the option bytes is not ported yet, so a protected chip fails at its
 first erase with a message saying so.
+
+## D671. Read protection check in the DFU flasher (2026-11-05)
+
+Before its first erase, the flasher loads the address of an option bytes region its bootloader names. A vendor
+error there marks read protection, and so does a failed or short read of those bytes. A protected chip stops a run
+with a message, its flash untouched. With `--unprotect`, the flasher sends an unprotect command, which makes a
+bootloader erase its whole flash, waits 22 s beyond its poll time and expects a reset.
+
+Betaflight's configurator unprotects whenever its check finds protection. Here it takes a switch, since unprotecting
+erases a configuration page that selective erase keeps. A bootloader without an option bytes region skips this
+check.

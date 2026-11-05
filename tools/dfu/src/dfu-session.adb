@@ -60,7 +60,7 @@ package body DFU.Session with SPARK_Mode is
    end Clear_Status;
 
    --  A download the bootloader accepts with its busy state and the time to wait before the next read.
-   procedure Download (Block : Word; Data : Byte_Array; Poll : out Natural; Ok : out Boolean)
+   procedure Download (Block : Word; Data : Byte_Array; Poll : out Poll_Time; Ok : out Boolean)
    with Pre => Data'Length <= DFU.Transport.Max_Length
    is
       S : Status;
@@ -76,7 +76,7 @@ package body DFU.Session with SPARK_Mode is
    end Download;
 
    procedure Load_Address (A : Address; Ok : out Boolean) is
-      Poll : Natural;
+      Poll : Poll_Time;
       S    : Status;
    begin
       Download (0, Command (Set_Address_Command, A), Poll, Ok);
@@ -89,7 +89,7 @@ package body DFU.Session with SPARK_Mode is
    end Load_Address;
 
    procedure Erase_Page (A : Address; Ok : out Boolean) is
-      Poll : Natural;
+      Poll : Poll_Time;
       S    : Status;
    begin
       Download (0, Command (Erase_Command, A), Poll, Ok);
@@ -115,7 +115,7 @@ package body DFU.Session with SPARK_Mode is
    procedure Write (A : Address; Data : Byte_Array; Transfer : Transfer_Size; Ok : out Boolean) is
       Offset : Natural := 0;
       N      : Natural;
-      Poll   : Natural;
+      Poll   : Poll_Time;
       S      : Status;
    begin
       Load_Address (A, Ok);
@@ -203,7 +203,10 @@ package body DFU.Session with SPARK_Mode is
       end if;
    end Leave;
 
-   procedure Read_Layout (M : out DFU.Layout.Memory; Transfer : out Transfer_Size; Ok : out Boolean) is
+   procedure Read_Layout
+     (M : out DFU.Layout.Memory; Options : out DFU.Layout.Memory; Has_Options : out Boolean;
+      Transfer : out Transfer_Size; Ok : out Boolean)
+   is
       Config   : Byte_Array (0 .. 1023);
       Raw      : Byte_Array (0 .. 254);
       Got      : Natural;
@@ -215,6 +218,8 @@ package body DFU.Session with SPARK_Mode is
       Read     : Boolean;
    begin
       M := (others => <>);
+      Options := (others => <>);
+      Has_Options := False;
       Transfer := Default_Transfer;
       DFU.Transport.Get_Descriptor (16#0200#, 0, Config, Got, Ok);
       if not Ok then
@@ -230,19 +235,84 @@ package body DFU.Session with SPARK_Mode is
       end if;
       Ok := False;
       for K in 1 .. Info.Alternates loop
+         pragma Loop_Invariant ((if Ok then DFU.Layout.Contiguous (M))
+                                and then (if Has_Options then DFU.Layout.Contiguous (Options)));
          if Info.Strings (K) /= 0 then
             DFU.Transport.Get_Descriptor (16#0300# + Word (Info.Strings (K)), Language, Raw, Got, Read);
             if Read then
                DFU.Layout.Decode_String (Raw (0 .. Got - 1), Text, Length);
                DFU.Layout.Parse (Text (1 .. Length), Region, Read);
-               if Read and then DFU.Layout.Is_Internal_Flash (Region) then
+               if Read and then not Ok and then DFU.Layout.Is_Internal_Flash (Region) then
                   M := Region;
                   Ok := True;
-                  return;
+               elsif Read and then not Has_Options and then DFU.Layout.Is_Option_Bytes (Region) then
+                  Options := Region;
+                  Has_Options := True;
                end if;
             end if;
          end if;
       end loop;
    end Read_Layout;
+
+   procedure Check_Protection (Options : DFU.Layout.Memory; Result : out Protection) is
+      First  : constant Address := Options.First (1);
+      Size   : constant Address := Options.Last (Options.Pages) - First;
+      Buffer : Byte_Array (0 .. Max_Option_Bytes - 1);
+      Poll   : Poll_Time;
+      S      : Status;
+      Got    : Natural;
+      Ok     : Boolean;
+   begin
+      Result := Unknown;
+      if Size >= Max_Option_Bytes then
+         return;
+      end if;
+      Clear_Status (False, Ok);
+      if not Ok then
+         return;
+      end if;
+      Download (0, Command (Set_Address_Command, First), Poll, Ok);
+      if not Ok then
+         return;
+      end if;
+      DFU.Transport.Wait (Poll);
+      Get_Status (S, Ok);
+      if Ok and then S.State = Error and then S.Code = Vendor_Error then
+         Clear_Status (False, Ok);
+         Result := (if Ok then Read_Protected else Unknown);
+      elsif Ok and then S.State = Download_Idle then
+         Clear_Status (False, Ok);
+         if not Ok then
+            return;
+         end if;
+         DFU.Transport.Receive (Upload_Request, 2, Buffer (0 .. Natural (Size)), Got, Ok);
+         if not Ok then
+            return;
+         end if;
+         Get_Status (S, Ok);
+         if Ok and then S.State = Upload_Idle and then Got = Natural (Size) + 1 then
+            Clear_Status (False, Ok);
+            Result := (if Ok then Readable else Unknown);
+         else
+            Clear_Status (False, Ok);
+            Result := (if Ok then Read_Protected else Unknown);
+         end if;
+      end if;
+   end Check_Protection;
+
+   procedure Unprotect (Ok : out Boolean) is
+      Poll : Poll_Time;
+      S    : Status;
+      Read : Boolean;
+      pragma Warnings (GNATprove, Off, "is set by", Reason => "a bootloader that reset answers no status read");
+   begin
+      Download (0, (0 => Unprotect_Command), Poll, Ok);
+      if not Ok then
+         return;
+      end if;
+      DFU.Transport.Wait (Poll + Unprotect_Wait);
+      Get_Status (S, Read);
+      Ok := not Read;
+   end Unprotect;
 
 end DFU.Session;

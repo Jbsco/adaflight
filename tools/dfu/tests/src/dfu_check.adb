@@ -158,7 +158,7 @@ procedure DFU_Check is
       Check ("read failed", Clear_Action ((0, 0, Idle), False, False) = Poll_Again);
    end Actions;
 
-   type Phase is (None, Opened, Described, Placed, Cleared, Erased, Written, Verified, Started);
+   type Phase is (None, Opened, Described, Placed, Cleared, Checked, Erased, Written, Verified, Started);
 
    function Pattern (Length, Step, Modulus : Natural) return DFU.Byte_Array is
       Result : DFU.Byte_Array (0 .. Length - 1);
@@ -177,6 +177,9 @@ procedure DFU_Check is
       Transfer : out Transfer_Size)
    is
       M       : Memory;
+      Options : Memory;
+      Has     : Boolean;
+      Guard   : Protection;
       Images  : Image_Array;
       Offsets : constant DFU.Flash.Offset_Array := (1 => 0, 2 => Sector_0'Length, others => 0);
       Data    : constant DFU.Byte_Array := Sector_0 & Code;
@@ -192,7 +195,7 @@ procedure DFU_Check is
          return;
       end if;
       Reached := Opened;
-      Read_Layout (M, Transfer, Ok);
+      Read_Layout (M, Options, Has, Transfer, Ok);
       if not Ok then
          return;
       end if;
@@ -207,6 +210,13 @@ procedure DFU_Check is
          return;
       end if;
       Reached := Cleared;
+      if Has then
+         Check_Protection (Options, Guard);
+         if Guard /= Readable then
+            return;
+         end if;
+      end if;
+      Reached := Checked;
       if not Skip_Erase then
          DFU.Flash.Erase (M, Images, 2, Pages, Bytes, Failed, Ok);
          if not Ok then
@@ -282,10 +292,39 @@ procedure DFU_Check is
                                   and then not Model_Device.Left);
 
       Model_Device.Reset (Model_Device.F405);
+      Model_Device.Set_Protected (True);
+      Run (False, 0, Reached, Failed, Transfer);
+      Check ("protected flash left alone", Reached = Cleared and then Model_Device.Peek (16#0800_0000#) = 16#5A#);
+
+      Model_Device.Reset (Model_Device.F405);
       Model_Device.Set_Present (False);
       Run (False, 0, Reached, Failed, Transfer);
       Check ("no device", Reached = None);
    end Flashes;
+
+   procedure Protections is
+      M        : Memory;
+      Options  : Memory;
+      Has      : Boolean;
+      Ok       : Boolean;
+      Transfer : Transfer_Size;
+      Guard    : Protection;
+   begin
+      Model_Device.Reset (Model_Device.F405);
+      DFU.Transport.Open (Ok);
+      Read_Layout (M, Options, Has, Transfer, Ok);
+      Check ("option bytes found", Ok and then Has and then Options.First (1) = 16#1FFF_C000#
+                                   and then Options.Last (1) = 16#1FFF_C00F#);
+      Check ("option bytes name", Is_Option_Bytes (Options) and then not Is_Option_Bytes (M));
+      Check_Protection (Options, Guard);
+      Check ("readable", Guard = Readable);
+      Model_Device.Set_Protected (True);
+      Check_Protection (Options, Guard);
+      Check ("read protected", Guard = Read_Protected);
+      Unprotect (Ok);
+      Check ("unprotected", Ok and then not Model_Device.Is_Protected
+                            and then Model_Device.Peek (16#0800_4000#) = 16#FF#);
+   end Protections;
 
 begin
    Layouts;
@@ -293,6 +332,7 @@ begin
    Strings;
    Plans;
    Actions;
+   Protections;
    Flashes;
    if Failures = 0 then
       Put_Line ("dfu checks passed");

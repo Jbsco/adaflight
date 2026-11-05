@@ -38,6 +38,9 @@ package DFU.Layout with Pure, SPARK_Mode is
    function Is_Internal_Flash (M : Memory) return Boolean
    with Global => null;
 
+   function Is_Option_Bytes (M : Memory) return Boolean
+   with Global => null;
+
    --  The string descriptor indexes of interface 0's alternate settings and the transfer size of the
    --  DFU functional descriptor, zero when the configuration gives none.
    Max_Alternates : constant := 8;
