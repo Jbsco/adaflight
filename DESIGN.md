@@ -13542,3 +13542,12 @@ rebuild. A build checks only its deepest path, as before.
 A 512 KB F4 build lists OSD at 30,460 bytes first. PID task flash chip writes, close, erase and flush follow at
 24,656 to 25,152 bytes, each through a flash output frame of about 17.9 KB, and then MSP's argument handling at
 23,912 bytes. An STM32F411 stack under 24 KB needs these three cut.
+
+## D663. Debug values off on F4 builds of 512 KB (2026-11-04)
+
+An STM32F4 build of 512 KB or less, which STM32F411 boards take, now leaves debug values out, as a build of that
+size with an SPI receiver already did. An F4 image keeps its tables in flash where an F7 image packs them, and an
+F411 build runs about 69 KB over its 480 KB of code room. Debug values were the cut approved first for boards short
+of flash.
+
+A 512 KB F4 build measured 554,740 bytes of code against 561,136 with debug values.
