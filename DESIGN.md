@@ -13619,3 +13619,24 @@ static clocks package of an F405.
 A GEPRCF411 build, with D665 to D668, packs to 480,525 bytes of flash with 10,995 left. Its RAM ends 6,264 bytes
 short of 128 KB, with its deepest stack path at 30,364 bytes of 36,080. CLRACINGF4 and CLRACINGF7 images did not
 change beyond D665.
+
+## D670. DFU flasher (2026-11-05)
+
+`tools/dfu` builds `adaflight_dfu`, which flashes an image directory, or files at given addresses, through the
+STM32 ROM bootloader over USB. It reads the memory layout from interface 0's alternate setting strings and the
+transfer size from the DFU functional descriptor. It erases each page an image writes into, writes each image in
+transfer size blocks after a set address command, compares a read back, and starts the first image with an empty
+download. An image directory puts `sector0.bin` within the flash's first page and `code.bin` from its third page,
+so the configuration page stays as it is.
+
+SPARK covers layout and configuration descriptor parsing, which reads bytes from the device, and erase planning,
+whose postcondition erases a page exactly when an image writes into it. Pair placement proves the second page lies
+outside both files. Request sequences prove their block numbers and buffer slices. The proof uses no assumptions.
+libusb sits behind a thin binding in the body of a SPARK transport specification. Flasher checks swap that body for
+a model of the ROM bootloader, which programs only erased bits and can stall an erase in its busy state.
+
+Betaflight's configurator flasher reads a layout page size in M units as kilobytes. This flasher counts megabytes,
+as dfu-util does (`docs/upstream/dfu-megabyte-pages.md`). Transfer size falls back to 2048 bytes when the
+configuration descriptor has no functional descriptor, without the separate descriptor request the configurator
+makes. Its read protection check through the option bytes is not ported yet, so a protected chip fails at its
+first erase with a message saying so.
