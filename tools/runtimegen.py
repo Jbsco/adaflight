@@ -18,20 +18,22 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 from boardgen import find_config  # noqa: E402
 
-SOURCE_RUNTIME = "light-tasking-stm32f746disco"
-CLOCK_HZ = 216_000_000
-FLASH_LATENCY = 7
-PLLQ = 9
+# By MCU: the toolchain runtime, the system clock, the flash latency, and the PLL's P and Q divisors.
+PARAMETERS = {"STM32F405": ("light-tasking-stm32f4", 168_000_000, 5, 2, 7),
+              "STM32F411": ("light-tasking-stm32f4", 96_000_000, 3, 4, 8),
+              "STM32F722": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9),
+              "STM32F745": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9),
+              "STM32F746": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9)}
 
 
-def toolchain_runtime() -> Path:
+def toolchain_runtime(source_runtime: str) -> Path:
     gcc = shutil.which("arm-eabi-gcc")
     if not gcc:
         raise SystemExit("runtimegen: arm-eabi-gcc is not on the path; run under alr")
     root = Path(gcc).resolve().parent.parent
-    runtime = root / "arm-eabi" / "lib" / "gnat" / SOURCE_RUNTIME
+    runtime = root / "arm-eabi" / "lib" / "gnat" / source_runtime
     if not (runtime / "gnat" / "s-bbbopa.ads").exists():
-        raise SystemExit(f"runtimegen: no {SOURCE_RUNTIME} runtime under {root}")
+        raise SystemExit(f"runtimegen: no {source_runtime} runtime under {root}")
     return runtime
 
 
@@ -42,9 +44,14 @@ def main() -> None:
     text = find_config(configs, board).read_text()
     m = re.search(r"^#define\s+SYSTEM_HSE_MHZ\s+(\d+)", text, re.M)
     hse_mhz = int(m.group(1)) if m else 8
-    source = toolchain_runtime()
+    m = re.search(r"^#define\s+FC_TARGET_MCU\s+(\w+)", text, re.M)
+    mcu = m.group(1) if m else ""
+    if mcu not in PARAMETERS:
+        raise SystemExit(f"runtimegen: no run-time parameters for the MCU {mcu or 'of ' + board}")
+    source_runtime, clock_hz, flash_latency, pllp, pllq = PARAMETERS[mcu]
+    source = toolchain_runtime(source_runtime)
     stamp = out / "adaflight-runtime.stamp"
-    wanted = f"{source}\n{hse_mhz}\n{CLOCK_HZ}\n{FLASH_LATENCY}\n{PLLQ}\n"
+    wanted = f"{source}\n{hse_mhz}\n{clock_hz}\n{flash_latency}\n{pllp}\n{pllq}\n"
     if stamp.exists() and stamp.read_text() == wanted and (out / "adalib" / "libgnat.a").exists():
         return
     if out.exists():
@@ -54,8 +61,8 @@ def main() -> None:
         shutil.rmtree(out / sub, ignore_errors=True)
     params = out / "gnat" / "s-bbbopa.ads"
     p = params.read_text()
-    for name, value in (("Main_Clock_Frequency", f"{CLOCK_HZ:_}"), ("HSE_Clock_Frequency", f"{hse_mhz * 1_000_000:_}"),
-                        ("FLASH_Latency", str(FLASH_LATENCY)), ("PLLQ_Value", str(PLLQ))):
+    for name, value in (("Main_Clock_Frequency", f"{clock_hz:_}"), ("HSE_Clock_Frequency", f"{hse_mhz * 1_000_000:_}"),
+                        ("FLASH_Latency", str(flash_latency)), ("PLLP_Value", str(pllp)), ("PLLQ_Value", str(pllq))):
         p, n = re.subn(rf"^(\s*{name}\s*:\s*constant\s*:=\s*)[0-9_]+;", rf"\g<1>{value};", p, flags=re.M)
         if n != 1:
             raise SystemExit(f"runtimegen: {name} not found once in {params}")

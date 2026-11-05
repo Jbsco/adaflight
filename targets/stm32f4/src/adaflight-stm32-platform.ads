@@ -2,12 +2,13 @@
 --  peripheral buses at a quarter and a half, the timers at twice their bus,
 --  and the section the DMA buffers go to, the main RAM on the F4, whose
 --  core coupled memory the DMA cannot reach.
+with Adaflight.STM32.Clocks;
 package Adaflight.STM32.Platform is
    F4            : constant Boolean := True;
-   Core_Hz       : constant := 168_000_000;
-   APB1_Hz       : constant := 42_000_000;
-   APB2_Hz       : constant := 84_000_000;
-   APB1_Timer_Hz : constant := 84_000_000;
-   APB2_Timer_Hz : constant := 168_000_000;
+   Core_Hz       : constant := Adaflight.STM32.Clocks.Core_Hz;
+   APB1_Hz       : constant := Adaflight.STM32.Clocks.APB1_Hz;
+   APB2_Hz       : constant := Adaflight.STM32.Clocks.APB2_Hz;
+   APB1_Timer_Hz : constant := 2 * APB1_Hz;
+   APB2_Timer_Hz : constant := 2 * APB2_Hz;
    DMA_Section   : constant String := ".bss";
 end Adaflight.STM32.Platform;

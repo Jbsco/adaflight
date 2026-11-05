@@ -3,7 +3,7 @@ with "gen/adaflight_feature_units.gpr";
 project Adaflight_Stm32f4 is
 
    for Target use "arm-eabi";
-   for Runtime ("Ada") use "light-tasking-stm32f4";
+   for Runtime ("Ada") use Project'Project_Dir & "runtime";
 
    for Source_Dirs use ("src/", "gen/", "config/");
    --  The bodies of the units a build stubs for the features it leaves out.
@@ -44,7 +44,6 @@ project Adaflight_Stm32f4 is
    package Linker is
       for Switches ("Ada") use
         ("-flto", "-flto-partition=one", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", "-Wl,--no-warn-rwx-segments",
-         "-Wl,--defsym=__stack_size=40960",
          "-L" & Project'Project_Dir & "gen",
          "-T", Project'Project_Dir & "ld/adaflight-stm32f4.ld",
          "-Wl,-Map=" & Project'Project_Dir & "obj/adaflight_stm32f4.map");
