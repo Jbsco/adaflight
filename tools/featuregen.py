@@ -37,6 +37,8 @@ FEATURES = [
     ("LED_Strip", 1024, "The LED strip on a timer."),
     ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
+    ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "
+                       "an SD card."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
     ("LTM_Telemetry", 1024, "The LTM telemetry."),
@@ -66,6 +68,7 @@ FEATURES = [
 
 # Features a board's configuration turns on at any flash size by naming one of the defines.
 BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",), "Flash_Chip": ("USE_FLASH",),
+                 "Blackbox": ("USE_FLASH", "USE_SDCARD"),
                  "SPI_Receiver": ("USE_RX_SPI", "USE_RX_CC2500", "USE_RX_SX1280", "USE_RX_SX127X"),
                  "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
@@ -301,6 +304,7 @@ def ram_late(chosen: dict, mcu: str = "") -> str:
 STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd"),
          ("Flash_Chip", "Adaflight.STM32.Flash_Chip", "adaflight-stm32-flash_chip"),
+         ("Blackbox", "Adaflight.STM32.Blackbox", "adaflight-stm32-blackbox"),
          ("Compass", "Adaflight.STM32.Compass", "adaflight-stm32-compass"),
          ("Barometer", "Adaflight.STM32.Baro", "adaflight-stm32-baro"),
          ("Pitot", "Adaflight.STM32.Pitot", "adaflight-stm32-pitot"),
