@@ -540,7 +540,8 @@ package body Adaflight.STM32.Flight is
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
        Build.Telemetry_MAVLink => Adaflight.Build_Features.MAVLink_Telemetry,
        Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.OSD_SD | Build.OSD_HD | Build.PINIO
-       | Build.Position_Hold | Build.Servos | Build.VTX => True,
+       | Build.Position_Hold | Build.VTX => True,
+       Build.Servos => Adaflight.Build_Features.Servos,
        Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
        Build.Mag => Adaflight.Build_Features.Compass,
        Build.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
@@ -854,7 +855,7 @@ package body Adaflight.STM32.Flight is
       M (Adaflight.Modes.Cam_Stab) := On (Servo_Tilt);
       M (Adaflight.Modes.OSD) := True;
       M (Adaflight.Modes.Telemetry) := On (Adaflight.Config_Fix.Feature_Telemetry);
-      if Mixer = Adaflight.Mixer_Init.Custom_Airplane then
+      if Adaflight.Build_Features.Servos and then Mixer = Adaflight.Mixer_Init.Custom_Airplane then
          M (Adaflight.Modes.Servo_1) := True;
          M (Adaflight.Modes.Servo_2) := True;
          M (Adaflight.Modes.Servo_3) := True;
@@ -1322,7 +1323,7 @@ package body Adaflight.STM32.Flight is
       if Effects.Motor.Set then
          Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
       end if;
-      if Effects.Servo.Mixer_Load then
+      if Adaflight.Build_Features.Servos and then Effects.Servo.Mixer_Load then
          Adaflight.STM32.Control.Load_Servo_Rules (Config.Custom_Servo_Mixers);
       end if;
       if Effects.LED.Layout then

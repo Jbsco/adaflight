@@ -2,7 +2,7 @@
 
 The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, LED strip, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
 
-A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. A 512 KB board with an SPI receiver also leaves out debug values.
+A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 board leaves the servos out. A 512 KB board with an SPI receiver also leaves out debug values.
 
 `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features:
 

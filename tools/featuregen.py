@@ -15,7 +15,7 @@ checks off when Board_Checks is off, and the linker scripts' RAM sections, where
 initialized data and elaboration code only and keeps its tables in flash. A feature
 with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less with an SPI
 receiver, for the receiver's room, and in an STM32F4 build of 512 KB or less, whose flash also holds the tables an
-STM32F7 build unpacks into RAM. The output is deterministic for the same inputs, so a build regenerates it
+STM32F7 build unpacks into RAM. An STM32F411 build leaves the servos out. The output is deterministic for the same inputs, so a build regenerates it
 without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
 """
 import os
@@ -39,6 +39,7 @@ FEATURES = [
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "
                        "an SD card."),
+    ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
     ("LTM_Telemetry", 1024, "The LTM telemetry."),
@@ -79,6 +80,8 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
               for name, size, _ in FEATURES}
     if flash_kb <= 512 and (chosen.get("SPI_Receiver") or mcu.startswith("STM32F4")):
         chosen["Debug_Values"] = False
+    if mcu == "STM32F411":
+        chosen["Servos"] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
         if not token:
@@ -305,6 +308,7 @@ STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd"),
          ("Flash_Chip", "Adaflight.STM32.Flash_Chip", "adaflight-stm32-flash_chip"),
          ("Blackbox", "Adaflight.STM32.Blackbox", "adaflight-stm32-blackbox"),
+         ("Servos", "Adaflight.STM32.Servos", "adaflight-stm32-servos"),
          ("Compass", "Adaflight.STM32.Compass", "adaflight-stm32-compass"),
          ("Barometer", "Adaflight.STM32.Baro", "adaflight-stm32-baro"),
          ("Pitot", "Adaflight.STM32.Pitot", "adaflight-stm32-pitot"),

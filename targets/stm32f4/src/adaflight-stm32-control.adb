@@ -93,6 +93,9 @@ package body Adaflight.STM32.Control is
       Servo_Tilt         : constant Interfaces.Unsigned_32 := 16#0000_0020#;
       Channel_Forwarding : constant Interfaces.Unsigned_32 := 16#0010_0000#;
    begin
+      if not Adaflight.Build_Features.Servos then
+         return;
+      end if;
       Servo_Settings.Mode := Adaflight.STM32.Pilot.Mixer_Mode;
       Servo_Settings.Options := (others => <>);
       Servo_Settings.Servo_Tilt := (Runtime_Features and Servo_Tilt) /= 0;
@@ -109,7 +112,9 @@ package body Adaflight.STM32.Control is
 
    procedure Load_Servo_Rules (Rules : Adaflight.Config_Groups.Servo_Mixer_Record_List_16) is
    begin
-      Adaflight.Servo_Mixer.Load_Custom_Rules (Servo_State, Rules);
+      if Adaflight.Build_Features.Servos then
+         Adaflight.Servo_Mixer.Load_Custom_Rules (Servo_State, Rules);
+      end if;
    end Load_Servo_Rules;
 
    function Uses_Servos return Boolean is (Servo_State.Uses_Servos);
@@ -309,6 +314,9 @@ package body Adaflight.STM32.Control is
       W     : Adaflight.Servo_Mixer.Servo_Writes;
       Count : Adaflight.Servo_Mixer.Write_Count;
    begin
+      if not Adaflight.Build_Features.Servos then
+         return;
+      end if;
       Inp.Armed := Current.Armed;
       Inp.Passthru := Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Passthru_Mode);
       Inp.Servo_Box :=
