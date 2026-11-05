@@ -82,6 +82,7 @@ jobs:
         run: |
           set -o pipefail
           cd tools/dfu
+          alr -n build --stop-after=generation
           alr -n exec -- gnatprove -P adaflight_dfu.gpr -j4 --output=oneline 2>&1 | tee prove-output.log
           grep -q "all checks proved" prove-output.log
           ! grep -rn "pragma Assume" src
