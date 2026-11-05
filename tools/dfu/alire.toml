@@ -1,0 +1,14 @@
+name = "adaflight_dfu"
+description = "Flashes adaflight images through the STM32 bootloader over USB"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "dfu", "usb"]
+
+executables = ["adaflight_dfu"]
+
+[[depends-on]]
+gnatprove = "^16.1.0"

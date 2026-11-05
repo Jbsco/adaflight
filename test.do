@@ -10,5 +10,9 @@ fi
 cd tests || exit 1
 alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
 ./bin/vector_check vectors || exit 1
-[ -n "${3:-}" ] && touch "../$3"
+cd ../tools/dfu/tests || exit 1
+alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
+./bin/dfu_check || exit 1
+cd ../../.. || exit 1
+[ -n "${3:-}" ] && touch "$3"
 exit 0

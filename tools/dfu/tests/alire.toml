@@ -1,0 +1,10 @@
+name = "adaflight_dfu_tests"
+description = "Checks of the DFU flasher against a model of the STM32 bootloader"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+
+executables = ["dfu_check"]

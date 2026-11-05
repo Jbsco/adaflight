@@ -29,8 +29,8 @@ jobs:
         with:
           version: 2.1.1
 
-      - name: Install the markdown renderer
-        run: sudo apt-get update && sudo apt-get install -y discount
+      - name: Install the markdown renderer and libusb
+        run: sudo apt-get update && sudo apt-get install -y discount libusb-1.0-0-dev
 
       - name: Select GNAT toolchain
         run: |
