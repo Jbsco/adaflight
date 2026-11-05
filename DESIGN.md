@@ -13683,3 +13683,11 @@ Start-up now reads that map after its bootloader request check and restarts thro
 memory sits at address zero. The flasher keeps leaving through 0x08000000, as Betaflight's configurator does, so
 a configurator flash of the HEX image starts the same way. On an STM32F7 that bit reads the boot mode, so only a
 start the BOOT0 pin sent to the bootloader restarts. An F7 board has not run this yet.
+
+## D674. Feature list and code size for a configurator (2026-11-05)
+
+`featuregen.py --json` prints a board's MCU, flash size and crate, and each feature with its description, its
+default and its state after a `FEATURES` list. `target.do` reports `target: code <used> of <room> bytes` for every
+build. A configurator's feature selection reads both: the list for its checkboxes, and a build's report, or the
+overflow message of its link or its packing, to tell whether a selection fits. Fit view runs in the adaflight
+configurator's desktop shell, which builds from an adaflight checkout beside it and flashes with `adaflight_dfu`.
