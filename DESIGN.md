@@ -13572,3 +13572,13 @@ target the same way. Host image keeps the chip, which CLRACINGF4 lacks, for its 
 
 A 512 KB F4 build measured 541,905 bytes of flash against 548,891, and CLRACINGF7, which names a chip, did not
 change. GEPRCF411 and MAMBAF411 name none.
+
+## D666. Flight log by board log storage (2026-11-05)
+
+A 512 KB build now keeps its flight log only where the board's configuration names a flash chip or an SD card. A
+board with neither, as GEPRCF411 and MAMBAF411 are, loses serial logging with it, which was its only log device.
+Builds of 1024 KB keep the log on every board. Board log unit takes a stub body, as the compass does (D622), and
+reference keeps its flight log in every build.
+
+A 512 KB F4 build with the log off measured 520,226 bytes of flash against 541,905, and 3,336 bytes less RAM.
+CLRACINGF7, which names a chip, did not change.
