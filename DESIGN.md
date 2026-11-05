@@ -13582,3 +13582,14 @@ reference keeps its flight log in every build.
 
 A 512 KB F4 build with the log off measured 520,226 bytes of flash against 541,905, and 3,336 bytes less RAM.
 CLRACINGF7, which names a chip, did not change.
+
+## D667. Servos left out of F411 builds (2026-11-05)
+
+An STM32F411 build now leaves out servo outputs and servo mixer: board servo unit takes a stub body, and control
+skips servo setup, custom rules and writes behind a static feature check, so link time optimization drops servo
+mixer code. Build options report servos absent, and servo modes and servo rule loads stay off. Reference compiles
+servos into every build; F411 boards here are toothpick quads without servo outputs, and their flash is short.
+
+A 512 KB F4 build with servos off measured 538,739 bytes of flash against 541,905. Command line's `servo` and
+`smix` commands stay, about 3.3 KB, since command line is core code without a feature view. CLRACINGF7 did not
+change.
