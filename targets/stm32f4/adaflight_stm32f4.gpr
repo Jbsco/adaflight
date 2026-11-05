@@ -29,6 +29,9 @@ project Adaflight_Stm32f4 is
       case Adaflight_Stm32f4_Config.Build_Profile is
          when "release" =>
             for Default_Switches ("Ada") use Adaflight_Stm32f4_Config.Ada_Compiler_Switches & ("-gnatyM120");
+            --  The unpacking runs before the packed data exists; see the core's decoder.
+            for Switches ("adaflight-stm32-data_pack.adb") use
+              Adaflight_Stm32f4_Config.Ada_Compiler_Switches & ("-gnatyM120", "-fno-lto");
          when others =>
             for Default_Switches ("Ada") use Adaflight_Stm32f4_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
       end case;
@@ -38,6 +41,7 @@ project Adaflight_Stm32f4 is
       for Switches ("Ada") use
         ("-flto", "-flto-partition=one", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", "-Wl,--no-warn-rwx-segments",
          "-Wl,--defsym=__stack_size=40960",
+         "-L" & Project'Project_Dir & "gen",
          "-T", Project'Project_Dir & "ld/adaflight-stm32f4.ld",
          "-Wl,-Map=" & Project'Project_Dir & "obj/adaflight_stm32f4.map");
    end Linker;

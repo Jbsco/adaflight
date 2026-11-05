@@ -27,7 +27,7 @@ STM32F7 images also place code in sector 0 beside their vector table, so their f
     dfu-util -a 0 -s 0x08010000 -D code.bin
     dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
 
-A 512 KB STM32F7 build packs its cold tables, initialized data and elaboration code: they run from RAM, and their compressed stream follows the code in flash, unpacked at start. `target.do` writes both flash files beside the image and reports the flash left, or the overflow:
+A 512 KB STM32F7 build packs its cold tables, initialized data and elaboration code: they run from RAM, and their compressed stream follows the code in flash, unpacked at start. A 512 KB STM32F4 build packs its initialized data and elaboration code only, and its tables stay in flash. `target.do` writes both flash files beside the image and reports the flash left, or the overflow:
 
     cd targets/stm32f7/bin
     dfu-util -a 0 -s 0x08008000 -D code.bin

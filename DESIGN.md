@@ -13551,3 +13551,14 @@ F411 build runs about 69 KB over its 480 KB of code room. Debug values were the 
 of flash.
 
 A 512 KB F4 build measured 554,740 bytes of code against 561,136 with debug values.
+
+## D664. Packed data and boot code on F4 (2026-11-04)
+
+A packed STM32F4 build, which a 512 KB build is, now stores its initialized data and elaboration code compressed
+after `.rodata` and unpacks them at start, as an STM32F7 build does. Its tables stay in flash, since an STM32F411
+has no RAM for them. featuregen writes F4 linker RAM sections as it does F7 ones, with flight configuration and
+context in core coupled memory. F4 crate takes a data pack body of its own, without F7's ITCM copy and cache sync. A
+plain build gains only an unpack call at start that returns at once, 8 bytes of flash.
+
+A 512 KB F4 build packed 24,064 bytes into an 11,839 byte stream, for 548,891 bytes of flash against 558,220
+unpacked. That image booted on a CLRacing F4S through `bl` and read its settings.
