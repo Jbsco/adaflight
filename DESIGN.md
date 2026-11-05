@@ -13562,3 +13562,13 @@ plain build gains only an unpack call at start that returns at once, 8 bytes of 
 
 A 512 KB F4 build packed 24,064 bytes into an 11,839 byte stream, for 548,891 bytes of flash against 558,220
 unpacked. That image booted on a CLRacing F4S through `bl` and read its settings.
+
+## D665. Flash chip by board configuration (2026-11-05)
+
+Flash chip driver, its file system and the command line's flash tools were in every image, also on boards whose
+configuration names no chip, where they could never find one. They now build only where the configuration names
+`USE_FLASH`, at any flash size, through a stub body like the compass's (D622). Reference builds its flash code per
+target the same way. Host image keeps the chip, which CLRACINGF4 lacks, for its flight log checks.
+
+A 512 KB F4 build measured 541,905 bytes of flash against 548,891, and CLRACINGF7, which names a chip, did not
+change. GEPRCF411 and MAMBAF411 name none.
