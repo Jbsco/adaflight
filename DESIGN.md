@@ -13651,3 +13651,14 @@ bootloader erase its whole flash, waits 22 s beyond its poll time and expects a 
 Betaflight's configurator unprotects whenever its check finds protection. Here it takes a switch, since unprotecting
 erases a configuration page that selective erase keeps. A bootloader without an option bytes region skips this
 check.
+
+## D672. Flash files and Intel HEX image for every build (2026-11-05)
+
+`target.do` now writes `sector0.bin` and `code.bin` for every build: by section from an unpacked image, and from
+its packing for a packed one as before. An unpacked build used to leave an earlier packed build's flash files in
+`bin/`, where a directory flash would take them.
+
+A HEX image of both files follows, written by `tools/hexgen.py` as one run of 16-byte records per file, so the
+configuration sector between them stays out. Betaflight's configurator flasher erases only pages a HEX block
+touches, so its local firmware flash keeps that page. `hexgen.py` reads its image back and compares it with both
+files, and `--end` refuses a code file past its flash region.

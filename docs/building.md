@@ -13,35 +13,23 @@ A board builds its compass and barometer only when its configuration names them,
 
 `target.do` also checks each image's deepest call paths against its main stack. `tools/stackdepth.py` adds up function frames along each path from start-up and fails a build whose path leaves less than 1,024 bytes of stack. In a packed image, unpacking must fit above its model and elaboration above boot code. Run it by hand with `--paths N` to list further paths from start-up, each the deepest one that avoids the largest frame of those listed before it.
 
-The STM32F4 image is flashed through the STM32 bootloader over USB with the board in DFU mode, as two files, the code from sector 2 and then the vector table at the flash's start, so the configuration stored in sector 1 stays in place. The bootloader leaves through the address of the last write, so the vector table goes last:
+An image is flashed through the STM32 bootloader over USB with the board in DFU mode. `target.do` writes two flash files beside the image. `sector0.bin` contains the vector table, and on an STM32F7 also code placed in sector 0. `code.bin` contains the code from sector 2: 0x08008000, or 0x08010000 on an F745 or F746. Sector 1 keeps the configuration, and neither file writes it. `target.do` also writes `adaflight_stm32f4.hex` or `adaflight_stm32f7.hex`, both files as one Intel HEX image with the configuration sector left out, for a configurator's local firmware flash.
 
-    cd targets/stm32f4
-    alr exec -- arm-eabi-objcopy -O binary --only-section=.vectors bin/adaflight_stm32f4 vectors.bin
-    alr exec -- arm-eabi-objcopy -O binary --remove-section=.vectors bin/adaflight_stm32f4 code.bin
-    dfu-util -a 0 -s 0x08008000 -D code.bin
-    dfu-util -a 0 -s 0x08000000:leave -D vectors.bin
-
-STM32F7 images also place code in sector 0 beside their vector table, so their first file holds both. Their code file starts at sector 2: 0x08008000 on an F722, 0x08010000 on an F745 or F746:
-
-    cd targets/stm32f7
-    alr exec -- arm-eabi-objcopy -O binary --only-section=.vectors --only-section=.text0 bin/adaflight_stm32f7 sector0.bin
-    alr exec -- arm-eabi-objcopy -O binary --remove-section=.vectors --remove-section=.text0 bin/adaflight_stm32f7 code.bin
-    dfu-util -a 0 -s 0x08010000 -D code.bin
-    dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
-
-A 512 KB STM32F7 build packs its cold tables, initialized data and elaboration code: they run from RAM, and their compressed stream follows the code in flash, unpacked at start. A 512 KB STM32F4 build packs its initialized data and elaboration code only, and its tables stay in flash. `target.do` writes both flash files beside the image and reports the flash left, or the overflow:
-
-    cd targets/stm32f7/bin
-    dfu-util -a 0 -s 0x08008000 -D code.bin
-    dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
+A 512 KB STM32F7 build packs its cold tables, initialized data and elaboration code: they run from RAM, and their compressed stream follows the code in flash, unpacked at start. A 512 KB STM32F4 build packs its initialized data and elaboration code only, and its tables stay in flash. `target.do` reports the flash left, or the overflow.
 
 `tools/dfu` builds `adaflight_dfu`, which flashes both files in one run. It reads a flash layout from the bootloader, erases only pages the files write into, writes them, compares a read back and starts the image. A directory argument names a directory with `sector0.bin` and `code.bin`, which go at the flash's start and from its third page. Files with addresses suit any other layout. It needs libusb 1.0 and access to USB device 0483:df11:
 
     cd tools/dfu && alr build
     bin/adaflight_dfu ../../targets/stm32f7/bin
-    bin/adaflight_dfu code.bin@0x08008000 vectors.bin@0x08000000
+    bin/adaflight_dfu code.bin@0x08008000 sector0.bin@0x08000000
 
 A read protected flash stops a run before any erase. `--unprotect` removes protection, which erases all flash, configuration included, and resets a bootloader. Flash again once a board is back in DFU mode.
+
+dfu-util flashes one file per run. A bootloader leaves through the address of its last write, so `sector0.bin` goes last:
+
+    cd targets/stm32f4/bin
+    dfu-util -a 0 -s 0x08008000 -D code.bin
+    dfu-util -a 0 -s 0x08000000:leave -D sector0.bin
 
 The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
