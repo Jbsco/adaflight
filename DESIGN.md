@@ -13662,3 +13662,24 @@ A HEX image of both files follows, written by `tools/hexgen.py` as one run of 16
 configuration sector between them stays out. Betaflight's configurator flasher erases only pages a HEX block
 touches, so its local firmware flash keeps that page. `hexgen.py` reads its image back and compares it with both
 files, and `--end` refuses a code file past its flash region.
+
+## D673. DFU flasher bench run and restart after a bootloader exit (2026-11-05)
+
+On a CLRacing F4S V1.2 (STM32F405) in DFU mode, the flasher first found no internal flash. Its libusb binding
+passed `wLength` before the data pointer, where `libusb_control_transfer` takes the pointer first, so libusb
+refused every request before it reached the bus. Flasher checks replace that body with the bootloader model, so
+they could not see it.
+
+With the order fixed, the flasher erased 9 pages (752 KB) in 11.9 s, wrote 703,988 bytes in 50.6 s, verified
+them in 12.3 s and left through 0x08000000. A set address command reported a 104 ms poll time, so the write's
+147 ms per 2 KB block seems mostly spent waiting.
+
+After that leave the image ran, its status LED blinking, but its USB port never enumerated until a power cycle.
+Leaving through 0x08008000 instead made the ROM bootloader start the image as a reset does. A jump into a vector
+table at 0x08000000 seems to keep the bootloader's USB state and its memory map, with system memory still at
+address zero.
+
+Start-up now reads that map after its bootloader request check and restarts through a system reset while system
+memory sits at address zero. The flasher keeps leaving through 0x08000000, as Betaflight's configurator does, so
+a configurator flash of the HEX image starts the same way. On an STM32F7 that bit reads the boot mode, so only a
+start the BOOT0 pin sent to the bootloader restarts. An F7 board has not run this yet.

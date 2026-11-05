@@ -25,6 +25,10 @@ package Adaflight.STM32.MCU is
    --  jump into the system memory's bootloader with the clocks, interrupts,
    --  vector table and stack selection back as a reset leaves them.
    procedure Check_Bootloader_Request;
+   --  At the start, after a bootloader request check: a start by the bootloader's jump, with system memory still
+   --  mapped at address zero, restarts through a system reset, so the bootloader's USB and other peripherals start
+   --  as a reset leaves them.
+   procedure Check_Bootloader_Exit;
    --  The host image's simulator link: whether the image runs against a
    --  simulator, its packets read once a pass, and the attitude quaternion
    --  of the latest packet, once. Board images have no link.
