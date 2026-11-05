@@ -539,8 +539,8 @@ package body Adaflight.STM32.Flight is
        Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
        Build.Telemetry_MAVLink => Adaflight.Build_Features.MAVLink_Telemetry,
-       Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.OSD_SD | Build.OSD_HD | Build.PINIO
-       | Build.Position_Hold | Build.VTX => True,
+       Build.Chirp | Build.OSD_SD | Build.OSD_HD | Build.PINIO | Build.VTX => True,
+       Build.Altitude_Hold | Build.GPS | Build.Position_Hold => Adaflight.Build_Features.GPS,
        Build.Servos => Adaflight.Build_Features.Servos,
        Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
        Build.Mag => Adaflight.Build_Features.Compass,
@@ -826,8 +826,8 @@ package body Adaflight.STM32.Flight is
       if Gyro_Report.Acc_Found then
          M (Adaflight.Modes.Angle) := True;
          M (Adaflight.Modes.Horizon) := True;
-         M (Adaflight.Modes.Alt_Hold) := not Adaflight.Build_Features.Wing;
-         M (Adaflight.Modes.Pos_Hold) := not Adaflight.Build_Features.Wing;
+         M (Adaflight.Modes.Alt_Hold) := Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing;
+         M (Adaflight.Modes.Pos_Hold) := Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing;
          M (Adaflight.Modes.Launch) := Adaflight.Build_Features.Wing;
          M (Adaflight.Modes.Headfree) := True;
          M (Adaflight.Modes.Head_Adj) := True;
@@ -835,14 +835,14 @@ package body Adaflight.STM32.Flight is
          M (Adaflight.Modes.Calib) := On (Adaflight.Config_Fix.Feature_Inflight_Acc_Cal);
          M (Adaflight.Modes.Acro_Trainer) := True;
       end if;
-      if On (Adaflight.Config_Fix.Feature_GPS) then
+      if Adaflight.Build_Features.GPS and then On (Adaflight.Config_Fix.Feature_GPS) then
          M (Adaflight.Modes.GPS_Rescue) :=
            not On (Adaflight.Config_Fix.Feature_3D)
            and then not Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode);
          M (Adaflight.Modes.Beep_GPS_Count) := True;
       end if;
-      M (Adaflight.Modes.Autopilot) := True;
-      M (Adaflight.Modes.WP_Capture) := not Adaflight.Build_Features.Wing;
+      M (Adaflight.Modes.Autopilot) := Adaflight.Build_Features.GPS;
+      M (Adaflight.Modes.WP_Capture) := Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing;
       M (Adaflight.Modes.Failsafe) := True;
       M (Adaflight.Modes.Passthru) := Adaflight.Mixer_Init.Is_Fixed_Wing (Mixer);
       M (Adaflight.Modes.Beeper_On) := True;
@@ -1153,7 +1153,7 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => Adaflight.Build_Features.Menus,
-         GPS => True, GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True,
+         GPS => Adaflight.Build_Features.GPS, GPS_Rescue => Adaflight.Build_Features.GPS, Alt_Hold => Adaflight.Build_Features.GPS, Pos_Hold => Adaflight.Build_Features.GPS, Telemetry => True,
          VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
@@ -2263,11 +2263,17 @@ package body Adaflight.STM32.Flight is
          when Scheduler.OSD =>
             Due := Adaflight.STM32.OSD.Task_Due (Adaflight.STM32.Time.Micros);
          when Scheduler.Alt_Hold =>
-            Adaflight.Position_Estimator.Take_Update (Pos_State, Adaflight.Position_Estimator.Altitude_Hold, Due);
-            Due := Due or else Delta_Us >= 2 * Adaflight.Altitude_Hold.Nominal_Interval_Us;
+            Due := False;
+            if Adaflight.Build_Features.GPS then
+               Adaflight.Position_Estimator.Take_Update (Pos_State, Adaflight.Position_Estimator.Altitude_Hold, Due);
+               Due := Due or else Delta_Us >= 2 * Adaflight.Altitude_Hold.Nominal_Interval_Us;
+            end if;
          when Scheduler.Pos_Hold =>
-            Adaflight.Position_Estimator.Take_Update (Pos_State, Adaflight.Position_Estimator.Position_Hold, Due);
-            Due := Due or else Delta_Us >= 2 * Adaflight.Position_Control.Nominal_Interval_Us;
+            Due := False;
+            if Adaflight.Build_Features.GPS then
+               Adaflight.Position_Estimator.Take_Update (Pos_State, Adaflight.Position_Estimator.Position_Hold, Due);
+               Due := Due or else Delta_Us >= 2 * Adaflight.Position_Control.Nominal_Interval_Us;
+            end if;
          when others =>
             Due := False;
       end case;
@@ -2688,15 +2694,19 @@ package body Adaflight.STM32.Flight is
       I.Throttle_Correction := Att_State.Throttle_Correction;
       I.Jerk_Magnitude := Acc_State.Jerk_Magnitude;
       I.RC_Data_Throttle := Channels (Adaflight.RC_Command.Throttle_Channel);
-      I.Autopilot_Throttle := (if Adaflight.Build_Features.Wing then 0.0 else Alt_Hold_State.Control.Throttle_Out);
+      I.Autopilot_Throttle :=
+        (if Adaflight.Build_Features.Wing or else not Adaflight.Build_Features.GPS then 0.0 else Alt_Hold_State.Control.Throttle_Out);
       I.Autopilot_Angles :=
-        (Adaflight.Axes.Roll  => Pos_Hold_State.Control.Angle_Roll,
-         Adaflight.Axes.Pitch => Pos_Hold_State.Control.Angle_Pitch);
+        (if Adaflight.Build_Features.GPS
+         then (Adaflight.Axes.Roll  => Pos_Hold_State.Control.Angle_Roll,
+               Adaflight.Axes.Pitch => Pos_Hold_State.Control.Angle_Pitch)
+         else (Adaflight.Axes.Roll => 0.0, Adaflight.Axes.Pitch => 0.0));
       I.Autopilot_Max_Angle := Control_Settings.Max_Angle;
       I.Autopilot_Control :=
-        not Adaflight.Build_Features.Wing and then Adaflight.Position_Hold.In_Control (Pos_Hold_State);
+        not Adaflight.Build_Features.Wing and then Adaflight.Build_Features.GPS
+        and then Adaflight.Position_Hold.In_Control (Pos_Hold_State);
       I.Below_Landing :=
-        not Adaflight.Build_Features.Wing
+        not Adaflight.Build_Features.Wing and then Adaflight.Build_Features.GPS
         and then Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M);
       I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
       I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
@@ -3321,6 +3331,9 @@ package body Adaflight.STM32.Flight is
    procedure Run_GPS (Before : Unsigned_32) is
       R : Adaflight.STM32.GPS.Report;
    begin
+      if not Adaflight.Build_Features.GPS then
+         return;
+      end if;
       Adaflight.STM32.GPS.Run (Adaflight.STM32.Time.Millis, Before, Adaflight.STM32.Pilot.Armed, R);
       declare
          G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
@@ -3519,13 +3532,13 @@ package body Adaflight.STM32.Flight is
    --  Whether the position hold is engaged and failing, and whether it could
    --  engage now.
    function Pos_Hold_Failure return Boolean is
-     (Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Pos_Hold_Mode)
+     (Adaflight.Build_Features.GPS and then Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Pos_Hold_Mode)
       and then (not Pos_Hold_State.Control_Ok or else not Pos_Hold_State.Sensors_Ok));
 
    --  The GPS rescue task over the autopilot's altitude and position
    --  controllers the holds share: a disarm it asks for is a failsafe
    --  disarm, with the arm switch's disable reason set when it asks for that.
-   procedure Run_Rescue is
+   procedure Run_Rescue_Step is
       M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
       G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       P_Inp : constant Adaflight.Position_Control.Inputs := Hold_Inputs;
@@ -3576,10 +3589,17 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Failsafe, Adaflight.STM32.Time.Micros, Asked);
          Apply (Asked);
       end if;
+   end Run_Rescue_Step;
+
+   procedure Run_Rescue is
+   begin
+      if Adaflight.Build_Features.GPS then
+         Run_Rescue_Step;
+      end if;
    end Run_Rescue;
 
    function Pos_Hold_Ready return Boolean is
-     (Pos_State.Valid_XY
+     (Adaflight.Build_Features.GPS and then Pos_State.Valid_XY
       and then (not Adaflight.Position_Estimator.Heading_Required
                       (Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros))
                 or else Heading_Valid));
@@ -4316,15 +4336,23 @@ package body Adaflight.STM32.Flight is
          when Scheduler.GPS =>
             Run_GPS (Before);
          when Scheduler.Position =>
-            Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
-            Adaflight.Position_Debug.Record_Update
-              (Adaflight.STM32.Debug_Values.State, Pos_State, Adaflight.STM32.Debug_Values.Axis);
+            if Adaflight.Build_Features.GPS then
+               Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
+               Adaflight.Position_Debug.Record_Update
+                 (Adaflight.STM32.Debug_Values.State, Pos_State, Adaflight.STM32.Debug_Values.Axis);
+            end if;
          when Scheduler.Alt_Hold =>
-            Run_Altitude_Hold;
+            if Adaflight.Build_Features.GPS then
+               Run_Altitude_Hold;
+            end if;
          when Scheduler.Pos_Hold =>
-            Run_Position_Hold;
+            if Adaflight.Build_Features.GPS then
+               Run_Position_Hold;
+            end if;
          when Scheduler.GPS_Rescue =>
-            Tasks.GPS_Rescue (Inputs);
+            if Adaflight.Build_Features.GPS then
+               Tasks.GPS_Rescue (Inputs);
+            end if;
          when Scheduler.RC_Device =>
             Run_RunCam;
          when Scheduler.Gimbal =>

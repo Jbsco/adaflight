@@ -13593,3 +13593,14 @@ servos into every build; F411 boards here are toothpick quads without servo outp
 A 512 KB F4 build with servos off measured 538,739 bytes of flash against 541,905. Command line's `servo` and
 `smix` commands stay, about 3.3 KB, since command line is core code without a feature view. CLRACINGF7 did not
 change.
+
+## D668. GPS left out of F411 builds (2026-11-05)
+
+An STM32F411 build now leaves out GPS with its rescue, altitude hold, position hold and the position estimate.
+Board GPS unit takes a stub body. Flight skips GPS, position, hold and rescue tasks, their modes, autopilot inputs
+and build options behind a static feature check, so link time optimization drops their core units. Reference
+builds GPS at 512 KB only where a target names it, and altitude and position hold only at 1024 KB. F411 boards
+here are toothpick quads, and their flash is short; F722 boards keep GPS.
+
+A 512 KB F4 build with GPS off measured 505,980 bytes of flash against 541,905, and 1,296 bytes less RAM.
+CLRACINGF7 did not change.

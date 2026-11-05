@@ -46,6 +46,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
       for Body ("Adaflight.STM32.Flash_Chip") use Adaflight_Feature_Units.Flash_Chip_Body;
       for Body ("Adaflight.STM32.Blackbox") use Adaflight_Feature_Units.Blackbox_Body;
+      for Body ("Adaflight.STM32.GPS") use Adaflight_Feature_Units.GPS_Body;
       for Body ("Adaflight.STM32.Compass") use Adaflight_Feature_Units.Compass_Body;
       for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
       for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
