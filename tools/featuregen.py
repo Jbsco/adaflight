@@ -3,6 +3,7 @@
 
 usage: featuregen.py <configs dir> <board name> <output .ads> [features]
        featuregen.py --feature <name> <configs dir> <board name> [features]
+       featuregen.py --json <configs dir> <board name> [features]
 
 The board's MCU, from its config.h in the board configuration repository, sets the flash size, and
 FLASH_KB in the environment sets it instead. Each feature is on when the flash is at least the size
@@ -17,7 +18,10 @@ with a negative size is on below that size instead. Debug values are off in a bu
 receiver, for the receiver's room, and in an STM32F4 build of 512 KB or less, whose flash also holds the tables an
 STM32F7 build unpacks into RAM. An STM32F411 build leaves the servos and the GPS out. The output is deterministic for the same inputs, so a build regenerates it
 without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
+The --json form prints the board's MCU, flash size and crate, and each feature with its description, its default
+and its state after the changes, for a configurator's feature selection.
 """
+import json
 import os
 import re
 import sys
@@ -358,7 +362,20 @@ def board_selection(configs: Path, board: str, changes: str) -> tuple:
     return mcu, flash_kb, selection(flash_kb, changes, defines, mcu)
 
 
+def describe(board: str, mcu: str, flash_kb: int, default: dict, chosen: dict) -> str:
+    crate = "stm32f4" if mcu.startswith("STM32F4") else "stm32f7" if mcu.startswith("STM32F7") else None
+    return json.dumps({"board": board, "mcu": mcu, "flash_kb": flash_kb, "crate": crate,
+                       "features": [{"name": name, "description": what, "default": default[name], "on": chosen[name]}
+                                    for name, _, what in FEATURES]}, indent=1) + "\n"
+
+
 def main() -> None:
+    if len(sys.argv) in (4, 5) and sys.argv[1] == "--json":
+        configs, board = Path(sys.argv[2]), sys.argv[3]
+        mcu, flash_kb, default = board_selection(configs, board, "")
+        _, _, chosen = board_selection(configs, board, sys.argv[4] if len(sys.argv) == 5 else "")
+        sys.stdout.write(describe(board, mcu, flash_kb, default, chosen))
+        return
     if len(sys.argv) in (5, 6) and sys.argv[1] == "--feature":
         name = sys.argv[2]
         _, _, chosen = board_selection(Path(sys.argv[3]), sys.argv[4], sys.argv[5] if len(sys.argv) == 6 else "")
