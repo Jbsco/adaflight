@@ -13,7 +13,8 @@ name with + or - in front (+ when there is none), separated by spaces or commas.
 goes adaflight-checks.adc, the configuration pragmas of the board crate, which turn its run-time
 checks off when Board_Checks is off, and the STM32F7 linker script's RAM sections. A feature
 with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less with an SPI
-receiver, for the receiver's room. The output is deterministic for the same inputs, so a build regenerates it
+receiver, for the receiver's room, and in an STM32F4 build of 512 KB or less, whose flash also holds the tables an
+STM32F7 build unpacks into RAM. The output is deterministic for the same inputs, so a build regenerates it
 without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
 """
 import os
@@ -67,11 +68,11 @@ BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",),
                  "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
 
-def selection(flash_kb: int, changes: str, defines: frozenset = frozenset()) -> dict:
+def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu: str = "") -> dict:
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
               or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
-    if chosen.get("SPI_Receiver") and flash_kb <= 512:
+    if flash_kb <= 512 and (chosen.get("SPI_Receiver") or mcu.startswith("STM32F4")):
         chosen["Debug_Values"] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
@@ -319,7 +320,7 @@ def board_selection(configs: Path, board: str, changes: str) -> tuple:
     else:
         raise SystemExit(f"featuregen: no flash size for the MCU {mcu or 'of ' + board}; set FLASH_KB")
     defines = frozenset(re.findall(r"^#define\s+(\w+)", text, re.M))
-    return mcu, flash_kb, selection(flash_kb, changes, defines)
+    return mcu, flash_kb, selection(flash_kb, changes, defines, mcu)
 
 
 def main() -> None:
