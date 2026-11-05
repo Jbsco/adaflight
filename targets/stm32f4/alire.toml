@@ -35,6 +35,12 @@ LOADER = "USER"
 
 # The board package is generated before every build from the pinned board configuration
 # repository; BOARD names the board, CLRACINGF4 when unset.
+# The run-time library is generated beside the crate from the toolchain's STM32F4 runtime with the board's
+# crystal and the MCU's clock (tools/runtimegen.py); BOARD names the board, CLRACINGF4 when unset.
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/runtimegen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" runtime"]
+
 [[actions]]
 type = "pre-build"
 command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads"]

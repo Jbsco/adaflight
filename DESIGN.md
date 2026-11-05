@@ -13604,3 +13604,18 @@ here are toothpick quads, and their flash is short; F722 boards keep GPS.
 
 A 512 KB F4 build with GPS off measured 505,980 bytes of flash against 541,905, and 1,296 bytes less RAM.
 CLRACINGF7 did not change.
+
+## D669. STM32F411 boards (2026-11-05)
+
+F4 crate now builds STM32F411 boards. Memory layout generator gives an F411 its 128 KB of RAM, with core coupled
+memory sections aliased into it, since it has none. Main stack size, 32 KB on an F411 and 40 KB elsewhere, comes
+from the generated layout rather than a linker switch. A generated clocks package gives board drivers their bus
+clocks: 96 MHz with buses at 24 and 48 MHz on an F411, 168 MHz on an F405.
+
+Run-time library generator now serves the F4 crate too, from the toolchain's STM32F4 runtime with the MCU's clock,
+flash latency and PLL divisors. Reference runs an F411 at 96 MHz for its 48 MHz USB clock. Host image keeps a
+static clocks package of an F405.
+
+A GEPRCF411 build, with D665 to D668, packs to 480,525 bytes of flash with 10,995 left. Its RAM ends 6,264 bytes
+short of 128 KB, with its deepest stack path at 30,364 bytes of 36,080. CLRACINGF4 and CLRACINGF7 images did not
+change beyond D665.

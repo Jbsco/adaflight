@@ -26,7 +26,7 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 6, open. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
   strip, beeper, VTX control, GPS with rescue and position modes, servos and wing
   support.
-- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds STM32F405 images.
+- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds STM32F405 and STM32F411 images.
   `targets/host` runs flight software on host, its UARTs and USB port on TCP ports. `targets/stm32f7`
   builds STM32F7 images. 512 KB boards pack initialized data and elaboration code, which start-up
   unpacks into RAM, and STM32F7 boards their cold tables with them. Cold code unpacked on demand is under study. Then H7 and other families
