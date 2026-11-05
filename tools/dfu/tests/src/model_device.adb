@@ -16,6 +16,10 @@ package body Model_Device is
       Upload_Idle => 9, Error => 10, Gone => 8);
 
    Error_Target : constant := 3;
+   Error_Vendor : constant := 16#0B#;
+
+   Option_Base : constant DFU.Address := 16#1FFF_C000#;
+   Option_Data : constant DFU.Byte_Array (0 .. 15) := (16#AA#, 16#EC#, 16#FF#, 16#FF#, others => 16#FF#);
 
    Flash      : DFU.Byte_Array (0 .. Size - 1) := (others => 0);
    Layout     : DFU.Layout.Memory;
@@ -32,6 +36,7 @@ package body Model_Device is
    Executed   : Boolean := False;
    Erases     : Natural := 0;
    Has_Left   : Boolean := False;
+   Locked     : Boolean := False;
    Left_Ptr   : DFU.Address := 0;
 
    F405_Flash : aliased constant String := "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg";
@@ -58,7 +63,11 @@ package body Model_Device is
       Erases := 0;
       Has_Left := False;
       Left_Ptr := 0;
+      Locked := False;
    end Reset;
+
+   function In_Options (A : DFU.Address; N : Natural) return Boolean is
+     (A >= Option_Base and then Natural (A - Option_Base) + N <= Option_Data'Length);
 
    function In_Flash (A : DFU.Address; N : Natural) return Boolean is
      (A >= Base and then Natural (A - Base) + N <= Natural (Layout.Last (Layout.Pages) - Base) + 1);
@@ -81,6 +90,13 @@ package body Model_Device is
    end Set_Present;
 
    function Is_Present return Boolean is (Present);
+
+   procedure Set_Protected (Locked : Boolean) is
+   begin
+      Model_Device.Locked := Locked;
+   end Set_Protected;
+
+   function Is_Protected return Boolean is (Locked);
 
    procedure Set_Stuck_Erases (Count : Natural) is
    begin
@@ -156,11 +172,20 @@ package body Model_Device is
    begin
       if Block = 0 and then Length = 5 and then Pending (0) = 16#21# then
          A := Word_At (Pending, 1);
-         if In_Flash (A, 1) then
+         if In_Options (A, 1) and then Locked then
+            State := Error;
+            Code := Error_Vendor;
+            return;
+         elsif In_Flash (A, 1) or else In_Options (A, 1) then
             Pointer := A;
             State := Download_Idle;
             return;
          end if;
+      elsif Block = 0 and then Length = 1 and then Pending (0) = 16#92# then
+         Flash := (others => 16#FF#);
+         Locked := False;
+         State := Gone;
+         return;
       elsif Block = 0 and then Length = 5 and then Pending (0) = 16#41# then
          A := Word_At (Pending, 1);
          for P in 1 .. Layout.Pages loop
@@ -266,6 +291,9 @@ package body Model_Device is
                         State := Download_Busy;
                      end if;
                   end if;
+                  if State = Gone then
+                     return;
+                  end if;
                   Reported := State;
                when Manifest_Sync =>
                   Reported := Manifest_Sync;
@@ -285,7 +313,14 @@ package body Model_Device is
          when 2 =>
             if (State = Idle or else State = Upload_Idle) and then Value >= 2 and then Data'Length <= Block_Size then
                A := Pointer + DFU.Address (Value - 2) * DFU.Address (Block_Size);
-               if In_Flash (A, Data'Length) then
+               if In_Options (A, Data'Length) and then not Locked then
+                  for I in 0 .. Data'Length - 1 loop
+                     Put (Data, Got, Option_Data (Natural (A - Option_Base) + I));
+                  end loop;
+                  State := Upload_Idle;
+                  Ok := True;
+                  return;
+               elsif In_Flash (A, Data'Length) and then not Locked then
                   for I in 0 .. Data'Length - 1 loop
                      Put (Data, Got, Flash (Natural (A - Base) + I));
                   end loop;

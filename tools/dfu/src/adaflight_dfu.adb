@@ -107,9 +107,11 @@ procedure Adaflight_DFU with SPARK_Mode => Off is
    Files     : array (Image_Index) of Data_Access;
    Count     : Image_Count := 0;
    Pair      : Boolean := False;
+   Unprotect : Boolean := False;
 
    procedure Read_Arguments is
       Directory : Text_Access := new String'(".");
+      Named     : Boolean := False;
    begin
       for J in 1 .. Ada.Command_Line.Argument_Count loop
          declare
@@ -118,11 +120,16 @@ procedure Adaflight_DFU with SPARK_Mode => Off is
          begin
             if Arg = "-h" or else Arg = "--help" then
                raise Usage_Error with "";
+            elsif Arg = "--unprotect" then
+               Unprotect := True;
             elsif At_Sign = 0 then
-               if J > 1 or else Ada.Command_Line.Argument_Count > 1 then
-                  raise Usage_Error with "a directory is the only argument";
+               if Named or else Count > 0 then
+                  raise Usage_Error with "a directory is the only file argument";
                end if;
                Directory := new String'(Arg);
+               Named := True;
+            elsif Named then
+               raise Usage_Error with "a directory is the only file argument";
             elsif Count = Max_Images then
                raise Usage_Error with "at most four files";
             else
@@ -144,6 +151,9 @@ procedure Adaflight_DFU with SPARK_Mode => Off is
    end Read_Arguments;
 
    M        : DFU.Layout.Memory;
+   Options  : DFU.Layout.Memory;
+   Optional : Boolean;
+   Guard    : DFU.Session.Protection;
    Transfer : DFU.Session.Transfer_Size;
    Images   : Image_Array := (others => (First => 0, Length => 0));
    Offsets  : DFU.Flash.Offset_Array := (others => 0);
@@ -207,7 +217,7 @@ begin
    if not Ok then
       raise Flash_Error with "no device in DFU mode (0483:df11), or no access to it";
    end if;
-   DFU.Session.Read_Layout (M, Transfer, Ok);
+   DFU.Session.Read_Layout (M, Options, Optional, Transfer, Ok);
    if not Ok then
       raise Flash_Error with "the device names no internal flash";
    end if;
@@ -218,6 +228,28 @@ begin
    DFU.Session.Clear_Status (False, Ok);
    if not Ok then
       raise Flash_Error with "the bootloader did not reach its idle state";
+   end if;
+
+   if Optional then
+      DFU.Session.Check_Protection (Options, Guard);
+      case Guard is
+         when DFU.Session.Readable =>
+            null;
+         when DFU.Session.Read_Protected =>
+            if not Unprotect then
+               raise Flash_Error with "the flash is read protected; --unprotect removes the protection and erases"
+                 & " the whole flash, its configuration included";
+            end if;
+            DFU.Session.Unprotect (Ok);
+            if not Ok then
+               raise Flash_Error with "the bootloader did not reset after the unprotect request";
+            end if;
+            Put_Line ("read protection removed and the flash erased; flash again once the board is in DFU mode");
+            DFU.Transport.Close;
+            return;
+         when DFU.Session.Unknown =>
+            raise Flash_Error with "the option bytes check failed";
+      end case;
    end if;
 
    Start := Ada.Calendar.Clock;
@@ -257,10 +289,11 @@ exception
          Put_Line (Standard_Error, "adaflight_dfu: " & Ada.Exceptions.Exception_Message (E));
          Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
       end if;
-      Put_Line (Standard_Error, "usage: adaflight_dfu [DIRECTORY | FILE@ADDRESS ...]");
+      Put_Line (Standard_Error, "usage: adaflight_dfu [--unprotect] [DIRECTORY | FILE@ADDRESS ...]");
       Put_Line (Standard_Error, "  DIRECTORY     sector0.bin at the flash's start and code.bin from its third page,"
                 & " . when unset");
       Put_Line (Standard_Error, "  FILE@ADDRESS  each file at its address, such as code.bin@0x08008000");
+      Put_Line (Standard_Error, "  --unprotect   remove read protection, which erases the whole flash");
    when E : Flash_Error =>
       Put_Line (Standard_Error, "adaflight_dfu: " & Ada.Exceptions.Exception_Message (E));
       DFU.Transport.Close;

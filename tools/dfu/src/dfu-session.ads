@@ -22,14 +22,20 @@ package DFU.Session with SPARK_Mode is
 
    Set_Address_Command : constant Byte := 16#21#;
    Erase_Command       : constant Byte := 16#41#;
+   Unprotect_Command   : constant Byte := 16#92#;
+   Vendor_Error        : constant Byte := 16#0B#;
+   Max_Option_Bytes    : constant := 4096;
+   Unprotect_Wait      : constant := 22_000;
 
    Default_Transfer : constant := 2048;
    Max_Attempts     : constant := 100;
    Max_Blocks       : constant := 65_533;
 
+   subtype Poll_Time is Natural range 0 .. 16#FF_FFFF#;
+
    type Status is record
       Code  : Byte := 0;
-      Poll  : Natural := 0;
+      Poll  : Poll_Time := 0;
       State : Byte := 0;
    end record;
 
@@ -73,9 +79,23 @@ package DFU.Session with SPARK_Mode is
    procedure Leave (A : Address; Ok : out Boolean)
    with Global => (In_Out => DFU.Transport.Device);
 
-   --  The internal flash layout from the alternate settings' strings, and the functional descriptor's
-   --  transfer size, Default_Transfer when the device gives none.
-   procedure Read_Layout (M : out DFU.Layout.Memory; Transfer : out Transfer_Size; Ok : out Boolean)
-   with Global => (In_Out => DFU.Transport.Device), Post => (if Ok then DFU.Layout.Contiguous (M));
+   --  The internal flash and option bytes layouts from the alternate settings' strings, and the functional
+   --  descriptor's transfer size, Default_Transfer when the device gives none.
+   procedure Read_Layout
+     (M : out DFU.Layout.Memory; Options : out DFU.Layout.Memory; Has_Options : out Boolean;
+      Transfer : out Transfer_Size; Ok : out Boolean)
+   with
+     Global => (In_Out => DFU.Transport.Device),
+     Post   => (if Ok then DFU.Layout.Contiguous (M)) and then (if Has_Options then DFU.Layout.Contiguous (Options));
+
+   --  A vendor error on loading the option bytes' address, or a failed read of them, marks read protection.
+   type Protection is (Readable, Read_Protected, Unknown);
+
+   procedure Check_Protection (Options : DFU.Layout.Memory; Result : out Protection)
+   with Global => (In_Out => DFU.Transport.Device), Pre => DFU.Layout.Contiguous (Options);
+
+   --  Removes read protection, which erases the whole flash; Ok when the bootloader resets afterwards.
+   procedure Unprotect (Ok : out Boolean)
+   with Global => (In_Out => DFU.Transport.Device);
 
 end DFU.Session;

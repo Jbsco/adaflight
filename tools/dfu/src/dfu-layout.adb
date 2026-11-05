@@ -195,17 +195,15 @@ package body DFU.Layout with SPARK_Mode is
    function Lower (C : Character) return Character is
      (if C in 'A' .. 'Z' then Character'Val (Character'Pos (C) + 32) else C);
 
+   function Named (M : Memory; Text : String) return Boolean is
+     (M.Length = Text'Length and then (for all J in 1 .. M.Length => Lower (M.Name (J)) = Text (J)))
+   with Pre => Text'First = 1;
+
    function Is_Internal_Flash (M : Memory) return Boolean is
-      Spaced : constant String := "internal flash";
-      Joined : constant String := "internalflash";
-   begin
-      if M.Length = Spaced'Length then
-         return (for all J in 1 .. M.Length => Lower (M.Name (J)) = Spaced (J));
-      elsif M.Length = Joined'Length then
-         return (for all J in 1 .. M.Length => Lower (M.Name (J)) = Joined (J));
-      end if;
-      return False;
-   end Is_Internal_Flash;
+     (Named (M, "internal flash") or else Named (M, "internalflash"));
+
+   function Is_Option_Bytes (M : Memory) return Boolean is
+     (Named (M, "option bytes") or else Named (M, "option byte"));
 
    procedure Parse_Configuration (Data : Byte_Array; Info : out Interface_Info) is
       Interface_Descriptor  : constant := 4;

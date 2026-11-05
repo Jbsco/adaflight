@@ -41,6 +41,8 @@ A 512 KB STM32F7 build packs its cold tables, initialized data and elaboration c
     bin/adaflight_dfu ../../targets/stm32f7/bin
     bin/adaflight_dfu code.bin@0x08008000 vectors.bin@0x08000000
 
+A read protected flash stops a run before any erase. `--unprotect` removes protection, which erases all flash, configuration included, and resets a bootloader. Flash again once a board is back in DFU mode.
+
 The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
 The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
