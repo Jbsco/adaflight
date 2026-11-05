@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Pack a packed STM32F7 image's tables and initialized data after the link.
+"""Pack a packed image's initialized data and elaboration code, with an STM32F7's tables, after the link.
 
 usage: datapack.py <elf>
 
-Runs in the crate directory with the ARM toolchain on the path. The linker placed the packed tables, the
-initialized data and the elaboration's code in RAM with load addresses in the staging region; this checks that
+Runs in the crate directory with the ARM toolchain on the path. The linker placed the packed tables, which an
+STM32F4 image keeps in flash, the initialized data and the elaboration's code in RAM with load addresses in the
+staging region; this checks that
 nothing but main's call of adainit reaches the elaboration's code, whose RAM the main stack takes back, reads
 their bytes, compresses the range from __packed_start to __packed_end as an LZMA stream (tools/lzma_ref.py),
 checks the stream decodes back,
@@ -129,8 +130,9 @@ def main() -> None:
         raise SystemExit(__doc__)
     elf = Path(sys.argv[1])
     secs, syms = sections(elf), symbols(elf)
-    if ".packed_tables" not in secs:
-        raise SystemExit("datapack: the image has no packed tables section; it is a plain build")
+    if ".boot_code" not in secs:
+        raise SystemExit("datapack: the image has no boot code section; it is a plain build")
+    secs.setdefault(".packed_tables", (0, syms["__packed_start"], 0))
     if secs.get(".ccmdata", (0, 0, 0))[0]:
         raise SystemExit("datapack: a packed image cannot hold .ccmdata, which the run-time library copies")
     start, end = syms["__packed_start"], syms["__packed_end"]
@@ -146,7 +148,8 @@ def main() -> None:
     raw = bytearray(end - start)
     for name in (".packed_tables", ".data", ".boot_code"):
         size, vma, _ = secs[name]
-        raw[vma - start:vma - start + size] = section_bytes(elf, name, scratch)
+        if size:
+            raw[vma - start:vma - start + size] = section_bytes(elf, name, scratch)
     stream = lzma_ref.compress(bytes(raw))
     back, status = lzma_ref.decompress(stream, len(raw))
     if status != "done" or back != bytes(raw):

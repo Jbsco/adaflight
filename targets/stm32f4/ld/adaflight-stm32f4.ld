@@ -40,17 +40,14 @@
    appropriate memory map and output format. */
 
 /* Modified for adaflight from the light-tasking-stm32f4 runtime's common-ROM.ld and
-   memory-map.ld: the flash of the STM32F405 is laid out with the vector table alone in
-   sector 0, sector 1 kept for the configuration store, and the code from sector 2. */
+   memory-map.ld: the flash of an STM32F4 is laid out with the vector table alone in
+   sector 0, sector 1 kept for the configuration store, and the code from sector 2, as
+   gen/memory.ld (tools/memorygen.py) gives it. The RAM sections come from gen/ram_early.ld and
+   gen/ram_late.ld (tools/featuregen.py): a packed build's initialized data and elaboration code load
+   from the staging region, which is never flashed, and tools/datapack.py stores them compressed after
+   .rodata; its tables stay in flash. */
 
-MEMORY
-{
-  flash0  (rx) : ORIGIN = 0x08000000, LENGTH = 16K
-  config   (r) : ORIGIN = 0x08004000, LENGTH = 16K
-  flash   (rx) : ORIGIN = 0x08008000, LENGTH = 992K
-  sram12 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
-  ccm     (rw) : ORIGIN = 0x10000000, LENGTH = 64K
-}
+INCLUDE memory.ld
 
 REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
@@ -58,12 +55,16 @@ REGION_ALIAS("sram_bs", sram12)
 REGION_ALIAS("sram_da", sram12)
 REGION_ALIAS("ccm_da", ccm)
 
+__flash_end = ORIGIN (flash) + LENGTH (flash);
+
 _DEFAULT_STACK_SIZE = 4*1024;
 
 ENTRY(_start_rom);
 
 SECTIONS
 {
+  INCLUDE ram_early.ld
+
   .vectors :
   {
     KEEP (*(.vectors))
@@ -135,77 +136,7 @@ SECTIONS
     __rom_end = .;
   } > flash
 
-  __data_load = __rom_end;
-  .data : AT (__data_load)
-  {
-    __data_start = .;
-    *(.data .data.* .gnu.linkonce.d*)
-
-    /* Ensure that the end of the data section is always word aligned.
-       Initial values are stored in 4-bytes blocks so we must guarantee
-       that these blocks do not fall out the section (otherwise they are
-       truncated and the initial data for the last block are lost). */
-
-    . = ALIGN(0x4);
-    __data_end = .;
-  } > sram_da
-  __data_words = (__data_end - __data_start) >> 2;
-
-  __ccmdata_load = __rom_end + (__data_words << 2);
-  .ccmdata : AT (__ccmdata_load)
-  {
-    __ccmdata_start = .;
-    *(.ccmdata .ccmdata.*)
-
-    /* Ensure that the end of the data section is always word aligned.
-       Initial values are stored in 4-bytes blocks so we must guarantee
-       that these blocks do not fall out the section (otherwise they are
-       truncated and the initial data for the last block are lost). */
-
-    . = ALIGN(0x4);
-    __ccmdata_end = .;
-  } > ccm_da
-  __ccmdata_words = (__ccmdata_end - __ccmdata_start) >> 2;
-
-  /* Zeroed data placed in the core coupled memory by its section name: the
-     menu's state and target, and the flight loop's configuration and context,
-     for the main RAM the stack takes. */
-  .ccmbss (NOLOAD) : {
-   . = ALIGN(0x8);
-   __ccmbss_start = .;
-   *(.bss.ccm .bss.ccm.*)
-   *(.bss.adaflight__stm32__flight__config)
-   *(.bss.adaflight__stm32__flight__ctx)
-   . = ALIGN(0x8);
-   __ccmbss_end = .;
-  } > ccm
-
-  .bss (NOLOAD): {
-   . = ALIGN(0x8);
-   __bss_start = .;
-
-   *(.bss .bss.*)
-   *(COMMON)
-
-   . = ALIGN(0x8);    /* Align the stack to 64 bits */
-   __bss_end = .;
-
-   __interrupt_stack_start = .;
-   *(.noinit.interrupt_stacks)
-   . = ALIGN(0x8);
-   __interrupt_stack_end = .;
-
-   __stack_start = .;
-   . += DEFINED (__stack_size) ? __stack_size : _DEFAULT_STACK_SIZE;
-   . = ALIGN(0x8);
-   __stack_end = .;
-
-   _end = .;
-   __heap_start = .;
-   __heap_end = ORIGIN(sram_bs) + LENGTH(sram_bs);
-  } > sram_bs
-
-  __bss_words = (__bss_end - __bss_start) >> 2;
+  INCLUDE ram_late.ld
 
   /* DWARF debug sections.
      Symbols in the DWARF debugging sections are relative to the beginning
