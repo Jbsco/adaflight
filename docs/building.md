@@ -4,7 +4,7 @@ The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board with an SPI receiver also leaves out debug values.
 
-`FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region:
+`FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region. `tools/featuresize.py BOARD` measures each feature's flash cost on a board, a build per feature, for a configurator's fit bar:
 
     FEATURES="-Menus" bash target.do          # every feature but the menu system
     FLASH_KB=512 bash target.do               # the features of a 512 KB board

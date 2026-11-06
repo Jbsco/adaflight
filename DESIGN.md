@@ -13691,3 +13691,18 @@ default and its state after a `FEATURES` list. `target.do` reports `target: code
 build. A configurator's feature selection reads both: the list for its checkboxes, and a build's report, or the
 overflow message of its link or its packing, to tell whether a selection fits. Fit view runs in the adaflight
 configurator's desktop shell, which builds from an adaflight checkout beside it and flashes with `adaflight_dfu`.
+
+## D675. Feature sizes for a configurator's fit bar (2026-11-05)
+
+`tools/featuresize.py` measures each feature's flash cost on one board: a build of the board's selection, then a
+build with each feature switched, every one through `target.do`. A feature on in the selection costs what leaving
+it out saves, and one off costs what adding it takes. A build past its flash region takes its size from the
+overflow its link or its packing reports.
+
+A build that fails for another reason leaves its feature without a cost and records why: an SD card on GEPRCF411
+overflows its RAM by 1,512 bytes. Results go to `sizes-<board>.json` beside the image, and the selection builds
+last, so the image left behind is its own.
+
+A configurator's fit bar draws the code no feature accounts for, then a block per selected feature, largest first,
+along the flash region, with a line at its end and blocks past it in red. Costs of features that share code do not
+add exactly, so the bar is an estimate, and the build's own report decides whether a selection fits.
