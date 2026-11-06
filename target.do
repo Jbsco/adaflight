@@ -5,7 +5,8 @@
 # in its release profile with the Alire ARM toolchain and the runtime it names or generates, and the
 # image's section sizes and features are shown. Its deepest call paths must fit its main stack. A packed build
 # then packs its data and elaboration code, an STM32F7's tables with them. Every build writes its flash files,
-# sector0.bin and code.bin, and an Intel HEX image of both that leaves the configuration sector out.
+# sector0.bin and code.bin, and an Intel HEX image of both that leaves the configuration sector out, and reports
+# the code file's size against its flash region.
 set -e
 CRATE="${CRATE:-stm32f4}"
 cd "$(dirname "$0")/targets/$CRATE"
@@ -34,4 +35,5 @@ CODE_START="$(sed -n 's/^ *flash *(rx) : ORIGIN = \(0x[0-9A-Fa-f]*\), LENGTH = [
 CODE_KB="$(sed -n 's/^ *flash *(rx) : ORIGIN = 0x[0-9A-Fa-f]*, LENGTH = \([0-9]*\)K$/\1/p' gen/memory.ld)"
 python3 -I ../../tools/hexgen.py "bin/adaflight_$CRATE.hex" --end=$((CODE_START + CODE_KB * 1024)) \
     bin/sector0.bin@0x08000000 "bin/code.bin@$CODE_START"
+echo "target: code $(stat -c %s bin/code.bin) of $((CODE_KB * 1024)) bytes"
 echo "target: ok"
