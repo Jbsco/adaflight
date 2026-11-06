@@ -28,6 +28,7 @@ package DFU.Session with SPARK_Mode is
    Unprotect_Wait      : constant := 22_000;
 
    Default_Transfer : constant := 2048;
+   Slack            : constant := 1000;
    Max_Attempts     : constant := 100;
    Max_Blocks       : constant := 65_533;
 

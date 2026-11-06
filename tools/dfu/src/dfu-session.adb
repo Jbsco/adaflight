@@ -75,6 +75,17 @@ package body DFU.Session with SPARK_Mode is
       Poll := S.Poll;
    end Download;
 
+   --  Status reads at once and then a millisecond apart while the bootloader reports busy, at most Limit more.
+   procedure Poll_Status (Limit : Natural; S : out Status; Ok : out Boolean) is
+   begin
+      Get_Status (S, Ok);
+      for Attempt in 1 .. Limit loop
+         exit when not Ok or else S.State /= Download_Busy;
+         DFU.Transport.Wait (1);
+         Get_Status (S, Ok);
+      end loop;
+   end Poll_Status;
+
    procedure Load_Address (A : Address; Ok : out Boolean) is
       Poll : Poll_Time;
       S    : Status;
@@ -83,8 +94,7 @@ package body DFU.Session with SPARK_Mode is
       if not Ok then
          return;
       end if;
-      DFU.Transport.Wait (Poll);
-      Get_Status (S, Ok);
+      Poll_Status (Poll + Slack, S, Ok);
       Ok := Ok and then S.State = Download_Idle;
    end Load_Address;
 
@@ -96,8 +106,7 @@ package body DFU.Session with SPARK_Mode is
       if not Ok then
          return;
       end if;
-      DFU.Transport.Wait (Poll);
-      Get_Status (S, Ok);
+      Poll_Status (Poll, S, Ok);
       if not Ok then
          return;
       end if;
@@ -130,8 +139,7 @@ package body DFU.Session with SPARK_Mode is
          if not Ok then
             return;
          end if;
-         DFU.Transport.Wait (Poll);
-         Get_Status (S, Ok);
+         Poll_Status (Poll + Slack, S, Ok);
          if not Ok or else S.State /= Download_Idle then
             Ok := False;
             return;
@@ -275,8 +283,7 @@ package body DFU.Session with SPARK_Mode is
       if not Ok then
          return;
       end if;
-      DFU.Transport.Wait (Poll);
-      Get_Status (S, Ok);
+      Poll_Status (Poll + Slack, S, Ok);
       if Ok and then S.State = Error and then S.Code = Vendor_Error then
          Clear_Status (False, Ok);
          Result := (if Ok then Read_Protected else Unknown);

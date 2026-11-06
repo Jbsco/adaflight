@@ -13706,3 +13706,14 @@ last, so the image left behind is its own.
 A configurator's fit bar draws the code no feature accounts for, then a block per selected feature, largest first,
 along the flash region, with a line at its end and blocks past it in red. Costs of features that share code do not
 add exactly, so the bar is an estimate, and the build's own report decides whether a selection fits.
+
+## D676. Early status polling in the DFU flasher (2026-11-05)
+
+After a block write, a set address command or a page erase, the flasher reads status at once and then a
+millisecond apart while the bootloader reports busy. Betaflight's configurator waits out the poll time the
+bootloader reported before one read. A write may stay busy for its poll time and a second more. An erase still busy
+after its poll time takes the stuck busy path of D670.
+
+On a CLRacing F4S V1.2, 703,988 bytes wrote in 25.7 s against 50.6 s, about 75 ms per 2 KB block against 147 ms,
+and the read back matched. Erase stayed at 11.9 s, so its reported poll time seems close to what the ROM needs. A
+whole flash took 49.8 s against 75 s.
