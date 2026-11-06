@@ -24,6 +24,8 @@ package body Adaflight.STM32.MCU is
 
    procedure Check_Bootloader_Request is null;
 
+   procedure Check_Bootloader_Exit is null;
+
    function Simulated return Boolean is (Adaflight.Host_Simulator.Enabled);
 
    procedure Simulator_Poll renames Adaflight.Host_Simulator.Poll;

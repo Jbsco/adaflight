@@ -92,6 +92,15 @@ package body Adaflight.STM32.MCU is
       Reset;
    end Reset_To_Bootloader;
 
+   procedure Check_Bootloader_Exit is
+   begin
+      RCC_APB2ENR := RCC_APB2ENR or SYSCFGEN;
+      if (MEMRMP and 3) = 1 then
+         MEMRMP := 0;
+         Reset;
+      end if;
+   end Check_Bootloader_Exit;
+
    procedure Check_Bootloader_Request is
       Stack_Top   : Word;
       Entry_Point : Word;

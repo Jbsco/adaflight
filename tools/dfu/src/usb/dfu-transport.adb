@@ -39,8 +39,8 @@ package body DFU.Transport with SPARK_Mode => Off is
    with Import, Convention => C, External_Name => "libusb_release_interface";
 
    function Control
-     (H : System.Address; Request_Type, Request : unsigned_char; Value, Index, Length : unsigned_short;
-      Data : System.Address; Time : unsigned) return int
+     (H : System.Address; Request_Type, Request : unsigned_char; Value, Index : unsigned_short; Data : System.Address;
+      Length : unsigned_short; Time : unsigned) return int
    with Import, Convention => C, External_Name => "libusb_control_transfer";
 
    procedure Open (Ok : out Boolean) is
@@ -86,8 +86,8 @@ package body DFU.Transport with SPARK_Mode => Off is
       if Handle = System.Null_Address then
          return;
       end if;
-      Result := Control (Handle, Request_Type, Request, unsigned_short (Value), unsigned_short (Index),
-                         unsigned_short (Length), Data, Timeout);
+      Result := Control (Handle, Request_Type, Request, unsigned_short (Value), unsigned_short (Index), Data,
+                         unsigned_short (Length), Timeout);
       if Result >= 0 then
          Got := Natural (Result);
          Ok := True;

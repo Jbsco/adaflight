@@ -4490,6 +4490,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Adaflight.STM32.MCU.Init_Persistent;
       Adaflight.STM32.MCU.Check_Bootloader_Request;
+      Adaflight.STM32.MCU.Check_Bootloader_Exit;
       Adaflight.STM32.Time.Init;
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
