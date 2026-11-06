@@ -28,6 +28,9 @@ package Model_Device is
    --  The next Count erases stay busy until a clear status request.
    procedure Set_Stuck_Erases (Count : Natural);
 
+   --  Each block write then reports busy for Count more status reads before it is done.
+   procedure Set_Busy_Reads (Count : Natural);
+
    function Erased_Pages return Natural;
 
    function Left return Boolean;

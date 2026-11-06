@@ -277,6 +277,16 @@ procedure DFU_Check is
       Check ("erase stuck busy", Reached = Started and then Model_Device.Erased_Pages = 6);
 
       Model_Device.Reset (Model_Device.F405);
+      Model_Device.Set_Busy_Reads (5);
+      Run (False, 0, Reached, Failed, Transfer);
+      Check ("write busy for some reads", Reached = Started);
+
+      Model_Device.Reset (Model_Device.F405);
+      Model_Device.Set_Busy_Reads (DFU.Session.Slack + 10);
+      Run (False, 0, Reached, Failed, Transfer);
+      Check ("write busy past its poll time", Reached = Erased);
+
+      Model_Device.Reset (Model_Device.F405);
       Model_Device.Out_Request (9, 0, (1 .. 0 => 0), Sent);
       Check ("model in error", not Sent);
       Run (False, 0, Reached, Failed, Transfer);

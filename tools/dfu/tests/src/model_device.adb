@@ -34,6 +34,8 @@ package body Model_Device is
    Present    : Boolean := True;
    Stuck      : Natural := 0;
    Executed   : Boolean := False;
+   Busy_Reads : Natural := 0;
+   Remaining  : Natural := 0;
    Erases     : Natural := 0;
    Has_Left   : Boolean := False;
    Locked     : Boolean := False;
@@ -64,6 +66,8 @@ package body Model_Device is
       Has_Left := False;
       Left_Ptr := 0;
       Locked := False;
+      Busy_Reads := 0;
+      Remaining := 0;
    end Reset;
 
    function In_Options (A : DFU.Address; N : Natural) return Boolean is
@@ -102,6 +106,11 @@ package body Model_Device is
    begin
       Stuck := Count;
    end Set_Stuck_Erases;
+
+   procedure Set_Busy_Reads (Count : Natural) is
+   begin
+      Busy_Reads := Count;
+   end Set_Busy_Reads;
 
    function Erased_Pages return Natural is (Erases);
 
@@ -289,6 +298,14 @@ package body Model_Device is
                      if State = Download_Idle and then Stuck > 0 and then Block = 0 and then Pending (0) = 16#41# then
                         Stuck := Stuck - 1;
                         State := Download_Busy;
+                     elsif State = Download_Idle and then Block >= 2 and then Busy_Reads > 0 then
+                        Remaining := Busy_Reads;
+                        State := Download_Busy;
+                     end if;
+                  elsif Remaining > 0 then
+                     Remaining := Remaining - 1;
+                     if Remaining = 0 then
+                        State := Download_Idle;
                      end if;
                   end if;
                   if State = Gone then

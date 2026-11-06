@@ -34,10 +34,10 @@ Silver with no assume, and pass the gates on `main`.
   USB, flash, SD card, ADC on DMA, DShot on timers and bit-banged on GPIO ports.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
-  tool over DFU, `tools/dfu`, checks read protection, erases, writes, verifies and starts images;
-  faster transfers follow, then the configuration path. For boards short of flash, a fit view: the feature set as blocks of decreasing size
-  along a bar of the target's flash, its limit marked by a line and features past it in red. Checking or
-  unchecking a feature redraws the bar, and flashing waits until the selection fits.
+  tool over DFU, `tools/dfu`, checks read protection, erases, writes, verifies and starts images,
+  polling status early for faster writes. adaflight-configurator's desktop build builds and flashes from
+  an adaflight checkout, with a fit view for boards short of flash: feature blocks along a bar of the
+  target's flash, its end marked by a line and features past it in red. Configuration path follows.
 
 ## After parity
 
