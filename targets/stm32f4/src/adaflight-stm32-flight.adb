@@ -4489,12 +4489,14 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Stack_Check.Paint;
       end if;
       Adaflight.STM32.MCU.Init_Persistent;
+      --  Inverters off ahead of a bootloader request: a floating inverter control makes its UART's receive
+      --  pin toggle, which the ROM bootloader takes for a serial host.
+      Adaflight.STM32.USART.Init_Inverters;
       Adaflight.STM32.MCU.Check_Bootloader_Request;
       Adaflight.STM32.MCU.Check_Bootloader_Exit;
       Adaflight.STM32.Time.Init;
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
-      Adaflight.STM32.USART.Init_Inverters;
       Init_Configuration;
       Adaflight.STM32.Timers.Load (Config.Timer_Io_Config);
       Adaflight.STM32.PINIO.Init (Config);

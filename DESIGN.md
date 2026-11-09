@@ -13717,3 +13717,21 @@ after its poll time takes the stuck busy path of D670.
 On a CLRacing F4S V1.2, 703,988 bytes wrote in 25.7 s against 50.6 s, about 75 ms per 2 KB block against 147 ms,
 and the read back matched. Erase stayed at 11.9 s, so its reported poll time seems close to what the ROM needs. A
 whole flash took 49.8 s against 75 s.
+
+## D677. Inverters off before a bootloader jump (2026-11-09)
+
+`bl` left a CLRacing F4S V1.2 with a ROM bootloader that attached to USB and never answered, in 2 of 7 tries. The
+STM32F405 ROM bootloader also listens for a serial host on PA10, UART1's receive pin, and this board's UART1
+inverter drives that pin under control of PC0. After a reset PC0 floats and drifts up, and the inverter then
+toggles PA10.
+
+A probe image ran start-up as for a bootloader request and counted pin edges for 1 s in place of the jump. With
+PC0 floating, PA10 toggled in 12 of 12 trials, 127 to 7,847 edges, first 99 to 427 ms after the jump would have
+happened. Without the 200 ms USB disconnect of D654 its first edge came after 584 to 888 ms. With PC0 held low,
+PA10 stayed still in 11 of 11 trials. A pull-up on PA10 changed nothing, and the ROM's other serial pins stayed
+still.
+
+Start-up now turns the inverters off before it serves a bootloader request, so their control pins stay driven low
+while the ROM runs. `bl` then reached DFU in 30 of 30 cycles, about 0.5 s after the command. Betaflight jumps at
+reset with that pin floating. Its earlier jump leaves a USB host about 0.6 s to enumerate before PA10 starts to
+toggle on this board.
