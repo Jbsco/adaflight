@@ -14023,3 +14023,13 @@ reply, and nothing follows it. The reader check lists that mode field as not ser
 
 Host smoke puts a GPS on UART4, asks for a passthrough to a port the board lacks and to UART4, and checks bytes in
 both directions.
+
+## D699. Passthrough refused while armed and from telemetry (2026-11-10)
+
+The MSP processor answers a passthrough request with 0 and names nothing to run when the craft is armed or when a
+telemetry link's MSP tunnel sent it. The reference refuses an MSP reboot while armed, and has no such test for
+passthrough. A request in flight there stops flight control, and a 4-way request stops all motors first. From a
+telemetry link the reference runs a 4-way or ESC serial request without a serial port.
+
+Both cases are divergences with an upstream write-up. The passthrough oracle compiles the reference's MSP processor
+with that refusal added, behind a switch, and draws an arming flag and a request's link for every step.

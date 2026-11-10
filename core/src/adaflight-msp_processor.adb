@@ -294,33 +294,37 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             Write_Data (B, S, Reply.Data (0 .. Room - 1));
          end;
       elsif Command = Set_Passthrough_Command then
-         declare
-            Mode : constant Byte := (if Request'Length = 0 then Passthrough_ESC_4Way else Request (Request'First));
-            Arg  : constant Byte := (if Request'Length >= 2 then Request (Request'First + 1) else 0);
-         begin
-            E.Passthrough_Mode := Mode;
-            E.Passthrough_Argument := Arg;
-            case Mode is
-               when Passthrough_Serial_Id =>
-                  if Ctx.Passthrough_Open then
-                     E.Passthrough := Serial_Forward;
-                  end if;
-                  Write_U8 (B, S, Boolean'Pos (Ctx.Passthrough_Open));
-               when Passthrough_ESC_4Way =>
-                  E.Passthrough := Four_Way;
-                  Write_U8 (B, S, Byte (Ctx.Motor_Outputs));
-               when Passthrough_ESC_First .. Passthrough_ESC_Last =>
-                  if Natural (Arg) < Ctx.Motors or else (Mode = Passthrough_ESC_KISS and then Arg = All_Motors) then
-                     E.Passthrough := ESC_Serial;
-                     Write_U8 (B, S, 1);
-                  else
+         R := Ack;
+         if Ctx.Control.Armed or else Ctx.Control.From_Telemetry then
+            Write_U8 (B, S, 0);
+         else
+            declare
+               Mode : constant Byte := (if Request'Length = 0 then Passthrough_ESC_4Way else Request (Request'First));
+               Arg  : constant Byte := (if Request'Length >= 2 then Request (Request'First + 1) else 0);
+            begin
+               E.Passthrough_Mode := Mode;
+               E.Passthrough_Argument := Arg;
+               case Mode is
+                  when Passthrough_Serial_Id =>
+                     if Ctx.Passthrough_Open then
+                        E.Passthrough := Serial_Forward;
+                     end if;
+                     Write_U8 (B, S, Boolean'Pos (Ctx.Passthrough_Open));
+                  when Passthrough_ESC_4Way =>
+                     E.Passthrough := Four_Way;
+                     Write_U8 (B, S, Byte (Ctx.Motor_Outputs));
+                  when Passthrough_ESC_First .. Passthrough_ESC_Last =>
+                     if Natural (Arg) < Ctx.Motors or else (Mode = Passthrough_ESC_KISS and then Arg = All_Motors) then
+                        E.Passthrough := ESC_Serial;
+                        Write_U8 (B, S, 1);
+                     else
+                        Write_U8 (B, S, 0);
+                     end if;
+                  when others =>
                      Write_U8 (B, S, 0);
-                  end if;
-               when others =>
-                  Write_U8 (B, S, 0);
-            end case;
-            R := Ack;
-         end;
+               end case;
+            end;
+         end if;
       else
          Handled := False;
       end if;
