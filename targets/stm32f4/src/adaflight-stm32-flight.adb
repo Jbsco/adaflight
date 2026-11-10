@@ -1349,7 +1349,7 @@ package body Adaflight.STM32.Flight is
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
       end if;
-      if Effects.OSD.OSD_Elements or else Effects.OSD.Profile_Change then
+      if Effects.OSD.OSD_Elements or else Effects.Text.OSD_Elements or else Effects.OSD.Profile_Change then
          Adaflight.STM32.OSD.Configure (Config, Version_Text);
          Adaflight.STM32.OSD.Analyze_Again;
       end if;

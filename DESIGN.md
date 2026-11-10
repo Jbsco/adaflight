@@ -13898,3 +13898,16 @@ arming stays held until a restart, when the changed smoothing takes effect.
 
 On a host image, `status` listed `REBOOT_REQD` after a smoothing cutoff changed over MSP and not after a restart.
 A host smoke check repeats that.
+
+## D692. Check of board readers for MSP views and effects (2026-11-09)
+
+`tools/boardreads.py` reads the MSP processor's `Views` and `Effects` records down to their scalar fields and
+looks for each field's path in the board sources. A view field no board names is a reply that reads a default, and
+an effect field no board names is a write that does nothing. D680 to D691 closed gaps of that kind found by hand.
+
+Fields known to have no reader are listed in the tool with a reason each: built into every board build, folded
+into another effect by the processor, or not served yet. Not served yet are a GPS solution over MSP, the
+passthrough message and the MSP transmitter's item list. The check fails on an unlisted field without a reader and
+on a listed field that has gained one. The style gate runs it.
+
+Text writes now also ask the OSD to pick its elements again, an effect the check found unread.
