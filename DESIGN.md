@@ -13761,3 +13761,28 @@ check writes a slider set, reads it back with its gains, and sees a mode past th
 Boards now copy the recorder's delta frame interval and its intra frame ratio into the MSP blackbox reply. Both
 fields read zero before, since no board set them, and a configurator showed no logging rate. On the host image the
 reply gives 4 and 8. A host smoke check compares both fields with the sample rate in that reply.
+
+## D680. Running values in board MSP views (2026-11-09)
+
+A scan of the MSP processor's views found fields no board assigned. Boards now set four of them at each view
+refresh: the receiver's channel count, whether DShot telemetry runs, the RSSI source, and the pitot's airspeed with
+its differential pressure.
+
+Channel count sizes the failsafe channel reply, which came back empty with a 16-channel receiver running. Motor
+configuration always showed DShot telemetry off, transmitter information named no RSSI source, and the pitot reply
+gave zeros.
+
+The host's pitot model takes a pressure step after a count of reads named in its environment, so a sensor zeroed at
+rest then shows airspeed. Host smoke checks read all four values. OSD warning text over MSP stays open, since it
+needs the OSD task's warning state.
+
+## D681. Built-in features in board MSP views (2026-11-09)
+
+MSP views name the features a build contains: barometer, compass, rangefinder, optical flow, pitot, GPS with its
+rescue, flight log, servos, LED strip, SPI receiver and ExpressLRS. Their defaults say every feature is built in,
+and no board changed them, so a build that cut a feature still answered its messages. Boards now copy these from
+the build's feature package at start-up.
+
+A host image built without flight log, servos, GPS, LED strip and compass answers the flight log reply as
+unsupported and the other four with an error. Host smoke checks compare these replies with the features of its
+image.

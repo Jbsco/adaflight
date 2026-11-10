@@ -1534,6 +1534,10 @@ package body Adaflight.STM32.Flight is
       Env.DShot_Telemetry.Quality := CLI.Motor_Qualities (Adaflight.STM32.DShot_Output.Qualities);
       Env.DShot_Telemetry.Edges := CLI.Edge_Times (Adaflight.STM32.DShot_Output.Counts.Saved);
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
+      Ctx.Out_Views.Hardware.Use_DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      Ctx.Out_Views.Receiver.Channel_Count :=
+        Natural'Min (Adaflight.STM32.Radio.Channel_Count, Adaflight.Receiver.Channel_Count);
+      Ctx.Out_Views.State.RSSI_Source := Adaflight.STM32.Radio.RSSI_Source;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
       declare
          T : Adaflight.DShot.Telemetry renames Env.DShot_Telemetry.Telemetry;
@@ -1755,6 +1759,9 @@ package body Adaflight.STM32.Flight is
    procedure Pitot_Aftermath is
    begin
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Pitot) := Adaflight.STM32.Pitot.Detected;
+      Ctx.Out_Views.State.Pitot :=
+        (Airspeed      => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Airspeed_Cm_S)),
+         Diff_Pressure => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Diff_Pressure_Pa)));
       Env.Pitot :=
         (Detected => Adaflight.STM32.Pitot.Detected, Hardware => Config.Pitot_Config.Pitot_Hardware,
          Bus      => (Kind    => (if Adaflight.STM32.Pitot.Configured then CLI.I2C_Bus else CLI.No_Bus),
@@ -4515,6 +4522,22 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
+      Ctx.Out_Views.Hardware.Built :=
+        (Adaflight.MSP_Hardware_Out.Gyro | Adaflight.MSP_Hardware_Out.Acc => True,
+         Adaflight.MSP_Hardware_Out.Baro         => Adaflight.Build_Features.Barometer,
+         Adaflight.MSP_Hardware_Out.Mag          => Adaflight.Build_Features.Compass,
+         Adaflight.MSP_Hardware_Out.Rangefinder  => Adaflight.Build_Features.Rangefinder,
+         Adaflight.MSP_Hardware_Out.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
+         Adaflight.MSP_Hardware_Out.Pitot        => Adaflight.Build_Features.Pitot);
+      Ctx.Out_Views.Hardware.GPS := Adaflight.Build_Features.GPS;
+      Ctx.Out_Views.Hardware.Rescue := Adaflight.Build_Features.GPS;
+      Ctx.Out_Views.Hardware.Blackbox := Adaflight.Build_Features.Blackbox;
+      Ctx.Out_Views.Peripheral.Servos := Adaflight.Build_Features.Servos;
+      Ctx.Out_Views.Peripheral.LED_Strip := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Peripheral.Status_Mode := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Text.LED_Strip := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Receiver.RX_SPI := Adaflight.Build_Features.SPI_Receiver;
+      Ctx.Out_Views.Receiver.ExpressLRS := Adaflight.Build_Features.SX1280_Receiver;
       for I in Ports'Range loop
          Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
       end loop;

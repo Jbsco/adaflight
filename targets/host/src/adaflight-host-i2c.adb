@@ -4,15 +4,20 @@ with Interfaces;
 --  readings of its datasheet's worked example, whose compensation gives
 --  2508 hundredths of a degree and 100653 pascal, and keeping the control
 --  registers written to it. Every other address and bus answers nothing.
+with Ada.Environment_Variables;
 with Adaflight.Board;
 package body Adaflight.STM32.I2C is
    use type Interfaces.Unsigned_8;
    Running : array (Bus) of Boolean := (others => False);
    Chip_Address : constant Byte := 16#76#;
    --  An MS4525 pitot at its default address: a fresh frame at 10 to 90 percent of its pressure range plus a
-   --  quarter, and a temperature count of 1023.
+   --  quarter, and a temperature count of 1023. When ADAFLIGHT_PITOT_STEP names a count, the frames after that
+   --  many reads show a higher pressure, so a sensor zeroed at rest then reads an airspeed.
    Pitot_Address : constant Byte := 16#28#;
    Pitot_Frame   : constant Byte_Array (0 .. 3) := (16#26#, 16#66#, 16#7F#, 16#E0#);
+   Pitot_Moving  : constant Byte_Array (0 .. 3) := (16#28#, 16#66#, 16#7F#, 16#E0#);
+   Pitot_Step    : constant Natural := Natural'Value (Ada.Environment_Variables.Value ("ADAFLIGHT_PITOT_STEP", "0"));
+   Pitot_Reads   : Natural := 0;
    Chip_Id      : constant Byte := 16#58#;
    --  The calibration of the datasheet's example, little-endian words:
    --  T1 27504, T2 26435, T3 -1000, P1 36477, P2 -10685, P3 3024, P4 2855,
@@ -45,8 +50,13 @@ package body Adaflight.STM32.I2C is
          return;
       end if;
       if Address = Pitot_Address then
+         if Pitot_Reads < Natural'Last then
+            Pitot_Reads := Pitot_Reads + 1;
+         end if;
          for I in Data'Range loop
-            Data (I) := Pitot_Frame ((I - Data'First) mod 4);
+            Data (I) :=
+              (if Pitot_Step > 0 and then Pitot_Reads > Pitot_Step then Pitot_Moving ((I - Data'First) mod 4)
+               else Pitot_Frame ((I - Data'First) mod 4));
          end loop;
          return;
       end if;

@@ -1208,9 +1208,17 @@ def main():
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
             log_rates = msp(sock, 80)
-            check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
-                  log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
-                  and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
+            check("MSP blackbox reply says whether the build contains a recorder",
+                  log_rates is not None and len(log_rates) >= 7 and log_rates[0] == int(contains("Blackbox")),
+                  repr(log_rates))
+            if contains("Blackbox"):
+                check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
+                      log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
+                      and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
+            answered = {name: msp(sock, code) is not None
+                        for name, code in (("GPS", 132), ("Compass", 133), ("Servos", 120), ("LED_Strip", 48))}
+            check("MSP replies of the GPS, the compass, the servos and the LED strip exist where the build contains them",
+                  all(answered[name] == contains(name) for name in answered), repr(answered))
             sliders = msp(sock, 140)
             gains = msp(sock, 112)
             raised = bytearray(sliders or bytes(53))
@@ -1260,6 +1268,8 @@ def main():
             motors = msp(sock, 131)
             check("MSP motor configuration counts the mixer's four motors", motors is not None and len(motors) >= 7
                   and motors[6] == 4, repr(motors))
+            check("MSP motor configuration shows no DShot telemetry in use", motors is not None and len(motors) >= 9
+                  and motors[8] == 0, repr(motors))
             outputs = msp(sock, 104)
             check("MSP motor reply holds the DShot stop while disarmed",
                   outputs is not None and len(outputs) == 16 and outputs == (1000).to_bytes(2, "little") * 4 + bytes(8),
@@ -1374,6 +1384,13 @@ def main():
             values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
             check("receiver channels reach the MSP RC reply",
                   len(values) == 4 and all(abs(v - 1500) <= 2 for v in values[:3]) and values[3] <= 1000, repr(values))
+            fallbacks = msp(sock, 77)
+            check("MSP failsafe channel reply has an entry for each receiver channel",
+                  rc is not None and fallbacks is not None and len(rc) >= 8 and len(fallbacks) == 3 * (len(rc) // 2),
+                  f"{len(rc or b'')} {len(fallbacks or b'')}")
+            link = msp(sock, 187)
+            check("MSP transmitter information names the CRSF protocol as the RSSI source",
+                  link is not None and len(link) == 2 and link[0] == 6, repr(link))
             raw = msp(sock, 106)
             lat = int.from_bytes(raw[2:6], "little", signed=True) if raw and len(raw) >= 10 else 0
             lon = int.from_bytes(raw[6:10], "little", signed=True) if raw and len(raw) >= 10 else 0
@@ -3231,12 +3248,16 @@ def main():
             finally:
                 stop(proc)
                 sock.close()
-            proc, sock = start(image, store)
+            proc, sock = start(image, store, extra={"ADAFLIGHT_PITOT_STEP": "40"})
             try:
                 time.sleep(3.0)
                 status = msp(sock, 101)
                 check("MSP status shows the pitot after its first sample", status is not None and len(status) > 5
                       and (status[4] | status[5] << 8) & 0x80 != 0, repr(status))
+                air = msp(sock, 170)
+                speed, pressure = struct.unpack("<ii", air) if air is not None and len(air) == 8 else (0, 0)
+                check("MSP pitot reply gives the airspeed and pressure of a step after the zeroing",
+                      speed > 500 and pressure > 100, repr(air))
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
                 text = cli(sock, "status")
@@ -3342,6 +3363,9 @@ def main():
             time.sleep(3.0)
             msp(sock, 214, struct.pack("<8H", 1500, 1000, 1000, 1000, 1000, 1000, 1000, 1000))
             time.sleep(1.0)
+            motors = msp(sock, 131)
+            check("MSP motor configuration shows DShot telemetry in use", motors is not None and len(motors) >= 9
+                  and motors[8] == 1, repr(motors))
             telemetry = msp(sock, 139)
             rpms = [struct.unpack_from("<IH", telemetry, 1 + 13 * m) for m in range(4)] \
                 if telemetry is not None and len(telemetry) == 1 + 13 * 4 else []
