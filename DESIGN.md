@@ -14085,3 +14085,18 @@ write with 3D on was converted as without it: a write of 1500 read back as 1000.
 
 Two fields stay listed as not served: an active SPI receiver, which defers a save or a reboot from a telemetry
 link, and a ready mass storage file system. Host smoke checks both fixes.
+
+## D703. Delayed calls on boards (2026-11-10)
+
+Boards now run the core's dispatch queue from the scheduler's dispatch task, which no board enabled before. The
+statistics save after a disarm goes onto that queue. It replaces a due time that board glue kept itself and
+checked from the serial task.
+
+An MSP save or reboot that arrives through a telemetry link with the SPI receiver feature on is now deferred by one
+second, so its reply can go out first. Board glue reports that feature to the processor and queues what the
+processor defers. Both delayed calls do nothing while armed. A deferred reboot keeps the mode its request named.
+
+Host smoke gained a block that arms a craft under its simulator link, disarms it and finds its flight count saved.
+That block also checks that passthrough requests while armed are refused. Deferred MSP calls have no host check,
+since a host image has no driver for an SPI receiver's telemetry tunnel. The reader check no longer lists that
+SPI receiver field.
