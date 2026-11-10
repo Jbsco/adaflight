@@ -1242,9 +1242,16 @@ def main():
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
             taken = msp(sock, 186, bytes([200]))
+            analog = msp(sock, 110)
             link = msp(sock, 187)
             check("an RSSI over MSP becomes the RSSI source while no receiver gives one",
                   taken == b"" and link is not None and len(link) == 2 and link[0] == 4, repr(link))
+            check("an RSSI over MSP stays in the analog reply past the RSSI updates that follow",
+                  analog is not None and len(analog) >= 5 and analog[3] | analog[4] << 8 == 800, repr(analog))
+            time.sleep(1.2)
+            analog = msp(sock, 110)
+            check("an RSSI over MSP reads zero once its timeout passes",
+                  analog is not None and len(analog) >= 5 and analog[3] | analog[4] << 8 == 0, repr(analog))
             log_rates = msp(sock, 80)
             check("MSP blackbox reply says whether the build contains a recorder",
                   log_rates is not None and len(log_rates) >= 7 and log_rates[0] == int(contains("Blackbox")),

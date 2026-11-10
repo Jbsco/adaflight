@@ -13832,3 +13832,14 @@ That value lasts only until the next RSSI update. Smoothing pulls it back to a r
 Betaflight defect this port still reproduces (finding F321). On a host image with the message sent every 0.22 s,
 the analog reply read 800 in 7 of 12 reads and 0 in the rest. A fix needs a corrected oracle copy and stays open.
 The host smoke check reads the RSSI source alone.
+
+## D686. RSSI over MSP kept through smoothing (2026-11-09)
+
+`Adaflight.Receiver.Set_RSSI_MSP` now writes raw RSSI with RSSI in use, and the MSP source's 1.5 second timeout
+clears both. Betaflight writes RSSI in use alone, so its smoothing replaces an MSP RSSI at the next update with a
+filtered raw RSSI of zero (finding F321, D685).
+
+The receiver oracle compiles Betaflight's receiver with both writes added, behind a switch, and the receiver
+vectors come from that build. Sixteen recorded sessions set an RSSI over MSP, and their RSSI fields changed. A core
+without either write fails those vectors. A host smoke check reads a steady RSSI in the analog reply after one
+message, and zero once the timeout passes.
