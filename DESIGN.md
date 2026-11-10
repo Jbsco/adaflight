@@ -13871,3 +13871,43 @@ RPM filter alone, fails those sequences.
 
 On a host image with both lowpass stages written to 1 Hz, a reversed roll rate of one radian per second read 46
 degrees per second right after its reversal and -57 a second later. A host smoke check repeats that.
+
+## D689. VTX table reload at a save (2026-11-09)
+
+MSP writes of a VTX table band or power level reported a table setup to their board, and no board ran one. Its
+running table, which frequency lookups and transmitter control read, stayed as loaded at start. Boards now note
+such a write and read the running table again from the configuration at the next save over MSP.
+
+On a host image with a SmartAudio transmitter, band 1 channel 2 looked up 5845 MHz after a band write and 5610 MHz,
+the written value, after a save. A host smoke check repeats that.
+
+## D690. OSD warning line over MSP (2026-11-09)
+
+MSP's OSD warnings reply reads a warning line, its blink and its severity from the board's views, and no board
+filled them, so that reply was always empty. Boards now render the line for that message from the OSD task's
+warning state and its last readings, as the warnings element does.
+
+On a host image with the link quality warning alone turned on and no link, the reply gave "LINK QUALITY",
+blinking, at critical severity, and an empty line with default warnings. A host smoke check repeats both.
+
+## D691. Arming held after an RC smoothing change over MSP (2026-11-09)
+
+A receiver configuration write that changes an RC smoothing setting reports that a restart is required, and no
+board read that report. Only the OSD menu set the matching arming reason. Boards now latch it from MSP as well, so
+arming stays held until a restart, when the changed smoothing takes effect.
+
+On a host image, `status` listed `REBOOT_REQD` after a smoothing cutoff changed over MSP and not after a restart.
+A host smoke check repeats that.
+
+## D692. Check of board readers for MSP views and effects (2026-11-09)
+
+`tools/boardreads.py` reads the MSP processor's `Views` and `Effects` records down to their scalar fields and
+looks for each field's path in the board sources. A view field no board names is a reply that reads a default, and
+an effect field no board names is a write that does nothing. D680 to D691 closed gaps of that kind found by hand.
+
+Fields known to have no reader are listed in the tool with a reason each: built into every board build, folded
+into another effect by the processor, or not served yet. Not served yet are a GPS solution over MSP, the
+passthrough message and the MSP transmitter's item list. The check fails on an unlisted field without a reader and
+on a listed field that has gained one. The style gate runs it.
+
+Text writes now also ask the OSD to pick its elements again, an effect the check found unread.

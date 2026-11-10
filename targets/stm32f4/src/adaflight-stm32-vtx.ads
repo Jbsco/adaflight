@@ -21,6 +21,8 @@ package Adaflight.STM32.VTX is
    --  layer's start; Save asks for the configuration to be stored when the
    --  start changed a setting, which it wrote back.
    procedure Init (C : in out Adaflight.Config_Groups.Configuration; Save : out Boolean);
+   --  The running table read again from the configuration, which a save does after a message changed the table.
+   procedure Reload_Table (C : Adaflight.Config_Groups.Configuration);
    --  Whether the transmitter holds a UART.
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  The VTX task: the stored settings, the inputs and the device's bytes

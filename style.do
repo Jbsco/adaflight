@@ -1,10 +1,11 @@
 #!/bin/bash
 # Style and hygiene gate: Ada style warnings from a fresh compile, markdown
-# that renders in the local viewer, and no local paths or private material.
+# that renders in the local viewer, no local paths or private material, and
+# a board reader for every field the MSP processor exchanges with a board.
 exec >&2
 FAIL=0
 
-echo "== 1/3  Ada style"
+echo "== 1/4  Ada style"
 if command -v alr >/dev/null 2>&1; then
     for crate in core tests tools/dfu tools/dfu/tests; do
         (cd "$crate" && alr -n clean >/dev/null 2>&1)
@@ -22,7 +23,7 @@ else
     echo "  alr not found - skipped"
 fi
 
-echo "== 2/3  Markdown renders in the local viewer"
+echo "== 2/4  Markdown renders in the local viewer"
 MD=$(git ls-files '*.md')
 if [ -n "$MD" ] && command -v markdown >/dev/null 2>&1; then
     if python3 tools/mdlint.py $MD; then
@@ -34,7 +35,7 @@ else
     echo "  markdown renderer not found - skipped"
 fi
 
-echo "== 3/3  Content sanitization"
+echo "== 3/4  Content sanitization"
 PATHS=$(git ls-files -z | xargs -0 grep -nE '~/|/home/[a-z]+/' 2>/dev/null \
         | grep -v '^style.do:' | grep -v '^.github/workflows/' || true)
 if [ -n "$PATHS" ]; then
@@ -63,6 +64,9 @@ if [ -n "$LEAK" ]; then
     FAIL=1
 fi
 [ -z "$PATHS$LEAK" ] && echo "  clean"
+
+echo "== 4/4  Board readers of MSP views and effects"
+python3 tools/boardreads.py || FAIL=1
 
 echo "=========================================="
 if [ "$FAIL" != "0" ]; then

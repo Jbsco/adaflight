@@ -1754,6 +1754,32 @@ def main():
             vtx.stop.set()
             stop(proc)
             sock.close()
+        # A table band written over MSP reaches the running table at the next save: band 1, channel 2 looks up
+        # the stored table's frequency before the save and the written one after it.
+        vtx = SmartAudio()
+        proc, sock = start(image, vtx_store)
+        vtx.start()
+        try:
+            time.sleep(4.0)
+            name = b"NEWBAND1"
+            written = msp(sock, 227, bytes([1, len(name)]) + name + b"N" + bytes([0, 8])
+                          + struct.pack("<8H", 5600, 5610, 5620, 5630, 5640, 5650, 5660, 5670))
+            msp(sock, 89, struct.pack("<H", 1))
+            before = msp(sock, 88)
+            saved = msp(sock, 250)
+            time.sleep(1.0)
+            msp(sock, 89, struct.pack("<H", 1))
+            after = msp(sock, 88)
+            def frequency(reply):
+                return int.from_bytes(reply[5:7], "little") if reply is not None and len(reply) >= 7 else None
+            check("a VTX table band written over MSP waits for a save",
+                  written == b"" and frequency(before) == 5845, repr(before))
+            check("a save loads a VTX table band written over MSP into the running table",
+                  saved == b"" and frequency(after) == 5610, repr(after))
+        finally:
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
         msp_vtx_store = os.path.join(work, "mspvtx.bin")
         proc, sock = start(image, msp_vtx_store)
         try:
@@ -3298,6 +3324,37 @@ def main():
             time.sleep(3.0)
             check("a servo on the motor's pin is refused and ends the servo setup", servo_lines(store) == [],
                   repr(servo_lines(store)))
+        finally:
+            stop(proc)
+            sock.close()
+        # The OSD's warning line over MSP: none with the default warnings and no arm switch, and the link quality
+        # warning, blinking and critical, once it alone is on and no link reports a quality.
+        store = os.path.join(work, "warnings.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            quiet = msp2(sock, 0x3005)
+            check("MSP OSD warnings reply is empty while no warning shows", quiet == bytes(2), repr(quiet))
+            receiver_config = bytearray(msp(sock, 44) or bytes(39))
+            receiver_config[25] = (receiver_config[25] + 5) % 200
+            changed = msp(sock, 45, bytes(receiver_config))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "status")
+            check("an RC smoothing cutoff changed over MSP holds arming until a restart",
+                  changed == b"" and "REBOOT_REQD" in text.split("Arming disable flags:")[-1], text[-160:])
+            text = cli(sock, "set osd_warn_bitmask = 8192")
+            check("link quality warning alone turned on", "osd_warn_bitmask set to 8192" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            ok, shown = until(lambda: msp2(sock, 0x3005), lambda r: r == b"\x83\x0cLINK QUALITY", wait=5.0)
+            check("MSP OSD warnings reply gives the warning line with its blink and severity", ok, repr(shown))
         finally:
             stop(proc)
             sock.close()

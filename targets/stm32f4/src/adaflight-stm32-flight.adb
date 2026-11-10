@@ -353,6 +353,8 @@ package body Adaflight.STM32.Flight is
    Stream   : Adaflight.Stream_Buffers.Stream;
    Result   : MSP.Result;
    Effects  : MSP.Effects;
+   VTX_Table_Stale : Boolean := False;
+   MSP_Reboot_Required : Boolean := False;
    Frame    : Adaflight.MSP_Port.Frame_Buffer := (others => 0);
    Frame_Length : Positive := 1;
    Gyro_Report  : Adaflight.STM32.Gyro.Report;
@@ -1318,6 +1320,10 @@ package body Adaflight.STM32.Flight is
       if Command = Adaflight.MSP_OSD_Out.OSD_Config_Command then
          Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
       end if;
+      if Command = Adaflight.MSP_OSD_Out.OSD_Warnings_Command then
+         Adaflight.STM32.OSD.Warning
+           (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
+      end if;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
@@ -1343,7 +1349,7 @@ package body Adaflight.STM32.Flight is
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
       end if;
-      if Effects.OSD.OSD_Elements or else Effects.OSD.Profile_Change then
+      if Effects.OSD.OSD_Elements or else Effects.Text.OSD_Elements or else Effects.OSD.Profile_Change then
          Adaflight.STM32.OSD.Configure (Config, Version_Text);
          Adaflight.STM32.OSD.Analyze_Again;
       end if;
@@ -1393,10 +1399,20 @@ package body Adaflight.STM32.Flight is
          when Adaflight.MSP_Control_In.Enable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, False);
          when Adaflight.MSP_Control_In.Unchanged => null;
       end case;
+      if Effects.Peripheral.Table_Init then
+         VTX_Table_Stale := True;
+      end if;
+      if Effects.Receiver.Reboot_Required then
+         MSP_Reboot_Required := True;
+      end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
          Write_Configuration;
          Load_Configuration (Unused_Success);
+         if VTX_Table_Stale then
+            VTX_Table_Stale := False;
+            Adaflight.STM32.VTX.Reload_Table (Config);
+         end if;
       end if;
    end Process_Command;
 
@@ -2825,7 +2841,7 @@ package body Adaflight.STM32.Flight is
         (Adaflight.Arming.CMS_Open, Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Arming_Held);
       Adaflight.STM32.Pilot.Set_Reason
         (Adaflight.Arming.Reboot_Required,
-         Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
+         MSP_Reboot_Required or else (Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required));
    end Sync_Reasons;
 
    --  The names the OSD shows for each adjustment.

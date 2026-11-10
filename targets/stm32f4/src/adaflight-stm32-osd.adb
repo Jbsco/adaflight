@@ -13,7 +13,6 @@ with Adaflight.OSD_Elements;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Stats;
-with Adaflight.OSD_Warnings;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Debug_Values;
@@ -1124,6 +1123,17 @@ package body Adaflight.STM32.OSD is
          State_Us (State) := Time.Micros - Start;
       end if;
    end Run;
+
+   procedure Warning
+     (Line     : out Adaflight.OSD_Warnings.Text; Blinking : out Boolean;
+      Severity : out Adaflight.OSD_Warnings.Severity)
+   is
+      Unused_Reported : Adaflight.OSD_Warnings.Reports;
+   begin
+      Adaflight.OSD_Warnings.Render
+        (Task_Data.Warnings, Context.Draw.Warn_Settings, Context.Draw.Warn_Inputs, Line, Blinking, Severity,
+         Unused_Reported);
+   end Warning;
 
    function Craft_Name return Adaflight.Config_Groups.Bytes_17 is
       B : Adaflight.Config_Groups.Bytes_17;
