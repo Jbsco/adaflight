@@ -13981,3 +13981,12 @@ dilution, ground speed and ground course, so module sequences compare those fiel
 
 Host smoke selects the MSP provider, hands in a solution in each form and reads each back from the GPS reply. The
 reader check no longer lists these effects as not served.
+
+## D696. GPS flag in status reply follows GPS link (2026-11-10)
+
+Boards set the status reply's GPS sensor flag once at start, from the GPS feature with a port. The flag now follows
+the link: board glue copies the link's sensor state after every GPS task run. A status reply reports a GPS from a
+first solution on, and stops when the link loses its module or its MSP solutions. The LED strip's GPS input reads
+that flag too.
+
+Host smoke reads the flag before a first MSP solution, after it, after solutions stop and after one arrives again.
