@@ -13775,3 +13775,14 @@ gave zeros.
 The host's pitot model takes a pressure step after a count of reads named in its environment, so a sensor zeroed at
 rest then shows airspeed. Host smoke checks read all four values. OSD warning text over MSP stays open, since it
 needs the OSD task's warning state.
+
+## D681. Built-in features in board MSP views (2026-11-09)
+
+MSP views name the features a build contains: barometer, compass, rangefinder, optical flow, pitot, GPS with its
+rescue, flight log, servos, LED strip, SPI receiver and ExpressLRS. Their defaults say every feature is built in,
+and no board changed them, so a build that cut a feature still answered its messages. Boards now copy these from
+the build's feature package at start-up.
+
+A host image built without flight log, servos, GPS, LED strip and compass answers the flight log reply as
+unsupported and the other four with an error. Host smoke checks compare these replies with the features of its
+image.

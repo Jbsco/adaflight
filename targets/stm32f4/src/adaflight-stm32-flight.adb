@@ -4522,6 +4522,22 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
+      Ctx.Out_Views.Hardware.Built :=
+        (Adaflight.MSP_Hardware_Out.Gyro | Adaflight.MSP_Hardware_Out.Acc => True,
+         Adaflight.MSP_Hardware_Out.Baro         => Adaflight.Build_Features.Barometer,
+         Adaflight.MSP_Hardware_Out.Mag          => Adaflight.Build_Features.Compass,
+         Adaflight.MSP_Hardware_Out.Rangefinder  => Adaflight.Build_Features.Rangefinder,
+         Adaflight.MSP_Hardware_Out.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
+         Adaflight.MSP_Hardware_Out.Pitot        => Adaflight.Build_Features.Pitot);
+      Ctx.Out_Views.Hardware.GPS := Adaflight.Build_Features.GPS;
+      Ctx.Out_Views.Hardware.Rescue := Adaflight.Build_Features.GPS;
+      Ctx.Out_Views.Hardware.Blackbox := Adaflight.Build_Features.Blackbox;
+      Ctx.Out_Views.Peripheral.Servos := Adaflight.Build_Features.Servos;
+      Ctx.Out_Views.Peripheral.LED_Strip := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Peripheral.Status_Mode := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Text.LED_Strip := Adaflight.Build_Features.LED_Strip;
+      Ctx.Out_Views.Receiver.RX_SPI := Adaflight.Build_Features.SPI_Receiver;
+      Ctx.Out_Views.Receiver.ExpressLRS := Adaflight.Build_Features.SX1280_Receiver;
       for I in Ports'Range loop
          Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
       end loop;

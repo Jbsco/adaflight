@@ -1208,9 +1208,17 @@ def main():
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
             log_rates = msp(sock, 80)
-            check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
-                  log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
-                  and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
+            check("MSP blackbox reply says whether the build contains a recorder",
+                  log_rates is not None and len(log_rates) >= 7 and log_rates[0] == int(contains("Blackbox")),
+                  repr(log_rates))
+            if contains("Blackbox"):
+                check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
+                      log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
+                      and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
+            answered = {name: msp(sock, code) is not None
+                        for name, code in (("GPS", 132), ("Compass", 133), ("Servos", 120), ("LED_Strip", 48))}
+            check("MSP replies of the GPS, the compass, the servos and the LED strip exist where the build contains them",
+                  all(answered[name] == contains(name) for name in answered), repr(answered))
             sliders = msp(sock, 140)
             gains = msp(sock, 112)
             raised = bytearray(sliders or bytes(53))
