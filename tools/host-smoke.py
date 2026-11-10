@@ -4167,6 +4167,74 @@ def main():
                     uart4.close()
                 stop(proc)
                 sock.close()
+        # The 4-way interface after its passthrough request, without an ESC on the motor pins: the interface's own
+        # frames are answered, a flash init finds no bootloader, a frame with a bad check is refused, MSP stays
+        # silent until the exit command, and the motors run again after it.
+        store = os.path.join(work, "fourway.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+
+            def four_way(command, params=b"\x00"):
+                body = bytes([0x2F, command, 0, 0, len(params) & 0xFF]) + params
+                return body + crc16_xmodem(body).to_bytes(2, "big")
+
+            def four_way_reply(command, wait=5.0, data=b""):
+                """A 4-way reply's output parameters and acknowledgement, or None with the bytes read."""
+                deadline = time.time() + wait
+                while time.time() < deadline:
+                    data += read_all(sock, 0.1)
+                    at = data.find(bytes([0x2E, command]))
+                    if at >= 0 and len(data) >= at + 5:
+                        count = data[at + 4] or 256
+                        whole = data[at:at + count + 8]
+                        if len(whole) == count + 8 and crc16_xmodem(whole[:-2]).to_bytes(2, "big") == whole[-2:]:
+                            return whole[5:5 + count], whole[5 + count]
+                return None, data
+            count = msp(sock, 245)
+            check("4-way passthrough request answers the count of motor outputs", count == b"\x04", repr(count))
+            sock.sendall(four_way(0x32))
+            name = four_way_reply(0x32)
+            check("4-way interface answers its name", name == (b"m4wFCIntf", 0), repr(name))
+            # Three connect attempts each send a 21-byte boot message at 52 microseconds a bit, so a reply
+            # sooner than 30 ms means the pins saw no bootloader traffic.
+            sock.settimeout(8.0)
+            began = time.time()
+            sock.sendall(four_way(0x37))
+            try:
+                first = sock.recv(1)
+            except OSError:
+                first = b""
+            waited = time.time() - began
+            sock.settimeout(0.3)
+            started = four_way_reply(0x37, wait=8.0, data=first)
+            check("4-way flash init without an ESC ends in the general error after its connect attempts",
+                  started == (bytes(4), 0x0F) and waited >= 0.03, repr((started, round(waited, 4))))
+            sock.sendall(four_way(0x37, b"\x07"))
+            channel = four_way_reply(0x37)
+            check("4-way flash init for an ESC past the count is an invalid channel", channel == (b"\x00", 0x08),
+                  repr(channel))
+            sock.sendall(four_way(0x32)[:-1] + b"\x00")
+            broken = four_way_reply(0x32)
+            check("4-way frame with a bad check is refused", broken == (b"\x00", 0x03), repr(broken))
+            sock.sendall(b"$M<" + bytes([0, 1, 1]))
+            inside = read_all(sock, 0.5)
+            check("MSP request inside the 4-way interface gets no answer", inside == b"", repr(inside))
+            sock.sendall(four_way(0x34))
+            left = four_way_reply(0x34)
+            api = msp(sock, 1)
+            check("4-way exit command is acknowledged and MSP answers again",
+                  left == (b"\x00", 0) and api is not None and len(api) == 3, repr((left, api)))
+            ack = msp(sock, 214, b"".join(v.to_bytes(2, "little") for v in [1100, 1200, 1300, 1400] + [1000] * 4))
+            time.sleep(0.3)
+            outputs = msp(sock, 104)
+            values = [int.from_bytes(outputs[i:i + 2], "little") for i in range(0, 8, 2)] if outputs else []
+            check("motors run again after the 4-way exit", ack == b"" and values == [1100, 1200, 1300, 1400],
+                  repr((ack, values)))
+            msp(sock, 214, (1000).to_bytes(2, "little") * 8)
+        finally:
+            stop(proc)
+            sock.close()
         # A GPS solution over MSP with the MSP provider: the raw form and an MSP GPS sensor's form each show in
         # the GPS reply, and the status reports a GPS from the first one until solutions stop.
         if contains("GPS"):

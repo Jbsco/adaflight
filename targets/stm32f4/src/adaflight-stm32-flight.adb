@@ -120,6 +120,7 @@ with Adaflight.STM32.Memory;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
+with Adaflight.STM32.Four_Way;
 with Adaflight.STM32.Passthrough;
 with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
@@ -1317,7 +1318,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
       Ctx.Motors := Adaflight.STM32.Control.Motor_Count;
-      Ctx.Motor_Outputs := Adaflight.STM32.Motors.Count;
+      Ctx.Motor_Outputs := Adaflight.STM32.Four_Way.ESC_Count;
       Ctx.Passthrough_Open := False;
       if Command = MSP.Set_Passthrough_Command and then Request'Length >= 1
         and then Request (Request'First) = MSP.Passthrough_Serial_Id
@@ -1462,9 +1463,12 @@ package body Adaflight.STM32.Flight is
       end if;
    end Reboot_If_Asked;
 
+   procedure Silence_Beeper;
+
    --  One command frame through the processor, then its reply framed and
    --  sent back through the port it came in on, the forwarding a serial
-   --  passthrough request starts, and a reboot in its mode.
+   --  passthrough request starts or the 4-way interface until its exit, and
+   --  a reboot in its mode.
    procedure Answer (L : MSP_Line) is
       Port            : Adaflight.MSP_Port.Port renames Lines (L).Port;
       Display_On_UART : Boolean;
@@ -1490,6 +1494,8 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Passthrough.Port_Forward
            (Left  => Interfaces.Integer_32 (Effects.Passthrough_Argument),
             Right => Interfaces.Integer_32 (Line_Id (Line_Serial (L))));
+      elsif Effects.Passthrough = MSP.Four_Way then
+         Adaflight.STM32.Four_Way.Run (Line_Serial (L), Silence_Beeper'Access);
       end if;
       Reboot_If_Asked;
    end Answer;
