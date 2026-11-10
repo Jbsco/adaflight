@@ -4093,6 +4093,35 @@ def main():
             stop_feed.set()
             stop(proc)
             sock.close()
+        # The command-line MSP client against the image's port: one request, a refused one, the dump of
+        # every read command, and a port that does not answer.
+        client = os.path.join(os.path.dirname(os.path.abspath(__file__)), "msp", "bin", "adaflight_msp")
+        if os.path.exists(client):
+            store = os.path.join(work, "client.bin")
+            proc, sock = start(image, store)
+            sock.close()
+            try:
+                time.sleep(2.5)
+                port = f"tcp:127.0.0.1:{PORT}"
+
+                def run(*words):
+                    done = subprocess.run([client, *words], capture_output=True, text=True, timeout=120)
+                    return done.returncode, done.stdout.strip()
+                status, variant = run("request", port, "2")
+                check("MSP client reads the firmware variant", status == 0 and variant == "4144464c", variant)
+                status, unknown = run("request", port, "9")
+                check("MSP client reports a refused request", status == 0 and unknown == "refused", unknown)
+                status, dump = run("dump", port)
+                lines = dump.splitlines()
+                check("MSP client's dump gets a reply or a refusal for every read command",
+                      status == 0 and len(lines) > 50 and "MSP_API_VERSION 1 000131" in lines
+                      and not any(line.endswith("no reply") for line in lines), repr(lines[:3]))
+                status, nothing = run("request", "tcp:127.0.0.1:1", "1")
+                check("MSP client fails on a port it cannot open", status == 1 and nothing == "", nothing)
+            finally:
+                stop(proc)
+        else:
+            print("SKIP the checks of the MSP client: tools/msp is not built")
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

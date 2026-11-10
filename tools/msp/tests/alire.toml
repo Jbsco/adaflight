@@ -1,0 +1,10 @@
+name = "adaflight_msp_tests"
+description = "Checks of the MSP client against a model of a flight controller"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+
+executables = ["msp_check"]

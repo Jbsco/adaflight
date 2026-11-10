@@ -87,6 +87,15 @@ jobs:
           grep -q "all checks proved" prove-output.log
           ! grep -rn "pragma Assume" src
 
+      - name: Prove the MSP client
+        run: |
+          set -o pipefail
+          cd tools/msp
+          alr -n build --stop-after=generation
+          alr -n exec -- gnatprove -P adaflight_msp.gpr -j4 --output=oneline 2>&1 | tee prove-output.log
+          grep -q "all checks proved" prove-output.log
+          ! grep -rn "pragma Assume" src
+
   # The nightly run proves every unit of the core, a generic unit through its
   # instantiations, in six shards of about equal source, each within an
   # eight hour limit; the shard that held the terminal and the menu contents

@@ -41,3 +41,11 @@ The host image runs the board's flight software on Linux, with each UART as a TC
 With `ADAFLIGHT_SIMULATOR=gazebo` or `legacy`, the host image links to a flight simulator over UDP: flight dynamics packets arrive on port 9003 and feed the virtual gyro, accelerometer and attitude, and motor packets go to ports 9002 and 9001 of the simulator, at `127.0.0.1` or the address after a comma (`gazebo,192.168.1.5`). The virtual barometer takes its pressure from the packets, the virtual compass its field from their attitude, and `set gps_provider = VIRTUAL` takes the GPS solution from them. `feature -RX_SERIAL` with `feature RX_UDP` takes the sticks from packets of sixteen pulses on port 9004 (a serial receiver feature left on wins), and with `motor_pwm_protocol = PWM` the motor outputs return as speed and raw packets, one pair per flight dynamics packet. Packet timestamps set the image's clock rate: a simulator at half speed slows flight software with it.
 
 The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names.
+
+## MSP client
+
+`tools/msp` builds `adaflight_msp`, which sends MSP requests to a flight controller on a serial device or a TCP port, as the host image's. `request` sends one command with an optional payload in hexadecimal and prints its reply's payload. `dump` sends every read command and prints a line per command: its name, its code and its reply, `refused` or `no reply`. `request` sends writes as well as reads, so check a command code before sending it to a board.
+
+    cd tools/msp && alr build
+    bin/adaflight_msp request /dev/ttyACM0 2
+    bin/adaflight_msp dump tcp:127.0.0.1:5761

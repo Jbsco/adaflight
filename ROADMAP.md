@@ -38,9 +38,10 @@ Silver with no assume, and pass the gates on `main`.
   polling status early for faster writes. adaflight-configurator's desktop build builds and flashes from
   an adaflight checkout, with a fit view for boards short of flash: feature blocks along a bar of the
   target's flash, its end marked by a line and features past it in red. A survey of the configurator's MSP
-  reads and save payloads against a host image closed gaps in simplified tuning and blackbox replies.
-  Indexed writes, a pass through each tab on a board, and a native command-line tool for backup, restore
-  and diff of a configuration follow.
+  reads and save payloads against a host image closed gaps in simplified tuning and blackbox replies, and
+  its indexed writes round-trip. A native command-line MSP client, `tools/msp`, sends single requests and
+  dumps every read command. Backup, restore and diff of a configuration with that client, and a pass
+  through each configurator tab on a board, follow.
 
 ## After parity
 
