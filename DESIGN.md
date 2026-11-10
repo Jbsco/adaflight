@@ -13990,3 +13990,15 @@ first solution on, and stops when the link loses its module or its MSP solutions
 that flag too.
 
 Host smoke reads the flag before a first MSP solution, after it, after solutions stop and after one arrives again.
+
+## D697. Display port requests on boards (2026-11-10)
+
+The MSP processor shortens two replies for a request from the MSP display port's serial port. Its firmware version
+reply stays at three bytes, and its OSD configuration reply lists eighty items without an RSSI dBm alarm. No board
+told the processor where a request came from (D692).
+
+Board glue now compares the answering MSP line's UART with the display port's UART and sets both view flags before
+each request. A request from a receiver link's MSP tunnel never counts as one from that port.
+
+Host smoke reads both replies on a port without a display, then puts the display on that port and reads both short
+forms. The reader check now lists only the passthrough message as not served.
