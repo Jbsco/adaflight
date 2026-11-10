@@ -31297,7 +31297,9 @@ procedure Vector_Check is
                           Receiver_Source     => CLI_Env.Receiver_Source,
                           Serial_Protocol     => CLI_Env.Serial_Protocol,
                           Out_Views           => <>,
-                          Wing                => False);
+                          Wing                => False,
+                          Motor_Outputs       => MSP_Motors,
+                          Passthrough_Open    => False);
                   Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
                   Adaflight.MSP_Processor.Process
                     (Ctx, CLI_Config, CLI_Board, MSP_Links, Cmd, Request, Ports, Reply, St, R, E);
@@ -31736,7 +31738,9 @@ procedure Vector_Check is
                        Receiver_Source     => CLI_Env.Receiver_Source,
                        Serial_Protocol     => CLI_Env.Serial_Protocol,
                        Out_Views           => Vw,
-                       Wing                => False);
+                       Wing                => False,
+                       Motor_Outputs       => MSP_Motors,
+                       Passthrough_Open    => False);
                Adaflight.Stream_Buffers.Init (St, 0, 512);
                Adaflight.MSP_Processor.Process
                  (Ctx, CLI_Config, CLI_Board, MSP_Links, MV_Command, MV_Request (0 .. MV_Request_Len - 1), Ports,
@@ -37158,6 +37162,42 @@ procedure Vector_Check is
    --  A passthrough escape case: the host's bytes at their times from the
    --  forwarding's start on the host's port, and the index of the byte that
    --  reset, -1 for none.
+   --  A passthrough request through the MSP processor: the payload, the
+   --  motor count, the motor outputs with a pin and whether the named port
+   --  is open, then the reply and what the request leaves to run after it.
+   procedure Check_MSP_Passthrough_Line is
+      use type Adaflight.MSP_Processor.Result;
+      Size    : constant Natural := Natural (Int (4));
+      Request : constant Byte_Array := Hex_Bytes (5);
+      Ports   : constant Adaflight.Serial_Feature_Map.Port_List := (20, 51, 52, 53, 54, 55, 56, 30, 31);
+      Ctx     : Adaflight.MSP_Processor.Context;
+      Config  : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+      Board   : CLI.Board_State;
+      Links   : Adaflight.MSP_Control_In.Link_State;
+      E       : Adaflight.MSP_Processor.Effects;
+      R       : Adaflight.MSP_Processor.Result;
+      Reply   : Byte_Array (0 .. 4095) := (others => 0);
+      St      : Adaflight.Stream_Buffers.Stream;
+   begin
+      Ctx.Motors := Natural (Int (6));
+      Ctx.Motor_Outputs := Natural (Int (7));
+      Ctx.Passthrough_Open := Int (8) = 2;
+      Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
+      Adaflight.MSP_Processor.Process
+        (Ctx, Config, Board, Links, Adaflight.MSP_Processor.Set_Passthrough_Command, Request, Ports, Reply, St, R, E);
+      Record_Int ("mpastep.result", Int (10), (if R = Adaflight.MSP_Processor.Ack then 1 else 0));
+      Record_Bytes ("mpastep.reply", Hex_Bytes (12), Reply (0 .. St.Next - 1));
+      Record_Int ("mpastep.mode", Int (14), Integer_64 (E.Passthrough_Mode));
+      if Size >= 1 then
+         Record_Int ("mpastep.argument", Int (15), Integer_64 (E.Passthrough_Argument));
+      end if;
+      --  The reference names what runs after the reply only for a caller that
+      --  can run it.
+      if Int (9) = 1 then
+         Record_Int ("mpastep.after", Int (13), Adaflight.MSP_Processor.Passthrough_Kind'Pos (E.Passthrough));
+      end if;
+   end Check_MSP_Passthrough_Line;
+
    procedure Check_Passthrough_Escape_Line is
       package PE renames Adaflight.Passthrough_Escape;
       Count    : constant Natural := Natural (Int (5));
@@ -41225,6 +41265,8 @@ procedure Vector_Check is
                   Check_MSP_Allocation_Line;
                elsif Kind = "ptesc" then
                   Check_Passthrough_Escape_Line;
+               elsif Kind = "msppass" then
+                  Check_MSP_Passthrough_Line;
                elsif Kind = "mspsercfg" then
                   Check_MSP_Serial_Config_Line;
                elsif Kind = "vtxstatus" then
@@ -41646,6 +41688,7 @@ begin
    Run (Dir & "/telshare.csv", "serialmap");
    Run (Dir & "/mspalloc.csv", "mspalloc");
    Run (Dir & "/ptescape.csv", "ptesc");
+   Run (Dir & "/msppass.csv", "msppass");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");

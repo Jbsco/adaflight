@@ -4109,6 +4109,54 @@ def main():
             stop_feed.set()
             stop(proc)
             sock.close()
+        # A serial passthrough request over MSP: a port the board lacks is refused, and an open port's bytes are
+        # forwarded both ways with the request's port until a restart.
+        if contains("GPS"):
+            store = os.path.join(work, "msppass.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("gps_provider = NMEA", "gps_uart = UART4"):
+                    cli(sock, "set " + line)
+                cli(sock, "feature GPS")
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            uart4 = None
+            try:
+                time.sleep(2.5)
+                uart4 = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                uart4.settimeout(0.3)
+                refused = msp(sock, 245, bytes([0xFD, 57]))
+                api = msp(sock, 1)
+                check("serial passthrough to a port the board lacks is refused and MSP goes on",
+                      refused == b"\x00" and api is not None and len(api) == 3, repr((refused, api)))
+                started = msp(sock, 245, bytes([0xFD, 54]))
+                check("serial passthrough to the open GPS port is taken", started == b"\x01", repr(started))
+                read_all(uart4, 0.5)
+                sock.sendall(b"to the module 123\r\n")
+                heard = collect(uart4, b"123\r\n", 3.0)
+                check("bytes from the request's port reach the named port", b"to the module 123\r\n" in heard,
+                      repr(heard[-40:]))
+                uart4.sendall(b"$GPTXT,from the module*00\r\n")
+                heard = collect(sock, b"*00\r\n", 3.0)
+                check("bytes from the named port reach the request's port",
+                      b"$GPTXT,from the module*00\r\n" in heard, repr(heard[-40:]))
+                sock.sendall(b"$M<" + bytes([0, 1, 1]))
+                heard = collect(uart4, b"$M<", 3.0)
+                answered = msp_pushes(read_all(sock, 0.5), 1)
+                check("MSP request after the passthrough's start is forwarded and not answered",
+                      b"$M<\x00\x01\x01" in heard and not answered, repr((heard[-12:], answered)))
+            finally:
+                if uart4 is not None:
+                    uart4.close()
+                stop(proc)
+                sock.close()
         # A GPS solution over MSP with the MSP provider: the raw form and an MSP GPS sensor's form each show in
         # the GPS reply, and the status reports a GPS from the first one until solutions stop.
         if contains("GPS"):

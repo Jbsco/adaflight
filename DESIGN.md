@@ -14002,3 +14002,24 @@ each request. A request from a receiver link's MSP tunnel never counts as one fr
 
 Host smoke reads both replies on a port without a display, then puts the display on that port and reads both short
 forms. The reader check now lists only the passthrough message as not served.
+
+## D698. Serial passthrough over MSP (2026-11-10)
+
+A passthrough message that names a serial port by its identifier answered 0 on every board. The MSP processor now
+answers 1 when the board reports that port open. Its effect names what a request leaves to run after its reply:
+serial forwarding, the 4-way interface or an ESC's serial link.
+
+Board glue asks the passthrough unit for the named port's state before each such request. After the reply went
+out it starts the forwarding loop between the named port and the request's own port. The command line's
+`serialpassthrough` runs that same loop, and a restart ends it.
+
+A new oracle compiles the reference's MSP processor with port lookup, 4-way start and motor count scripted. Its
+vectors cover every mode, payloads of zero to three bytes, and callers that cannot run anything after a reply.
+They showed two differences in the core. The KISS mode that takes all motors is mode 2, not 3. The 4-way reply
+counts motor outputs with a pin, not mixer motors.
+
+Boards do not run the 4-way interface or an ESC's serial link yet. A request for either gets the reference's
+reply, and nothing follows it. The reader check lists that mode field as not served.
+
+Host smoke puts a GPS on UART4, asks for a passthrough to a port the board lacks and to UART4, and checks bytes in
+both directions.

@@ -81,7 +81,7 @@ package Adaflight.MSP_Processor with SPARK_Mode is
    Passthrough_Serial_Id : constant := 16#FD#;
    Passthrough_ESC_4Way  : constant := 16#FF#;
    Passthrough_ESC_First : constant := 0;
-   Passthrough_ESC_KISS  : constant := 3;
+   Passthrough_ESC_KISS  : constant := 2;
    Passthrough_ESC_Last  : constant := 4;
    All_Motors            : constant := 255;
 
@@ -111,7 +111,9 @@ package Adaflight.MSP_Processor with SPARK_Mode is
    --  the flight log and the PID loop time, the motors and their output
    --  device with the 3D feature, the OSD display port and whether it took
    --  the font character, the video transmitter and its running table, the
-   --  receiver's provider with its serial protocol, and the out views.
+   --  receiver's provider with its serial protocol, the out views, the
+   --  motor outputs with a pin, and whether the serial port a passthrough
+   --  request names is open.
    type Context is record
       Control             : MSP_Control_In.Board;
       Gyro_Sample_Rate_Hz : Config_Fix.Gyro_Rate := 0;
@@ -129,11 +131,19 @@ package Adaflight.MSP_Processor with SPARK_Mode is
       Out_Views           : Views;
       --  A wing build, whose settings the setting messages take.
       Wing                : Boolean := False;
+      Motor_Outputs       : MSP_Motor_In.Motor_Count := 0;
+      Passthrough_Open    : Boolean := False;
    end record;
+
+   --  What a passthrough request leaves to run after its reply: nothing, the
+   --  bytes forwarded between the serial port it names and the request's
+   --  port, the 4-way interface, or an ESC's serial link.
+   type Passthrough_Kind is (No_Passthrough, Serial_Forward, Four_Way, ESC_Serial);
 
    --  Handled says a unit answered. Save and Reboot gather the configuration
    --  write and the restart the board, control and OSD messages ask for.
-   --  Passthrough carries a passthrough request with its mode and argument.
+   --  Passthrough carries what a passthrough request leaves to run, with its
+   --  mode and argument.
    type Effects is record
       Handled              : Boolean := False;
       Tuning               : MSP_Tuning_In.Effects;
@@ -153,7 +163,7 @@ package Adaflight.MSP_Processor with SPARK_Mode is
       Bind                 : RX_Bind.Bind := RX_Bind.No_Bind;
       Save                 : Boolean := False;
       Reboot               : Boolean := False;
-      Passthrough          : Boolean := False;
+      Passthrough          : Passthrough_Kind := No_Passthrough;
       Passthrough_Mode     : Byte := 0;
       Passthrough_Argument : Byte := 0;
    end record;
