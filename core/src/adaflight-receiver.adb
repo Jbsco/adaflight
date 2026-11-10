@@ -197,6 +197,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       end if;
       if S.RSSI_From = MSP then
          S.RSSI := Value * 4;
+         S.RSSI_Raw := Value * 4;
          S.Last_MSP_RSSI_Us := Now_Us;
       end if;
    end Set_RSSI_MSP;
@@ -566,6 +567,7 @@ package body Adaflight.Receiver with SPARK_Mode is
          when MSP =>
             if Clock.Elapsed (Now_Us, S.Last_MSP_RSSI_Us) > Suspend_Delay_Us then
                S.RSSI := 0;
+               S.RSSI_Raw := 0;
             end if;
          when None | Rx_Protocol | Frame_Errors | Protocol_CRSF | Protocol_Mavlink =>
             null;
