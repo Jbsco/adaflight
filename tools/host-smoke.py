@@ -4084,6 +4084,77 @@ def main():
             sock.close()
             sim.close()
             raw_sim.close()
+        # An armed craft under the simulator link: the arm switch on AUX1 arms with the sticks fed over UDP, a
+        # passthrough request while armed is refused and MSP goes on, the switch disarms, and the flight count
+        # is saved half a second after the disarm.
+        store = os.path.join(work, "simarm.bin")
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
+                         "aux 0 0 0 1700 2100 0 0", "set stats_min_armed_time_s = 0"):
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        stop_feed = threading.Event()
+        arm_sticks = [1500, 1500, 1000, 1500] + [1000] * 12
+
+        def feed_armed():
+            out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            i = 0
+            while not stop_feed.is_set():
+                out.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                       0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                if i % 2 == 0:
+                    out.sendto(struct.pack("<d16H", i * 0.01, *arm_sticks), ("127.0.0.1", 9004))
+                i += 1
+                time.sleep(0.01)
+            out.close()
+
+        def armed():
+            status = msp(sock, 150)
+            return None if status is None or len(status) < 7 else bool(status[6] & 1)
+        feeder = threading.Thread(target=feed_armed, daemon=True)
+        try:
+            time.sleep(2.5)
+            feeder.start()
+            time.sleep(6.0)
+            check("craft stays disarmed with the arm switch off", armed() is False, repr(armed()))
+            arm_sticks[4] = 1800
+            passed, value = until(armed, lambda a: a is True, wait=8.0)
+            check("arm switch arms the craft under the simulator link", passed, repr(value))
+            if passed:
+                four_way_count = msp(sock, 245)
+                serial_port = msp(sock, 245, bytes([0xFD, 51]))
+                api = msp(sock, 1)
+                check("passthrough requests while armed are refused and MSP goes on",
+                      four_way_count == b"\x00" and serial_port == b"\x00" and api is not None and len(api) == 3,
+                      repr((four_way_count, serial_port, api)))
+            time.sleep(1.0)
+            arm_sticks[4] = 1000
+            passed, value = until(armed, lambda a: a is False, wait=8.0)
+            check("arm switch disarms the craft", passed, repr(value))
+            time.sleep(2.0)
+        finally:
+            stop_feed.set()
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "get stats_total_flights")
+            check("flight count is saved after the disarm", "stats_total_flights = 1" in text, text[-120:])
+        finally:
+            stop(proc)
+            sock.close()
         # Simulator time scaling: flight dynamics packets whose timestamps advance 15 ms per 10 ms of real time set
         # the image's clock to one and a half times real time, read from System Uptime over a real interval.
         store = os.path.join(work, "simrate.bin")
