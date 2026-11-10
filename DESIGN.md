@@ -14070,3 +14070,18 @@ D700 says boards have no receive and transmit LEDs. That was wrong: every board 
 reference uses it for both when a board defines no second LED. The 4-way driver now runs the interface's LED
 operations on that LED: on at a frame's escape byte, off before its reply goes out. No gate observes the LED, since
 the host image has no way to report a pin's level.
+
+## D702. Request link and 3D feature for MSP processing on boards (2026-11-10)
+
+The reader check now also covers the MSP processor's context, which is what a board reports for a request. It
+found four fields that no board assigned. Two are fixed here.
+
+Board glue reports a request's link: an MSP line's number, or one past the lines for a telemetry link's tunnel.
+The MSP arming disable is kept per link, so a disable from one link now outlasts an enable from another. Before,
+every request counted as link 0, and any link's enable cleared it.
+
+Board glue also reports the 3D feature. A motor write over MSP converts its values by that feature. Before, a
+write with 3D on was converted as without it: a write of 1500 read back as 1000.
+
+Two fields stay listed as not served: an active SPI receiver, which defers a save or a reboot from a telemetry
+link, and a ready mass storage file system. Host smoke checks both fixes.
