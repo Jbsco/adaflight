@@ -14033,3 +14033,7 @@ telemetry link the reference runs a 4-way or ESC serial request without a serial
 
 Both cases are divergences with an upstream write-up. The passthrough oracle compiles the reference's MSP processor
 with that refusal added, behind a switch, and draws an arming flag and a request's link for every step.
+
+Board glue now tells the processor which requests came through a telemetry link's MSP tunnel. No board set that
+flag before, so a tunnel request counted as a serial one. Host smoke sends a passthrough request through the CRSF
+tunnel and expects 0.

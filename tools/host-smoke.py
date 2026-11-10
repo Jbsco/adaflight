@@ -2331,6 +2331,16 @@ def main():
             check("MSP over CRSF sends the 300-byte adjustment ranges in six numbered chunks as serial MSP does",
                   len(replies) == 6 and reply is not None and reply[0] == 52 and reply[1] == 300
                   and reply[2] == serial and reply[3], repr(replies[:2]))
+            receiver.msp_replies.clear()
+            receiver.outbox.append(crsf_msp_request(bytes([0x32, 0, 245])))
+            until(lambda: len(receiver.msp_replies), lambda n: n >= 1, wait=5.0)
+            time.sleep(0.5)
+            replies = list(receiver.msp_replies)
+            reply = msp_tunnel_reply([f[5:-1] for f in replies])
+            motors = msp(sock, 104)
+            check("passthrough request over CRSF is refused and MSP goes on",
+                  len(replies) == 1 and reply is not None and reply[0] == 245 and reply[1] == 1
+                  and reply[2] == b"\x00" and motors is not None and len(motors) == 16, repr((replies, motors)))
         finally:
             receiver.stop.set()
             stop(proc)
