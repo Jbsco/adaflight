@@ -354,6 +354,7 @@ package body Adaflight.STM32.Flight is
    Result   : MSP.Result;
    Effects  : MSP.Effects;
    VTX_Table_Stale : Boolean := False;
+   MSP_Reboot_Required : Boolean := False;
    Frame    : Adaflight.MSP_Port.Frame_Buffer := (others => 0);
    Frame_Length : Positive := 1;
    Gyro_Report  : Adaflight.STM32.Gyro.Report;
@@ -1400,6 +1401,9 @@ package body Adaflight.STM32.Flight is
       end case;
       if Effects.Peripheral.Table_Init then
          VTX_Table_Stale := True;
+      end if;
+      if Effects.Receiver.Reboot_Required then
+         MSP_Reboot_Required := True;
       end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
@@ -2837,7 +2841,7 @@ package body Adaflight.STM32.Flight is
         (Adaflight.Arming.CMS_Open, Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Arming_Held);
       Adaflight.STM32.Pilot.Set_Reason
         (Adaflight.Arming.Reboot_Required,
-         Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
+         MSP_Reboot_Required or else (Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required));
    end Sync_Reasons;
 
    --  The names the OSD shows for each adjustment.

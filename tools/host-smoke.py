@@ -3335,8 +3335,14 @@ def main():
             time.sleep(2.5)
             quiet = msp2(sock, 0x3005)
             check("MSP OSD warnings reply is empty while no warning shows", quiet == bytes(2), repr(quiet))
+            receiver_config = bytearray(msp(sock, 44) or bytes(39))
+            receiver_config[25] = (receiver_config[25] + 5) % 200
+            changed = msp(sock, 45, bytes(receiver_config))
             sock.sendall(b"#")
             read_all(sock, 0.8)
+            text = cli(sock, "status")
+            check("an RC smoothing cutoff changed over MSP holds arming until a restart",
+                  changed == b"" and "REBOOT_REQD" in text.split("Arming disable flags:")[-1], text[-160:])
             text = cli(sock, "set osd_warn_bitmask = 8192")
             check("link quality warning alone turned on", "osd_warn_bitmask set to 8192" in text, text[-120:])
             cli(sock, "save", wait=2.0)

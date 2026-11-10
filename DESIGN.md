@@ -13889,3 +13889,12 @@ warning state and its last readings, as the warnings element does.
 
 On a host image with the link quality warning alone turned on and no link, the reply gave "LINK QUALITY",
 blinking, at critical severity, and an empty line with default warnings. A host smoke check repeats both.
+
+## D691. Arming held after an RC smoothing change over MSP (2026-11-09)
+
+A receiver configuration write that changes an RC smoothing setting reports that a restart is required, and no
+board read that report. Only the OSD menu set the matching arming reason. Boards now latch it from MSP as well, so
+arming stays held until a restart, when the changed smoothing takes effect.
+
+On a host image, `status` listed `REBOOT_REQD` after a smoothing cutoff changed over MSP and not after a restart.
+A host smoke check repeats that.
