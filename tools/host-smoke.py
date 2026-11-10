@@ -4119,6 +4119,36 @@ def main():
             stop_feed.set()
             stop(proc)
             sock.close()
+        # What a board reports for a request: its link, so an MSP arming disable from one link outlasts another
+        # link's enable.
+        store = os.path.join(work, "links.bin")
+        proc, sock = start(image, store)
+        vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+        vcp.settimeout(0.3)
+        try:
+            time.sleep(2.5)
+
+            def arming_flags():
+                status = msp(sock, 150)
+                if status is None or len(status) < 16 or len(status) < 21 + status[15]:
+                    return None
+                at = 16 + status[15]
+                return int.from_bytes(status[at + 1:at + 5], "little")
+            before = arming_flags()
+            msp(sock, 99, bytes([1, 0]))
+            held = arming_flags()
+            msp(vcp, 99, bytes([0, 0]))
+            other = arming_flags()
+            msp(sock, 99, bytes([0, 0]))
+            own = arming_flags()
+            bit = held & ~before if None not in (before, held) else 0
+            check("MSP arming disable from one link outlasts another link's enable",
+                  None not in (other, own) and bit != 0 and other & bit != 0 and own & bit == 0,
+                  repr((before, held, other, own)))
+        finally:
+            vcp.close()
+            stop(proc)
+            sock.close()
         # A serial passthrough request over MSP: a port the board lacks is refused, and an open port's bytes are
         # forwarded both ways with the request's port until a restart.
         if contains("GPS"):

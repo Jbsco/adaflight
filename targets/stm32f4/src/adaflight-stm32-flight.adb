@@ -1298,12 +1298,13 @@ package body Adaflight.STM32.Flight is
       end if;
    end Press_Camera_Key;
 
-   --  One command through the processor. A request that came in on the MSP
-   --  display port's serial port gets the replies its device expects, and
-   --  one from the telemetry link's MSP tunnel is marked as such.
+   --  One command through the processor, with the link it came in on. A
+   --  request that came in on the MSP display port's serial port gets the
+   --  replies its device expects, and one from the telemetry link's MSP
+   --  tunnel is marked as such.
    procedure Process_Command
-     (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array; From_Display_Port : Boolean;
-      From_Telemetry : Boolean)
+     (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array; Source : Adaflight.MSP_Control_In.Link;
+      From_Display_Port : Boolean; From_Telemetry : Boolean)
    is
       Unused_Success : Boolean;
       Asked          : Adaflight.Arming.Outputs;
@@ -1351,6 +1352,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
       Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
       Ctx.Control.From_Telemetry := From_Telemetry;
+      Ctx.Control.Source := Source;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
@@ -1477,6 +1479,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.OSD.Display_Port (Display_On_UART, Display_UART);
       Process_Command
         (Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
+         Source            => L - 1,
          From_Display_Port =>
            Display_On_UART and then Line_Serial (L) /= Adaflight.STM32.Serial.VCP
            and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Display_UART),
@@ -1741,7 +1744,9 @@ package body Adaflight.STM32.Flight is
                                 Failed : out Boolean) is
    begin
       Refresh_Views;
-      Process_Command (Command, Request, From_Display_Port => False, From_Telemetry => True);
+      Process_Command
+        (Command, Request, Source => Adaflight.MSP_Allocation.Max_Ports, From_Display_Port => False,
+         From_Telemetry => True);
       if Effects.Peripheral.VTX_Ready then
          Adaflight.STM32.VTX.MSP_Link_Ready;
       end if;
