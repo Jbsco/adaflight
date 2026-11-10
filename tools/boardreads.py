@@ -55,9 +55,7 @@ OPEN = {
     "Effects.Board.Reply": "the processor writes the reply byte itself",
     "Effects.Board.Reply_Value": "the processor writes the reply byte itself",
     "Effects.Font.Size": "the boards write whole characters",
-    "Effects.Passthrough": "not served: the passthrough message",
-    "Effects.Passthrough_Mode": "not served: the passthrough message",
-    "Effects.Passthrough_Argument": "not served: the passthrough message",
+    "Effects.Passthrough_Mode": "not served: the 4-way interface and an ESC's serial link",
 }
 
 

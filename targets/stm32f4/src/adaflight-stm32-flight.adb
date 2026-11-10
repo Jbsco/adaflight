@@ -167,6 +167,7 @@ package body Adaflight.STM32.Flight is
    package Common renames Adaflight.MSP_Common_Out;
    package Scheduler renames Adaflight.Scheduler;
    use type MSP.Result;
+   use type MSP.Passthrough_Kind;
    use type Adaflight.MSP_Port.Event;
    use type Scheduler.Task_Id;
    use type Adaflight.STM32.Gyro.Read_Mode;
@@ -1314,6 +1315,22 @@ package body Adaflight.STM32.Flight is
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
       Ctx.Motors := Adaflight.STM32.Control.Motor_Count;
+      Ctx.Motor_Outputs := Adaflight.STM32.Motors.Count;
+      Ctx.Passthrough_Open := False;
+      if Command = MSP.Set_Passthrough_Command and then Request'Length >= 1
+        and then Request (Request'First) = MSP.Passthrough_Serial_Id
+      then
+         declare
+            Unused_Baud     : Unsigned_32;
+            Unused_Mode     : Unsigned_8;
+            Unused_Options  : Unsigned_32;
+            Unused_Callback : Boolean;
+         begin
+            Adaflight.STM32.Passthrough.Port_State
+              ((if Request'Length >= 2 then Interfaces.Integer_32 (Request (Request'First + 1)) else 0),
+               Ctx.Passthrough_Open, Unused_Baud, Unused_Mode, Unused_Options, Unused_Callback);
+         end;
+      end if;
       Ctx.Motor_Device := Adaflight.STM32.Motors.Device;
       Ctx.VTX_Device := Adaflight.STM32.VTX.Device;
       Ctx.VTX_Table := Adaflight.STM32.VTX.Table;
@@ -1443,7 +1460,8 @@ package body Adaflight.STM32.Flight is
    end Reboot_If_Asked;
 
    --  One command frame through the processor, then its reply framed and
-   --  sent back through the port it came in on, and a reboot in its mode.
+   --  sent back through the port it came in on, the forwarding a serial
+   --  passthrough request starts, and a reboot in its mode.
    procedure Answer (L : MSP_Line) is
       Port            : Adaflight.MSP_Port.Port renames Lines (L).Port;
       Display_On_UART : Boolean;
@@ -1464,6 +1482,11 @@ package body Adaflight.STM32.Flight is
       Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
                                  Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
       Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
+      if Effects.Passthrough = MSP.Serial_Forward then
+         Adaflight.STM32.Passthrough.Port_Forward
+           (Left  => Interfaces.Integer_32 (Effects.Passthrough_Argument),
+            Right => Interfaces.Integer_32 (Line_Id (Line_Serial (L))));
+      end if;
       Reboot_If_Asked;
    end Answer;
 
