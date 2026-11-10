@@ -2409,6 +2409,11 @@ def main():
         proc, sock = start(image, store)
         try:
             time.sleep(2.5)
+            plain_version = msp(sock, 3)
+            plain_osd = msp(sock, 84)
+            check("version reply has its text and the OSD reply every item on a port without the display",
+                  plain_version is not None and len(plain_version) > 3 and plain_osd is not None
+                  and len(plain_osd) > 8 and plain_osd[7] > 80, repr((plain_version, plain_osd and plain_osd[:8])))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "set osd_displayport_device = MSP")
@@ -2437,6 +2442,17 @@ def main():
             api = msp_pushes(read_all(sock, 0.5), 1)
             check("UART1 still answers MSP beside the display port", len(api) == 1 and len(api[0]) == 3,
                   repr(api))
+            sock.sendall(b"$M<" + bytes([0, 3, 3]))
+            version = msp_pushes(read_all(sock, 0.5), 3)
+            check("version reply on the display's port is its three bytes",
+                  len(version) == 1 and plain_version is not None and version[0] == plain_version[:3],
+                  repr((version, plain_version)))
+            sock.sendall(b"$M<" + bytes([0, 84, 84]))
+            osd = msp_pushes(read_all(sock, 0.5), 84)
+            check("OSD reply on the display's port has eighty items and no RSSI dBm alarm",
+                  len(osd) == 1 and plain_osd is not None and osd[0][7] == 80
+                  and len(osd[0]) == len(plain_osd) - 2 * (plain_osd[7] - 80) - 2,
+                  repr((len(osd), osd and osd[0][:10], plain_osd and len(plain_osd))))
         finally:
             stop(proc)
             sock.close()

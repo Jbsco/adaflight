@@ -1296,7 +1296,11 @@ package body Adaflight.STM32.Flight is
       end if;
    end Press_Camera_Key;
 
-   procedure Process_Command (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array) is
+   --  One command through the processor. A request that came in on the MSP
+   --  display port's serial port gets the replies its device expects.
+   procedure Process_Command
+     (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array; From_Display_Port : Boolean)
+   is
       Unused_Success : Boolean;
       Asked          : Adaflight.Arming.Outputs;
    begin
@@ -1324,6 +1328,8 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.OSD.Warning
            (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
       end if;
+      Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
+      Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
@@ -1439,9 +1445,16 @@ package body Adaflight.STM32.Flight is
    --  One command frame through the processor, then its reply framed and
    --  sent back through the port it came in on, and a reboot in its mode.
    procedure Answer (L : MSP_Line) is
-      Port : Adaflight.MSP_Port.Port renames Lines (L).Port;
+      Port            : Adaflight.MSP_Port.Port renames Lines (L).Port;
+      Display_On_UART : Boolean;
+      Display_UART    : Adaflight.STM32.USART.Number;
    begin
-      Process_Command (Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1));
+      Adaflight.STM32.OSD.Display_Port (Display_On_UART, Display_UART);
+      Process_Command
+        (Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
+         From_Display_Port =>
+           Display_On_UART and then Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+           and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Display_UART));
       if Effects.Peripheral.VTX_Ready and then Adaflight.STM32.VTX.MSP_Running
         and then Line_Serial (L) /= Adaflight.STM32.Serial.VCP
         and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Adaflight.STM32.VTX.MSP_Port)
@@ -1695,7 +1708,7 @@ package body Adaflight.STM32.Flight is
                                 Failed : out Boolean) is
    begin
       Refresh_Views;
-      Process_Command (Command, Request);
+      Process_Command (Command, Request, From_Display_Port => False);
       if Effects.Peripheral.VTX_Ready then
          Adaflight.STM32.VTX.MSP_Link_Ready;
       end if;

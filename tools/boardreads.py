@@ -40,7 +40,6 @@ OPEN = {
     "Out_Views.OSD.Stick_Overlay": ALWAYS,
     "Out_Views.OSD.Display_Port_Font": ALWAYS,
     "Out_Views.OSD.Frame_Buffer_OSD": ALWAYS,
-    "Out_Views.OSD.VTX_Port": "not served: a request on the MSP transmitter's port gets the full item list",
     "Effects.Handled": "the caller reads the result instead",
     "Effects.Receiver.Adjustments_Reset": "the adjustment pass rebuilds its lists when the stored ranges change",
     "Effects.Peripheral.Transponder_Data": "no board has a transponder",
