@@ -39,9 +39,9 @@ Silver with no assume, and pass the gates on `main`.
   an adaflight checkout, with a fit view for boards short of flash: feature blocks along a bar of the
   target's flash, its end marked by a line and features past it in red. A survey of the configurator's MSP
   reads and save payloads against a host image closed gaps in simplified tuning and blackbox replies, and
-  its indexed writes round-trip. A native command-line MSP client, `tools/msp`, sends single requests and
-  dumps every read command. Backup, restore and diff of a configuration with that client, and a pass
-  through each configurator tab on a board, follow.
+  its indexed writes round-trip. A native command-line MSP client, `tools/msp`, sends single requests,
+  dumps every read command, and backs up, restores and compares a configuration through a board's command
+  line. A pass through each configurator tab on a board follows.
 
 ## After parity
 

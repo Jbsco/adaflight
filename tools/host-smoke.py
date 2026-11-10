@@ -4097,12 +4097,12 @@ def main():
         # every read command, and a port that does not answer.
         client = os.path.join(os.path.dirname(os.path.abspath(__file__)), "msp", "bin", "adaflight_msp")
         if os.path.exists(client):
+            port = f"tcp:127.0.0.1:{PORT}"
             store = os.path.join(work, "client.bin")
             proc, sock = start(image, store)
             sock.close()
             try:
                 time.sleep(2.5)
-                port = f"tcp:127.0.0.1:{PORT}"
 
                 def run(*words):
                     done = subprocess.run([client, *words], capture_output=True, text=True, timeout=120)
@@ -4120,6 +4120,62 @@ def main():
                 check("MSP client fails on a port it cannot open", status == 1 and nothing == "", nothing)
             finally:
                 stop(proc)
+            # The client's backup, restore and comparison through the image's command line. A backup and a
+            # restore each end the image, as an exit and a save do, so each runs against a fresh start.
+            store = os.path.join(work, "backup.bin")
+
+            def tool(*words):
+                proc, sock = start(image, store)
+                sock.close()
+                try:
+                    time.sleep(2.5)
+                    done = subprocess.run([client, *words], capture_output=True, text=True, timeout=180)
+                    return done.returncode, done.stdout, done.stderr
+                finally:
+                    stop(proc)
+
+            def kept(name, text):
+                full = os.path.join(work, name)
+                with open(full, "w") as out:
+                    out.write(text)
+                return full
+
+            def compared(one, other):
+                done = subprocess.run([client, "diff", one, other], capture_output=True, text=True, timeout=60)
+                return done.returncode, done.stdout.splitlines()
+            status, first, errors = tool("backup", port)
+            lines = first.splitlines()
+            check("MSP client's backup is the command line's list of changed settings",
+                  status == 0 and "defaults nosave" in lines and lines[-1:] == ["save"] and "###" not in first
+                  and not any(line.startswith("diff all") for line in lines), repr((status, lines[:3], errors)))
+            changes = ("# a change\nset craft_name = TOOLTEST\n\naux 0 0 0 1700 2100 0 0\n"
+                       "profile 1\nset p_roll = 51\n")
+            status, said, errors = tool("restore", port, kept("changes.txt", changes))
+            check("MSP client's restore sends a file's lines and saves",
+                  status == 0 and said == "restored 4 lines and saved\n", repr((status, said, errors)))
+            status, second, errors = tool("backup", port)
+            differs, found = compared(kept("first.txt", first), kept("second.txt", second))
+            check("MSP client's comparison lists the restored changes",
+                  status == 0 and differs == 1
+                  and found == ["+ aux 0 0 0 1700 2100 0 0", "~ profile: 0 -> 1", "+ profile 1: set p_roll = 51",
+                                "+ set craft_name = TOOLTEST"], repr((status, differs, found)))
+            status, said, errors = tool("restore", port, kept("first.txt", first))
+            again, third, _ = tool("backup", port)
+            differs, found = compared(kept("first.txt", first), kept("third.txt", third))
+            check("MSP client's restore of a backup brings its configuration back",
+                  status == 0 and again == 0 and differs == 0 and found == [] and third == first,
+                  repr((status, said, errors, differs, found)))
+            status, said, errors = tool("restore", port, kept("bad.txt", "set craft_name = OTHER\nset no_such = 1\n"))
+            check("MSP client's restore reports a refused line and saves nothing",
+                  status == 1 and said == "" and "set no_such = 1" in errors
+                  and "1 of 2 lines failed; nothing saved" in errors, repr((status, said, errors)))
+            status, fourth, errors = tool("backup", port)
+            check("refused restore leaves the configuration as it was", status == 0 and fourth == first, errors)
+            status, whole, errors = tool("backup", port, "all")
+            lines = whole.splitlines()
+            check("MSP client's whole backup lists settings at their defaults",
+                  status == 0 and len(lines) > 500 and "set craft_name = -" in lines
+                  and "set craft_name = -" not in first.splitlines(), repr((status, len(lines), errors)))
         else:
             print("SKIP the checks of the MSP client: tools/msp is not built")
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")

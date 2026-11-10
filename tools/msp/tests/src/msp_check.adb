@@ -1,6 +1,8 @@
 with Ada.Command_Line;
 with Ada.Text_IO;
 with Model_Board;
+with MSP.Backups;
+with MSP.Console;
 with MSP.Frames;
 with MSP.Session;
 with MSP.Transport;
@@ -11,6 +13,8 @@ procedure MSP_Check is
    use Ada.Text_IO;
    use type MSP.Byte;
    use type MSP.Byte_Array;
+   use type MSP.Backups.Lines;
+   use type MSP.Console.Status;
    use type MSP.Frames.Step;
    use type MSP.Session.Status;
 
@@ -82,6 +86,38 @@ procedure MSP_Check is
                      and then Model_Board.Last_Was_V2 = V2
                    else Model_Board.Good_Requests = 0));
    end Exchange;
+
+   LF    : constant Character := Character'Val (10);
+   CR_LF : constant String := Character'Val (13) & LF;
+
+   type Text_Access is access MSP.Console.Text_Buffer;
+   Console_Text   : constant Text_Access := new MSP.Console.Text_Buffer;
+   Console_Last   : MSP.Console.Text_Length;
+   Console_Cut    : Boolean;
+   Console_Result : MSP.Console.Status;
+
+   --  A line to the model's command line, and the text that came back.
+   procedure Say (Line : String; Quiet : Positive := 2; Patience : Positive := 6) is
+   begin
+      MSP.Console.Exchange
+        (Text (Line), Quiet, Patience, Console_Text.all, Console_Last, Console_Cut, Console_Result);
+   end Say;
+
+   function Heard return String is
+   begin
+      return S : String (1 .. Console_Last) do
+         for I in S'Range loop
+            S (I) := Character'Val (Console_Text (I));
+         end loop;
+      end return;
+   end Heard;
+
+   function Prompted return Boolean
+   is (Console_Result = MSP.Console.Prompted and then not Console_Cut
+       and then MSP.Console.Ends_With_Prompt (Console_Text.all, Console_Last));
+
+   function Lines_Of (Text : String) return MSP.Backups.Lines
+   is (MSP.Backups.Split (Text));
 
    Frame      : MSP.Byte_Array (0 .. MSP.Frames.Max_Frame - 1);
    Frame_Last : Natural;
@@ -178,6 +214,141 @@ begin
    Exchange
      ("request that does not go out",
       (Accept_Sends => False, others => <>), 101, Text (""), MSP.Session.Not_Sent, V2 => False);
+
+   Model_Board.Configure ((others => <>));
+   Say ("#");
+   Check
+     ("command line's sign brings its prompt",
+      Prompted and then Heard = CR_LF & "Entering CLI Mode, type 'exit' to return, or 'help'" & CR_LF & CR_LF & "# ");
+   Say ("set a = 1" & LF);
+   Check
+     ("setting line is echoed and answered before the prompt",
+      Prompted and then Heard = "set a = 1" & CR_LF & "a set to 1" & CR_LF & "# "
+      and then Model_Board.Kept_Lines = 1 and then Model_Board.Kept_Line (1) = "set a = 1");
+   Check
+     ("reply's lines leave out the echo and the prompt",
+      MSP.Backups.Reply_Lines (Heard) = Lines_Of ("a set to 1"));
+   Say ("set bad = 1" & LF);
+   Check
+     ("refused line's reply has the error text",
+      Prompted and then MSP.Backups.Reply_Lines (Heard) = Lines_Of ("###ERROR IN set: INVALID NAME: bad = 1###")
+      and then Model_Board.Kept_Lines = 1);
+   Say ("set b = 2" & LF);
+   Say ("diff all" & LF);
+   Check
+     ("backup's lines arrive between the echo and the prompt",
+      Prompted
+      and then MSP.Backups.Reply_Lines (Heard)
+               = Lines_Of
+                   (LF & "# version" & LF & "# model" & LF & LF & "# start the command batch" & LF & "batch start"
+                    & LF & LF & "# reset configuration to default settings" & LF & "defaults nosave" & LF & LF
+                    & "set a = 1" & LF & "set b = 2" & LF & LF & "# save configuration" & LF & "save"));
+   Say ("exit" & LF);
+   Check
+     ("exit ends without a prompt and drops unsaved lines",
+      Console_Result = MSP.Console.No_Prompt and then Heard = "exit" & CR_LF & "Rebooting"
+      and then Model_Board.Exits = 1 and then Model_Board.Saves = 0 and then Model_Board.Kept_Lines = 0);
+
+   Model_Board.Configure ((others => <>));
+   Say ("#");
+   Say ("set a = 1" & LF);
+   Say ("save" & LF);
+   Check
+     ("save ends without a prompt and keeps the lines",
+      Console_Result = MSP.Console.No_Prompt and then Heard = "save" & CR_LF & "Saving" & CR_LF & "Rebooting"
+      and then Model_Board.Saves = 1 and then Model_Board.Exits = 0);
+   Say ("#");
+   Say ("set c = 3" & LF);
+   Say ("exit" & LF);
+   Check ("exit keeps the lines saved before it", Model_Board.Kept_Lines = 1 and then Model_Board.Exits = 1);
+   Say ("#");
+   Say ("defaults nosave" & LF);
+   Check ("reset to defaults drops every line", Prompted and then Model_Board.Kept_Lines = 0);
+
+   --  A comment line of a backup starts as the prompt does. With one byte a read and an empty read after
+   --  each, the text stops there unless more quiet than that is asked for.
+   Model_Board.Configure ((Chunk => 1, Stall => 1, others => <>));
+   Say ("#", Quiet => 2, Patience => 6);
+   Say ("set a = 1" & LF, Quiet => 2, Patience => 6);
+   Say ("diff all" & LF, Quiet => 2, Patience => 6);
+   Check
+     ("backup's comment lines do not end the text",
+      Prompted and then MSP.Backups.Reply_Lines (Heard).Last_Element = "save"
+      and then Natural (MSP.Backups.Reply_Lines (Heard).Length) = 14);
+   Model_Board.Configure ((Chunk => 1, Stall => 1, others => <>));
+   Say ("#", Quiet => 2, Patience => 6);
+   Say ("diff all" & LF, Quiet => 1, Patience => 6);
+   Check
+     ("quiet of one read ends the text at a comment line",
+      Prompted and then Heard = "diff all" & CR_LF & CR_LF & "# ");
+
+   Model_Board.Configure ((No_Prompt => True, others => <>));
+   Say ("#", Quiet => 2, Patience => 7);
+   Check
+     ("text without a prompt ends after the empty reads allowed",
+      Console_Result = MSP.Console.No_Prompt and then not Console_Cut
+      and then Heard = CR_LF & "Entering CLI Mode, type 'exit' to return, or 'help'" & CR_LF
+      and then Model_Board.Empty_Reads = 7);
+
+   Model_Board.Configure ((Dump_Lines => 2000, Chunk => 256, others => <>));
+   Say ("#");
+   Say ("dump all" & LF);
+   Check
+     ("dump of 2000 lines arrives whole",
+      Prompted and then Console_Last = 10 + 2000 * 22 + 4
+      and then Natural (MSP.Backups.Reply_Lines (Heard).Length) = 2001
+      and then MSP.Backups.Reply_Lines (Heard).Element (2000) = "set name_2000 = 2000");
+   Model_Board.Configure ((Dump_Lines => 4000, Chunk => 256, others => <>));
+   Say ("#");
+   Say ("dump all" & LF);
+   Check
+     ("dump past the text's size is cut at it",
+      Console_Result = MSP.Console.Prompted and then Console_Cut and then Console_Last = MSP.Console.Max_Text
+      and then Heard (1 .. 32) = "dump all" & CR_LF & "set name_0001 = 0001" & CR_LF);
+
+   Model_Board.Configure ((Endless => True, others => <>));
+   Say ("#");
+   Check
+     ("port that never goes quiet ends after the reads allowed",
+      Console_Result = MSP.Console.No_Prompt and then Console_Cut and then Console_Last = MSP.Console.Max_Text
+      and then Model_Board.Reads = MSP.Console.Max_Reads);
+
+   Model_Board.Configure ((Accept_Sends => False, others => <>));
+   Say ("#");
+   Check ("line that does not go out", Console_Result = MSP.Console.Not_Sent and then Console_Last = 0);
+
+   Check
+     ("text splits at line feeds without the line ends",
+      Natural (Lines_Of ("a" & CR_LF & " b " & LF & LF & "c").Length) = 4
+      and then Lines_Of ("a" & CR_LF & " b " & LF & LF & "c").Element (2) = "b"
+      and then Lines_Of ("a" & CR_LF & " b " & LF & LF & "c").Element (3) = ""
+      and then Lines_Of ("a" & CR_LF).Last_Element = "a");
+   Check
+     ("restore sends commands and leaves out comments, empty lines and the save",
+      MSP.Backups.Is_Command ("set a = 1") and then MSP.Backups.Is_Command ("defaults nosave")
+      and then MSP.Backups.Is_Command ("batch start") and then MSP.Backups.Is_Command ("feature -GPS")
+      and then not MSP.Backups.Is_Command ("") and then not MSP.Backups.Is_Command ("   ")
+      and then not MSP.Backups.Is_Command ("# set a = 1") and then not MSP.Backups.Is_Command ("  # note")
+      and then not MSP.Backups.Is_Command ("save") and then not MSP.Backups.Is_Command (" SAVE "));
+   Check
+     ("backups with equal content have no difference",
+      MSP.Backups.Differences
+        (Lines_Of ("# one" & LF & "batch start" & LF & "defaults nosave" & LF & "set a = 1" & LF & "feature GPS" & LF
+                   & "profile 0" & LF & "set p = 4" & LF & "save"),
+         Lines_Of ("feature GPS" & LF & LF & "set a = 1" & LF & "profile 0" & LF & "set p = 4" & LF & "# two"))
+        .Is_Empty);
+   Check
+     ("differences by setting under each profile, in key order",
+      MSP.Backups.Differences
+        (Lines_Of ("set a = 1" & LF & "set b = 2" & LF & "set gone = 9" & LF & "feature GPS" & LF & "profile 0" & LF
+                   & "set p = 40" & LF & "profile 1" & LF & "set p = 41" & LF & "rateprofile 2" & LF & "set r = 7"
+                   & LF & "profile 0" & LF & "save"),
+         Lines_Of ("set a = 1" & LF & "set b = 3" & LF & "feature OSD" & LF & "profile 0" & LF & "set p = 40" & LF
+                   & "profile 1" & LF & "set p = 45" & LF & "set q = 5" & LF & "rateprofile 2" & LF & "set r = 7"
+                   & LF & "profile 1"))
+      = Lines_Of
+          ("- feature GPS" & LF & "+ feature OSD" & LF & "~ profile: 0 -> 1" & LF & "~ profile 1: set p: 41 -> 45"
+           & LF & "+ profile 1: set q = 5" & LF & "~ set b: 2 -> 3" & LF & "- set gone = 9"));
 
    if Failures = 0 then
       Put_Line ("msp checks passed");

@@ -49,3 +49,9 @@ The configuration is kept in `adaflight-eeprom.bin` in the working directory, or
     cd tools/msp && alr build
     bin/adaflight_msp request /dev/ttyACM0 2
     bin/adaflight_msp dump tcp:127.0.0.1:5761
+
+`backup` prints a board's configuration as its command line lists it with `diff all`, or with `dump all` when `all` follows the target. `restore` sends a backup file's lines to the command line in order and saves when no line fails. After a failed line it prints that line with its error and saves nothing. `diff` compares two backup files setting by setting and exits with 1 when they differ. `backup` and `restore` each restart the board. A backup that starts with `defaults nosave` replaces a board's whole configuration, and a file of a few lines changes those settings alone.
+
+    bin/adaflight_msp backup /dev/ttyACM0 > before.txt
+    bin/adaflight_msp restore /dev/ttyACM0 before.txt
+    bin/adaflight_msp diff before.txt after.txt
