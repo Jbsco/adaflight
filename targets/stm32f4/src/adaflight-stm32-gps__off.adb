@@ -23,6 +23,8 @@ package body Adaflight.STM32.GPS is
 
    procedure Set_Home (Lat, Lon, Alt_Cm : Interfaces.Integer_32) is null;
 
+   procedure Offer (S : Adaflight.MSP_Runtime_In.GPS_Solution; Sensor : Boolean) is null;
+
    function Link_State return Adaflight.GPS_Link.Link_State is (Adaflight.GPS_Link.Unknown);
 
    function Platform return Adaflight.GPS_Frames.Platform is (Adaflight.GPS_Frames.Undefined);

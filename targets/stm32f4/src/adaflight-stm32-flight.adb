@@ -1334,6 +1334,9 @@ package body Adaflight.STM32.Flight is
       if Effects.Runtime.RSSI then
          Adaflight.STM32.Radio.Set_MSP_RSSI (Effects.Runtime.RSSI_Value, Adaflight.STM32.Time.Micros);
       end if;
+      if Adaflight.Build_Features.GPS and then Effects.Runtime.GPS then
+         Adaflight.STM32.GPS.Offer (Effects.Runtime.Solution, Effects.Runtime.GPS_Sensor);
+      end if;
       if Effects.Runtime.MT_Range then
          Adaflight.STM32.MT.Receive_Range (Effects.Runtime.MT_Distance_Mm, Adaflight.STM32.Time.Micros);
       end if;
@@ -3413,6 +3416,7 @@ package body Adaflight.STM32.Flight is
       declare
          G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       begin
+         Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := G.Present;
          if G.Stamp /= Lap_Stamp then
             Lap_Stamp := G.Stamp;
             Adaflight.GPS_Lap_Timer.New_GPS_Data
@@ -4675,7 +4679,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Gimbal.Init (Config, Gimbal_Sticks);
       end if;
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
-      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Current.Present;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),

@@ -683,17 +683,42 @@ package body Adaflight.GPS_Link with SPARK_Mode is
    --------------------
 
    procedure Offer_Solution (L : in out Link; R : in out Receiver; Fix : Boolean; Num_Sat : Unsigned_8;
-                             Lat, Lon : Integer_32; Alt_M : Unsigned_16; Ground_Speed : Unsigned_16) is
+                             Lat, Lon, Alt_Cm : Integer_32; Ground_Speed : Unsigned_16) is
    begin
       R.Fix := Fix;
       if Fix then
          R.Fix_Ever := True;
       end if;
       R.Sol.Num_Sat := Num_Sat;
-      R.Sol.Llh := (Lat => Lat, Lon => Lon, Alt_Cm => Integer_32 (Alt_M) * 100);
+      R.Sol.Llh := (Lat => Lat, Lon => Lon, Alt_Cm => Alt_Cm);
       R.Sol.Ground_Speed := Ground_Speed;
       L.Solution_Offered := True;
    end Offer_Solution;
+
+   ---------------------------
+   -- Offer_Sensor_Solution --
+   ---------------------------
+
+   procedure Offer_Sensor_Solution
+     (L : in out Link; R : in out Receiver; Time_Ms : Unsigned_32; Fix : Boolean; Num_Sat : Unsigned_8;
+      H_Acc, V_Acc, S_Acc : Unsigned_32; Pdop : Unsigned_16; Lat, Lon, Alt_Cm : Integer_32;
+      Ground_Speed, Ground_Course : Unsigned_16) is
+   begin
+      R.Sol.Time := Time_Ms;
+      R.Fix := Fix;
+      if Fix then
+         R.Fix_Ever := True;
+      end if;
+      R.Sol.Num_Sat := Num_Sat;
+      R.Sol.Acc.Horizontal := H_Acc;
+      R.Sol.Acc.Vertical := V_Acc;
+      R.Sol.Acc.Speed := S_Acc;
+      R.Sol.Dop.Pdop := Pdop;
+      R.Sol.Llh := (Lat => Lat, Lon => Lon, Alt_Cm => Alt_Cm);
+      R.Sol.Ground_Speed := Ground_Speed;
+      R.Sol.Ground_Course := Ground_Course;
+      L.Solution_Offered := True;
+   end Offer_Sensor_Solution;
 
    -------------------
    -- Offer_Virtual --

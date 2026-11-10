@@ -10148,10 +10148,15 @@ procedure Vector_Check is
                GPSL_Has_Time := False;
             end if;
             Record_Int (Name & ".hastime", Int (10), Boolean'Pos (GPSL_Has_Time));
-            if Int (11) = 1 then
+            if Int (11) = 1 and then Int (85) = 1 then
+               Offer_Sensor_Solution
+                 (GPSL_Link, GPSL_Receiver, Unsigned_32 (Int (86)), Int (12) = 1, Interfaces.Unsigned_8 (Int (13)),
+                  Unsigned_32 (Int (87)), Unsigned_32 (Int (88)), Unsigned_32 (Int (89)),
+                  Interfaces.Unsigned_16 (Int (90)), I32 (14), I32 (15), I32 (91), Interfaces.Unsigned_16 (Int (17)),
+                  Interfaces.Unsigned_16 (Int (92)));
+            elsif Int (11) = 1 then
                Offer_Solution (GPSL_Link, GPSL_Receiver, Int (12) = 1, Interfaces.Unsigned_8 (Int (13)),
-                               I32 (14), I32 (15), Interfaces.Unsigned_16 (Int (16)),
-                               Interfaces.Unsigned_16 (Int (17)));
+                               I32 (14), I32 (15), I32 (16) * 100, Interfaces.Unsigned_16 (Int (17)));
             end if;
             if Int (75) = 1 then
                Offer_Virtual (GPSL_Link, I32 (76), I32 (77), I32 (78), Interfaces.Unsigned_16 (Int (79)),
@@ -10192,6 +10197,13 @@ procedure Vector_Check is
             Record_Int (Name & ".overflow", 0, Boolean'Pos (E.Tx.Overflow or else Home_Tx.Overflow));
             Record_Int (Name & ".sweep", Int (73), Integer_64 (GPSL_Link.Sweep_Steps));
             Record_Int (Name & ".lastsweep", Int (74), Integer_64 (GPSL_Link.Last_Sweep_Step));
+            Record_Int (Name & ".time", Int (93), Integer_64 (GPSL_Receiver.Sol.Time));
+            Record_Int (Name & ".hacc", Int (94), Integer_64 (GPSL_Receiver.Sol.Acc.Horizontal));
+            Record_Int (Name & ".vacc", Int (95), Integer_64 (GPSL_Receiver.Sol.Acc.Vertical));
+            Record_Int (Name & ".sacc", Int (96), Integer_64 (GPSL_Receiver.Sol.Acc.Speed));
+            Record_Int (Name & ".pdop", Int (97), Integer_64 (GPSL_Receiver.Sol.Dop.Pdop));
+            Record_Int (Name & ".groundspeed", Int (98), Integer_64 (GPSL_Receiver.Sol.Ground_Speed));
+            Record_Int (Name & ".groundcourse", Int (99), Integer_64 (GPSL_Receiver.Sol.Ground_Course));
          end;
       else
          Put_Line ("unknown gps link case " & Name);

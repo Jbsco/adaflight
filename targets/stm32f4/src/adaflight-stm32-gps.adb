@@ -144,6 +144,18 @@ package body Adaflight.STM32.GPS is
       Link.Fix_Home := True;
    end Set_Home;
 
+   procedure Offer (S : Adaflight.MSP_Runtime_In.GPS_Solution; Sensor : Boolean) is
+   begin
+      if Sensor then
+         Adaflight.GPS_Link.Offer_Sensor_Solution
+           (Link, Rx, S.Time_Ms, S.Fix, S.Satellites, S.H_Accuracy, S.V_Accuracy, S.S_Accuracy, S.PDOP, S.Latitude,
+            S.Longitude, S.Altitude_Cm, S.Ground_Speed, S.Ground_Course);
+      else
+         Adaflight.GPS_Link.Offer_Solution
+           (Link, Rx, S.Fix, S.Satellites, S.Latitude, S.Longitude, S.Altitude_Cm, S.Ground_Speed);
+      end if;
+   end Offer;
+
    function Current return Readings is
      ((Present             => Link.Sensor_Present,
        Fix                 => Rx.Fix,

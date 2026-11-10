@@ -193,10 +193,19 @@ package Adaflight.GPS_Link with SPARK_Mode is
                      Rx : Byte_Array; Tx_Empty, Armed : Boolean; Clock_Has_Time : in out Boolean; E : out Events);
 
    --  A solution from the ground link: the fix, the satellite count, the
-   --  position with the altitude in metres and the ground speed, taken at
-   --  the next call.
+   --  position with the altitude in centimetres and the ground speed, taken
+   --  at the next call.
    procedure Offer_Solution (L : in out Link; R : in out GPS_Frames.Receiver; Fix : Boolean; Num_Sat : Unsigned_8;
-                             Lat, Lon : Integer_32; Alt_M : Unsigned_16; Ground_Speed : Unsigned_16);
+                             Lat, Lon, Alt_Cm : Integer_32; Ground_Speed : Unsigned_16);
+
+   --  A solution from an MSP GPS sensor: the time of week, the fix, the
+   --  satellite count, the accuracies, the dilution of precision, the
+   --  position with the altitude in centimetres, the ground speed and the
+   --  ground course, taken at the next call.
+   procedure Offer_Sensor_Solution
+     (L : in out Link; R : in out GPS_Frames.Receiver; Time_Ms : Unsigned_32; Fix : Boolean; Num_Sat : Unsigned_8;
+      H_Acc, V_Acc, S_Acc : Unsigned_32; Pdop : Unsigned_16; Lat, Lon, Alt_Cm : Integer_32;
+      Ground_Speed, Ground_Course : Unsigned_16);
 
    --  A solution from a simulator for the virtual provider: the position,
    --  the speeds and the course as a solution carries them, taken at the
