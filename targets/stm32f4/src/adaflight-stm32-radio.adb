@@ -1391,4 +1391,9 @@ package body Adaflight.STM32.Radio is
    begin
       MSP_Override := On;
    end Set_MSP_Override;
+
+   procedure Set_MSP_RSSI (Value : Interfaces.Unsigned_8; Now_Us : Time_Us) is
+   begin
+      Adaflight.Receiver.Set_RSSI_MSP (Rx, Adaflight.Receiver.Byte (Value), Now_Us);
+   end Set_MSP_RSSI;
 end Adaflight.STM32.Radio;

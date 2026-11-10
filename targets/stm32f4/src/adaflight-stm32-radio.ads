@@ -85,6 +85,8 @@ package Adaflight.STM32.Radio is
      (Frame : Adaflight.MSP_Receiver.Channel_Data; Count : Adaflight.MSP_Receiver.Count_Range; Now_Ms : Time_Ms);
    --  Whether the MSP override mode is on.
    procedure Set_MSP_Override (On : Boolean);
+   --  An RSSI an MSP message brought, taken while no other source gives one.
+   procedure Set_MSP_RSSI (Value : Interfaces.Unsigned_8; Now_Us : Time_Us);
    --  The link statistics an SPI receiver's protocol reports: through the
    --  filters while connected, with the uplink power, and set directly
    --  while not.

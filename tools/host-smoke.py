@@ -1241,6 +1241,10 @@ def main():
                   past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            taken = msp(sock, 186, bytes([200]))
+            link = msp(sock, 187)
+            check("an RSSI over MSP becomes the RSSI source while no receiver gives one",
+                  taken == b"" and link is not None and len(link) == 2 and link[0] == 4, repr(link))
             log_rates = msp(sock, 80)
             check("MSP blackbox reply says whether the build contains a recorder",
                   log_rates is not None and len(log_rates) >= 7 and log_rates[0] == int(contains("Blackbox")),
