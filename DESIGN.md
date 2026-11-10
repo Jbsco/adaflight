@@ -14037,3 +14037,29 @@ with that refusal added, behind a switch, and draws an arming flag and a request
 Board glue now tells the processor which requests came through a telemetry link's MSP tunnel. No board set that
 flag before, so a tunnel request counted as a serial one. Host smoke sends a passthrough request through the CRSF
 tunnel and expects 0.
+
+## D700. BLHeli 4-way interface on boards (2026-11-10)
+
+`Adaflight.STM32.Four_Way` runs the core's 4-way interface on a board once a passthrough request's reply went out.
+It instantiates the BLHeli and STK500v2 bootloader protocols over the board's microsecond clock and plain pin
+operations on the motor outputs' pins. An ESC's pin is an input with a pull-up while the interface listens, and a
+push-pull output while it sends.
+
+The loop takes a host's bytes from the request's port, runs each operation the interface lists and performs each
+bootloader operation it asks for. An exit command ends the loop, and MSP continues on that port. Until then
+the flight loop does not run.
+
+The motor unit gained each output's pin and a pin reinstate. A reinstated pin gets back what its output's start gave
+it: a bit-banged output at its idle level, or its timer's alternate function with its protocol's pull and speed.
+The reference's STM32 motor drivers reinstate nothing, so a pin there stays on its alternate function without a
+pull at low speed after a session. A passthrough reply counts enabled outputs with a pin, which are the ESCs the
+interface takes.
+
+Two differences from the reference remain. Boards have no receive and transmit LEDs, so those operations do
+nothing. The reference stops its motors and takes their pins before its reply, and a board does both right after
+its reply went out.
+
+Host smoke runs a session without an ESC: the interface's name, a flash init that ends in a general error after
+its connect attempts' line time, an invalid channel, a bad check, MSP silent inside, exit, and motors running
+again. Bootloader traffic with an ESC is covered by the core's vectors, and not yet by a bench run. The F411
+image grows by about 7.3 KB, which leaves it about 3.3 KB of flash.

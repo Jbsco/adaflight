@@ -90,6 +90,10 @@ package body Adaflight.STM32.Motors is
    BB_On     : Boolean := False;
    BB_Status : BB.Status_Kind := BB.OK;
    BB_Setup  : BB.Setup;
+   --  What a pin's setup needs again when the 4-way interface hands it back:
+   --  the configured inversion, and a bit-banged output's idle level.
+   Pin_Inverted : Boolean := False;
+   BB_Idle_Low  : array (Motor_Slot) of Boolean := (others => False);
 
    type Group_Hardware is record
       Running     : Boolean := False;
@@ -596,6 +600,23 @@ package body Adaflight.STM32.Motors is
          C.Motor_Config.Dev.Motor_Protocol, Adaflight.STM32.Platform.APB2_Timer_Hz);
    end Configure_Bitbang;
 
+   --  A bit-banged motor's pin: a push-pull output pulled toward its idle
+   --  level and set to its output's idle level.
+   procedure Set_Bitbang_Pin (P : Pin; Inverted : Boolean; Low : Boolean) is
+      Port  : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (P.Port);
+      Shift : constant Natural := 2 * Natural (P.Number);
+      Speed : constant Unsigned_32 := (if Adaflight.STM32.Platform.F4 then 2 else 0);
+   begin
+      GPIO.Set_Output (P);
+      Port.OSPEEDR := (Port.OSPEEDR and not Shift_Left (3, Shift)) or Shift_Left (Speed, Shift);
+      Port.PUPDR := (Port.PUPDR and not Shift_Left (3, Shift)) or Shift_Left ((if Inverted then 2 else 1), Shift);
+      if Low then
+         GPIO.Set_Low (P);
+      else
+         GPIO.Set_High (P);
+      end if;
+   end Set_Bitbang_Pin;
+
    --  The bit-banged start: the motors' pins through the output order as
    --  the setup checks them; a pin conflict leaves no motor driven, else
    --  each pin is a push-pull output pulled toward its idle level and set
@@ -603,7 +624,6 @@ package body Adaflight.STM32.Motors is
    procedure Init_Bitbang (C : Adaflight.Config_Groups.Configuration; Total : Natural) is
       S        : BB.Setup;
       Inverted : constant Boolean := C.Motor_Config.Dev.Motor_Inversion /= 0;
-      Speed    : constant Unsigned_32 := (if Adaflight.STM32.Platform.F4 then 2 else 0);
    begin
       BB_On := True;
       Configure_Bitbang (C, Total, 0, 0, S);
@@ -615,20 +635,12 @@ package body Adaflight.STM32.Motors is
          declare
             Tag   : constant Unsigned_8 := S.Motors (M).Tag;
             P     : constant Pin := (Port => Port_Name'Val (Natural (Tag / 16) - 1), Number => Pin_Number (Tag mod 16));
-            Port  : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (P.Port);
-            Shift : constant Natural := 2 * Natural (P.Number);
          begin
             Outputs (M).Configured := True;
             Outputs (M).Where := P;
+            BB_Idle_Low (M) := (S.Motors (M).Output and 1) /= 0;
             GPIO.Enable_Port (P.Port);
-            GPIO.Set_Output (P);
-            Port.OSPEEDR := (Port.OSPEEDR and not Shift_Left (3, Shift)) or Shift_Left (Speed, Shift);
-            Port.PUPDR := (Port.PUPDR and not Shift_Left (3, Shift)) or Shift_Left ((if Inverted then 2 else 1), Shift);
-            if (S.Motors (M).Output and 1) /= 0 then
-               GPIO.Set_Low (P);
-            else
-               GPIO.Set_High (P);
-            end if;
+            Set_Bitbang_Pin (P, Inverted, Low => BB_Idle_Low (M));
          end;
       end loop;
       Driven := Total;
@@ -782,6 +794,7 @@ package body Adaflight.STM32.Motors is
       Driven := 0;
       Kind := Adaflight.MSP_Motor_In.No_Device;
       Configured_Protocol := C.Motor_Config.Dev.Motor_Protocol;
+      Pin_Inverted := C.Motor_Config.Dev.Motor_Inversion /= 0;
       Bidir := Telemetry_Configured (C);
       Stream_Slot := (others => (others => -1));
       BB_On := False;
@@ -902,6 +915,33 @@ package body Adaflight.STM32.Motors is
 
    function Motor_Enabled (Index : Natural) return Boolean is
      (Index < Driven and then Outputs (Index).Configured and then (not BB_On or else BB_Setup.Motors (Index).Enabled));
+
+   function Has_Pin (Index : Natural) return Boolean is (Index < Driven and then Outputs (Index).Configured);
+
+   function Pin_Of (Index : Natural) return Pin is (Outputs (Index).Where);
+
+   --  The pin as its start left it: a bit-banged output at its idle level,
+   --  or the timer's alternate function with the analog protocols' or
+   --  DShot's pull and speed.
+   procedure Reinstate_Pin (Index : Natural; OK : out Boolean) is
+   begin
+      OK := Has_Pin (Index);
+      if not OK then
+         return;
+      end if;
+      declare
+         O : Output renames Outputs (Index);
+      begin
+         if BB_On then
+            Set_Bitbang_Pin (O.Where, Pin_Inverted, Low => BB_Idle_Low (Index));
+         elsif Adaflight.MSP_Motor_In."=" (Kind, Adaflight.MSP_Motor_In.PWM) then
+            GPIO.Set_Alternate (O.Where, Alternate (O.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+         else
+            GPIO.Set_Alternate
+              (O.Where, Alternate (O.Timer), (if Pin_Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
+         end if;
+      end;
+   end Reinstate_Pin;
 
    function Stream_Of (Index : Natural) return Natural is
      (if Index < Driven and then Outputs (Index).Configured and then CCR_Of (Index) = 0 and then not BB_On
