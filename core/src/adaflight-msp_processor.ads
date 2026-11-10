@@ -28,7 +28,6 @@ with Adaflight.Board_Info;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
-with Adaflight.Gyro_Filters;
 with Adaflight.Modes;
 with Adaflight.MSP_Board_In;
 with Adaflight.MSP_Common_Out;
@@ -51,7 +50,6 @@ with Adaflight.MSP_Views;
 with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.MSP_Write_Plans;
-with Adaflight.PID_Profile;
 with Adaflight.Receiver;
 with Adaflight.RX_Bind;
 with Adaflight.Serial_Feature_Map;
@@ -90,15 +88,12 @@ package Adaflight.MSP_Processor with SPARK_Mode is
    --  What the out replies read beside the configuration: the common
    --  replies' identity, board and meter readings (the stored part is
    --  filled here), the state replies' snapshot, the VTX device status,
-   --  the active boxes, the simplified tuning's running profile and gyro
-   --  settings, and the running part of each configuration view.
+   --  the active boxes, and the running part of each configuration view.
    type Views is record
       Common         : MSP_Common_Out.Snapshot;
       State          : MSP_Out.Snapshot;
       VTX_Status     : MSP_VTX_Status_Out.Snapshot;
       Active         : Modes.Mask := (others => False);
-      Simplified_P   : PID_Profile.Profile;
-      Simplified_G   : Gyro_Filters.Settings;
       Build          : MSP_Tuning_Out.Build_Options;
       Detected_Flags : Unsigned_8 := 0;
       Receiver       : MSP_Views.Receiver_Options;

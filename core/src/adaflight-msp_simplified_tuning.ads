@@ -2,19 +2,19 @@
 --  cutoffs they act on, the gains or the filter cutoffs a slider set gives
 --  without storing them, whether the gains and the filters in use match
 --  their sliders, and the in message that stores a slider set and applies
---  it. A request reads zero past its end. A request with a field outside its
---  setting's range is an error that writes and changes nothing.
+--  it. Every message reads and writes the stored PID profile and the stored
+--  gyro settings. A request reads zero past its end. A request with a field
+--  outside its setting's range is an error that writes and changes nothing.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.Config_Groups;
 with Adaflight.Stream_Buffers;
-with Adaflight.PID_Profile;
-with Adaflight.Gyro_Filters;
 
 package Adaflight.MSP_Simplified_Tuning with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
-   use type Adaflight.PID_Profile.Profile;
-   use type Adaflight.Gyro_Filters.Settings;
+   use type Adaflight.Config_Groups.Pid_Profile_Record;
+   use type Adaflight.Config_Groups.Gyro_Config_Record;
 
    subtype Stream is Adaflight.Stream_Buffers.Stream;
 
@@ -84,12 +84,12 @@ package Adaflight.MSP_Simplified_Tuning with SPARK_Mode is
      (Command in Simplified_Tuning_Command | Calculate_PID_Command .. Validate_Command);
 
    --  The reply to one of the out messages with its request's payload, from
-   --  the profile and the gyro settings in use. Ok is false for a request
-   --  outside its ranges, which writes nothing; a command not handled writes
-   --  nothing either.
+   --  the stored profile and the stored gyro settings. Ok is false for a
+   --  request outside its ranges, which writes nothing; a command not handled
+   --  writes nothing either.
    procedure Reply
      (B : in out Byte_Array; S : in out Stream; Command : Unsigned_16; Request : Byte_Array;
-      P : PID_Profile.Profile; G : Gyro_Filters.Settings; Ok : out Boolean)
+      P : Config_Groups.Pid_Profile_Record; G : Config_Groups.Gyro_Config_Record; Ok : out Boolean)
      with Pre  => Adaflight.Stream_Buffers.Fits (S, B)
                   and then Adaflight.Stream_Buffers.Remaining (S) >= Max_Reply_Length,
           Post => Adaflight.Stream_Buffers.Fits (S, B) and then S.Last = S.Last'Old
@@ -102,7 +102,8 @@ package Adaflight.MSP_Simplified_Tuning with SPARK_Mode is
    --  request, then every slider applied. Ok is false for a request outside
    --  its ranges, which changes nothing.
    procedure Set
-     (Request : Byte_Array; P : in out PID_Profile.Profile; G : in out Gyro_Filters.Settings; Ok : out Boolean)
+     (Request : Byte_Array; P : in out Config_Groups.Pid_Profile_Record;
+      G : in out Config_Groups.Gyro_Config_Record; Ok : out Boolean)
      with Post => Ok = Valid (Set_Simplified_Tuning_Command, Request)
                   and then (if not Ok then P = P'Old and then G = G'Old);
 
