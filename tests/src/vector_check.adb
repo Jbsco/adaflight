@@ -36523,12 +36523,11 @@ procedure Vector_Check is
    end Check_Simplified_Filter_Line;
 
    procedure Check_MSP_Simplified_Line is
-      use Adaflight.PID_Profile;
       package MST renames Adaflight.MSP_Simplified_Tuning;
       Name : constant String := Str (1);
       K    : Positive := 8;
-      P    : Profile;
-      G    : Adaflight.Gyro_Filters.Settings;
+      P    : Adaflight.Config_Groups.Pid_Profile_Record := Adaflight.Config_Groups.Defaults.Pid_Profiles (0);
+      G    : Adaflight.Config_Groups.Gyro_Config_Record := Adaflight.Config_Groups.Defaults.Gyro_Config;
       function Next return Integer_64 is
       begin
          K := K + 1;
@@ -36543,34 +36542,34 @@ procedure Vector_Check is
             F := F + 1;
          end Expect;
       begin
-         for A in Adaflight.Axes.Axis loop
-            Expect ("p", Integer_64 (P.Gains (A).P));
-            Expect ("i", Integer_64 (P.Gains (A).I));
-            Expect ("d", Integer_64 (P.Gains (A).D));
-            Expect ("f", Integer_64 (P.Gains (A).F));
+         for A in 0 .. 2 loop
+            Expect ("p", Integer_64 (P.Pid (A).P));
+            Expect ("i", Integer_64 (P.Pid (A).I));
+            Expect ("d", Integer_64 (P.Pid (A).D));
+            Expect ("f", Integer_64 (P.Pid (A).F));
             Expect ("d_max", Integer_64 (P.D_Max (A)));
          end loop;
-         Expect ("pids_mode", Simplified_Mode'Pos (P.Simplified_PIDs_Mode));
+         Expect ("pids_mode", Integer_64 (P.Simplified_Pids_Mode));
          Expect ("master", Integer_64 (P.Simplified_Master_Multiplier));
          Expect ("roll_pitch", Integer_64 (P.Simplified_Roll_Pitch_Ratio));
          Expect ("i_gain", Integer_64 (P.Simplified_I_Gain));
          Expect ("d_gain", Integer_64 (P.Simplified_D_Gain));
-         Expect ("pi_gain", Integer_64 (P.Simplified_PI_Gain));
+         Expect ("pi_gain", Integer_64 (P.Simplified_Pi_Gain));
          Expect ("d_max_gain", Integer_64 (P.Simplified_D_Max_Gain));
          Expect ("ff_gain", Integer_64 (P.Simplified_Feedforward_Gain));
-         Expect ("pitch_pi_gain", Integer_64 (P.Simplified_Pitch_PI_Gain));
-         Expect ("dterm_filter", Boolean'Pos (P.Simplified_Dterm_Filter));
+         Expect ("pitch_pi_gain", Integer_64 (P.Simplified_Pitch_Pi_Gain));
+         Expect ("dterm_filter", Integer_64 (P.Simplified_Dterm_Filter));
          Expect ("dterm_multiplier", Integer_64 (P.Simplified_Dterm_Filter_Multiplier));
-         Expect ("dterm_lpf1", Integer_64 (P.Dterm_LPF1_Static_Hz));
-         Expect ("dterm_lpf2", Integer_64 (P.Dterm_LPF2_Static_Hz));
-         Expect ("dterm_dyn_min", Integer_64 (P.Dterm_LPF1_Dyn_Min_Hz));
-         Expect ("dterm_dyn_max", Integer_64 (P.Dterm_LPF1_Dyn_Max_Hz));
-         Expect ("gyro_filter", Boolean'Pos (G.Simplified_Filter));
-         Expect ("gyro_multiplier", Integer_64 (G.Simplified_Filter_Multiplier));
-         Expect ("gyro_lpf1", Integer_64 (G.LPF1_Static_Hz));
-         Expect ("gyro_lpf2", Integer_64 (G.LPF2_Static_Hz));
-         Expect ("gyro_dyn_min", Integer_64 (G.LPF1_Dyn_Min_Hz));
-         Expect ("gyro_dyn_max", Integer_64 (G.LPF1_Dyn_Max_Hz));
+         Expect ("dterm_lpf1", Integer_64 (P.Dterm_Lpf1_Static_Hz));
+         Expect ("dterm_lpf2", Integer_64 (P.Dterm_Lpf2_Static_Hz));
+         Expect ("dterm_dyn_min", Integer_64 (P.Dterm_Lpf1_Dyn_Min_Hz));
+         Expect ("dterm_dyn_max", Integer_64 (P.Dterm_Lpf1_Dyn_Max_Hz));
+         Expect ("gyro_filter", Integer_64 (G.Simplified_Gyro_Filter));
+         Expect ("gyro_multiplier", Integer_64 (G.Simplified_Gyro_Filter_Multiplier));
+         Expect ("gyro_lpf1", Integer_64 (G.Gyro_Lpf1_Static_Hz));
+         Expect ("gyro_lpf2", Integer_64 (G.Gyro_Lpf2_Static_Hz));
+         Expect ("gyro_dyn_min", Integer_64 (G.Gyro_Lpf1_Dyn_Min_Hz));
+         Expect ("gyro_dyn_max", Integer_64 (G.Gyro_Lpf1_Dyn_Max_Hz));
       end Expect_State;
    begin
       if Name = "msiminit" then
@@ -36580,38 +36579,34 @@ procedure Vector_Check is
          Failures := Failures + 1;
          return;
       end if;
-      for A in Adaflight.Axes.Axis loop
-         P.Gains (A).P := Natural (Next);
-         P.Gains (A).I := Natural (Next);
-         P.Gains (A).D := Natural (Next);
-         P.Gains (A).F := Natural (Next);
-         P.D_Max (A) := Natural (Next);
+      for A in 0 .. 2 loop
+         P.Pid (A).P := Byte (Next);
+         P.Pid (A).I := Byte (Next);
+         P.Pid (A).D := Byte (Next);
+         P.Pid (A).F := Interfaces.Unsigned_16 (Next);
+         P.D_Max (A) := Byte (Next);
       end loop;
-      P.Simplified_PIDs_Mode := Simplified_Mode'Val (Next);
-      P.Simplified_Master_Multiplier := Natural (Next);
-      P.Simplified_Roll_Pitch_Ratio := Natural (Next);
-      P.Simplified_I_Gain := Natural (Next);
-      P.Simplified_D_Gain := Natural (Next);
-      P.Simplified_PI_Gain := Natural (Next);
-      P.Simplified_D_Max_Gain := Natural (Next);
-      P.Simplified_Feedforward_Gain := Natural (Next);
-      P.Simplified_Pitch_PI_Gain := Natural (Next);
-      P.Simplified_Dterm_Filter := Next /= 0;
-      P.Simplified_Dterm_Filter_Multiplier := Natural (Next);
-      P.Dterm_LPF1_Static_Hz := Natural (Next);
-      P.Dterm_LPF2_Static_Hz := Natural (Next);
-      P.Dterm_LPF1_Dyn_Min_Hz := 0;
-      P.Dterm_LPF1_Dyn_Max_Hz := Natural (Int (K + 1));
-      P.Dterm_LPF1_Dyn_Min_Hz := Natural (Int (K));
-      K := K + 2;
-      G.Simplified_Filter := Next /= 0;
-      G.Simplified_Filter_Multiplier := Natural (Next);
-      G.LPF1_Static_Hz := Natural (Next);
-      G.LPF2_Static_Hz := Natural (Next);
-      G.LPF1_Dyn_Min_Hz := 0;
-      G.LPF1_Dyn_Max_Hz := Natural (Int (K + 1));
-      G.LPF1_Dyn_Min_Hz := Natural (Int (K));
-      K := K + 2;
+      P.Simplified_Pids_Mode := Byte (Next);
+      P.Simplified_Master_Multiplier := Byte (Next);
+      P.Simplified_Roll_Pitch_Ratio := Byte (Next);
+      P.Simplified_I_Gain := Byte (Next);
+      P.Simplified_D_Gain := Byte (Next);
+      P.Simplified_Pi_Gain := Byte (Next);
+      P.Simplified_D_Max_Gain := Byte (Next);
+      P.Simplified_Feedforward_Gain := Byte (Next);
+      P.Simplified_Pitch_Pi_Gain := Byte (Next);
+      P.Simplified_Dterm_Filter := Byte (Next);
+      P.Simplified_Dterm_Filter_Multiplier := Byte (Next);
+      P.Dterm_Lpf1_Static_Hz := Interfaces.Unsigned_16 (Next);
+      P.Dterm_Lpf2_Static_Hz := Interfaces.Unsigned_16 (Next);
+      P.Dterm_Lpf1_Dyn_Min_Hz := Interfaces.Unsigned_16 (Next);
+      P.Dterm_Lpf1_Dyn_Max_Hz := Interfaces.Unsigned_16 (Next);
+      G.Simplified_Gyro_Filter := Byte (Next);
+      G.Simplified_Gyro_Filter_Multiplier := Byte (Next);
+      G.Gyro_Lpf1_Static_Hz := Interfaces.Unsigned_16 (Next);
+      G.Gyro_Lpf2_Static_Hz := Interfaces.Unsigned_16 (Next);
+      G.Gyro_Lpf1_Dyn_Min_Hz := Interfaces.Unsigned_16 (Next);
+      G.Gyro_Lpf1_Dyn_Max_Hz := Interfaces.Unsigned_16 (Next);
       declare
          Command       : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
          Request       : constant Byte_Array := Hex_Bytes (6);
@@ -41475,6 +41470,7 @@ begin
    Run (Dir & "/mspindev.csv", "cliset");
    Run (Dir & "/mspingps.csv", "cliset");
    Run (Dir & "/mspinmt.csv", "cliset");
+   Run (Dir & "/mspinsimp.csv", "cliset");
    Run (Dir & "/cliinfo.csv", "cliset");
    Run (Dir & "/climotor.csv", "cliset");
    Run (Dir & "/clisensor.csv", "cliset");

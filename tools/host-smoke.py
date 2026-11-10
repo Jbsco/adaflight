@@ -1207,6 +1207,26 @@ def main():
                   past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            log_rates = msp(sock, 80)
+            check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
+                  log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
+                  and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
+            sliders = msp(sock, 140)
+            gains = msp(sock, 112)
+            raised = bytearray(sliders or bytes(53))
+            raised[1] = 120
+            stored = msp(sock, 141, bytes(raised))
+            tuned = msp(sock, 112)
+            check("MSP simplified tuning write stores a slider set and applies it",
+                  stored == b"" and msp(sock, 140) == bytes(raised) and gains is not None and tuned is not None
+                  and tuned[0] == round(gains[0] * 1.2) and msp(sock, 145) == bytes([1, 1, 1]),
+                  f"{stored!r} {gains!r} {tuned!r}")
+            refused = msp(sock, 141, bytes([3]) + bytes(raised[1:]))
+            check("MSP simplified tuning write refuses a mode past the three",
+                  refused is None and msp(sock, 140) == bytes(raised), repr(refused))
+            restored = msp(sock, 141, sliders or b"")
+            check("MSP simplified tuning write of the first slider set brings the gains back",
+                  restored == b"" and msp(sock, 112) == gains, repr(restored))
             info = msp(sock, 5)
             options = [int.from_bytes(info[i:i + 2], "little") for i in range(26, len(info) - 1, 2)] if info else []
             check("MSP build info lists the GPS and the DShot protocol", {16412, 8231} <= set(options), repr(options))

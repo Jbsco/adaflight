@@ -2,12 +2,12 @@
 --  the PID gains, the rate profile, the arming configuration, the
 --  accelerometer trims, the 3D throttle, the stick deadbands, the sensor and
 --  board alignments, the reset of the current PID profile, the advanced
---  configuration, the filters and the advanced PID settings. The gains go to
---  the current PID profile and the rates to the current rate profile; the
---  advanced configuration and the filters end with the gyro's checks of the
---  configuration fix. A request reads zero past its end. A request with a
---  field outside its setting's range is an error that writes and changes
---  nothing.
+--  configuration, the filters, the advanced PID settings and the simplified
+--  tuning's sliders. The gains and the sliders go to the current PID profile
+--  and the rates to the current rate profile; the advanced configuration and
+--  the filters end with the gyro's checks of the configuration fix. A request
+--  reads zero past its end. A request with a field outside its setting's
+--  range is an error that writes and changes nothing.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
@@ -23,6 +23,7 @@ package Adaflight.MSP_Tuning_In with SPARK_Mode is
    Set_Advanced_Config_Command        : constant := 91;
    Set_Filter_Config_Command          : constant := 93;
    Set_PID_Advanced_Command           : constant := 95;
+   Set_Simplified_Tuning_Command      : constant := 141;
    Set_PID_Command                    : constant := 202;
    Set_RC_Tuning_Command              : constant := 204;
    Set_Motor_3D_Config_Command        : constant := 217;
@@ -33,7 +34,8 @@ package Adaflight.MSP_Tuning_In with SPARK_Mode is
 
    function Handles (Command : Interfaces.Unsigned_16) return Boolean is
      (Command in Set_Board_Alignment_Config_Command | Set_PID_Controller_Command | Set_Arming_Config_Command
-        | Set_Advanced_Config_Command | Set_Filter_Config_Command | Set_PID_Advanced_Command | Set_PID_Command
+        | Set_Advanced_Config_Command | Set_Filter_Config_Command | Set_PID_Advanced_Command
+        | Set_Simplified_Tuning_Command | Set_PID_Command
         | Set_RC_Tuning_Command | Set_Motor_3D_Config_Command .. Set_Sensor_Alignment_Command | Set_Acc_Trim_Command);
 
    type Result is (Ack, Error);

@@ -258,7 +258,8 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          end if;
       elsif MSP_Simplified_Tuning.Handles (Command) then
          MSP_Simplified_Tuning.Reply
-           (B, S, Command, Request, Ctx.Out_Views.Simplified_P, Ctx.Out_Views.Simplified_G, Acked);
+           (B, S, Command, Request, C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), C.Gyro_Config,
+            Acked);
          R := (if Acked then Ack else Error);
       elsif MSP_Board_In.Handles (Command) then
          declare

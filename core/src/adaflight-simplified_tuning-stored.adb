@@ -2,11 +2,11 @@ with Interfaces; use Interfaces;
 
 package body Adaflight.Simplified_Tuning.Stored with SPARK_Mode is
 
-   -----------
-   -- Apply --
-   -----------
+   ----------------
+   -- Apply_PIDs --
+   ----------------
 
-   procedure Apply (P : in out Config_Groups.Pid_Profile_Record; G : in out Config_Groups.Gyro_Config_Record) is
+   procedure Apply_PIDs (P : in out Config_Groups.Pid_Profile_Record) is
       use Axes;
       Mode : constant Unsigned_8 := P.Simplified_Pids_Mode;
    begin
@@ -35,6 +35,14 @@ package body Adaflight.Simplified_Tuning.Stored with SPARK_Mode is
             end;
          end loop;
       end if;
+   end Apply_PIDs;
+
+   -------------------------
+   -- Apply_Dterm_Filters --
+   -------------------------
+
+   procedure Apply_Dterm_Filters (P : in out Config_Groups.Pid_Profile_Record) is
+   begin
       if P.Simplified_Dterm_Filter /= 0 then
          declare
             M : constant Natural := Natural (P.Simplified_Dterm_Filter_Multiplier);
@@ -51,6 +59,14 @@ package body Adaflight.Simplified_Tuning.Stored with SPARK_Mode is
             end if;
          end;
       end if;
+   end Apply_Dterm_Filters;
+
+   ------------------------
+   -- Apply_Gyro_Filters --
+   ------------------------
+
+   procedure Apply_Gyro_Filters (G : in out Config_Groups.Gyro_Config_Record) is
+   begin
       if G.Simplified_Gyro_Filter /= 0 then
          declare
             M : constant Natural := Natural (G.Simplified_Gyro_Filter_Multiplier);
@@ -67,6 +83,17 @@ package body Adaflight.Simplified_Tuning.Stored with SPARK_Mode is
             end if;
          end;
       end if;
+   end Apply_Gyro_Filters;
+
+   -----------
+   -- Apply --
+   -----------
+
+   procedure Apply (P : in out Config_Groups.Pid_Profile_Record; G : in out Config_Groups.Gyro_Config_Record) is
+   begin
+      Apply_PIDs (P);
+      Apply_Dterm_Filters (P);
+      Apply_Gyro_Filters (G);
    end Apply;
 
    -------------
