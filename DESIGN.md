@@ -14110,3 +14110,16 @@ the configured serial receiver provider.
 The reader check now also covers the task setup's inputs, which is how it found this field. Three more stay
 listed: no board runs a dashboard or drives a transponder, and no build has DroneCAN. Host smoke reads the
 telemetry task's rate with a CRSF receiver from the command line's task list.
+
+## D705. Profiles and restart flag in status replies on boards (2026-11-10)
+
+No board filled four fields of the status replies: the PID profile, rate profile and battery profile in use, and
+the flag that a restart is needed. A configurator read profile 0 whatever was selected. Board glue now fills all
+four with each pilot report.
+
+The reader check missed these because it took a renamed record for one that is filled whole. It now follows a
+renaming and looks for each field under the new name. The I2C error count stays listed: no board counts those
+errors.
+
+Host smoke selects one profile of each kind over MSP and reads all three back, and reads the restart flag after
+an RC smoothing change.
