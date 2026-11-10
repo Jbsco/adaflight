@@ -57,7 +57,6 @@ OPEN = {
     "Effects.Board.Reply_Value": "the processor writes the reply byte itself",
     "Effects.Font.Size": "the boards write whole characters",
     "Effects.Passthrough_Mode": "not served: an ESC's serial link",
-    "Ctx.Control.RX_SPI_Active": "not served: a save or a reboot from a telemetry link is not deferred",
     "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
 }
 

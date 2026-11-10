@@ -51,6 +51,8 @@ with Adaflight.IBus_Telemetry;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
+with Adaflight.Dispatch;
+with Adaflight.Dispatch_Targets;
 with Adaflight.Flight_Stats;
 with Adaflight.Gimbal_Control;
 with Adaflight.Gyro_Filters;
@@ -377,8 +379,12 @@ package body Adaflight.STM32.Flight is
    Adj_State        : Adaflight.Adjustments.State;
    Stats_Tracker    : Adaflight.Flight_Stats.Tracker;
    RC_Stats_State   : Adaflight.RC_Stats.Stats;
-   Stats_Save_Due   : Boolean := False;
-   Stats_Save_At_Us : Unsigned_32 := 0;
+   --  The delayed calls: the statistics' save, and a settings write or a
+   --  reboot an MSP request over the telemetry link asked for, with the
+   --  reboot's mode.
+   Delayed          : Adaflight.Dispatch.Queue;
+   Delayed_Reboot   : Adaflight.Bytes.Byte := 0;
+   MSP_Delay_Us     : constant := 1_000_000;
    Adj_Ranges       : Adaflight.Adjustments.Ranges := (others => Adaflight.Adjustments.Unset);
    --  The attitude task's periods with the level modes on and off.
    Attitude_Period_Slow_Us : constant Scheduler.Time_Delta := 10_000;
@@ -1225,6 +1231,8 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
+      Adaflight.Dispatch.Enable (Delayed);
+      Inputs.Dispatch_Enabled := Delayed.Enabled;
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
       Inputs.Baro_Detected := Adaflight.STM32.Baro.Detected;
@@ -1298,6 +1306,19 @@ package body Adaflight.STM32.Flight is
       end if;
    end Press_Camera_Key;
 
+   --  The settings written and read back as an MSP save does, with a stale
+   --  VTX table loaded again.
+   procedure Save_Settings is
+      Unused_Success : Boolean;
+   begin
+      Write_Configuration;
+      Load_Configuration (Unused_Success);
+      if VTX_Table_Stale then
+         VTX_Table_Stale := False;
+         Adaflight.STM32.VTX.Reload_Table (Config);
+      end if;
+   end Save_Settings;
+
    --  One command through the processor, with the link it came in on. A
    --  request that came in on the MSP display port's serial port gets the
    --  replies its device expects, and one from the telemetry link's MSP
@@ -1352,6 +1373,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
       Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
       Ctx.Control.From_Telemetry := From_Telemetry;
+      Ctx.Control.RX_SPI_Active := (Runtime_Features and Adaflight.Config_Fix.Feature_RX_SPI) /= 0;
       Ctx.Control.Source := Source;
       Ctx.Three_D := (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
@@ -1440,29 +1462,42 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
-         Write_Configuration;
-         Load_Configuration (Unused_Success);
-         if VTX_Table_Stale then
-            VTX_Table_Stale := False;
-            Adaflight.STM32.VTX.Reload_Table (Config);
-         end if;
+         Save_Settings;
+      end if;
+      if Effects.Control.Deferred_Save then
+         Scheduler.Ignore_Task_State_Time (Sched);
+         Adaflight.Dispatch.Add
+           (Delayed, Adaflight.Dispatch_Targets.Target_Of (Adaflight.Dispatch_Targets.Write_Read_EEPROM),
+            Adaflight.STM32.Time.Micros, MSP_Delay_Us);
+      end if;
+      if Effects.Control.Deferred_Reboot then
+         Delayed_Reboot := Effects.Control.Reboot_Mode;
+         Adaflight.Dispatch.Add
+           (Delayed, Adaflight.Dispatch_Targets.Target_Of (Adaflight.Dispatch_Targets.MSP_Reboot),
+            Adaflight.STM32.Time.Micros, MSP_Delay_Us);
       end if;
    end Process_Command;
+
+   --  A reboot in its mode, the motors stopped first.
+   procedure Reboot_In (Mode : Adaflight.Bytes.Byte) is
+   begin
+      case Mode is
+         when Firmware_Reboot =>
+            Adaflight.STM32.Motors.Shutdown;
+            Reset;
+         when ROM_Bootloader_Reboot =>
+            Adaflight.STM32.Motors.Shutdown;
+            Adaflight.STM32.MCU.Reset_To_Bootloader;
+         when others =>
+            null;
+      end case;
+   end Reboot_In;
 
    --  The reboot the processed command asked for, in its mode.
    procedure Reboot_If_Asked is
    begin
       if Effects.Reboot then
-         case Effects.Control.Reboot_Mode is
-            when Firmware_Reboot =>
-               Adaflight.STM32.Motors.Shutdown;
-               Reset;
-            when ROM_Bootloader_Reboot =>
-               Adaflight.STM32.Motors.Shutdown;
-               Adaflight.STM32.MCU.Reset_To_Bootloader;
-            when others =>
-               null;
-         end case;
+         Reboot_In (Effects.Control.Reboot_Mode);
       end if;
    end Reboot_If_Asked;
 
@@ -2472,24 +2507,21 @@ package body Adaflight.STM32.Flight is
       Stored.Stats_Total_Time_S := T.Time_S;
       Stored.Stats_Total_Dist_M := T.Dist_M;
       Stored.Stats_Mah_Used := T.Mah_Used;
-      if Schedule and then not Stats_Save_Due then
-         Stats_Save_Due := True;
-         Stats_Save_At_Us := Adaflight.STM32.Time.Micros + Adaflight.Flight_Stats.Save_Delay_Us;
+      if Schedule then
+         Adaflight.Dispatch.Add
+           (Delayed, Adaflight.Dispatch_Targets.Target_Of (Adaflight.Dispatch_Targets.Write_Stats),
+            Adaflight.STM32.Time.Micros, Adaflight.Flight_Stats.Save_Delay_Us);
       end if;
    end Stats_On_Disarm;
 
-   --  The statistics' waiting save once its time has come: written with the
+   --  The statistics' save when its delayed call comes due: written with the
    --  disarm beep while disarmed, still and with no other change unsaved,
    --  asked again after half a second while the craft moves.
-   procedure Run_Stats_Save is
+   procedure Save_Stats is
       Action : Adaflight.Flight_Stats.Save_Action;
       function Rate (A : Adaflight.Axes.Axis) return Adaflight.Flight_Stats.Rate is
         (Float'Max (-1.0e6, Float'Min (1.0e6, Gyro_State.Filtered (A))));
    begin
-      if not Stats_Save_Due or else Adaflight.STM32.Time.Micros - Stats_Save_At_Us >= 16#8000_0000# then
-         return;
-      end if;
-      Stats_Save_Due := False;
       Adaflight.Flight_Stats.Write
         (Stats_Tracker, Adaflight.Config_Runtime.Flight_Stats_Settings_Of (Config.Stats_Config),
          Adaflight.STM32.Pilot.Armed, Adj_State.Config_Dirty, Rate (Adaflight.Axes.Roll), Rate (Adaflight.Axes.Pitch),
@@ -2499,12 +2531,41 @@ package body Adaflight.STM32.Flight is
             Write_Configuration;
             Request_Beep (Adaflight.Beeper.Disarming);
          when Adaflight.Flight_Stats.Retry =>
-            Stats_Save_Due := True;
-            Stats_Save_At_Us := Adaflight.STM32.Time.Micros + Adaflight.Flight_Stats.Save_Delay_Us;
+            Adaflight.Dispatch.Add
+              (Delayed, Adaflight.Dispatch_Targets.Target_Of (Adaflight.Dispatch_Targets.Write_Stats),
+               Adaflight.STM32.Time.Micros, Adaflight.Flight_Stats.Save_Delay_Us);
          when Adaflight.Flight_Stats.Nothing =>
             null;
       end case;
-   end Run_Stats_Save;
+   end Save_Stats;
+
+   --  The delayed calls that have come due, in the queue's order: the
+   --  statistics' save, and while disarmed a reboot or a settings write an
+   --  MSP request over the telemetry link asked for.
+   procedure Run_Delayed is
+      use Adaflight.Dispatch_Targets;
+      use type Adaflight.Dispatch.Target;
+      Now : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+      T   : Adaflight.Dispatch.Target;
+      Due : Boolean;
+   begin
+      loop
+         Adaflight.Dispatch.Take_Due (Delayed, Now, T, Due);
+         exit when not Due;
+         if T = Target_Of (Write_Stats) then
+            Save_Stats;
+         elsif T = Target_Of (MSP_Reboot) then
+            if not Adaflight.STM32.Pilot.Armed then
+               Reboot_In (Delayed_Reboot);
+            end if;
+         elsif T = Target_Of (Write_Read_EEPROM) then
+            if not Adaflight.STM32.Pilot.Armed then
+               Config.System_Config.Configuration_State := 1;
+               Save_Settings;
+            end if;
+         end if;
+      end loop;
+   end Run_Delayed;
 
    --  The telemetry ports opened or released as their sharing asks, and UART1
    --  back at the MSP rate with a fresh MSP framing when a stream gives it up.
@@ -4425,7 +4486,6 @@ package body Adaflight.STM32.Flight is
                                     Boolean'Pos (Adaflight.STM32.USB.Configured));
             end if;
             Tasks.Serial (Inputs);
-            Run_Stats_Save;
          when Scheduler.Gyro =>
             Run_Gyro;
          when Scheduler.Filter =>
@@ -4547,6 +4607,8 @@ package body Adaflight.STM32.Flight is
             Run_LED_Strip;
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
+         when Scheduler.Dispatch =>
+            Run_Delayed;
          when Scheduler.VTX_Control =>
             declare
                Save : Boolean;
