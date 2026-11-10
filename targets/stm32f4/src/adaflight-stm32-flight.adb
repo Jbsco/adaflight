@@ -1334,6 +1334,9 @@ package body Adaflight.STM32.Flight is
       if Effects.Runtime.RSSI then
          Adaflight.STM32.Radio.Set_MSP_RSSI (Effects.Runtime.RSSI_Value, Adaflight.STM32.Time.Micros);
       end if;
+      if Adaflight.Build_Features.GPS and then Effects.Runtime.GPS then
+         Adaflight.STM32.GPS.Offer (Effects.Runtime.Solution, Effects.Runtime.GPS_Sensor);
+      end if;
       if Effects.Runtime.MT_Range then
          Adaflight.STM32.MT.Receive_Range (Effects.Runtime.MT_Distance_Mm, Adaflight.STM32.Time.Micros);
       end if;

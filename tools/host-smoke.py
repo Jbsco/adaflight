@@ -4093,6 +4093,45 @@ def main():
             stop_feed.set()
             stop(proc)
             sock.close()
+        # A GPS solution over MSP with the MSP provider: the raw form and an MSP GPS sensor's form each show in
+        # the GPS reply.
+        if contains("GPS"):
+            store = os.path.join(work, "mspgps.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                cli(sock, "feature GPS")
+                text = cli(sock, "set gps_provider = MSP")
+                check("MSP GPS provider set", "gps_provider set to MSP" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+
+                def gps_solution():
+                    raw = msp(sock, 106)
+                    return None if raw is None or len(raw) < 18 else struct.unpack("<BBiiHHHH", raw[:18])
+                ack = msp(sock, 201, struct.pack("<BBiiHH", 1, 9, 401234567, -1052345678, 1650, 345))
+                found, solution = until(gps_solution, lambda s: s is not None and s[1] == 9)
+                check("raw GPS solution over MSP shows in the GPS reply",
+                      ack == b"" and found and solution[:6] == (2, 9, 401234567, -1052345678, 1650, 345),
+                      repr((ack, solution)))
+                sensor = struct.pack("<BHIBBHHHHiiiiiiHHHBBBBB", 0, 2300, 123456789, 3, 14, 120, 180, 25, 135, -1052000000,
+                                     400500000, 170050, 300, 400, -10, 12345, 0, 2026, 11, 10, 9, 0, 0)
+                ack = msp2(sock, 0x1F03, sensor)
+                found, solution = until(gps_solution, lambda s: s is not None and s[1] == 14)
+                check("MSP GPS sensor's solution shows in the GPS reply with its speed, course and dilution",
+                      ack == b"" and found and solution == (2, 14, 400500000, -1052000000, 1700, 500, 1234, 135),
+                      repr((ack, solution)))
+            finally:
+                stop(proc)
+                sock.close()
         # The command-line MSP client against the image's port: one request, a refused one, the dump of
         # every read command, and a port that does not answer.
         client = os.path.join(os.path.dirname(os.path.abspath(__file__)), "msp", "bin", "adaflight_msp")

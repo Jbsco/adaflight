@@ -13962,3 +13962,22 @@ backup read a byte at a time with empty reads between. They also cover a reply w
 buffer's size, a port that never goes quiet and a failed send. The host smoke backs up the host image, restores a
 few changes, compares, restores the first backup and expects no difference. It also expects a refused restore to
 save nothing.
+
+## D695. GPS solution over MSP on boards (2026-11-10)
+
+The MSP processor decoded both GPS input messages into its running effects, and no board acted on them (D692).
+Board glue now hands a decoded solution to `Adaflight.STM32.GPS.Offer`. That calls the GPS link's `Offer_Solution`
+for the raw form and its new `Offer_Sensor_Solution` for an MSP GPS sensor's form. With the MSP provider the link
+takes an offered solution at its next task call, as it takes a module's. With another provider the written fields
+stay until a module's next solution replaces them.
+
+`Offer_Sensor_Solution` writes time of week, fix, satellite count, three accuracies, dilution of precision,
+position, ground speed and ground course. `Offer_Solution` now takes its altitude in centimetres, since the message
+decode already scales it.
+
+The GPS link oracle gained a sequence with the MSP provider that hands in sensor solutions, a raw one every third
+time, with a gap that trips the link's timeout. Every step line now ends with a solution's time, accuracies,
+dilution, ground speed and ground course, so module sequences compare those fields too.
+
+Host smoke selects the MSP provider, hands in a solution in each form and reads each back from the GPS reply. The
+reader check no longer lists these effects as not served.
