@@ -13755,3 +13755,9 @@ A new vector family runs these messages through the whole MSP processor against 
 within and outside their ranges, short and long requests, reads, calculations and validations, between profile
 selections and stored gains, sliders and cutoffs. D153's unit vectors replay on stored records. A host smoke
 check writes a slider set, reads it back with its gains, and sees a mode past three refused.
+
+## D679. Blackbox rates in the MSP reply (2026-11-09)
+
+Boards now copy the recorder's delta frame interval and its intra frame ratio into the MSP blackbox reply. Both
+fields read zero before, since no board set them, and a configurator showed no logging rate. On the host image the
+reply gives 4 and 8. A host smoke check compares both fields with the sample rate in that reply.

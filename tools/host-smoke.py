@@ -1207,6 +1207,10 @@ def main():
                   past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            log_rates = msp(sock, 80)
+            check("MSP blackbox reply gives the log's delta frame interval and its intra frame ratio",
+                  log_rates is not None and len(log_rates) >= 7 and log_rates[3] == 1 << log_rates[6]
+                  and int.from_bytes(log_rates[4:6], "little") == 32 // log_rates[3], repr(log_rates))
             sliders = msp(sock, 140)
             gains = msp(sock, 112)
             raised = bytearray(sliders or bytes(53))

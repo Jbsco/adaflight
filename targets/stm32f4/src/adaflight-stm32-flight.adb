@@ -1271,6 +1271,8 @@ package body Adaflight.STM32.Flight is
       Ctx.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Ctx.Font_Write_Taken := Adaflight.STM32.OSD.Font_Write_Taken;
       Ctx.Log := Adaflight.STM32.Blackbox.Recorder;
+      Ctx.Out_Views.Hardware.Rate_Denom := Adaflight.Blackbox.Rate_Denominator (Ctx.Log);
+      Ctx.Out_Views.Hardware.P_Ratio := Adaflight.Blackbox.P_Ratio (Ctx.Log);
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
       Ctx.Motors := Adaflight.STM32.Control.Motor_Count;
