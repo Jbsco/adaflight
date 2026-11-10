@@ -37163,8 +37163,9 @@ procedure Vector_Check is
    --  forwarding's start on the host's port, and the index of the byte that
    --  reset, -1 for none.
    --  A passthrough request through the MSP processor: the payload, the
-   --  motor count, the motor outputs with a pin and whether the named port
-   --  is open, then the reply and what the request leaves to run after it.
+   --  motor count, the motor outputs with a pin, whether the named port is
+   --  open, the arming flag and whether the telemetry link sent it, then the
+   --  reply and what the request leaves to run after it.
    procedure Check_MSP_Passthrough_Line is
       use type Adaflight.MSP_Processor.Result;
       Size    : constant Natural := Natural (Int (4));
@@ -37182,14 +37183,19 @@ procedure Vector_Check is
       Ctx.Motors := Natural (Int (6));
       Ctx.Motor_Outputs := Natural (Int (7));
       Ctx.Passthrough_Open := Int (8) = 2;
+      Ctx.Control.Armed := Int (18) = 1;
+      Ctx.Control.From_Telemetry := Int (19) = 1;
       Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
       Adaflight.MSP_Processor.Process
         (Ctx, Config, Board, Links, Adaflight.MSP_Processor.Set_Passthrough_Command, Request, Ports, Reply, St, R, E);
       Record_Int ("mpastep.result", Int (10), (if R = Adaflight.MSP_Processor.Ack then 1 else 0));
       Record_Bytes ("mpastep.reply", Hex_Bytes (12), Reply (0 .. St.Next - 1));
-      Record_Int ("mpastep.mode", Int (14), Integer_64 (E.Passthrough_Mode));
-      if Size >= 1 then
-         Record_Int ("mpastep.argument", Int (15), Integer_64 (E.Passthrough_Argument));
+      --  A refused request leaves the mode and the argument as they were.
+      if Int (18) = 0 and then Int (19) = 0 then
+         Record_Int ("mpastep.mode", Int (14), Integer_64 (E.Passthrough_Mode));
+         if Size >= 1 then
+            Record_Int ("mpastep.argument", Int (15), Integer_64 (E.Passthrough_Argument));
+         end if;
       end if;
       --  The reference names what runs after the reply only for a caller that
       --  can run it.

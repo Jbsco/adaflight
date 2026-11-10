@@ -137,7 +137,8 @@ package Adaflight.MSP_Processor with SPARK_Mode is
 
    --  What a passthrough request leaves to run after its reply: nothing, the
    --  bytes forwarded between the serial port it names and the request's
-   --  port, the 4-way interface, or an ESC's serial link.
+   --  port, the 4-way interface, or an ESC's serial link. A request while
+   --  armed or from the telemetry link is answered 0 and leaves nothing.
    type Passthrough_Kind is (No_Passthrough, Serial_Forward, Four_Way, ESC_Serial);
 
    --  Handled says a unit answered. Save and Reboot gather the configuration
