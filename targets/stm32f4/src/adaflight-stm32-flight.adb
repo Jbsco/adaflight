@@ -1230,6 +1230,11 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
       Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
+      Inputs.Receiver :=
+        (case Config.Rx_Config.Serialrx_Provider is
+            when 8      => Adaflight.Task_Init.Jeti_ExBus,
+            when 9      => Adaflight.Task_Init.CRSF,
+            when others => Adaflight.Task_Init.Other_Receiver);
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
       Adaflight.Dispatch.Enable (Delayed);
       Inputs.Dispatch_Enabled := Delayed.Enabled;

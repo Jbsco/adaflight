@@ -14100,3 +14100,13 @@ Host smoke gained a block that arms a craft under its simulator link, disarms it
 That block also checks that passthrough requests while armed are refused. Deferred MSP calls have no host check,
 since a host image has no driver for an SPI receiver's telemetry tunnel. The reader check no longer lists that
 SPI receiver field.
+
+## D704. Receiver kind for task setup on boards (2026-11-10)
+
+Task setup runs the telemetry task at 500 Hz for a CRSF or a Jeti EX Bus receiver, and at 250 Hz otherwise. No
+board reported its receiver's kind, so a CRSF link's telemetry ran at 250 Hz. Board glue now reports that kind from
+the configured serial receiver provider.
+
+The reader check now also covers the task setup's inputs, which is how it found this field. Three more stay
+listed: no board runs a dashboard or drives a transponder, and no build has DroneCAN. Host smoke reads the
+telemetry task's rate with a CRSF receiver from the command line's task list.
