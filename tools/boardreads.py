@@ -3,12 +3,13 @@
 
 usage: boardreads.py
 
-The processor's Views record is what a board fills for the replies, and its Effects record is what a board acts
-on after a message. A field of either that no source under targets/ names is a reply that reads a default or a
-write that does nothing. A field counts as named when its path under Out_Views or Effects appears in a target
-source, or when a record on that path is assigned, renamed or passed whole. The fields in OPEN are known to have
-no reader, each with its reason. The check fails on a field without a reader that OPEN does not list, and on a
-listed field that has gained one. Run from the repository root.
+The processor's Views record is what a board fills for the replies, its Effects record is what a board acts on
+after a message, and its Context record is what a board reports for a request. A field of any that no source under
+targets/ names is a reply or a decision that reads a default, or a write that does nothing. A field counts as
+named when its path under Out_Views, Effects or Ctx appears in a target source, or when a record on that path is
+assigned, renamed or passed whole. The fields in OPEN are known to have no reader, each with its reason. The check
+fails on a field without a reader that OPEN does not list, and on a listed field that has gained one. Run from the
+repository root.
 """
 import pathlib
 import re
@@ -56,6 +57,8 @@ OPEN = {
     "Effects.Board.Reply_Value": "the processor writes the reply byte itself",
     "Effects.Font.Size": "the boards write whole characters",
     "Effects.Passthrough_Mode": "not served: an ESC's serial link",
+    "Ctx.Control.RX_SPI_Active": "not served: a save or a reboot from a telemetry link is not deferred",
+    "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
 }
 
 
@@ -110,8 +113,10 @@ def main():
     processor = PROCESSOR.read_text()
     targets = "\n".join(p.read_text() for p in sorted(pathlib.Path("targets").glob("*/src/*.ad[sb]")))
     without = set()
-    for root, record in (("Out_Views", "Views"), ("Effects", "Effects")):
+    for root, record in (("Out_Views", "Views"), ("Effects", "Effects"), ("Ctx", "Context")):
         for field, field_type in fields(processor, record):
+            if (root, field) == ("Ctx", "Out_Views"):
+                continue
             for path in leaves([field], field_type, processor):
                 if not named(targets, root, path):
                     without.add(root + "." + ".".join(path))
