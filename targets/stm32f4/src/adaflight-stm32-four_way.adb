@@ -2,6 +2,7 @@ with Ada.Real_Time;
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.BLHeli_Bootloader;
+with Adaflight.Board;
 with Adaflight.Four_Way;
 with Adaflight.Pins;
 with Adaflight.STK_Bootloader;
@@ -101,8 +102,8 @@ package body Adaflight.STM32.Four_Way is
       Count    : Natural;
 
       --  The interface's operations in order. A released pin needs no step
-      --  of its own, since its setting as an input follows. The boards have
-      --  no receive and transmit LEDs.
+      --  of its own, since its setting as an input follows. The board's LED,
+      --  which a low level lights, is both the receive and the transmit LED.
       procedure Perform (O : FW.Output) is
          OK : Boolean;
       begin
@@ -144,7 +145,11 @@ package body Adaflight.STM32.Four_Way is
                      Silence_Beeper.all;
                   when FW.Send_Reply =>
                      Serial.Put (To_Host, O.Reply (0 .. O.Length - 1));
-                  when FW.Release_Pin | FW.LED_On | FW.LED_Off =>
+                  when FW.LED_On =>
+                     GPIO.Set_Low (Adaflight.Board.LED0_Pin);
+                  when FW.LED_Off =>
+                     GPIO.Set_High (Adaflight.Board.LED0_Pin);
+                  when FW.Release_Pin =>
                      null;
                end case;
             end;
