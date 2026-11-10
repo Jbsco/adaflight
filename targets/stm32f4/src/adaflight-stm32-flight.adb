@@ -1353,6 +1353,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
       Ctx.Control.From_Telemetry := From_Telemetry;
       Ctx.Control.Source := Source;
+      Ctx.Three_D := (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);

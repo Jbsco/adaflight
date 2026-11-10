@@ -4120,7 +4120,7 @@ def main():
             stop(proc)
             sock.close()
         # What a board reports for a request: its link, so an MSP arming disable from one link outlasts another
-        # link's enable.
+        # link's enable, and the 3D feature, so a motor write with it on reads back as written.
         store = os.path.join(work, "links.bin")
         proc, sock = start(image, store)
         vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
@@ -4145,8 +4145,29 @@ def main():
             check("MSP arming disable from one link outlasts another link's enable",
                   None not in (other, own) and bit != 0 and other & bit != 0 and own & bit == 0,
                   repr((before, held, other, own)))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            cli(sock, "feature 3D")
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
         finally:
             vcp.close()
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            read_back = []
+            for value in (1500, 1300):
+                msp(sock, 214, value.to_bytes(2, "little") * 4 + (1500).to_bytes(2, "little") * 4)
+                time.sleep(0.3)
+                outputs = msp(sock, 104)
+                read_back.append([int.from_bytes(outputs[i:i + 2], "little") for i in range(0, 8, 2)]
+                                 if outputs else None)
+            check("motor writes with the 3D feature on read back as written",
+                  read_back == [[1500] * 4, [1300] * 4], repr(read_back))
+            msp(sock, 214, (1500).to_bytes(2, "little") * 8)
+        finally:
             stop(proc)
             sock.close()
         # A serial passthrough request over MSP: a port the board lacks is refused, and an open port's bytes are
