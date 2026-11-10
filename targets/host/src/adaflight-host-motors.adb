@@ -26,6 +26,7 @@ package body Adaflight.STM32.Motors is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    Driven : Natural range 0 .. 8 := 0;
+   Where  : array (0 .. 7) of Adaflight.Pins.Pin := (others => (Port => Adaflight.Pins.Port_A, Number => 0));
    Is_On  : Boolean := False;
    Bidir  : Boolean := False;
    Deadtime_Us : Interfaces.Integer_32 := 0;
@@ -93,6 +94,7 @@ package body Adaflight.STM32.Motors is
                     & Image (Interfaces.Unsigned_32 (Adaflight.PWM_Output.Period_Of (Timings (M)))) & ","
                     & Image (Interfaces.Unsigned_32 (Timings (M).Idle)));
             end if;
+            Where (M) := E.Where;
             Driven := M + 1;
          end;
       end loop;
@@ -154,6 +156,16 @@ package body Adaflight.STM32.Motors is
    function Enabled return Boolean is (Is_On);
 
    function Motor_Enabled (Index : Natural) return Boolean is (Index < Driven);
+
+   function Has_Pin (Index : Natural) return Boolean is (Index < Driven);
+
+   function Pin_Of (Index : Natural) return Adaflight.Pins.Pin is (Where (Index));
+
+   --  The host's pins have no setting to put back.
+   procedure Reinstate_Pin (Index : Natural; OK : out Boolean) is
+   begin
+      OK := Has_Pin (Index);
+   end Reinstate_Pin;
 
    --  The host's motors use no DMA streams.
    function Stream_Of (Index : Natural) return Natural is

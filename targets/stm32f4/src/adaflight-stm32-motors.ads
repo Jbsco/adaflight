@@ -18,6 +18,7 @@ with Adaflight.Config_Groups;
 with Adaflight.DShot;
 with Adaflight.DShot_Bitbang;
 with Adaflight.MSP_Motor_In;
+with Adaflight.Pins;
 package Adaflight.STM32.Motors is
    --  The outputs of the mixer's motors from the configuration; every motor
    --  needs its timer channel, and its stream in DShot, or none is driven.
@@ -37,6 +38,13 @@ package Adaflight.STM32.Motors is
    procedure Hold_Idle;
    function Enabled return Boolean;
    function Motor_Enabled (Index : Natural) return Boolean;
+   --  Whether a motor's output has a pin, and that pin, which the 4-way
+   --  interface takes as an ESC's signal line.
+   function Has_Pin (Index : Natural) return Boolean;
+   function Pin_Of (Index : Natural) return Adaflight.Pins.Pin
+     with Pre => Has_Pin (Index);
+   --  A motor's pin back on its output's setting, and whether it has one.
+   procedure Reinstate_Pin (Index : Natural; OK : out Boolean);
    --  The DMA stream a motor's frames go out on, numbered from 1 for the
    --  first controller's stream 0 to 16 for the second's stream 7, or 0 for
    --  a motor without an output.
