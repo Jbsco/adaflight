@@ -1537,6 +1537,22 @@ def main():
                     screen = ""
                 check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen,
                       repr(screen[:300]))
+                # Throttle low with yaw left and pitch down starts a gyro calibration outside a menu, which shows as
+                # the calibrating reason among the arming disable flags.
+                def calibrating():
+                    status = msp(sock, 150)
+                    if status is None or len(status) < 21 + status[15]:
+                        return False
+                    at = 16 + status[15]
+                    return bool(int.from_bytes(status[at + 1:at + 5], "little") & 0x1000)
+                receiver.set(992, 172, 172, 172)
+                started = False
+                deadline = time.time() + 2.0
+                while time.time() < deadline:
+                    started = started or calibrating()
+                receiver.set(992, 992, 172, 992)
+                time.sleep(0.3)
+                check("stick command with the menu open starts no gyro calibration", not started)
                 text = cli(vcp, "status")
                 flags = text.split("Arming disable flags:")[-1]
                 check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
