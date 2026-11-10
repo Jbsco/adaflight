@@ -13853,3 +13853,21 @@ failsafe value at once, held channels excepted, and a 3D build picks its throttl
 
 On a host image with roll at one end, the MSP RC reply read roll 1500 while the failsafe box was on and its
 received value once the box was off. A host smoke check repeats that.
+
+## D688. Gyro filters set up again after a filter write (2026-11-09)
+
+`Adaflight.Gyro_Filters.Init_Filters` sets up the lowpass stages, both notches, the dynamic lowpass, the dynamic
+notch, the RPM filter and the attitude's downsample filters from changed settings. Calibration, alignments and
+overflow and yaw spin detection stay. `Init` now resets its state, sets the alignments and calls it.
+
+Boards call it after an MSP filter write, with lowpass, notch, dynamic notch and RPM filter settings read again
+from the configuration at the running sample and loop times. Before, a filter change from a configurator reached
+the gyro only after a restart.
+
+The gyro oracle gains twelve sequences that change these settings at a drawn loop and run Betaflight's filter
+setup again, three of them turning a running dynamic lowpass off. Every setting, coefficient and filtered rate
+after the change replays exactly. A setup that kept the old dynamic lowpass kind, or left the dynamic notch or the
+RPM filter alone, fails those sequences.
+
+On a host image with both lowpass stages written to 1 Hz, a reversed roll rate of one radian per second read 46
+degrees per second right after its reversal and -57 a second later. A host smoke check repeats that.
