@@ -1313,6 +1313,9 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Pilot.Reload_Modes (Config);
          Scheduler.Set_Task_Enabled (Sched, Scheduler.PINIO_Box, Adaflight.STM32.PINIO.Task_Enabled);
       end if;
+      if Effects.Control.Erase_Flash then
+         Adaflight.STM32.Blackbox.Erase_All (Config, Loop_Time_Us);
+      end if;
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;

@@ -43,6 +43,9 @@ package Adaflight.STM32.Blackbox is
    --  holds it.
    procedure Init
      (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us);
+   --  With the flash chip as the stored log device, the recorder starts over and the chip's volume is erased.
+   procedure Erase_All
+     (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us);
    --  Whether a log device is configured.
    function Device_Set return Boolean;
    --  Whether the log holds a port the MSP would serve.

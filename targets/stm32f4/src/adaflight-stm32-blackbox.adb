@@ -85,6 +85,18 @@ package body Adaflight.STM32.Blackbox is
       Header_Flushes := L.Writer.Flushes;
    end Init;
 
+   procedure Erase_All
+     (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us)
+   is
+      Stored : constant Core.Settings :=
+        Adaflight.Config_Runtime.Blackbox_Settings_Of (Config.Blackbox_Config, Wing => Adaflight.Build_Features.Wing);
+   begin
+      if Stored.Device = Header.Flash then
+         Init (Config, Loop_Time);
+         Adaflight.STM32.Flash_Chip.Erase_Completely;
+      end if;
+   end Erase_All;
+
    function Device_Set return Boolean is (C.Device /= Header.No_Device);
 
    function Holds (N : USART.Number) return Boolean is (Open_Port and then Held and then N = Which);

@@ -5,6 +5,9 @@ package body Adaflight.STM32.Blackbox is
    procedure Init
      (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us) is null;
 
+   procedure Erase_All
+     (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us) is null;
+
    function Device_Set return Boolean is (False);
 
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean is (False);

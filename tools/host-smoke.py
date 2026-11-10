@@ -1586,6 +1586,19 @@ def main():
         check("flash image starts with the log header",
               head.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"), repr(head[:60]))
         check("flash image names the firmware", b"H Firmware type:Adaflight\n" in head, repr(head[:200]))
+        proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+        try:
+            def flash_used():
+                summary = msp(sock, 70)
+                return int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else -1
+            logged, before = until(flash_used, lambda used: used >= 2048, wait=24.0)
+            erase = msp(sock, 72)
+            emptied, after = until(flash_used, lambda used: 0 <= used < before, wait=10.0)
+            check("MSP flash erase empties the flight log's chip", logged and erase == b"" and emptied,
+                  f"{before} {after} {erase!r}")
+        finally:
+            stop(proc)
+            sock.close()
         proc, sock = start(image, store)
         try:
             time.sleep(2.5)

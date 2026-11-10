@@ -13786,3 +13786,12 @@ the build's feature package at start-up.
 A host image built without flight log, servos, GPS, LED strip and compass answers the flight log reply as
 unsupported and the other four with an error. Host smoke checks compare these replies with the features of its
 image.
+
+## D682. Flight log erase over MSP (2026-11-09)
+
+MSP's flash erase message reported an erase to its board, and no board acted on that report, so a configurator's
+erase button left its log in place. `Adaflight.STM32.Blackbox.Erase_All` now serves it. With a flash chip as stored
+log device, the recorder starts over and then the chip's volume is erased. Other log devices keep their logs.
+
+On a host image, a log of 74,537 bytes read 5,417 bytes 0.6 s after that message, and the chip then began with a
+new header, since always-on mode starts a new log. A host smoke check sees used size fall.
