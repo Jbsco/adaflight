@@ -13,6 +13,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Font_In;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
+with Adaflight.OSD_Warnings;
 with Adaflight.Scheduler;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.USART;
@@ -205,6 +206,12 @@ package Adaflight.STM32.OSD is
    --  One state of the OSD task: the display's answers for the state taken
    --  first, then the state, then its operations done on the display.
    procedure Run (F : Facts; Now_Us : Interfaces.Unsigned_32; Sched : in out Adaflight.Scheduler.State);
+
+   --  The warning line as it reads now from the last readings, with its blink
+   --  and severity, for the MSP warnings reply.
+   procedure Warning
+     (Line     : out Adaflight.OSD_Warnings.Text; Blinking : out Boolean;
+      Severity : out Adaflight.OSD_Warnings.Severity);
 
    --  The craft name as the last state left it, written by the warnings
    --  element with the craft name messages on.

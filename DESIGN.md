@@ -13880,3 +13880,12 @@ such a write and read the running table again from the configuration at the next
 
 On a host image with a SmartAudio transmitter, band 1 channel 2 looked up 5845 MHz after a band write and 5610 MHz,
 the written value, after a save. A host smoke check repeats that.
+
+## D690. OSD warning line over MSP (2026-11-09)
+
+MSP's OSD warnings reply reads a warning line, its blink and its severity from the board's views, and no board
+filled them, so that reply was always empty. Boards now render the line for that message from the OSD task's
+warning state and its last readings, as the warnings element does.
+
+On a host image with the link quality warning alone turned on and no link, the reply gave "LINK QUALITY",
+blinking, at critical severity, and an empty line with default warnings. A host smoke check repeats both.

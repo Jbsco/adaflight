@@ -3327,6 +3327,31 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        # The OSD's warning line over MSP: none with the default warnings and no arm switch, and the link quality
+        # warning, blinking and critical, once it alone is on and no link reports a quality.
+        store = os.path.join(work, "warnings.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            quiet = msp2(sock, 0x3005)
+            check("MSP OSD warnings reply is empty while no warning shows", quiet == bytes(2), repr(quiet))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set osd_warn_bitmask = 8192")
+            check("link quality warning alone turned on", "osd_warn_bitmask set to 8192" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            ok, shown = until(lambda: msp2(sock, 0x3005), lambda r: r == b"\x83\x0cLINK QUALITY", wait=5.0)
+            check("MSP OSD warnings reply gives the warning line with its blink and severity", ok, repr(shown))
+        finally:
+            stop(proc)
+            sock.close()
         # The MSP receiver: with its feature on, the channels of MSP raw RC frames are the receiver's, the sticks
         # through the channel map. Then the MSP override over a CRSF receiver: with roll set for it, the roll of
         # fresh MSP frames replaces the receiver's while the override's box is on.

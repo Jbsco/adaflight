@@ -1319,6 +1319,10 @@ package body Adaflight.STM32.Flight is
       if Command = Adaflight.MSP_OSD_Out.OSD_Config_Command then
          Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
       end if;
+      if Command = Adaflight.MSP_OSD_Out.OSD_Warnings_Command then
+         Adaflight.STM32.OSD.Warning
+           (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
+      end if;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
