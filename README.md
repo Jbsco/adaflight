@@ -78,7 +78,7 @@ Host image simulator link (flight dynamics in, sticks in, motors out, clock rate
 | `targets/host/` | Alire crate `adaflight_host`: the STM32F4 flight software on the host, with its UARTs on TCP |
 | `tools/` | Repository tooling: changed units for CI, markdown rendering check, board package generator |
 | `tools/dfu/` | Alire crate `adaflight_dfu`: flashes images through the STM32 bootloader over USB, its descriptor parsing, erase plan and requests in SPARK |
-| `tools/msp/` | Alire crate `adaflight_msp`: sends MSP requests to a flight controller on a serial port or a TCP port and dumps every read command, its frame encoding, reply decoding and request exchange in SPARK |
+| `tools/msp/` | Alire crate `adaflight_msp`: sends MSP requests to a flight controller on a serial port or a TCP port, dumps every read command, and backs up, restores and compares a configuration through its command line, with frame encoding, reply decoding, request exchange and command line reads in SPARK |
 | `third_party/` | Third-party material with its license and source, and the board configuration repository as a pinned submodule |
 | `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
 | `style.do`, `test.do`, `target.do`, `host.do`, `hostwing.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |

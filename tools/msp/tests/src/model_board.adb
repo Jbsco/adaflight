@@ -1,3 +1,6 @@
+with Ada.Characters.Latin_1;
+with Ada.Strings.Fixed;
+with Ada.Strings.Unbounded;
 with Interfaces;
 
 package body Model_Board is
@@ -17,6 +20,17 @@ package body Model_Board is
    Size_Was : Natural := 0;
    V2_Was   : Boolean := False;
    Empties  : Natural := 0;
+   Stalled  : Natural := 0;
+   Read_Count : Natural := 0;
+
+   Max_Kept   : constant := 64;
+   CR_LF      : constant String := (Ada.Characters.Latin_1.CR, Ada.Characters.Latin_1.LF);
+   In_CLI     : Boolean := False;
+   Kept       : array (1 .. Max_Kept) of Ada.Strings.Unbounded.Unbounded_String;
+   Count      : Natural := 0;
+   Saved      : Natural := 0;
+   Save_Count : Natural := 0;
+   Exit_Count : Natural := 0;
 
    function CRC8 (CRC : MSP.Byte; Data : MSP.Byte) return MSP.Byte is
       C : MSP.Byte := CRC xor Data;
@@ -51,6 +65,13 @@ package body Model_Board is
       Size_Was := 0;
       V2_Was := False;
       Empties := 0;
+      Stalled := 0;
+      Read_Count := 0;
+      In_CLI := False;
+      Count := 0;
+      Saved := 0;
+      Save_Count := 0;
+      Exit_Count := 0;
    end Configure;
 
    function Reply_Byte (Code : Natural; Request : MSP.Byte_Array; I : Positive) return MSP.Byte is
@@ -133,6 +154,82 @@ package body Model_Board is
    function Is_Present return Boolean
    is (Current.Present);
 
+   function Starts_With (Line, Prefix : String) return Boolean
+   is (Line'Length >= Prefix'Length and then Line (Line'First .. Line'First + Prefix'Length - 1) = Prefix);
+
+   function Four_Digits (N : Natural) return String is
+      Image : constant String := Natural'Image (10_000 + N mod 10_000);
+   begin
+      return Image (Image'Last - 3 .. Image'Last);
+   end Four_Digits;
+
+   --  Text for the command line: its sign enters it, and inside it a line is echoed and answered, with the
+   --  prompt after every answer but a save's and an exit's.
+   procedure Command_Line (Text : String) is
+      Last : Natural := Text'Last;
+   begin
+      while Last >= Text'First and then Text (Last) in Ada.Characters.Latin_1.LF | Ada.Characters.Latin_1.CR loop
+         Last := Last - 1;
+      end loop;
+      declare
+         Line   : constant String := Text (Text'First .. Last);
+         Equals : constant Natural := Ada.Strings.Fixed.Index (Line, " = ");
+         Leaves : Boolean := False;
+      begin
+         if not In_CLI then
+            if Line = "#" then
+               In_CLI := True;
+               Push (CR_LF & "Entering CLI Mode, type 'exit' to return, or 'help'" & CR_LF);
+               if not Current.No_Prompt then
+                  Push (CR_LF & "# ");
+               end if;
+            end if;
+            return;
+         end if;
+         Push (Line & CR_LF);
+         if Line = "" or else Line (Line'First) = '#' or else Line in "batch start" | "batch end" then
+            null;
+         elsif Line = "diff all" then
+            Push (CR_LF & "# version" & CR_LF & "# model" & CR_LF & CR_LF & "# start the command batch" & CR_LF);
+            Push ("batch start" & CR_LF & CR_LF & "# reset configuration to default settings" & CR_LF);
+            Push ("defaults nosave" & CR_LF & CR_LF);
+            for I in 1 .. Count loop
+               Push (Ada.Strings.Unbounded.To_String (Kept (I)) & CR_LF);
+            end loop;
+            Push (CR_LF & "# save configuration" & CR_LF & "save");
+         elsif Line = "dump all" then
+            for I in 1 .. Current.Dump_Lines loop
+               Push ("set name_" & Four_Digits (I) & " = " & Four_Digits (I) & CR_LF);
+            end loop;
+         elsif Line = "defaults nosave" then
+            Count := 0;
+         elsif Line = "save" then
+            Saved := Count;
+            Save_Count := Save_Count + 1;
+            In_CLI := False;
+            Leaves := True;
+            Push ("Saving" & CR_LF & "Rebooting");
+         elsif Line = "exit" then
+            Count := Saved;
+            Exit_Count := Exit_Count + 1;
+            In_CLI := False;
+            Leaves := True;
+            Push ("Rebooting");
+         elsif Starts_With (Line, "set bad") then
+            Push ("###ERROR IN set: INVALID NAME: " & Line (Line'First + 4 .. Line'Last) & "###");
+         elsif Starts_With (Line, "set ") and then Equals > 0 and then Count < Max_Kept then
+            Count := Count + 1;
+            Kept (Count) := Ada.Strings.Unbounded.To_Unbounded_String (Line);
+            Push (Line (Line'First + 4 .. Equals - 1) & " set to " & Line (Equals + 3 .. Line'Last));
+         else
+            Push ("###ERROR IN input: UNKNOWN COMMAND, TRY 'HELP'###");
+         end if;
+         if not Leaves and then not Current.No_Prompt then
+            Push (CR_LF & "# ");
+         end if;
+      end;
+   end Command_Line;
+
    procedure Take (Data : MSP.Byte_Array; Ok : out Boolean) is
       F : constant Natural := Data'First;
       N : constant Natural := Data'Length;
@@ -140,6 +237,17 @@ package body Model_Board is
    begin
       Ok := Current.Accept_Sends;
       if not Ok then
+         return;
+      end if;
+      if N >= 1 and then Data (F) /= Character'Pos ('$') then
+         declare
+            Text : String (1 .. N);
+         begin
+            for I in Text'Range loop
+               Text (I) := Character'Val (Data (F + I - 1));
+            end loop;
+            Command_Line (Text);
+         end;
          return;
       end if;
       if N >= 6 and then Data (F) = Character'Pos ('$') and then Data (F + 1) = Character'Pos ('M')
@@ -171,9 +279,23 @@ package body Model_Board is
       Room : constant Natural := Natural'Min (Data'Length, Current.Chunk);
    begin
       Data := (others => 0);
+      Read_Count := Read_Count + 1;
+      if Current.Endless then
+         Data := (others => Character'Pos ('x'));
+         Got := Data'Length;
+         return;
+      end if;
+      if Stalled > 0 then
+         Stalled := Stalled - 1;
+         Empties := Empties + 1;
+         Got := 0;
+         return;
+      end if;
       Got := Natural'Min (Room, Tail - Head);
       if Got = 0 then
          Empties := Empties + 1;
+      else
+         Stalled := Current.Stall;
       end if;
       for I in 0 .. Got - 1 loop
          Data (Data'First + I) := Queue (Head + I);
@@ -193,5 +315,15 @@ package body Model_Board is
    is (V2_Was);
    function Empty_Reads return Natural
    is (Empties);
+   function Reads return Natural
+   is (Read_Count);
+   function Saves return Natural
+   is (Save_Count);
+   function Exits return Natural
+   is (Exit_Count);
+   function Kept_Lines return Natural
+   is (Count);
+   function Kept_Line (I : Positive) return String
+   is (Ada.Strings.Unbounded.To_String (Kept (I)));
 
 end Model_Board;

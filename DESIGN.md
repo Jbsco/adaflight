@@ -13932,3 +13932,33 @@ A model of a flight controller's port stands in for the transport in the crate's
 long replies, a largest payload, single-byte reads, refusals, noise, a bad checksum, another command's frame, an
 oversize payload, silence and a failed send. The host smoke runs the built client against the host image. The style
 gate, the vector gate and the pull request proof job each cover the new crate.
+
+## D694. Configuration backup, restore and diff in MSP client (2026-11-10)
+
+`adaflight_msp` gains three commands that work through a flight controller's command line. `backup` enters it,
+prints its `diff all`, or its `dump all` on request, and leaves with `exit`. `restore` sends a file's lines in
+order and saves when no reply has an error line. `diff` compares two backup files setting by setting.
+
+A backup is text that a command line reads back, so a restore needs no format of its own. `restore` sends lines as
+a file has them, without comments, empty lines and a closing `save`. A backup that starts with `defaults nosave`
+replaces a board's configuration, and a file of a few lines changes those settings alone. `restore` sends `save`
+itself once every line passed. After a failed line it leaves with `exit`, and the board keeps its stored
+configuration. `exit` and `save` each restart a board.
+
+`MSP.Console` sends a line and reads its reply. A backup's comment lines start with the prompt's own bytes, so a
+prompt alone does not end a reply. A reply ends when its last four bytes are the prompt and a set count of empty
+reads follows. The unit is in SPARK because its input is any byte stream a port delivers. GNATprove shows that no
+stream indexes past the text buffer, that the reads are bounded, and that a reply reported as prompted ends with
+the prompt.
+
+`MSP.Backups` splits replies into lines and compares backups. It stays outside SPARK: it works on containers of
+unbounded strings read from files, and the crate's checks cover its results. `diff` keys a setting by its name
+under the profile selection above it and any other line by its own text. It also reports a changed profile
+selection, read from the last selection of each kind. Comments, batch markers, `defaults nosave` and `save` take
+no part in a comparison.
+
+The model in the crate's checks gained a command line. Checks cover entry, an accepted line, a refused line and a
+backup read a byte at a time with empty reads between. They also cover a reply without a prompt, a reply past the
+buffer's size, a port that never goes quiet and a failed send. The host smoke backs up the host image, restores a
+few changes, compares, restores the first backup and expects no difference. It also expects a refused restore to
+save nothing.
