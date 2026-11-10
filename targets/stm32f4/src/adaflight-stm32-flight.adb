@@ -1290,6 +1290,9 @@ package body Adaflight.STM32.Flight is
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
       end if;
+      if Effects.Runtime.RC_Frame then
+         Adaflight.STM32.Radio.MSP_Frame (Effects.Runtime.Frame, Effects.Runtime.Count, Adaflight.STM32.Time.Millis);
+      end if;
       if Effects.Runtime.MT_Range then
          Adaflight.STM32.MT.Receive_Range (Effects.Runtime.MT_Distance_Mm, Adaflight.STM32.Time.Micros);
       end if;
@@ -4891,6 +4894,7 @@ package body Adaflight.STM32.Flight is
                    Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
                    Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
             end if;
+            Adaflight.STM32.Radio.Set_MSP_Override (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.MSP_Override));
             Adaflight.STM32.Radio.Frame_Check
               (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
                Adaflight.RX_Task.In_Progress (RX_State));

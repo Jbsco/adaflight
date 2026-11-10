@@ -17,6 +17,7 @@ with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Jeti_Telemetry;
+with Adaflight.MSP_Receiver;
 with Adaflight.Receiver;
 with Adaflight.RX_Bind;
 with Adaflight.SmartPort_Telemetry;
@@ -79,6 +80,11 @@ package Adaflight.STM32.Radio is
    function Source return Adaflight.Receiver.Provider;
    --  An RSSI the SPI receiver's protocol measured, as the protocol source.
    procedure Set_Protocol_RSSI (Value : Interfaces.Unsigned_16; Direct : Boolean);
+   --  A channel frame an MSP message brought, for the MSP receiver and the MSP override.
+   procedure MSP_Frame
+     (Frame : Adaflight.MSP_Receiver.Channel_Data; Count : Adaflight.MSP_Receiver.Count_Range; Now_Ms : Time_Ms);
+   --  Whether the MSP override mode is on.
+   procedure Set_MSP_Override (On : Boolean);
    --  The link statistics an SPI receiver's protocol reports: through the
    --  filters while connected, with the uplink power, and set directly
    --  while not.
