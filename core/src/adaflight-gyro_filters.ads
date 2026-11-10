@@ -190,6 +190,11 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
 
    procedure Init (S : out State; C : Settings);
 
+   --  The lowpass, notch, dynamic notch and RPM filters and the attitude's
+   --  downsample filters set up again from changed settings; the calibration,
+   --  the alignments and the detections stay.
+   procedure Init_Filters (S : in out State; C : Settings);
+
    --  The yaw spin threshold from the setting or from the rates' maximum yaw
    --  rate with an overshoot allowance, as the receiver setup requests.
    procedure Init_Yaw_Spin_Recovery (S : in out State; C : Settings; Max_Yaw_Rate : Natural)
