@@ -3889,6 +3889,30 @@ def main():
             check("filtered gyro debug values show the fed roll rate on roll alone",
                   debug is not None and 45 <= abs(debug[0]) <= 70 and abs(debug[1]) <= 5 and abs(debug[2]) <= 5
                   and debug[3:] == [0, 0, 0, 0, 0], repr(debug))
+            # A filter write from the configurator sets the gyro's filters up again at once: with both lowpass
+            # stages at 1 Hz and the dynamic lowpass off, a reversed roll rate takes most of a second to show.
+            filters = msp(sock, 92)
+            slow = bytearray(filters or bytes(56))
+            slow[0] = 1
+            slow[20:22] = (1).to_bytes(2, "little")
+            slow[22:24] = (1).to_bytes(2, "little")
+            slow[24] = 0
+            slow[25] = 0
+            slow[29:31] = bytes(2)
+            written = msp(sock, 93, bytes(slow))
+            for i in range(1030, 1180):
+                sim.sendto(fdm_rolling(i * 0.01), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            settled = debug_values(sock)
+            for i in range(1180, 1190):
+                sim.sendto(struct.pack("<18d", i * 0.01, -1.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0,
+                                       0.0, 0.0, -105.25, 40.0, 1620.0, 0.0), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            turned = debug_values(sock)
+            way = 1 if settled and settled[0] > 0 else -1
+            check("a gyro filter write from the configurator slows the running filters without a restart",
+                  written == b"" and len(settled) == 8 and abs(settled[0]) >= 45 and len(turned) == 8
+                  and turned[0] * way > -30, f"{settled[:1]} {turned[:1]}")
             sim.close()
         finally:
             stop(proc)

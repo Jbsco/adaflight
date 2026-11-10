@@ -52,24 +52,16 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       end if;
    end Init_Notch;
 
-   ----------
-   -- Init --
-   ----------
+   ------------------
+   -- Init_Filters --
+   ------------------
 
-   procedure Init (S : out State; C : Settings) is
+   procedure Init_Filters (S : in out State; C : Settings) is
       Dt_Loop   : constant Seconds := Float (C.Loop_Time_Us) * 1.0e-6;
       Dt_Sample : constant Seconds := Float (C.Sample_Time_Us) * 1.0e-6;
       LPF1_Hz   : constant Hertz :=
         (if C.LPF1_Dyn_Min_Hz > 0 then C.LPF1_Dyn_Min_Hz else C.LPF1_Static_Hz);
    begin
-      S := (others => <>);
-      S.Enabled := C.Enabled;
-      for I in Gyro_Index loop
-         S.Sensors (I).Rotation := Sensor_Alignment.Rotation_Matrix (C.Sensors (I).Custom_Angles);
-      end loop;
-      Dyn_Notch.Init (S.Dyn, C.Dynamic_Notch, C.Loop_Time_Us);
-      RPM_Filter.Init (S.RPM, C.RPM, C.Loop_Time_Us, C.Motors, C.Motor_Telemetry);
-      S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
       for A in Axis loop
          PID_Filters.Init_Stage
            (S.Lowpass1 (A), C.LPF1_Type, LPF1_Hz, Nyquist_Limit (C.Loop_Time_Us), Dt_Loop, Inclusive => True);
@@ -82,15 +74,17 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       S.Downsample_Filter := S.Lowpass2 (Roll).Used;
       Init_Notch (S.Notch1_Used, S.Notch1, C.Notch1_Hz, C.Notch1_Cutoff, Nyquist_Limit (C.Loop_Time_Us), Dt_Loop);
       Init_Notch (S.Notch2_Used, S.Notch2, C.Notch2_Hz, C.Notch2_Cutoff, Nyquist_Limit (C.Loop_Time_Us), Dt_Loop);
-      if C.LPF1_Dyn_Min_Hz > 0 then
-         S.Dyn_LPF :=
-           (case C.LPF1_Type is
-              when PID_Profile.PT1 => PID_Config.PT1, when PID_Profile.SVF => PID_Config.SVF,
-              when PID_Profile.PT2 => PID_Config.PT2, when PID_Profile.PT3 => PID_Config.PT3);
-      end if;
+      S.Dyn_LPF :=
+        (if C.LPF1_Dyn_Min_Hz > 0
+         then (case C.LPF1_Type is
+                  when PID_Profile.PT1 => PID_Config.PT1, when PID_Profile.SVF => PID_Config.SVF,
+                  when PID_Profile.PT2 => PID_Config.PT2, when PID_Profile.PT3 => PID_Config.PT3)
+         else PID_Config.None);
       S.Dyn_LPF_Min := C.LPF1_Dyn_Min_Hz;
       S.Dyn_LPF_Max := C.LPF1_Dyn_Max_Hz;
       S.Dyn_LPF_Expo := C.LPF1_Dyn_Expo;
+      Dyn_Notch.Init (S.Dyn, C.Dynamic_Notch, C.Loop_Time_Us);
+      RPM_Filter.Init (S.RPM, C.RPM, C.Loop_Time_Us, C.Motors, C.Motor_Telemetry);
       declare
          K : constant Unit_Interval := PT1_Gain (IMU_Downsample_Cutoff_Hz, Dt_Loop);
       begin
@@ -98,6 +92,21 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
             PT1_Init (S.IMU_Filter (A), K);
          end loop;
       end;
+   end Init_Filters;
+
+   ----------
+   -- Init --
+   ----------
+
+   procedure Init (S : out State; C : Settings) is
+   begin
+      S := (others => <>);
+      S.Enabled := C.Enabled;
+      for I in Gyro_Index loop
+         S.Sensors (I).Rotation := Sensor_Alignment.Rotation_Matrix (C.Sensors (I).Custom_Angles);
+      end loop;
+      S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
+      Init_Filters (S, C);
    end Init;
 
    ----------------

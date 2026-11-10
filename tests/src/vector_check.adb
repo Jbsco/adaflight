@@ -2455,6 +2455,104 @@ procedure Vector_Check is
             Start_Calibration (Gyro_State, Gyro_Settings, False);
             Gyro_Cal_Samples := 0;
          end;
+      elsif Name = "gyroreinit" then
+         declare
+            C : Settings := Gyro_Settings;
+            K : Positive := 16;
+            function Stage_Kind (St : Stage) return Integer_64 is
+              (if not St.Used then 0
+               else (case St.Kind is
+                        when Adaflight.PID_Profile.PT1 => 1, when Adaflight.PID_Profile.SVF => 2,
+                        when Adaflight.PID_Profile.PT2 => 3, when Adaflight.PID_Profile.PT3 => 4));
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("gyroreinit." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Stage (N : String; St : Stage) is
+            begin
+               case Stage_Kind (St) is
+                  when 1 => Expect_Float (N & ".k", St.P1.K); K := K + 3;
+                  when 2 =>
+                     Expect_Float (N & ".f", St.S.F);
+                     Expect_Float (N & ".a1", St.S.A1);
+                     Expect_Float (N & ".a2", St.S.A2);
+                     K := K + 1;
+                  when 3 => Expect_Float (N & ".k", St.P2.K); K := K + 3;
+                  when 4 => Expect_Float (N & ".k", St.P3.K); K := K + 3;
+                  when others => K := K + 4;
+               end case;
+            end Expect_Stage;
+         begin
+            C.LPF1_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (4)));
+            C.LPF1_Static_Hz := Integer'Value (Str (5));
+            C.LPF1_Dyn_Min_Hz := 0;
+            C.LPF1_Dyn_Max_Hz := Integer'Value (Str (7));
+            C.LPF1_Dyn_Min_Hz := Integer'Value (Str (6));
+            C.LPF1_Dyn_Expo := Integer'Value (Str (8));
+            C.LPF2_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (9)));
+            C.LPF2_Static_Hz := Integer'Value (Str (10));
+            C.Notch1_Hz := Integer'Value (Str (11));
+            C.Notch1_Cutoff := Integer'Value (Str (12));
+            C.Notch2_Hz := Integer'Value (Str (13));
+            C.Notch2_Cutoff := Integer'Value (Str (14));
+            C.Dynamic_Notch := (Count  => Integer (Int (67)), Q => Integer (Int (68)),
+                                Min_Hz => Integer (Int (69)), Max_Hz => Integer (Int (70)));
+            C.RPM := (Harmonics     => Integer (Int (72)),
+                      Weights       => (0 => Integer (Int (73)), 1 => Integer (Int (74)), 2 => Integer (Int (75))),
+                      Min_Hz        => Integer (Int (76)),
+                      Fade_Range_Hz => Integer (Int (77)),
+                      Q             => Integer (Int (78)));
+            Gyro_Settings := C;
+            Init_Filters (Gyro_State, Gyro_Settings);
+            Record_Int ("gyroreinit.downsample", Int (15), Boolean'Pos (Gyro_State.Downsample_Filter));
+            Record_Int ("gyroreinit.lpf1_kind", Int (K), Stage_Kind (Gyro_State.Lowpass1 (Adaflight.Axes.Roll)));
+            K := K + 1;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Stage ("lpf1", Gyro_State.Lowpass1 (A));
+            end loop;
+            Record_Int ("gyroreinit.lpf2_kind", Int (K), Stage_Kind (Gyro_State.Lowpass2 (Adaflight.Axes.Roll)));
+            K := K + 1;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Stage ("lpf2", Gyro_State.Lowpass2 (A));
+            end loop;
+            Record_Int ("gyroreinit.notch1_used", Int (K), Boolean'Pos (Gyro_State.Notch1_Used));
+            K := K + 1;
+            if Gyro_State.Notch1_Used then
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("notch1.a1", Gyro_State.Notch1 (A).A1);
+                  Expect_Float ("notch1.a2q", Gyro_State.Notch1 (A).A2Q);
+                  Expect_Float ("notch1.fq", Gyro_State.Notch1 (A).FQ);
+               end loop;
+            else
+               K := K + 9;
+            end if;
+            Record_Int ("gyroreinit.notch2_used", Int (K), Boolean'Pos (Gyro_State.Notch2_Used));
+            K := K + 1;
+            if Gyro_State.Notch2_Used then
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("notch2.a1", Gyro_State.Notch2 (A).A1);
+                  Expect_Float ("notch2.a2q", Gyro_State.Notch2 (A).A2Q);
+                  Expect_Float ("notch2.fq", Gyro_State.Notch2 (A).FQ);
+               end loop;
+            else
+               K := K + 9;
+            end if;
+            Expect_Float ("imu_k", Gyro_State.IMU_Filter (Adaflight.Axes.Roll).K);
+            Record_Int ("gyroreinit.dyn_filter", Int (K), Adaflight.PID_Config.Dyn_Lowpass'Pos (Gyro_State.Dyn_LPF));
+            Record_Int ("gyroreinit.dyn_min", Int (K + 1), Integer_64 (Gyro_State.Dyn_LPF_Min));
+            Record_Int ("gyroreinit.dyn_max", Int (K + 2), Integer_64 (Gyro_State.Dyn_LPF_Max));
+            Record_Int ("gyroreinit.dyn_expo", Int (K + 3), Integer_64 (Gyro_State.Dyn_LPF_Expo));
+            Record_Int ("gyroreinit.dyn_active", Int (71), Boolean'Pos (Gyro_State.Dyn.Active));
+            Record_Int ("gyroreinit.rpm_harmonics", Int (79), Integer_64 (Gyro_State.RPM.Harmonics));
+            Record_Result ("gyroreinit.rpm_max_hz", Bits (80), To_Bits (Gyro_State.RPM.Max_Hz));
+            Record_Int ("gyroreinit.rpm_updates", Int (81), Integer_64 (Gyro_State.RPM.Updates_Per_Loop));
+            if K + 3 /= 66 or else NF /= 81 then
+               Put_Line
+                 ("gyroreinit: settings end at" & Integer'Image (K + 3) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
       elsif Name = "gyrosel" then
          Gyro_Sel := (Count           => 4,
                       Stored_Detected => Interfaces.Unsigned_8 (Int (4)),

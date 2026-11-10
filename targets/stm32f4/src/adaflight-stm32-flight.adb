@@ -1146,6 +1146,38 @@ package body Adaflight.STM32.Flight is
       Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
    end Init_Loop_Units;
 
+   --  The gyro's lowpass, notch, dynamic notch and RPM filter settings read
+   --  again from the configuration at the running sample and loop times, and
+   --  the filters set up again; the calibration stays.
+   procedure Reload_Gyro_Filters is
+      Rate  : Adaflight.Config_Groups.Pid_Config_Record := Config.Pid_Config;
+      Fresh : Adaflight.Gyro_Filters.Settings;
+      Next  : Adaflight.Gyro_Filters.Settings := Gyro_Settings;
+   begin
+      Rate.Pid_Process_Denom := Unsigned_8 (Loop_Ratio);
+      Fresh := Adaflight.Config_Runtime.Gyro_Settings_Of
+        (G => Config.Gyro_Config, N => Config.Dyn_Notch_Config, R => Config.Rpm_Filter_Config,
+         Device => Config.Gyro_Device_Config (0), Board => Config.Board_Alignment, Motor => Config.Motor_Config,
+         Loop_Rate => Rate, Sample_Time_Us => Adaflight.PID_Config.Loop_Time_Us (Sample_Us),
+         Scale => Selection.Scale, Motors => Gyro_Settings.Motors, Overflow_Protected => Selection.Overflow_Protected);
+      Next.LPF1_Type := Fresh.LPF1_Type;
+      Next.LPF1_Static_Hz := Fresh.LPF1_Static_Hz;
+      Next.LPF1_Dyn_Min_Hz := 0;
+      Next.LPF1_Dyn_Max_Hz := Fresh.LPF1_Dyn_Max_Hz;
+      Next.LPF1_Dyn_Min_Hz := Fresh.LPF1_Dyn_Min_Hz;
+      Next.LPF1_Dyn_Expo := Fresh.LPF1_Dyn_Expo;
+      Next.LPF2_Type := Fresh.LPF2_Type;
+      Next.LPF2_Static_Hz := Fresh.LPF2_Static_Hz;
+      Next.Notch1_Hz := Fresh.Notch1_Hz;
+      Next.Notch1_Cutoff := Fresh.Notch1_Cutoff;
+      Next.Notch2_Hz := Fresh.Notch2_Hz;
+      Next.Notch2_Cutoff := Fresh.Notch2_Cutoff;
+      Next.Dynamic_Notch := Fresh.Dynamic_Notch;
+      Next.RPM := Fresh.RPM;
+      Gyro_Settings := Next;
+      Adaflight.Gyro_Filters.Init_Filters (Gyro_State, Gyro_Settings);
+   end Reload_Gyro_Filters;
+
    --  The scheduler with the tasks the image serves: the system load, the
    --  main and serial tasks, the realtime gyro, filter and PID tasks, the
    --  accelerometer and attitude tasks, and the receiver task whose check
@@ -1324,6 +1356,9 @@ package body Adaflight.STM32.Flight is
       then
          Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
          Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      end if;
+      if Effects.Tuning.Gyro_Filters then
+         Reload_Gyro_Filters;
       end if;
       if Effects.Control.Erase_Flash then
          Adaflight.STM32.Blackbox.Erase_All (Config, Loop_Time_Us);
