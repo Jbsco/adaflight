@@ -1355,4 +1355,6 @@ package body Adaflight.STM32.Radio is
 
    function RSSI_Configured return Boolean is
      (Adaflight.Receiver."/=" (Rx.RSSI_From, Adaflight.Receiver.None));
+
+   function RSSI_Source return Adaflight.Receiver.RSSI_Source is (Rx.RSSI_From);
 end Adaflight.STM32.Radio;

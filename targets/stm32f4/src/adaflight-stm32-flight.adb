@@ -1534,6 +1534,10 @@ package body Adaflight.STM32.Flight is
       Env.DShot_Telemetry.Quality := CLI.Motor_Qualities (Adaflight.STM32.DShot_Output.Qualities);
       Env.DShot_Telemetry.Edges := CLI.Edge_Times (Adaflight.STM32.DShot_Output.Counts.Saved);
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
+      Ctx.Out_Views.Hardware.Use_DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
+      Ctx.Out_Views.Receiver.Channel_Count :=
+        Natural'Min (Adaflight.STM32.Radio.Channel_Count, Adaflight.Receiver.Channel_Count);
+      Ctx.Out_Views.State.RSSI_Source := Adaflight.STM32.Radio.RSSI_Source;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
       declare
          T : Adaflight.DShot.Telemetry renames Env.DShot_Telemetry.Telemetry;
@@ -1755,6 +1759,9 @@ package body Adaflight.STM32.Flight is
    procedure Pitot_Aftermath is
    begin
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Pitot) := Adaflight.STM32.Pitot.Detected;
+      Ctx.Out_Views.State.Pitot :=
+        (Airspeed      => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Airspeed_Cm_S)),
+         Diff_Pressure => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Diff_Pressure_Pa)));
       Env.Pitot :=
         (Detected => Adaflight.STM32.Pitot.Detected, Hardware => Config.Pitot_Config.Pitot_Hardware,
          Bus      => (Kind    => (if Adaflight.STM32.Pitot.Configured then CLI.I2C_Bus else CLI.No_Bus),

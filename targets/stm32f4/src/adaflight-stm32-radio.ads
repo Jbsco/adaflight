@@ -173,4 +173,6 @@ package Adaflight.STM32.Radio is
    function Failsafe_Phase return Adaflight.Failsafe.Phase;
    function Flight_Channels_Valid return Boolean;
    function RSSI_Configured return Boolean;
+   --  Where the RSSI comes from.
+   function RSSI_Source return Adaflight.Receiver.RSSI_Source;
 end Adaflight.STM32.Radio;
