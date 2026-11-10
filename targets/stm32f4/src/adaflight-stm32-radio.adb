@@ -121,6 +121,8 @@ package body Adaflight.STM32.Radio is
    UDP_Rx      : Adaflight.UDP_Receiver.State;
    MSP_Rx      : Adaflight.MSP_Receiver.State;
    MSP_Override : Boolean := False;
+   Box_Failsafe : Boolean := False;
+   Box_3D       : Boolean := False;
    Proto       : Adaflight.CRSF.State;
    FS          : Adaflight.Failsafe.State;
    FS_Settings : Adaflight.Failsafe.Settings;
@@ -1282,7 +1284,7 @@ package body Adaflight.STM32.Radio is
          Override.Fresh (Ch) := Adaflight.MSP_Receiver.Is_Channel_Fresh (MSP_Rx, Ch, Now_Ms);
       end loop;
       Adaflight.Receiver.Calculate_Channels
-        (Rx, Rx_Settings, Now_Us, Now_Ms, Raw, Override, Box_Failsafe => False, Box_3D => False,
+        (Rx, Rx_Settings, Now_Us, Now_Ms, Raw, Override, Box_Failsafe => Box_Failsafe, Box_3D => Box_3D,
          Failsafe_Active => FS.Active, Processed => Processed, Frame_Processed => Frame_Processed, Valid => Valid);
       Adaflight.Receiver_Debug.Record_Channels (Adaflight.STM32.Debug_Values.State, Rx);
       case Valid is
@@ -1391,6 +1393,12 @@ package body Adaflight.STM32.Radio is
    begin
       MSP_Override := On;
    end Set_MSP_Override;
+
+   procedure Set_Boxes (Failsafe, Three_D : Boolean) is
+   begin
+      Box_Failsafe := Failsafe;
+      Box_3D := Three_D;
+   end Set_Boxes;
 
    procedure Set_MSP_RSSI (Value : Interfaces.Unsigned_8; Now_Us : Time_Us) is
    begin

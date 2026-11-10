@@ -4898,6 +4898,9 @@ package body Adaflight.STM32.Flight is
                    Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
             end if;
             Adaflight.STM32.Radio.Set_MSP_Override (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.MSP_Override));
+            Adaflight.STM32.Radio.Set_Boxes
+              (Failsafe => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
+               Three_D  => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D));
             Adaflight.STM32.Radio.Frame_Check
               (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
                Adaflight.RX_Task.In_Progress (RX_State));

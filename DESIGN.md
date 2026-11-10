@@ -13843,3 +13843,13 @@ The receiver oracle compiles Betaflight's receiver with both writes added, behin
 vectors come from that build. Sixteen recorded sessions set an RSSI over MSP, and their RSSI fields changed. A core
 without either write fails those vectors. A host smoke check reads a steady RSSI in the analog reply after one
 message, and zero once the timeout passes.
+
+## D687. Failsafe and 3D boxes in board channel processing (2026-11-09)
+
+Board radios passed the failsafe box and the 3D box to channel processing as always off. The failsafe state machine
+read the failsafe box, and channel processing did not, so sticks kept their received values under a failsafe
+switch. Boards now pass both boxes with each receiver pass. A failsafe switch then puts each channel at its
+failsafe value at once, held channels excepted, and a 3D build picks its throttle failsafe value by the 3D box.
+
+On a host image with roll at one end, the MSP RC reply read roll 1500 while the failsafe box was on and its
+received value once the box was off. A host smoke check repeats that.

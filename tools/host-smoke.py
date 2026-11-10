@@ -3326,7 +3326,8 @@ def main():
             sock.sendall(b"#")
             read_all(sock, 0.8)
             for line in ("feature -RX_MSP", "feature RX_SERIAL", "set rx_uart = UART3",
-                         "set msp_override_channels_mask = 1", "aux 0 50 0 1700 2100 0 0"):
+                         "set msp_override_channels_mask = 1", "aux 0 50 0 1700 2100 0 0",
+                         "aux 1 27 1 1700 2100 0 0"):
                 cli(sock, line)
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
@@ -3350,6 +3351,16 @@ def main():
                   repr(on[-2:]))
             ok, values = until(lambda: rc_values(sock), lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2, wait=5.0)
             check("MSP override gives the roll back once its frames stop", ok, repr(values))
+            receiver.channels[4] = 992
+            receiver.channels[0] = 1811
+            moved, values = until(lambda: rc_values(sock), lambda v: len(v) == 4 and v[0] >= 2000, wait=5.0)
+            receiver.channels[5] = 1811
+            switched, held = until(lambda: rc_values(sock), lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2, wait=5.0)
+            check("failsafe switch puts the roll at its failsafe value while the receiver still sends",
+                  moved and switched, f"{values} {held}")
+            receiver.channels[5] = 992
+            back, values = until(lambda: rc_values(sock), lambda v: len(v) == 4 and v[0] >= 2000, wait=5.0)
+            check("failsafe switch off gives the roll back", back, repr(values))
         finally:
             receiver.stop.set()
             stop(proc)
