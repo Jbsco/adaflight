@@ -1754,6 +1754,32 @@ def main():
             vtx.stop.set()
             stop(proc)
             sock.close()
+        # A table band written over MSP reaches the running table at the next save: band 1, channel 2 looks up
+        # the stored table's frequency before the save and the written one after it.
+        vtx = SmartAudio()
+        proc, sock = start(image, vtx_store)
+        vtx.start()
+        try:
+            time.sleep(4.0)
+            name = b"NEWBAND1"
+            written = msp(sock, 227, bytes([1, len(name)]) + name + b"N" + bytes([0, 8])
+                          + struct.pack("<8H", 5600, 5610, 5620, 5630, 5640, 5650, 5660, 5670))
+            msp(sock, 89, struct.pack("<H", 1))
+            before = msp(sock, 88)
+            saved = msp(sock, 250)
+            time.sleep(1.0)
+            msp(sock, 89, struct.pack("<H", 1))
+            after = msp(sock, 88)
+            def frequency(reply):
+                return int.from_bytes(reply[5:7], "little") if reply is not None and len(reply) >= 7 else None
+            check("a VTX table band written over MSP waits for a save",
+                  written == b"" and frequency(before) == 5845, repr(before))
+            check("a save loads a VTX table band written over MSP into the running table",
+                  saved == b"" and frequency(after) == 5610, repr(after))
+        finally:
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
         msp_vtx_store = os.path.join(work, "mspvtx.bin")
         proc, sock = start(image, msp_vtx_store)
         try:

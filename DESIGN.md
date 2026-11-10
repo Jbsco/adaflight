@@ -13871,3 +13871,12 @@ RPM filter alone, fails those sequences.
 
 On a host image with both lowpass stages written to 1 Hz, a reversed roll rate of one radian per second read 46
 degrees per second right after its reversal and -57 a second later. A host smoke check repeats that.
+
+## D689. VTX table reload at a save (2026-11-09)
+
+MSP writes of a VTX table band or power level reported a table setup to their board, and no board ran one. Its
+running table, which frequency lookups and transmitter control read, stayed as loaded at start. Boards now note
+such a write and read the running table again from the configuration at the next save over MSP.
+
+On a host image with a SmartAudio transmitter, band 1 channel 2 looked up 5845 MHz after a band write and 5610 MHz,
+the written value, after a save. A host smoke check repeats that.

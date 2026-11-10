@@ -68,6 +68,12 @@ package body Adaflight.STM32.VTX is
          when MSP_Code        => Core.MSP_Device,
          when others          => Core.No_Device);
 
+   procedure Reload_Table (C : Adaflight.Config_Groups.Configuration) is
+   begin
+      T := (if Adaflight.VTX_Table_Store.Counts_Valid (C.Vtx_Table_Config)
+            then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
+   end Reload_Table;
+
    --  The table, then SmartAudio's start and Tramp's on the configured port,
    --  each opening the port for its kind, then the common start with the
    --  device registered when its port opened.
@@ -75,8 +81,7 @@ package body Adaflight.STM32.VTX is
       Kind : Core.Device_Kind := Kind_Of (C.Vtx_Settings_Config.Vtx_Type);
       S    : Core.Settings := Adaflight.Config_Runtime.VTX_Settings_Of (C.Vtx_Settings_Config);
    begin
-      T := (if Adaflight.VTX_Table_Store.Counts_Valid (C.Vtx_Table_Config)
-            then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
+      Reload_Table (C);
       Open := False;
       MSP_CRSF := False;
       if Kind = Core.MSP_Device then

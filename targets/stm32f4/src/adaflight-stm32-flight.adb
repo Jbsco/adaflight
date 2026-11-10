@@ -353,6 +353,7 @@ package body Adaflight.STM32.Flight is
    Stream   : Adaflight.Stream_Buffers.Stream;
    Result   : MSP.Result;
    Effects  : MSP.Effects;
+   VTX_Table_Stale : Boolean := False;
    Frame    : Adaflight.MSP_Port.Frame_Buffer := (others => 0);
    Frame_Length : Positive := 1;
    Gyro_Report  : Adaflight.STM32.Gyro.Report;
@@ -1393,10 +1394,17 @@ package body Adaflight.STM32.Flight is
          when Adaflight.MSP_Control_In.Enable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, False);
          when Adaflight.MSP_Control_In.Unchanged => null;
       end case;
+      if Effects.Peripheral.Table_Init then
+         VTX_Table_Stale := True;
+      end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
          Write_Configuration;
          Load_Configuration (Unused_Success);
+         if VTX_Table_Stale then
+            VTX_Table_Stale := False;
+            Adaflight.STM32.VTX.Reload_Table (Config);
+         end if;
       end if;
    end Process_Command;
 
