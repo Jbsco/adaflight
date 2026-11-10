@@ -41470,6 +41470,7 @@ begin
    Run (Dir & "/mspindev.csv", "cliset");
    Run (Dir & "/mspingps.csv", "cliset");
    Run (Dir & "/mspinmt.csv", "cliset");
+   Run (Dir & "/mspinsimp.csv", "cliset");
    Run (Dir & "/cliinfo.csv", "cliset");
    Run (Dir & "/climotor.csv", "cliset");
    Run (Dir & "/clisensor.csv", "cliset");

@@ -1,3 +1,4 @@
+with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 
@@ -429,6 +430,22 @@ package body Adaflight.MSP_Tuning_In with SPARK_Mode is
             Set_Arming_Config (C, Request, R);
          when Set_PID_Controller_Command =>
             R := Ack;
+         when Set_Simplified_Tuning_Command =>
+            declare
+               Profile : constant Natural := Natural (C.System_Config.Pid_Profile_Index);
+               Sliders : Pid_Profile_Record := C.Pid_Profiles (Profile);
+               Gyro    : Gyro_Config_Record := C.Gyro_Config;
+               Ok      : Boolean;
+            begin
+               MSP_Simplified_Tuning.Set (Request, Sliders, Gyro, Ok);
+               if Ok then
+                  C.Pid_Profiles (Profile) := Sliders;
+                  C.Gyro_Config := Gyro;
+                  R := Ack;
+               else
+                  R := Error;
+               end if;
+            end;
          when Set_Acc_Trim_Command =>
             Add (P, Acc_Trim_Pitch, S16 (Request, 0), 0);
             Add (P, Acc_Trim_Roll, S16 (Request, 2), 0);

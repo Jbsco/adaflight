@@ -13735,3 +13735,23 @@ Start-up now turns the inverters off before it serves a bootloader request, so t
 while the ROM runs. `bl` then reached DFU in 30 of 30 cycles, about 0.5 s after the command. Betaflight jumps at
 reset with that pin floating. Its earlier jump leaves a USB host about 0.6 s to enumerate before PA10 starts to
 toggle on this board.
+
+## D678. Simplified tuning messages on stored settings (2026-11-09)
+
+`Adaflight.MSP_Simplified_Tuning` reads and writes the stored PID profile and stored gyro settings, and the MSP
+processor gives it the configuration's current PID profile. Before, its replies came from a runtime profile and
+runtime gyro settings among the processor's views. No board filled those, so slider reads and the calculate and
+validate messages answered from defaults whatever was stored.
+
+Its in message had no route in the processor and answered with an error. `Adaflight.MSP_Tuning_In` now serves it: it
+checks the whole request (D153), stores sliders and cutoffs in the current PID profile and gyro settings, and
+applies every slider through `Adaflight.Simplified_Tuning.Stored`. This write asks for no runtime work.
+
+Stored fields have no order rule, so a dynamic range stored with its lower end above its upper end reads back as
+stored. A request with that order stays an error (D153). `Simplified_Tuning.Stored` gains one procedure per slider
+group for the calculate and validate messages.
+
+A new vector family runs these messages through the whole MSP processor against the reference: slider writes
+within and outside their ranges, short and long requests, reads, calculations and validations, between profile
+selections and stored gains, sliders and cutoffs. D153's unit vectors replay on stored records. A host smoke
+check writes a slider set, reads it back with its gains, and sees a mode past three refused.
