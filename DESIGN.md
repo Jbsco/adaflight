@@ -14063,3 +14063,10 @@ Host smoke runs a session without an ESC: the interface's name, a flash init tha
 its connect attempts' line time, an invalid channel, a bad check, MSP silent inside, exit, and motors running
 again. Bootloader traffic with an ESC is covered by the core's vectors, and not yet by a bench run. The F411
 image grows by about 7.3 KB, which leaves it about 3.3 KB of flash.
+
+## D701. Status LED in 4-way interface (2026-11-10)
+
+D700 says boards have no receive and transmit LEDs. That was wrong: every board has a status LED, and the
+reference uses it for both when a board defines no second LED. The 4-way driver now runs the interface's LED
+operations on that LED: on at a frame's escape byte, off before its reply goes out. No gate observes the LED, since
+the host image has no way to report a pin's level.
