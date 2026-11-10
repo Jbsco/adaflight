@@ -3370,6 +3370,14 @@ def main():
             receiver_config = bytearray(msp(sock, 44) or bytes(39))
             receiver_config[25] = (receiver_config[25] + 5) % 200
             changed = msp(sock, 45, bytes(receiver_config))
+
+            def restart_asked():
+                status = msp(sock, 150)
+                if status is None or len(status) < 22 + status[15]:
+                    return None
+                return status[21 + status[15]]
+            passed, flag = until(restart_asked, lambda f: f == 1, wait=3.0)
+            check("extended status reply says a restart is needed after that change", passed, repr(flag))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "status")

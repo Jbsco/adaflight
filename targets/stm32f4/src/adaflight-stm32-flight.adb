@@ -2737,6 +2737,8 @@ package body Adaflight.STM32.Flight is
                                           Natural (Config.System_Config.Active_Rate_Profile));
       Status.Battery_Profile := Natural'Min (Adaflight.MSP_Out.Battery_Profile_Count - 1,
                                              Natural (Config.System_Config.Active_Battery_Profile));
+      Status.Reboot_Required :=
+        MSP_Reboot_Required or else (Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
       Adaflight.MSP_Box.Pack_Flight_Mode_Flags
         (Active => Offered, Armed => Adaflight.STM32.Pilot.Armed, Flight => Adaflight.STM32.Pilot.Flight_Modes,
          Switches => Adaflight.STM32.Pilot.Active_Boxes, Wing => Adaflight.Build_Features.Wing,
