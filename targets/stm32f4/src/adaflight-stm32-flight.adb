@@ -1313,6 +1313,15 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Pilot.Reload_Modes (Config);
          Scheduler.Set_Task_Enabled (Sched, Scheduler.PINIO_Box, Adaflight.STM32.PINIO.Task_Enabled);
       end if;
+      if Effects.Tuning.PID_Init or else Effects.Tuning.RC_Init or else Effects.Tuning.PID_Filters
+        or else Effects.Tuning.ESC_Endpoints or else Effects.Tuning.Mixer_Profile or else Effects.Peripheral.PID_Init
+      then
+         Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+         Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      end if;
+      if Effects.Control.Erase_Flash then
+         Adaflight.STM32.Blackbox.Erase_All (Config, Loop_Time_Us);
+      end if;
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;
