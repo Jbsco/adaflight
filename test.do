@@ -13,6 +13,9 @@ alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
 cd ../tools/dfu/tests || exit 1
 alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
 ./bin/dfu_check || exit 1
+cd ../../msp/tests || exit 1
+alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
+./bin/msp_check || exit 1
 cd ../../.. || exit 1
 [ -n "${3:-}" ] && touch "$3"
 exit 0

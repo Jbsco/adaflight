@@ -13911,3 +13911,24 @@ passthrough message and the MSP transmitter's item list. The check fails on an u
 on a listed field that has gained one. The style gate runs it.
 
 Text writes now also ask the OSD to pick its elements again, an effect the check found unread.
+
+## D693. Command-line MSP client (2026-11-10)
+
+`tools/msp` is an Alire crate of its own, `adaflight_msp`, that sends MSP requests to a flight controller on a
+serial device or a TCP port. `request` sends one command and prints its reply's payload in hexadecimal. `dump`
+sends every read command a configurator uses and prints a line per command, for a comparison of two boards or of
+two firmwares on one board.
+
+Requests go out in the first protocol version when command and payload length fit one byte each, and in the second
+otherwise. The decoder reads replies of either version, with the first version's 16-bit length extension, passes
+over frames with a bad checksum or another command, and skips a payload past what it keeps.
+
+`MSP.Frames` and `MSP.Session` are in SPARK, since their input is any byte stream a port delivers. GNATprove shows
+that no byte sequence indexes past the payload buffer and that a request ends after a bounded count of reads. The
+transport, serial through the GNAT run-time and TCP through its sockets, stays outside SPARK behind an abstract
+state.
+
+A model of a flight controller's port stands in for the transport in the crate's checks. They cover both versions,
+long replies, a largest payload, single-byte reads, refusals, noise, a bad checksum, another command's frame, an
+oversize payload, silence and a failed send. The host smoke runs the built client against the host image. The style
+gate, the vector gate and the pull request proof job each cover the new crate.

@@ -1,0 +1,14 @@
+name = "adaflight_msp"
+description = "Reads and writes a flight controller over the MSP protocol"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "msp", "serial"]
+
+executables = ["adaflight_msp"]
+
+[[depends-on]]
+gnatprove = "^16.1.0"

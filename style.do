@@ -7,7 +7,7 @@ FAIL=0
 
 echo "== 1/4  Ada style"
 if command -v alr >/dev/null 2>&1; then
-    for crate in core tests tools/dfu tools/dfu/tests; do
+    for crate in core tests tools/dfu tools/dfu/tests tools/msp tools/msp/tests; do
         (cd "$crate" && alr -n clean >/dev/null 2>&1)
         OUT=$(cd "$crate" && alr -n build 2>&1)
         N=$(printf '%s\n' "$OUT" | grep -c '(style)\|warning:')
