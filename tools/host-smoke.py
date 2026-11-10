@@ -1118,6 +1118,12 @@ def rc_values(sock):
     return [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
 
 
+def debug_values(sock):
+    """The eight debug values of the MSP debug reply, none without a reply."""
+    reply = msp(sock, 254)
+    return list(struct.unpack("<8h", reply[:16])) if reply and len(reply) >= 16 else []
+
+
 def dshot_frames(store, wait):
     """The DShot command frames the image logged, as (motor, value, request) lines, once they stop
     changing or the wait runs out."""
@@ -1343,6 +1349,8 @@ def main():
             check("flight log port assigned", "blackbox_uart set to UART6" in text, text[-120:])
             text = cli(sock, "set blackbox_mode = ALWAYS")
             check("flight log always on", "blackbox_mode set to ALWAYS" in text, text[-120:])
+            text = cli(sock, "set debug_mode = ANGLERATE")
+            check("debug mode set to the rate setpoints", "debug_mode set to ANGLERATE" in text, text[-120:])
             text = cli(sock, "adjrange 0 0 0 900 2100 1 0 0 0")
             check("RC rate adjustment on AUX1 set", "adjrange 0 0 0 900 2100 1 0 0 0" in text, text[-120:])
             cli(sock, "set craft_name = ADAHOST")
@@ -1391,6 +1399,18 @@ def main():
             link = msp(sock, 187)
             check("MSP transmitter information names the CRSF protocol as the RSSI source",
                   link is not None and len(link) == 2 and link[0] == 6, repr(link))
+            receiver.channels[0] = 1811
+            full, fast = until(lambda: debug_values(sock), lambda d: len(d) == 8 and d[0] >= 600)
+            rates = msp(sock, 111)
+            slower = bytearray(rates or bytes(24))
+            slower[2] = 40
+            sent = msp(sock, 204, bytes(slower))
+            taken, slow = until(lambda: debug_values(sock), lambda d: len(d) == 8 and 380 <= d[0] <= 420, wait=5.0)
+            check("a roll rate from the configurator changes the running setpoint without a save",
+                  full and sent == b"" and taken, f"{fast} {slow}")
+            msp(sock, 204, bytes(rates or b""))
+            receiver.channels[0] = 992
+            until(lambda: debug_values(sock), lambda d: len(d) == 8 and abs(d[0]) <= 5, wait=5.0)
             raw = msp(sock, 106)
             lat = int.from_bytes(raw[2:6], "little", signed=True) if raw and len(raw) >= 10 else 0
             lon = int.from_bytes(raw[6:10], "little", signed=True) if raw and len(raw) >= 10 else 0
