@@ -13808,3 +13808,27 @@ running copy after a table write needs a reload at the next save.
 
 On a host image with its roll stick at one end, rate setpoint went from 670 to 400 degrees per second right after a
 roll rate write, without a save. A host smoke check repeats that through angle rate debug values.
+
+## D684. MSP channel frames on board receivers (2026-11-09)
+
+MSP raw RC frames reported their channels to a board, and no board took them. Board radios now keep an MSP
+receiver. With its feature on, that receiver is the channel source, at eighteen channels, and its frame status
+feeds the frame check as a serial receiver's does.
+
+Every board radio also fills the override report: the override box's state, the override frame status when the
+frame check polls it, and each channel's value with its freshness. A channel set for the override then reads from
+fresh MSP frames while that box is on.
+
+On a host image, a 50 Hz stream of MSP frames gave the MSP RC reply those eight channels, sticks through the
+channel map. Over a CRSF receiver with roll set for the override, roll read 1700 from MSP frames with the box on
+and 1500 with it off or without frames. Host smoke checks repeat both.
+
+## D685. RSSI over MSP on boards (2026-11-09)
+
+MSP's transmitter information message reported an RSSI to a board, and no board took it. Board radios now pass it
+to the receiver, which makes MSP its RSSI source while no other source is set.
+
+That value lasts only until the next RSSI update. Smoothing pulls it back to a raw RSSI that MSP never writes, a
+Betaflight defect this port still reproduces (finding F321). On a host image with the message sent every 0.22 s,
+the analog reply read 800 in 7 of 12 reads and 0 in the rest. A fix needs a corrected oracle copy and stays open.
+The host smoke check reads the RSSI source alone.

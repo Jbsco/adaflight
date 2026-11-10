@@ -119,6 +119,8 @@ package body Adaflight.STM32.Radio is
    Rx_Settings : Adaflight.Receiver.Settings;
    Serial_Provider : Natural := 0;
    UDP_Rx      : Adaflight.UDP_Receiver.State;
+   MSP_Rx      : Adaflight.MSP_Receiver.State;
+   MSP_Override : Boolean := False;
    Proto       : Adaflight.CRSF.State;
    FS          : Adaflight.Failsafe.State;
    FS_Settings : Adaflight.Failsafe.Settings;
@@ -312,6 +314,9 @@ package body Adaflight.STM32.Radio is
          Adaflight.STM32.RX_SPI.Init (Config, (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
          Rx_Settings.Reported_Channels := Adaflight.STM32.RX_SPI.Channel_Count;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.MSP then
+         Rx_Settings.Reported_Channels := Adaflight.MSP_Receiver.Channel_Count;
+      end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
@@ -340,6 +345,7 @@ package body Adaflight.STM32.Radio is
          end;
       end if;
       Adaflight.UDP_Receiver.Init (UDP_Rx);
+      Adaflight.MSP_Receiver.Init (MSP_Rx);
       Adaflight.Receiver.Init
         (Rx, Rx_Settings, Now_Ms,
          Protocol_RSSI    =>
@@ -1034,6 +1040,13 @@ package body Adaflight.STM32.Radio is
             end if;
          end if;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.MSP and then not Task_In_Progress then
+         Adaflight.MSP_Receiver.Frame_Status (MSP_Rx, Now_Us, Status);
+      end if;
+      Override.Box := MSP_Override;
+      if not Task_In_Progress and then Adaflight.Receiver.Override_Polled (Rx_Settings, MSP_Override) then
+         Adaflight.MSP_Receiver.Override_Frame_Status (MSP_Rx, Override.Complete);
+      end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
       Adaflight.Receiver_Debug.Record_Frame_Check (Adaflight.STM32.Debug_Values.State, Rx, Delta_Us);
    end Frame_Check;
@@ -1258,6 +1271,16 @@ package body Adaflight.STM32.Radio is
             Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.UDP_Receiver.Read_Raw (UDP_Rx, Ch)));
          end loop;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.MSP then
+         for Ch in Adaflight.MSP_Receiver.Channel loop
+            Raw (Ch) := Adaflight.MSP_Receiver.Read_Raw (MSP_Rx, Ch);
+         end loop;
+      end if;
+      Override.Box := MSP_Override;
+      for Ch in Adaflight.MSP_Receiver.Channel loop
+         Override.Raw (Ch) := Adaflight.MSP_Receiver.Read_Raw (MSP_Rx, Ch);
+         Override.Fresh (Ch) := Adaflight.MSP_Receiver.Is_Channel_Fresh (MSP_Rx, Ch, Now_Ms);
+      end loop;
       Adaflight.Receiver.Calculate_Channels
         (Rx, Rx_Settings, Now_Us, Now_Ms, Raw, Override, Box_Failsafe => False, Box_3D => False,
          Failsafe_Active => FS.Active, Processed => Processed, Frame_Processed => Frame_Processed, Valid => Valid);
@@ -1357,4 +1380,20 @@ package body Adaflight.STM32.Radio is
      (Adaflight.Receiver."/=" (Rx.RSSI_From, Adaflight.Receiver.None));
 
    function RSSI_Source return Adaflight.Receiver.RSSI_Source is (Rx.RSSI_From);
+
+   procedure MSP_Frame
+     (Frame : Adaflight.MSP_Receiver.Channel_Data; Count : Adaflight.MSP_Receiver.Count_Range; Now_Ms : Time_Ms) is
+   begin
+      Adaflight.MSP_Receiver.Frame_Receive (MSP_Rx, Frame, Count, Now_Ms);
+   end MSP_Frame;
+
+   procedure Set_MSP_Override (On : Boolean) is
+   begin
+      MSP_Override := On;
+   end Set_MSP_Override;
+
+   procedure Set_MSP_RSSI (Value : Interfaces.Unsigned_8; Now_Us : Time_Us) is
+   begin
+      Adaflight.Receiver.Set_RSSI_MSP (Rx, Adaflight.Receiver.Byte (Value), Now_Us);
+   end Set_MSP_RSSI;
 end Adaflight.STM32.Radio;

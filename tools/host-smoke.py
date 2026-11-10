@@ -1118,6 +1118,34 @@ def rc_values(sock):
     return [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
 
 
+def msp_frame(cmd, payload=b""):
+    check = len(payload) ^ cmd
+    for b in payload:
+        check ^= b
+    return b"$M<" + bytes([len(payload), cmd]) + payload + bytes([check])
+
+
+def rc_stream(sock, channels, count):
+    """Sends an MSP raw RC frame of the channels at 50 Hz with an RC read after each tenth one, and returns
+    the first eight channels of each RC reply."""
+    payload = struct.pack(f"<{len(channels)}H", *channels)
+    for k in range(count):
+        sock.sendall(msp_frame(200, payload))
+        if k % 10 == 9:
+            sock.sendall(msp_frame(105))
+        time.sleep(0.02)
+    data = read_all(sock, 0.3)
+    seen = []
+    i = data.find(b"$M>")
+    while 0 <= i and i + 6 <= len(data):
+        size, cmd = data[i + 3], data[i + 4]
+        body = data[i + 5:i + 5 + size]
+        if cmd == 105 and len(body) >= 16:
+            seen.append([body[k] | body[k + 1] << 8 for k in range(0, 16, 2)])
+        i = data.find(b"$M>", i + 5 + size)
+    return seen
+
+
 def debug_values(sock):
     """The eight debug values of the MSP debug reply, none without a reply."""
     reply = msp(sock, 254)
@@ -1213,6 +1241,10 @@ def main():
                   past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            taken = msp(sock, 186, bytes([200]))
+            link = msp(sock, 187)
+            check("an RSSI over MSP becomes the RSSI source while no receiver gives one",
+                  taken == b"" and link is not None and len(link) == 2 and link[0] == 4, repr(link))
             log_rates = msp(sock, 80)
             check("MSP blackbox reply says whether the build contains a recorder",
                   log_rates is not None and len(log_rates) >= 7 and log_rates[0] == int(contains("Blackbox")),
@@ -3260,6 +3292,59 @@ def main():
             check("a servo on the motor's pin is refused and ends the servo setup", servo_lines(store) == [],
                   repr(servo_lines(store)))
         finally:
+            stop(proc)
+            sock.close()
+        # The MSP receiver: with its feature on, the channels of MSP raw RC frames are the receiver's, the sticks
+        # through the channel map. Then the MSP override over a CRSF receiver: with roll set for it, the roll of
+        # fresh MSP frames replaces the receiver's while the override's box is on.
+        store = os.path.join(work, "msprx.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature RX_MSP")
+            check("MSP receiver feature on", "Enabled RX_MSP" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            seen = rc_stream(sock, [1600, 1400, 1300, 1700, 1100, 1200, 1800, 1900], 60)
+            check("MSP raw RC frames are the MSP receiver's channels",
+                  len(seen) >= 3 and seen[-1] == [1600, 1400, 1700, 1300, 1100, 1200, 1800, 1900], repr(seen[-2:]))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("feature -RX_MSP", "feature RX_SERIAL", "set rx_uart = UART3",
+                         "set msp_override_channels_mask = 1", "aux 0 50 0 1700 2100 0 0"):
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            overriding = [1700, 1400, 1300, 1700, 1100, 1200, 1800, 1900]
+            off = rc_stream(sock, overriding, 30)
+            receiver.channels[4] = 1811
+            time.sleep(0.6)
+            on = rc_stream(sock, overriding, 30)
+            check("MSP override leaves the receiver's roll while its box is off",
+                  len(off) >= 2 and abs(off[-1][0] - 1500) <= 2, repr(off[-2:]))
+            check("MSP override takes the roll of fresh MSP frames while its box is on, and no other stick",
+                  len(on) >= 2 and on[-1][0] == 1700 and abs(on[-1][1] - 1500) <= 2 and abs(on[-1][2] - 1500) <= 2,
+                  repr(on[-2:]))
+            ok, values = until(lambda: rc_values(sock), lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2, wait=5.0)
+            check("MSP override gives the roll back once its frames stop", ok, repr(values))
+        finally:
+            receiver.stop.set()
             stop(proc)
             sock.close()
         if built("Pitot"):
