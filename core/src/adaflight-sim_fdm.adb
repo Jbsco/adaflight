@@ -141,6 +141,7 @@ package body Adaflight.Sim_FDM with SPARK_Mode is
       if Long_Float (Now_Us) > Long_Float (S.Last_Realtime) + Timeout_Us then
          S.Last_Timestamp := P.Timestamp;
          S.Last_Realtime := Now_Us;
+         S.Last_Time := Now;
          F.Kind := Timeout;
          return;
       end if;

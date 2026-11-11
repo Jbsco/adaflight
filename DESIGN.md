@@ -14260,3 +14260,17 @@ A host package now owns that file. Its chip model reports each character, and a 
 writes that file at most ten times a second, once its memory has rested for five milliseconds or has waited a
 fifth of a second. Host smoke expects a visual beeper's whole mark on its warnings line, no part of it at
 any time, and none half a second after its beeps.
+
+## D717. Simulator rate after a packet gap (2026-11-11)
+
+Simulator link code measures its rate as a packet's timestamp step over host time since its last packet. A packet
+more than 500 ms after that one restarts its timing, and that path left its last packet's host time as it was. A
+second packet after a gap then set a rate near zero, and a host image's clock stopped until a third packet. Since
+D712 a scheduler wait before a gyro target could be caught by that stop. An image that reads packets in its main
+loop never returned from it, at about one simulator start in a hundred.
+
+That path now sets its last packet's host time. Betaflight's SITL has that fault too, so this is a divergence with
+an upstream note, and simulator vectors come from a copy of its update with that assignment added.
+
+Host smoke feeds an image exactly two packets and expects MSP answers afterwards. An image built before this change
+stops answering.
