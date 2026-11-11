@@ -2484,6 +2484,7 @@ package body Adaflight.STM32.Flight is
          Sensed.Gyro_Abs_Dps (A) := Natural (Float'Min (65_535.0, abs Gyro_State.Filtered (A)));
       end loop;
       Sensed.Deflection_Abs := Adaflight.STM32.Pilot.Deflections;
+      Sensed.CMS_In_Menu := Adaflight.STM32.Menu.Open;
       Sensed.CLI_Mode := Session.Open;
       if Adaflight.STM32.Pilot.Disabled (Adaflight.Arming.Boot_Grace)
         and then Adaflight.STM32.Time.Millis >= Unsigned_32 (Config.System_Config.Power_On_Arming_Grace_Time) * 1_000

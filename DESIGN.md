@@ -14123,3 +14123,13 @@ errors.
 
 Host smoke selects one profile of each kind over MSP and reads all three back, and reads the restart flag after
 an RC smoothing change.
+
+## D706. No stick commands while the OSD menu is open (2026-11-10)
+
+Arming logic skips stick commands while an OSD menu is open, since a menu takes its keys from those same sticks.
+No board reported an open menu to it, so a stick position that moved a menu's cursor also ran its stick command.
+Throttle low with yaw left and pitch down, which is cursor down in a menu, started a gyro calibration. Board glue
+now reports whether a menu is open.
+
+A scan of core input records for fields that no board assigns found this one. Host smoke opens a menu, keeps those
+gyro calibration sticks for two seconds and expects no calibrating reason among arming disable flags.
