@@ -1935,6 +1935,42 @@ def main():
                 stop(proc)
                 sock.close()
         start_stall_checks()
+        # Accelerometer need of the OSD: with no accelerometer calibration stored, a visible artificial horizon
+        # or the max G force statistic keeps the craft from arming until one is made.
+        def osd_accelerometer_checks():
+            store = os.path.join(work, "osdacc.bin")
+
+            def reasons_then(lines):
+                # The arming disable reasons of this start, then the settings for the next one.
+                proc, sock = start(image, store)
+                try:
+                    time.sleep(5.0)
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    text = cli(sock, "status", 1.5)
+                    for line in lines:
+                        reply = cli(sock, f"set {line}")
+                        check(f"OSD accelerometer setting {line}", line.replace(" = ", " set to ") in reply, reply[-120:])
+                    if lines:
+                        cli(sock, "save", wait=2.0)
+                        proc.wait(timeout=10)
+                    return text.split("Arming disable flags:")[-1]
+                finally:
+                    stop(proc)
+                    sock.close()
+            reasons = reasons_then(["osd_ah_pos = 2177"])
+            check("no accelerometer calibration reason on a fresh configuration", "NO_ACC_CAL" not in reasons,
+                  reasons.strip()[:80])
+            reasons = reasons_then(["osd_ah_pos = 234", "osd_stat_bitmask = 16384"])
+            check("visible artificial horizon asks for an accelerometer calibration", "NO_ACC_CAL" in reasons,
+                  reasons.strip()[:80])
+            reasons = reasons_then(["osd_stat_bitmask = 0"])
+            check("max G force statistic asks for an accelerometer calibration", "NO_ACC_CAL" in reasons,
+                  reasons.strip()[:80])
+            reasons = reasons_then([])
+            check("no accelerometer calibration reason without that element and statistic",
+                  "NO_ACC_CAL" not in reasons, reasons.strip()[:80])
+        osd_accelerometer_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

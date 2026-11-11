@@ -200,6 +200,9 @@ package Adaflight.STM32.OSD is
    --  The element positions analyzed again at the next frame.
    procedure Analyze_Again;
 
+   --  An active element or an enabled statistic reads the accelerometer.
+   function Needs_Accelerometer return Boolean;
+
    --  The OSD task's check: due once a frame is.
    function Task_Due (Now_Us : Interfaces.Unsigned_32) return Boolean;
 
