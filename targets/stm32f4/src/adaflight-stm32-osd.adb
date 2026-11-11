@@ -626,6 +626,7 @@ package body Adaflight.STM32.OSD is
    use type Interfaces.Unsigned_16;
 
    Task_Data : Adaflight.OSD_Task.OSD;
+   Visual_Beeper_On : Boolean := False;
    Context   : Adaflight.OSD_Task.Context;
 
    --  A state's last run and an element draw's last time in microseconds,
@@ -701,6 +702,11 @@ package body Adaflight.STM32.OSD is
    function Needs_Accelerometer return Boolean is
      (Context.Page_Settings.Enabled (Adaflight.OSD_Stats.Max_G_Force)
       or else Adaflight.OSD_Elements.Need_Accelerometer (Task_Data.Active));
+
+   procedure Set_Visual_Beeper is
+   begin
+      Visual_Beeper_On := True;
+   end Set_Visual_Beeper;
 
    function Task_Due (Now_Us : Unsigned_32) return Boolean is
       Due : Boolean;
@@ -945,6 +951,8 @@ package body Adaflight.STM32.OSD is
       W.Arm_Box := F.Arm_Box;
       W.Disable_Flags := F.Disabled;
       W.Trying_To_Arm := F.Trying_To_Arm;
+      W.Last_Beacon_Time_Us := F.Last_Beacon_Us;
+      W.Visual_Beeper := Visual_Beeper_On;
       W.Failsafe_Active := F.Failsafe_Active;
       W.Motors := F.Motors;
       W.ESC_Sensor_Feature := F.ESC_Feature;
@@ -1114,6 +1122,9 @@ package body Adaflight.STM32.OSD is
          Draw_End := Clock_Us;
       end if;
       Adaflight.OSD_Task.Update (Task_Data, Context, Now_Us, Clock_Us, Draw_End, Answers, Sched, Result);
+      if Result.Reported.Beeper_Shown then
+         Visual_Beeper_On := False;
+      end if;
       if On_MSP then
          Execute_MSP (Result);
       else
@@ -1132,11 +1143,15 @@ package body Adaflight.STM32.OSD is
      (Line     : out Adaflight.OSD_Warnings.Text; Blinking : out Boolean;
       Severity : out Adaflight.OSD_Warnings.Severity)
    is
-      Unused_Reported : Adaflight.OSD_Warnings.Reports;
+      Reported : Adaflight.OSD_Warnings.Reports;
    begin
+      Context.Draw.Warn_Inputs.Visual_Beeper := Visual_Beeper_On;
       Adaflight.OSD_Warnings.Render
         (Task_Data.Warnings, Context.Draw.Warn_Settings, Context.Draw.Warn_Inputs, Line, Blinking, Severity,
-         Unused_Reported);
+         Reported);
+      if Reported.Beeper_Shown then
+         Visual_Beeper_On := False;
+      end if;
    end Warning;
 
    function Craft_Name return Adaflight.Config_Groups.Bytes_17 is

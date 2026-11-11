@@ -1979,6 +1979,9 @@ package body Adaflight.STM32.Flight is
       Result : Adaflight.Beeper.Update_Outputs;
    begin
       Adaflight.Beeper.Update (Beep, Beep_Settings, Beep_Conditions, Before, Result);
+      if Result.Visual_Beep then
+         Adaflight.STM32.OSD.Set_Visual_Beeper;
+      end if;
       if Result.Beacon_Command then
          Adaflight.STM32.DShot_Output.Write_Command
            (Adaflight.DShot_Command.All_Motors, Adaflight.STM32.Control.Motor_Count,
@@ -3275,6 +3278,7 @@ package body Adaflight.STM32.Flight is
       F.Was_Ever_Armed := Adaflight.STM32.Pilot.Was_Ever_Armed;
       F.Failsafe_Active := Adaflight.STM32.Radio.Failsafe_Active;
       F.Trying_To_Arm := Adaflight.STM32.Pilot.Trying_To_Arm;
+      F.Last_Beacon_Us := Beep.Last_Beacon_Us;
       F.Arm_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Arm);
       F.OSD_Switch := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.OSD);
       F.Disabled := Adaflight.STM32.Pilot.Disabled;
