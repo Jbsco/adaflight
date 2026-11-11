@@ -5075,6 +5075,8 @@ procedure Vector_Check is
    --  The GPS sequences' inputs before each step.
    Arm_GPS_Mode      : Boolean := False;
    Arm_GPS_In        : Adaflight.Arming.Inputs;
+   Arm_Plan_Mode     : Boolean := False;
+   Arm_Plan_In       : Adaflight.Arming.Inputs;
    --  The hooks sequences' inputs before each step, and the command line
    --  flag the previous step left for this step's modes pass.
    Arm_Hooks_Mode    : Boolean := False;
@@ -5178,6 +5180,8 @@ procedure Vector_Check is
             Rescue_Available           => True,
             OSD_Feature                => False,
             Failsafe_GPS_Rescue        => False,
+            Flight_Plan                => False,
+            Rescue_Plan                => False,
             Rescue_Arming_Without_Fix  => False,
             Rescue_Min_Sats            => 0,
             Altitude_Control           => False,
@@ -5193,6 +5197,7 @@ procedure Vector_Check is
          Arm_Joystick := False;
          Arm_Prev_CLI := False;
          Arm_GPS_Mode := False;
+         Arm_Plan_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
             declare
                F : constant Positive := 25 + 6 * M;
@@ -5256,6 +5261,14 @@ procedure Vector_Check is
                CLI_Mode                   => Arm_Prev_CLI,
                VTX_Can_Update             => not Arm_Hooks_Mode or else Arm_Hooks_In.VTX_Can_Update,
                Joystick_Active            => Arm_Joystick,
+               GPS_Sensor                 => Arm_Plan_Mode and then Arm_Plan_In.GPS_Sensor,
+               Channels_Valid             => not Arm_Plan_Mode or else Arm_Plan_In.Channels_Valid,
+               Failsafe_Autopilot         => Arm_Plan_Mode and then Arm_Plan_In.Failsafe_Autopilot,
+               Rescue_Plan_Stages         => Arm_Plan_Mode and then Arm_Plan_In.Rescue_Plan_Stages,
+               Plan_Aborted               => Arm_Plan_Mode and then Arm_Plan_In.Plan_Aborted,
+               Staged_Plan_Aborted        => Arm_Plan_Mode and then Arm_Plan_In.Staged_Plan_Aborted,
+               Rescue_Plan_Active         => Arm_Plan_Mode and then Arm_Plan_In.Rescue_Plan_Active,
+               Rescue_Descent_Active      => Arm_Plan_Mode and then Arm_Plan_In.Rescue_Descent_Active,
                Launch_Sensed              =>
                  (Acc_Magnitude => (if Arm_Wing_Mode and then not Arm_Wing_At_Rest then 1.4 else 1.0), others => <>));
             --  The calibration state the receiver pass reads, recorded before
@@ -5486,6 +5499,27 @@ procedure Vector_Check is
       elsif Name = "armgps" then
          Record_Int ("armgps.home_resets", Int (4), Integer_64 (Arm_Last_Step.GPS_Home_Resets));
          Record_Int ("armgps.heading_usable", Int (5), Boolean'Pos (not Arm_Last_Step.GPS_Heading_Blocked));
+      elsif Name = "armplaninit" then
+         Arming_Settings.Flight_Plan := True;
+         Arming_Settings.Rescue_Plan := True;
+         Arm_Plan_In.GPS_Sensor := Int (3) /= 0;
+         Arm_Plan_Mode := True;
+      elsif Name = "armplanin" then
+         Arm_Plan_In.Rescue_Plan_Stages := Int (4) /= 0;
+         Arm_Plan_In.Plan_Aborted := Int (5) /= 0;
+         Arm_Plan_In.Failsafe_Autopilot := Int (6) /= 0;
+         Arm_Plan_In.Rescue_Plan_Active := Int (7) /= 0;
+         Arm_Plan_In.Rescue_Descent_Active := Int (8) /= 0;
+         Arm_Plan_In.Channels_Valid := Int (9) /= 0;
+         Arm_Plan_In.Staged_Plan_Aborted := Int (10) /= 0;
+      elsif Name = "armplan" then
+         Record_Int ("armplan.stage_calls", Int (4), Integer_64 (Arm_Last_Step.Plan_Stage_Calls));
+         Record_Int ("armplan.descent_request", Int (6), Boolean'Pos (Arm_Last_Step.Rescue_Descent_Request));
+         Record_Int ("armplan.engages", Int (7), Integer_64 (Arm_Last_Step.Plan_Engages));
+         Record_Int ("armplan.updates", Int (8), Integer_64 (Arm_Last_Step.Plan_Updates));
+         Record_Int ("armplan.disengages", Int (9), Integer_64 (Arm_Last_Step.Plan_Disengages));
+         Record_Int ("armplan.capture_switch", Int (11), Boolean'Pos (Arm_Last_Step.Capture_Switch));
+         Record_Int ("armplan.capture_valid", Int (12), Boolean'Pos (Arm_Last_Step.Capture_Channels_Valid));
       elsif Name = "armhooksinit" then
          Arming_Settings.Telemetry_Feature := Int (3) /= 0;
          Arm_Hooks_Mode := True;
@@ -41387,6 +41421,7 @@ begin
    Run (Dir & "/armstats.csv", "arming");
    Run (Dir & "/armhooks.csv", "arming");
    Run (Dir & "/armwing.csv", "arming");
+   Run (Dir & "/armplan.csv", "arming");
    Run (Dir & "/arminfl.csv", "arming");
    Run (Dir & "/armjoy.csv", "arming");
    Run (Dir & "/compass.csv", "compass");

@@ -256,6 +256,9 @@ package body Adaflight.Arming with SPARK_Mode is
       S.Disabled (Box_Failsafe) := Modes.Is_Active (M, Modes.Failsafe);
       S.Disabled (Alt_Hold_Switch) := Modes.Is_Active (M, Modes.Alt_Hold);
       S.Disabled (Pos_Hold_Switch) := Modes.Is_Active (M, Modes.Pos_Hold);
+      if C.Flight_Plan then
+         S.Disabled (Autopilot_Switch) := Modes.Is_Active (M, Modes.Autopilot);
+      end if;
       S.Disabled (Throttle) := Throttle_Status (C, Channels, Three_D_Switch) /= Throttle_Low;
       S.Disabled (Angle) := not Sensed.Upright and then not Modes.Is_Active (M, Modes.Crash_Flip);
       S.Disabled (CPU_Load) := Sensed.Late_Permille > Interfaces.Unsigned_32 (C.CPU_Late_Limit);
@@ -927,6 +930,64 @@ package body Adaflight.Arming with SPARK_Mode is
       end if;
    end Select_Launch_Mode;
 
+   --  The flight plan's part of the mode selection: the waypoint capture's
+   --  switch, the rescue switch flown as a staged rescue plan, with a descent
+   --  where no plan stages or the plan aborts, and the autopilot mode with
+   --  the executor's engagement, update and disengagement.
+   procedure Select_Autopilot
+     (S : in out State; C : Settings; M : Modes.State; Sensed : Inputs; Out_Step : in out Outputs)
+     with Global => null
+   is
+      Switch_Request : Boolean := False;
+      Descent        : Boolean := False;
+      Aborted        : Boolean := Sensed.Plan_Aborted;
+      Requested      : Boolean;
+   begin
+      Out_Step.Capture_Switch := Modes.Is_Active (M, Modes.WP_Capture);
+      Out_Step.Capture_Channels_Valid := Sensed.Channels_Valid;
+      if C.Rescue_Plan then
+         if S.Armed and then Modes.Is_Active (M, Modes.GPS_Rescue) and then not Sensed.Failsafe_Active then
+            if not S.Rescue_Switch_Staged then
+               Bump (Out_Step.Plan_Stage_Calls);
+               S.Rescue_Switch_Staged := Sensed.Rescue_Plan_Stages;
+               Aborted := Sensed.Staged_Plan_Aborted;
+            end if;
+            if S.Rescue_Switch_Staged and then Aborted then
+               S.Rescue_Switch_Descending := True;
+            end if;
+            if S.Rescue_Switch_Descending or else not S.Rescue_Switch_Staged then
+               Descent := True;
+            else
+               Switch_Request := True;
+            end if;
+         else
+            S.Rescue_Switch_Staged := False;
+            S.Rescue_Switch_Descending := False;
+         end if;
+      end if;
+      Out_Step.Rescue_Descent_Request := Descent;
+      if Sensed.Failsafe_Active then
+         Requested := Sensed.Failsafe_Autopilot;
+      elsif Sensed.Channels_Valid then
+         Requested := Modes.Is_Active (M, Modes.Autopilot) or else Switch_Request;
+      else
+         Requested := S.Flight_Modes (Autopilot_Mode);
+      end if;
+      if S.Armed and then not S.Flight_Modes (GPS_Rescue_Mode) and then Requested and then C.Sensors.Acc
+        and then Sensed.GPS_Sensor and then Sensed.GPS_Fix and then Sensed.Altitude_Available
+        and then S.Throttle_Raised
+      then
+         if not S.Flight_Modes (Autopilot_Mode) then
+            Set_Mode (S, Autopilot_Mode, True, Out_Step);
+            Bump (Out_Step.Plan_Engages);
+         end if;
+         Bump (Out_Step.Plan_Updates);
+      elsif S.Flight_Modes (Autopilot_Mode) then
+         Set_Mode (S, Autopilot_Mode, False, Out_Step);
+         Bump (Out_Step.Plan_Disengages);
+      end if;
+   end Select_Autopilot;
+
    procedure Select_Flight_Modes (
       S        : in out State;
       C        : Settings;
@@ -947,12 +1008,17 @@ package body Adaflight.Arming with SPARK_Mode is
       else
          Set_Mode (S, Angle_Mode, False, Out_Step);
       end if;
-      Set_Mode
-        (S, GPS_Rescue_Mode,
-         S.Armed and then Rescue_Configured (C, Conds)
-         and then (Modes.Is_Active (M, Modes.GPS_Rescue)
-                   or else (Sensed.Failsafe_Active and then C.Failsafe_GPS_Rescue)),
-         Out_Step);
+      if not C.Rescue_Plan then
+         Set_Mode
+           (S, GPS_Rescue_Mode,
+            S.Armed and then Rescue_Configured (C, Conds)
+            and then (Modes.Is_Active (M, Modes.GPS_Rescue)
+                      or else (Sensed.Failsafe_Active and then C.Failsafe_GPS_Rescue)),
+            Out_Step);
+      end if;
+      if C.Flight_Plan then
+         Select_Autopilot (S, C, M, Sensed, Out_Step);
+      end if;
       if C.Launch_Wing then
          Select_Launch_Mode (S, C, M, Sensed, Now_Us, Out_Step);
       end if;
@@ -960,7 +1026,8 @@ package body Adaflight.Arming with SPARK_Mode is
         (S, Alt_Hold_Mode,
          S.Armed and then not S.Flight_Modes (GPS_Rescue_Mode) and then not S.Flight_Modes (Launch_Mode)
          and then (Modes.Is_Active (M, Modes.Alt_Hold) or else Sensed.Failsafe_Active
-                   or else S.Flight_Modes (Autopilot_Mode))
+                   or else S.Flight_Modes (Autopilot_Mode)
+                   or else (C.Rescue_Plan and then Out_Step.Rescue_Descent_Request))
          and then C.Sensors.Acc and then C.Altitude_Control and then Sensed.Altitude_Available
          and then S.Throttle_Raised,
          Out_Step);
@@ -1069,6 +1136,7 @@ package body Adaflight.Arming with SPARK_Mode is
       --  Armed with the motors stopped: beep, and disarm after the delay.
       if S.Armed and then C.Motor_Stop and then not C.Fixed_Wing and then not C.Three_D
         and then not M.Airmode_Enabled and then not S.Flight_Modes (GPS_Rescue_Mode)
+        and then not (C.Rescue_Plan and then (Sensed.Rescue_Plan_Active or else Sensed.Rescue_Descent_Active))
       then
          if S.Sticks_Arm then
             if Status = Throttle_Low then

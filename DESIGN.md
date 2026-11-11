@@ -14327,3 +14327,21 @@ Flight plan settings and their configuration group stay in every build for now.
 
 `target.do` fails an image built without that feature that still links its command or map. Host smoke checks an
 image with it, and its wing build checks one without.
+
+## D722. Autopilot section of mode selection (2026-11-11)
+
+Arming logic ported Betaflight's mode selection from a build without its flight plan. A build with it adds an
+autopilot section, and its GPS rescue becomes a staged rescue plan. Arming logic now has that section behind two
+settings, both off on every board until a board runs an executor.
+
+With a flight plan, an autopilot switch blocks arming, a waypoint capture switch is reported, and an autopilot mode
+comes on when it is requested with an accelerometer, a GPS fix, an altitude estimate and a raised throttle. A
+request comes from that switch, from a failsafe in its autopilot stage, or from a mode already on while flight
+channels are not valid. Each pass asks its executor to engage, update or disengage.
+
+With rescue plans, a rescue switch stages a plan once and requests an autopilot to fly it. Where no plan stages,
+or one aborts, it asks for a descent, which altitude hold then serves. A rescue plan or descent in flight stops
+an auto-disarm, and no rescue flight mode comes from this code.
+
+An executor's answers are inputs here and its calls are outputs. Arming vectors gain sequences from a Betaflight
+build with its flight plan, whose executor that oracle scripts.
