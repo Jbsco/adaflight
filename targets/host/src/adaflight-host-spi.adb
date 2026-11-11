@@ -6,10 +6,8 @@
 --  character memory written to the font store on its write command and read
 --  back on its read command, the reset bit clear at once, the insertion
 --  register at its default and a PAL signal on the status. The display
---  memory goes to a text file at most ten times a second after it changes:
---  sixteen lines of thirty characters, a dot for a code outside printable
---  ASCII, in the file the environment variable ADAFLIGHT_OSD_SCREEN names,
---  adaflight-osd.txt when unset. The card model is a high capacity version
+--  memory goes to the host's screen file (Adaflight.Host_Screen). The card
+--  model is a high capacity version
 --  2 card over the image file the environment variable ADAFLIGHT_SD_IMAGE
 --  names, answering while its select pin is low: one idle byte before each
 --  answer, the registers of a card named ADAFL, block reads and writes with
@@ -22,14 +20,11 @@
 --  with the fast read's idle byte. No image means no chip.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
-with Ada.Real_Time;
-with Ada.Text_IO;
 with Adaflight.Board;
 with Adaflight.Host_Pins;
+with Adaflight.Host_Screen;
 with Adaflight.STM32.GPIO;
 package body Adaflight.STM32.SPI is
-   use type Ada.Real_Time.Time;
-   use type Ada.Real_Time.Time_Span;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -40,34 +35,10 @@ package body Adaflight.STM32.SPI is
    Status_PAL   : constant Byte := 16#01#;
 
    Registers : Byte_Array (0 .. 16#7F#) := (16#0C# => OSDM_Default, others => 0);
-   Display   : Byte_Array (0 .. 511) := (others => 0);
    Address   : Natural range 0 .. 511 := 0;
    Increment : Boolean := False;
    Glyph     : Byte_Array (0 .. 63) := (others => 0);
    Font      : array (Byte) of Byte_Array (0 .. 53) := (others => (others => 0));
-   Changed   : Boolean := False;
-   Written   : Ada.Real_Time.Time := Ada.Real_Time.Clock;
-
-   procedure Dump_Screen is
-      File : Ada.Text_IO.File_Type;
-      Name : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_OSD_SCREEN", "adaflight-osd.txt");
-   begin
-      Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name);
-      for Row in 0 .. 15 loop
-         for Col in 0 .. 29 loop
-            declare
-               Code : constant Byte := Display (Row * 30 + Col);
-            begin
-               Ada.Text_IO.Put (File, (if Code in 16#20# .. 16#7E# then Character'Val (Code) else '.'));
-            end;
-         end loop;
-         Ada.Text_IO.New_Line (File);
-      end loop;
-      Ada.Text_IO.Close (File);
-   exception
-      when others =>
-         null;
-   end Dump_Screen;
 
    procedure Chip_Write (Register : Byte; Value : Byte) is
    begin
@@ -78,8 +49,7 @@ package body Adaflight.STM32.SPI is
             Registers (4) := Value and not 16#04#;
             Increment := (Value and 16#01#) /= 0;
             if (Value and 16#04#) /= 0 then
-               Display := (others => 0);
-               Changed := True;
+               Adaflight.Host_Screen.Clear;
             end if;
          when 16#05# =>
             Registers (5) := Value;
@@ -91,10 +61,9 @@ package body Adaflight.STM32.SPI is
             if Increment and then Value = 16#FF# then
                Increment := False;
             else
-               Changed := Changed or else Display (Address) /= Value;
-               Display (Address) := Value;
+               Adaflight.Host_Screen.Put (Address, Value);
                if Increment then
-                  Address := (Address + 1) mod Display'Length;
+                  Address := (Address + 1) mod 512;
                end if;
             end if;
          when 16#08# =>
@@ -532,11 +501,6 @@ package body Adaflight.STM32.SPI is
             Flash_Check_Select;
          end if;
          Chip_Frame (Tx, Rx);
-         if Changed and then Ada.Real_Time.Clock - Written >= Ada.Real_Time.Milliseconds (100) then
-            Dump_Screen;
-            Changed := False;
-            Written := Ada.Real_Time.Clock;
-         end if;
       elsif B = SPI2 then
          Card_Transfer (Tx, Rx);
       else

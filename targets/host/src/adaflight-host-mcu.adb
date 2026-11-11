@@ -1,4 +1,5 @@
 with GNAT.OS_Lib;
+with Adaflight.Host_Screen;
 with Adaflight.Host_Simulator;
 with Adaflight.Sim_FDM;
 package body Adaflight.STM32.MCU is
@@ -28,7 +29,13 @@ package body Adaflight.STM32.MCU is
 
    function Simulated return Boolean is (Adaflight.Host_Simulator.Enabled);
 
-   procedure Simulator_Poll renames Adaflight.Host_Simulator.Poll;
+   --  The host's work once per scheduler pass: the simulator's packets and
+   --  the OSD screen file.
+   procedure Simulator_Poll is
+   begin
+      Adaflight.Host_Simulator.Poll;
+      Adaflight.Host_Screen.Poll;
+   end Simulator_Poll;
 
    procedure Simulator_Attitude
      (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean) is

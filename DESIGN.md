@@ -14249,3 +14249,14 @@ two seconds after. It then arms right after beacons and expects a beacon notice 
 
 Host's screen file can show that mark in two parts. Its chip model writes that file at most ten times a second,
 after a transfer, so a write can fall inside an update.
+
+## D716. Host screen file from a per-pass poll (2026-11-11)
+
+Host's MAX7456 model wrote its screen file itself, after a chip transfer, at most ten times a second. A write
+could fall inside an update of several transfers, and that file then stayed as it was until a later transfer. A
+mark shown for one frame appeared in parts, and text could stay in that file after its chip had cleared it.
+
+A host package now owns that file. Its chip model reports each character, and a poll once per scheduler pass
+writes that file at most ten times a second, once its memory has rested for five milliseconds or has waited a
+fifth of a second. Host smoke expects a visual beeper's whole mark on its warnings line, no part of it at
+any time, and none half a second after its beeps.
