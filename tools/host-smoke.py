@@ -2031,9 +2031,12 @@ def main():
                 time.sleep(8.0)
                 receiver.channels = sticks + [992, 1811] + [992] * 10
                 states = row_states(3.0)
-                check("warnings line shows the visual beeper's mark", any("*" in s for s in states), repr(states))
+                check("warnings line shows the visual beeper's whole mark", any("* * * *" in s for s in states),
+                      repr(states))
+                check("screen file never shows a part of that mark", all("* * * *" in s for s in states if "*" in s),
+                      repr(states))
                 receiver.channels = sticks + [992] * 12
-                time.sleep(2.0)
+                time.sleep(0.5)
                 check("visual beeper's mark clears after the beeps", "*" not in warnings_row(), repr(warnings_row()))
                 receiver.channels = sticks + [992, 1811] + [992] * 10
                 time.sleep(2.0)
