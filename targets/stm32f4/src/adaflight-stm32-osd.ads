@@ -166,6 +166,8 @@ package Adaflight.STM32.OSD is
       PIDs              : Adaflight.OSD_Render.PID_Axes;
       PID_Profile_Name  : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Rate_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
+      Battery_Index     : Interfaces.Unsigned_8 := 0;
+      Battery_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Craft_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
       Pilot_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
       Messages          : Adaflight.Config_Groups.Bytes_17_List_4 := (others => (others => 0));

@@ -739,6 +739,8 @@ package body Adaflight.STM32.OSD is
       P.Was_Ever_Armed := F.Was_Ever_Armed;
       P.Has_Link_Quality_Source := F.Link_Source /= Adaflight.OSD_Render.None;
       P.Failsafe_Active := F.Failsafe_Active;
+      P.Runaway_Or_Crash_Disable :=
+        F.Disabled (Adaflight.Arming.Runaway_Disarm) or else F.Disabled (Adaflight.Arming.Crash_Disarm);
       P.Display_Grabbed := Grabbed;
       P.OSD_Switch := F.OSD_Switch;
       P.Launch_Control_Active := F.Launch_Control;
@@ -858,6 +860,8 @@ package body Adaflight.STM32.OSD is
       D.PIDs := F.PIDs;
       D.PID_Profile_Name := Name_Of (F.PID_Profile_Name);
       D.Rate_Profile_Name := Name_Of (F.Rate_Profile_Name);
+      D.Battery_Index := F.Battery_Index;
+      D.Battery_Profile_Name := Name_Of (F.Battery_Profile_Name);
       D.Pilot_Name := Name_Of (F.Pilot_Name);
       for M in D.Messages'Range loop
          D.Messages (M) := Name_Of (F.Messages (M));

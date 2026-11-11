@@ -3398,6 +3398,8 @@ package body Adaflight.STM32.Flight is
       F.Total_Dist_M := Config.Stats_Config.Stats_Total_Dist_M;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
+      F.Battery_Index := Unsigned_8 (Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile)));
+      F.Battery_Profile_Name := Profile.Profile_Name;
       declare
          P : Adaflight.Config_Groups.Pid_Profile_Record renames
            Config.Pid_Profiles (Natural'Min (3, Natural (Config.System_Config.Pid_Profile_Index)));

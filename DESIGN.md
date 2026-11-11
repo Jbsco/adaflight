@@ -14274,3 +14274,17 @@ an upstream note, and simulator vectors come from a copy of its update with that
 
 Host smoke feeds an image exactly two packets and expects MSP answers afterwards. An image built before this change
 stops answering.
+
+## D718. Battery profile and disable reasons in OSD inputs on boards (2026-11-11)
+
+Two OSD inputs stayed at their defaults on every board. Its battery profile name element drew its first profile's
+number whatever profile was selected and never drew a profile's name. Its statistics page came up after a runaway
+takeoff or a crash detection, where arming logic keeps a disable reason that a warnings line should show in that
+page's place.
+
+Board glue now passes its selected battery profile's index and name, and board OSD code reads both disable reasons
+from arming state it already receives.
+
+Host smoke selects a second battery profile and expects its number on that element, then its name once set. Under
+a simulator link it arms, feeds a roll rate that trips runaway takeoff detection, and expects a screen with that
+warning alone.

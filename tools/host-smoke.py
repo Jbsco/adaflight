@@ -2073,6 +2073,110 @@ def main():
                 sock.close()
                 sim.close()
         simulator_gap_checks()
+        # Battery profile on the OSD: the battery profile name element shows the selected profile's number and
+        # then its name.
+        def osd_battery_profile_checks():
+            store = os.path.join(work, "osdbat.bin")
+
+            def element_then(lines):
+                # The element's row of this start, then the commands for the next one.
+                proc, sock = start(image, store)
+                try:
+                    time.sleep(5.0)
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            rows = f.read().splitlines()
+                    except OSError:
+                        rows = []
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    for line in lines:
+                        cli(sock, line)
+                    if lines:
+                        cli(sock, "save", wait=2.0)
+                        proc.wait(timeout=10)
+                    return rows[8].strip() if len(rows) > 8 else ""
+                finally:
+                    stop(proc)
+                    sock.close()
+            element_then(["set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                          "set osd_battery_profile_name_pos = 2314", "battery_profile 1"])
+            shown = element_then(["set battery_profile_name = PACKB"])
+            check("battery profile name element shows the second profile's number", shown == "BAT2", repr(shown))
+            shown = element_then([])
+            check("battery profile name element shows the profile's name", shown == "PACKB", repr(shown))
+        osd_battery_profile_checks()
+        # Arming disable reasons on the OSD: after a runaway takeoff disarm the warnings line stays in place of
+        # the statistics page.
+        def osd_runaway_warning_checks():
+            store = os.path.join(work, "osdrun.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("set rx_uart = UART3", "aux 0 0 0 1700 2100 0 0", "set osd_displayport_device = MAX7456",
+                             "set vcd_video_system = PAL", "set osd_warnings_pos = 2314"):
+                    cli(sock, line)
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            done = threading.Event()
+            roll_rate = [0.0]
+
+            def feed_rate():
+                tick = 0
+                while not done.is_set():
+                    sim.sendto(struct.pack("<18d", tick * 0.01, roll_rate[0], 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                    tick += 1
+                    time.sleep(0.01)
+
+            def armed_and_reasons():
+                status = msp(sock, 150)
+                if status is None or len(status) < 21 + status[15]:
+                    return None, 0
+                at = 16 + status[15]
+                return status[6] & 1, int.from_bytes(status[at + 1:at + 5], "little")
+            threading.Thread(target=feed_rate, daemon=True).start()
+            sticks = [992, 992, 172, 992]
+            try:
+                time.sleep(8.0)
+                receiver.channels = sticks + [1811] + [992] * 11
+                time.sleep(1.5)
+                check("craft arms before the runaway", armed_and_reasons()[0] == 1, repr(armed_and_reasons()))
+                # Ten radians a second of roll with the sticks centred, as a craft that runs away at takeoff.
+                roll_rate[0] = 10.0
+                time.sleep(0.6)
+                roll_rate[0] = 0.0
+                time.sleep(0.4)
+                armed, reasons = armed_and_reasons()
+                check("runaway takeoff disarms and keeps arming disabled", armed == 0 and reasons & 0x20 != 0,
+                      repr((armed, hex(reasons))))
+                time.sleep(2.0)
+                try:
+                    with open(store + ".osd.txt") as f:
+                        lines = [entry.strip() for entry in f.read().splitlines() if entry.strip()]
+                except OSError:
+                    lines = []
+                check("warnings line stays in place of the statistics page after a runaway",
+                      lines == ["RUNAWAY"], repr(lines))
+                receiver.channels = sticks + [992] * 12
+                time.sleep(1.0)
+            finally:
+                done.set()
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        osd_runaway_warning_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
