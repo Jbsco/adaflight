@@ -1911,6 +1911,30 @@ def main():
                 sock.close()
                 sim.close()
         beacon_guard_checks()
+        # A stall at the start: paused 50 ms between its start-up and its first scheduler pass, as a busy
+        # host pauses it, the image still runs its gyro task.
+        def start_stall_checks():
+            store = os.path.join(work, "stall.bin")
+            proc, sock = start(image, store, extra={"ADAFLIGHT_START_STALL_MS": "50"})
+            try:
+                time.sleep(4.0)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+
+                def gyro_runs():
+                    text = cli(sock, "tasks", 1.5)
+                    line = next((entry for entry in text.splitlines() if "GYRO)" in entry), "")
+                    fields = line.split(")")[-1].split()
+                    return (int(fields[7]) if len(fields) > 7 and fields[7].isdigit() else None), line
+                first, line = gyro_runs()
+                time.sleep(1.0)
+                second, line = gyro_runs()
+                ran = None if first is None or second is None else (second - first if second >= first else second)
+                check("gyro task runs after a stall at the start", ran is not None and ran >= 500, line.strip()[:100])
+            finally:
+                stop(proc)
+                sock.close()
+        start_stall_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
