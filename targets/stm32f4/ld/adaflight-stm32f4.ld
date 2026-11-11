@@ -69,13 +69,17 @@ SECTIONS
     KEEP (*(.vectors))
   } > flash0
 
+  /* The run-time library's interrupt vector table is aligned to 512 bytes. It starts the code region,
+     where that alignment costs nothing, and stays out of sector 0, which then needs no such alignment. */
   .text0 :
   {
-    *(.text .text.* .gnu.linkonce.t*)
+    *(EXCLUDE_FILE (*libgnarl.a:handler.o) .text)
+    *(.text.* .gnu.linkonce.t*)
   } > flash0
 
   .text :
   {
+    *libgnarl.a:handler.o(.text)
     *(.text .text.* .gnu.linkonce.t*)
     *(.itcm_text .itcm_text.*)
     *(.gnu.warning)
