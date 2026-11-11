@@ -1038,7 +1038,8 @@ def start(image, store, extra=None, port=PORT):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
                ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt",
                ADAFLIGHT_PWM_LOG=store + ".pwm.txt", ADAFLIGHT_LED_LOG=store + ".led.txt",
-               ADAFLIGHT_CAMERA_LOG=store + ".camera.txt", **(extra or {}))
+               ADAFLIGHT_CAMERA_LOG=store + ".camera.txt", ADAFLIGHT_BEEPER_LOG=store + ".beeper.txt",
+               **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:

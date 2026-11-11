@@ -40,7 +40,7 @@ The host image runs the board's flight software on Linux, with each UART as a TC
 
 With `ADAFLIGHT_SIMULATOR=gazebo` or `legacy`, the host image links to a flight simulator over UDP: flight dynamics packets arrive on port 9003 and feed the virtual gyro, accelerometer and attitude, and motor packets go to ports 9002 and 9001 of the simulator, at `127.0.0.1` or the address after a comma (`gazebo,192.168.1.5`). The virtual barometer takes its pressure from the packets, the virtual compass its field from their attitude, and `set gps_provider = VIRTUAL` takes the GPS solution from them. `feature -RX_SERIAL` with `feature RX_UDP` takes the sticks from packets of sixteen pulses on port 9004 (a serial receiver feature left on wins), and with `motor_pwm_protocol = PWM` the motor outputs return as speed and raw packets, one pair per flight dynamics packet. Packet timestamps set the image's clock rate: a simulator at half speed slows flight software with it.
 
-The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names.
+The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names. With `ADAFLIGHT_BEEPER_LOG` set, each change of the beeper's state is written to the file it names, as a time in milliseconds and 1 or 0.
 
 ## MSP client
 
