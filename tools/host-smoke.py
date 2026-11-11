@@ -1828,6 +1828,89 @@ def main():
                 sock.close()
                 sim.close()
         headfree_offset_checks()
+        # DShot beacon before arming: while the beeper switch sends beacon commands, the arm switch arms the
+        # craft only 1.2 s after the last one, which the DShot log shows as the time to the first spin direction
+        # command.
+        def beacon_guard_checks():
+            store = os.path.join(work, "beacon.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("set rx_uart = UART3", "aux 0 0 0 1700 2100 0 0", "aux 1 13 1 1700 2100 0 0",
+                             "beacon RX_SET"):
+                    cli(sock, line)
+                text = cli(sock, "beacon")
+                check("beacon set for the beeper switch", "RX_SET" not in text.split("Disabled:")[-1], text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            done = threading.Event()
+
+            def feed_level():
+                tick = 0
+                while not done.is_set():
+                    sim.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                    tick += 1
+                    time.sleep(0.01)
+
+            def counts():
+                # Beacon commands of tone 1 and spin direction commands in the DShot log.
+                try:
+                    with open(store + ".dshot.txt") as f:
+                        values = [line.split(",")[1] for line in f.read().split()]
+                except (OSError, IndexError):
+                    values = []
+                return values.count("1"), values.count("20")
+            threading.Thread(target=feed_level, daemon=True).start()
+            sticks = [992, 992, 172, 992]
+            try:
+                time.sleep(8.0)
+                receiver.channels = sticks + [992, 1811] + [992] * 10
+                time.sleep(3.0)
+                beacons, spins = counts()
+                check("beeper switch sends beacon commands", beacons >= 8, repr(beacons))
+                last_beacon, switched, first_spin = None, None, None
+                began = time.monotonic()
+                while time.monotonic() - began < 6.0 and first_spin is None:
+                    now_beacons, now_spins = counts()
+                    if now_beacons != beacons:
+                        beacons = now_beacons
+                        last_beacon = time.monotonic()
+                    if switched is not None and now_spins != spins:
+                        first_spin = time.monotonic()
+                    if switched is None and last_beacon is not None and time.monotonic() - began > 1.0 \
+                            and time.monotonic() - last_beacon < 0.03:
+                        receiver.channels = sticks + [1811, 1811] + [992] * 10
+                        switched = time.monotonic()
+                    time.sleep(0.005)
+                waited = None if first_spin is None or last_beacon is None else first_spin - last_beacon
+                check("arming waits 1.2 s after the last beacon", waited is not None and waited > 1.0, repr(waited))
+                time.sleep(0.7)
+                status = msp(sock, 150)
+                check("craft arms after the beacon guard", status is not None and len(status) > 6 and status[6] & 1 == 1,
+                      repr(status))
+                receiver.channels = sticks + [992] * 12
+                time.sleep(1.0)
+            finally:
+                done.set()
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        beacon_guard_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

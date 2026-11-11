@@ -2472,6 +2472,7 @@ package body Adaflight.STM32.Flight is
       Sensed.Baro_Calibrated := Adaflight.STM32.Baro.Calibrated;
       Sensed.Mag_Calibrated := Adaflight.STM32.Compass.Calibration_Complete;
       Sensed.Headfree_Offset_Set := Adaflight.Attitude.Headfree_Offset_Allowed (Att_State);
+      Sensed.Last_Beacon_Us := Beep.Last_Beacon_Us;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
       if Adaflight.Build_Features.Wing then
          Sensed.Launch_Sensed := Launch_Inputs (Channels);
