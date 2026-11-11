@@ -20,6 +20,8 @@ package Adaflight.STM32.Compass is
    --  The gyro rates the calibration watches for movement, degrees per second.
    procedure Set_Gyro (Rates : Adaflight.Vectors.Vector3);
    procedure Start_Calibration;
+   --  No calibration in progress.
+   function Calibration_Complete return Boolean;
    function Calibrated return Boolean;
    function Enabled_And_Calibrated return Boolean;
    --  The aligned, zeroed field of the last read.

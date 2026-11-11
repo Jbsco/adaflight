@@ -1569,6 +1569,118 @@ def main():
                 vcp.close()
             if log is not None:
                 log.close()
+        # Barometer and compass in the arming logic: the calibrating reason lasts through the barometer's
+        # calibration after a start, the gyro calibration sticks level its altitude again, and a compass
+        # calibration raises that reason.
+        def barometer_arming_checks():
+            def disable_flags(link):
+                status = msp(link, 150)
+                if status is None or len(status) < 21 + status[15]:
+                    return None
+                at = 16 + status[15]
+                return int.from_bytes(status[at + 1:at + 5], "little")
+
+            def calibrating_end(store):
+                proc, sock = start(image, store)
+                began, last = time.monotonic(), None
+                try:
+                    while time.monotonic() - began < 6.0:
+                        value = disable_flags(sock)
+                        if value is not None and value & 0x1000:
+                            last = time.monotonic() - began
+                        time.sleep(0.1)
+                finally:
+                    stop(proc)
+                    sock.close()
+                return last
+            store = os.path.join(work, "barocal.bin")
+            with_baro = calibrating_end(store)
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set baro_hardware = NONE")
+                check("barometer turned off", "baro_hardware set to NONE" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            without = calibrating_end(store)
+            check("calibrating reason lasts through the barometer's calibration",
+                  with_baro is not None and without is not None and with_baro - without > 0.8,
+                  repr((with_baro, without)))
+            store = os.path.join(work, "barolevel.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("rx_uart = UART3", "altitude_source = BARO_ONLY"):
+                    text = cli(sock, f"set {line}")
+                    check(f"barometer levelling setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            fed = [0]
+
+            def feed_level(seconds):
+                # A level craft at rest at 1600 m, in the Gazebo bridge's order.
+                for _ in range(int(seconds * 100)):
+                    sim.sendto(struct.pack("<18d", fed[0] * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                    fed[0] += 1
+                    time.sleep(0.01)
+
+            def altitude_cm():
+                reply = msp(sock, 109)
+                return int.from_bytes(reply[0:4], "little", signed=True) if reply and len(reply) >= 4 else None
+            try:
+                time.sleep(2.5)
+                receiver.set(992, 992, 172, 992)
+                feed_level(7.0)
+                level = altitude_cm()
+                check("virtual barometer reads a fed 1600 m before the stick command",
+                      level is not None and abs(level - 160000) <= 500, repr(level))
+                receiver.set(992, 172, 172, 172)
+                feed_level(0.6)
+                receiver.set(992, 992, 172, 992)
+                trace = []
+                for _ in range(24):
+                    feed_level(0.5)
+                    level = altitude_cm()
+                    trace.append(level)
+                    if level is not None and abs(level) <= 500:
+                        break
+                check("gyro calibration sticks level the barometer's altitude again",
+                      level is not None and abs(level) <= 500, repr(trace))
+                if built("Compass"):
+                    value = disable_flags(sock)
+                    check("no calibrating reason before a compass calibration",
+                          value is not None and not value & 0x1000, repr(value))
+                    msp(sock, 206)
+                    feed_level(1.5)
+                    value = disable_flags(sock)
+                    check("compass calibration raises the calibrating reason",
+                          value is not None and bool(value & 0x1000), repr(value))
+            finally:
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        if built("Barometer"):
+            barometer_arming_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

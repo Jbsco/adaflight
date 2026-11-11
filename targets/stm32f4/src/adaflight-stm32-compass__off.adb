@@ -23,6 +23,7 @@ package body Adaflight.STM32.Compass is
 
    procedure Start_Calibration is null;
 
+   function Calibration_Complete return Boolean is (True);
    function Calibrated return Boolean is (False);
 
    function Enabled_And_Calibrated return Boolean is (False);
