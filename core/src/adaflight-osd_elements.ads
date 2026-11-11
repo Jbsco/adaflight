@@ -194,7 +194,7 @@ package Adaflight.OSD_Elements with SPARK_Mode is
      (for some K in 1 .. A.Count => A.Items (K) = I);
 
    function Need_Accelerometer (A : Active_List) return Boolean is
-     (Is_Active (A, Artificial_Horizon) or else Is_Active (A, Pitch_Angle) or else Is_Active (A, Roll_Angle)
-      or else Is_Active (A, G_Force) or else Is_Active (A, Flip_Arrow) or else Is_Active (A, Up_Down_Reference));
+     (for some K in 1 .. A.Count =>
+        A.Items (K) in Artificial_Horizon | Pitch_Angle | Roll_Angle | G_Force | Flip_Arrow | Up_Down_Reference);
 
 end Adaflight.OSD_Elements;

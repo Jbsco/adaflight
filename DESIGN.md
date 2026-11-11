@@ -14225,3 +14225,13 @@ now follows its code size without 512 byte steps.
 
 Under Renode a GEPRC F411 image starts through its relocated table, takes tick interrupts and runs board start-up
 as far as its internal ADC check, as before this change. No board has run this layout.
+
+## D714. OSD accelerometer need in arming checks on boards (2026-11-10)
+
+Arming logic asks for an accelerometer calibration when none is stored and something reads that sensor. An OSD
+element such as its artificial horizon, or its max G force statistic, counts as such a reader. No board reported
+that need, so a craft with either one and no calibration could arm. Board OSD code now reports it from its active
+element list and its enabled statistics, and board glue passes it on.
+
+Host smoke shows an artificial horizon on a configuration without a calibration and expects that reason among
+its arming disable reasons. It expects that reason again with only that statistic enabled, and none with neither.

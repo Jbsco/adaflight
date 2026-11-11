@@ -698,6 +698,10 @@ package body Adaflight.STM32.OSD is
       Task_Data.Last_GPS := not Context.Element_Inputs.GPS_Present;
    end Analyze_Again;
 
+   function Needs_Accelerometer return Boolean is
+     (Context.Page_Settings.Enabled (Adaflight.OSD_Stats.Max_G_Force)
+      or else Adaflight.OSD_Elements.Need_Accelerometer (Task_Data.Active));
+
    function Task_Due (Now_Us : Unsigned_32) return Boolean is
       Due : Boolean;
    begin
