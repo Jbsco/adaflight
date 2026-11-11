@@ -2341,6 +2341,12 @@ def main():
             check("passthrough request over CRSF is refused and MSP goes on",
                   len(replies) == 1 and reply is not None and reply[0] == 245 and reply[1] == 1
                   and reply[2] == b"\x00" and motors is not None and len(motors) == 16, repr((replies, motors)))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "tasks", wait=1.5)
+            rate = re.search(r"TELEMETRY\)\s+(\d+)", text)
+            check("telemetry task runs at 500 Hz with a CRSF receiver",
+                  rate is not None and rate.group(1) == "500", repr(rate and rate.group(0)))
         finally:
             receiver.stop.set()
             stop(proc)

@@ -4,10 +4,11 @@
 usage: boardreads.py
 
 The processor's Views record is what a board fills for the replies, its Effects record is what a board acts on
-after a message, and its Context record is what a board reports for a request. A field of any that no source under
-targets/ names is a reply or a decision that reads a default, or a write that does nothing. A field counts as
-named when its path under Out_Views, Effects or Ctx appears in a target source, or when a record on that path is
-assigned, renamed or passed whole. The fields in OPEN are known to have no reader, each with its reason. The check
+after a message, and its Context record is what a board reports for a request. The task setup's Inputs record is
+what a board reports at its start. A field of any that no source under targets/ names is a reply or a decision
+that reads a default, or a write that does nothing. A field counts as named when its path under Out_Views,
+Effects, Ctx or Inputs appears in a target source, or when a record on that path is assigned, renamed or passed
+whole. The fields in OPEN are known to have no reader, each with its reason. The check
 fails on a field without a reader that OPEN does not list, and on a listed field that has gained one. Run from the
 repository root.
 """
@@ -17,6 +18,7 @@ import sys
 
 CORE = pathlib.Path("core/src")
 PROCESSOR = CORE / "adaflight-msp_processor.ads"
+TASK_INIT = CORE / "adaflight-task_init.ads"
 
 ALWAYS = "every board build contains it, as the default says"
 FOLDED = "the processor folds it into an effect the boards read"
@@ -58,6 +60,9 @@ OPEN = {
     "Effects.Font.Size": "the boards write whole characters",
     "Effects.Passthrough_Mode": "not served: an ESC's serial link",
     "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
+    "Inputs.Feature_Dashboard": "not served: no board runs the dashboard",
+    "Inputs.Feature_Transponder": "not served: no board drives a transponder",
+    "Inputs.DroneCAN_Initialised": "no board build has DroneCAN",
 }
 
 
@@ -112,11 +117,13 @@ def main():
     processor = PROCESSOR.read_text()
     targets = "\n".join(p.read_text() for p in sorted(pathlib.Path("targets").glob("*/src/*.ad[sb]")))
     without = set()
-    for root, record in (("Out_Views", "Views"), ("Effects", "Effects"), ("Ctx", "Context")):
-        for field, field_type in fields(processor, record):
+    task_init = TASK_INIT.read_text()
+    for root, record, text in (("Out_Views", "Views", processor), ("Effects", "Effects", processor),
+                               ("Ctx", "Context", processor), ("Inputs", "Inputs", task_init)):
+        for field, field_type in fields(text, record):
             if (root, field) == ("Ctx", "Out_Views"):
                 continue
-            for path in leaves([field], field_type, processor):
+            for path in leaves([field], field_type, text):
                 if not named(targets, root, path):
                     without.add(root + "." + ".".join(path))
     problems = [f"{name}: no board source names it" for name in sorted(without - set(OPEN))]
