@@ -14197,3 +14197,17 @@ glue now reports it.
 Host smoke sends beacons with its beeper switch under a simulator link, then turns its arm switch on right after
 one. It reads its DShot command log and expects a first spin direction command more than a second after that last
 beacon. An image built before this change sends it within 50 ms.
+
+## D712. Host cycle counter from nanoseconds (2026-11-10)
+
+Host image counted its core clock cycles from whole microseconds. Scheduler code starts its gyro task when a pass
+arrives inside a start window before that task's target, and after a late pass it skips to its next target. That
+window is one microsecond wide after start-up. With a counter that moved in steps of one microsecond, no pass
+could fall inside it. An image delayed longer than two gyro periods before its first pass never ran its gyro,
+filter or PID tasks. Its flight log never started and its calibrating reason stayed.
+
+A busy host gave that delay. CI failed flight log checks twice that way, and local runs under CPU load failed every
+time. Host image now counts cycles from nanoseconds, so its counter moves within a microsecond as a board's does.
+
+`ADAFLIGHT_START_STALL_MS` pauses an image that many milliseconds between start-up and its first scheduler pass.
+Host smoke starts an image with a 50 ms pause and expects its gyro task to run.

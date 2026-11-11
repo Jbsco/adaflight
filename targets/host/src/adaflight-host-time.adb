@@ -15,8 +15,11 @@ package body Adaflight.STM32.Time is
 
    function Micros return Unsigned_32 is (Unsigned_32 (Elapsed_Us mod 2 ** 32));
 
-   --  A counter at the board's core clock, wrapping as the board's does.
-   function Cycle_Count return Unsigned_32 is (Unsigned_32 ((Elapsed_Us * Cycles_Per_Us) mod 2 ** 32));
+   --  A counter at the board's core clock, wrapping as the board's does. It
+   --  counts from nanoseconds, so it moves within a microsecond as the
+   --  board's does.
+   function Cycle_Count return Unsigned_32 is
+     (Unsigned_32 ((Adaflight.Host_Clock.Elapsed_Ns * Cycles_Per_Us / 1_000) mod 2 ** 32));
 
    --  A delay in the image's time takes its real share at the rate.
    function Real_Span (Us : Natural) return Ada.Real_Time.Time_Span is
