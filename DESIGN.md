@@ -14386,3 +14386,13 @@ update, checked against a Betaflight build.
 
 `waypoint status` reports executor state. Waypoint capture, a listener for reached waypoints and OSD plan
 elements are not wired yet.
+
+## D726. Waypoint capture on boards (2026-11-11)
+
+Betaflight's capture switch edits its plan in flight. A short press appends its GPS position, a press held past a
+second and a half deletes its last waypoint, and an OSD message names each edit. Boards built with a flight plan
+now run that gesture after each modes pass, with executor activity as it stood before that pass.
+
+Capture state sits beside OSD state, since warnings read its message, over MSP and on screen, and clear it once it
+has expired. Edits go into configuration in RAM, and a save stores them. A switch that a receiver failsafe
+substitutes during a lost link edits nothing, and neither does a press while an executor flies.
