@@ -739,6 +739,8 @@ package body Adaflight.STM32.OSD is
       P.Was_Ever_Armed := F.Was_Ever_Armed;
       P.Has_Link_Quality_Source := F.Link_Source /= Adaflight.OSD_Render.None;
       P.Failsafe_Active := F.Failsafe_Active;
+      P.Runaway_Or_Crash_Disable :=
+        F.Disabled (Adaflight.Arming.Runaway_Disarm) or else F.Disabled (Adaflight.Arming.Crash_Disarm);
       P.Display_Grabbed := Grabbed;
       P.OSD_Switch := F.OSD_Switch;
       P.Launch_Control_Active := F.Launch_Control;
