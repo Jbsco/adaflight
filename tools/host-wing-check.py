@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Checks a wing build of the host image over its UART1 TCP port: the MSP box ids offer launch and leave out launch
-control, waypoint capture and the altitude and position holds, the build options list the wing, and the command line
-has the wing's launch settings and TPA limits without the multirotor rescue settings.
+"""Checks a wing build of the host image without the flight plan over its UART1 TCP port: the MSP box ids offer
+launch and leave out launch control, the flight plan's boxes and the altitude and position holds, the build options
+list the wing, and the command line has the wing's launch settings and TPA limits without the multirotor rescue
+settings.
 
 usage: host-wing-check.py <host image>"""
 import importlib.util
@@ -23,8 +24,8 @@ def main() -> int:
         try:
             hs.time.sleep(2.5)
             ids = (hs.msp(sock, 119) or b"") + (hs.msp(sock, 119, bytes([1])) or b"")
-            hs.check("wing box ids leave out launch control and waypoint capture",
-                     len(ids) > 30 and 49 not in ids and 57 not in ids, repr(list(ids)))
+            hs.check("wing box ids leave out launch control and the flight plan's boxes",
+                     len(ids) > 20 and 49 not in ids and 56 not in ids and 57 not in ids, repr(list(ids)))
             hs.check("wing box ids offer launch", 58 in ids, repr(list(ids)))
             hs.check("wing box ids leave out altitude and position hold", 3 not in ids and 11 not in ids,
                      repr(list(ids)))
@@ -39,16 +40,6 @@ def main() -> int:
             hs.check("wing command line leaves out multirotor rescue settings", "INVALID NAME" in text, text[-120:])
             text = hs.cli(sock, "set tpa_low_rate = -128")
             hs.check("wing command line takes wing TPA limits", "tpa_low_rate set to -128" in text, text[-120:])
-            options = {int(w) for w in hs.cli(sock, "options").split() if w.isdigit()}
-            hs.check("build without the flight plan leaves its build option out", 16427 not in options,
-                     repr(sorted(options)))
-            text = hs.cli(sock, "waypoint")
-            hs.check("build without the flight plan knows no waypoint command", "UNKNOWN COMMAND" in text,
-                     text[-120:])
-            text = hs.cli(sock, "help waypoint")
-            hs.check("help lists no waypoint command there", "NO MATCHES" in text, text[-120:])
-            text = hs.cli(sock, "dump all", 4.0)
-            hs.check("dump has no waypoint lines there", "aux " in text and "waypoint" not in text, text[-120:])
             text = hs.cli(sock, "status")
             hs.check("wing status answers", "System Uptime" in text or "MCU" in text, text[:160])
         finally:

@@ -51,7 +51,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     bash target.do                            # STM32F4 image, BOARD names the board (CLRACINGF4 when unset)
     CRATE=stm32f7 bash target.do              # STM32F7 image, KAKUTEF7 when BOARD is unset
     bash host.do                              # host image, checked over its UART1 TCP port
-    bash hostwing.do                          # wing build of host image, checked the same way
+    bash hostwing.do                          # host images without flight plan: multirotor, then wing
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 

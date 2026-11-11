@@ -14345,3 +14345,12 @@ an auto-disarm, and no rescue flight mode comes from this code.
 
 An executor's answers are inputs here and its calls are outputs. Arming vectors gain sequences from a Betaflight
 build with its flight plan, whose executor that oracle scripts.
+
+## D723. Flight plan boxes behind its build feature (2026-11-11)
+
+Betaflight offers its autopilot and waypoint capture boxes only in a build with its flight plan. Every adaflight
+GPS build offered both, so a configurator's modes tab listed two boxes that a standard Betaflight build lacks.
+
+Both boxes now follow that build feature (D721). Host smoke checks them on a build with it. `hostwing.do` now
+builds a multirotor image without it first and checks its box list, build options and command line there, then
+builds its wing image.

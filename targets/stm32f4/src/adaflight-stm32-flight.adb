@@ -811,9 +811,9 @@ package body Adaflight.STM32.Flight is
    --  features running, of the accelerometer, of the GPS feature, of the
    --  mixer and of a DShot motor protocol, the user boxes a PINIO output
    --  watches, and the MSP override when it names channels. The build holds
-   --  the acro trainer, the flight plan, the camera control, the video
-   --  transmitter control, PID audio, launch control, the lap timer and the
-   --  chirp, and no magnetometer.
+   --  the acro trainer, the camera control, the video transmitter control,
+   --  PID audio, launch control, the lap timer and the chirp, the flight
+   --  plan's boxes when it has the flight plan, and no magnetometer.
    function Available_Boxes return Adaflight.Modes.Mask is
       use type Adaflight.Mixer_Init.Mixer_Mode;
       Servo_Tilt : constant Unsigned_32 := 16#0000_0020#;
@@ -853,8 +853,9 @@ package body Adaflight.STM32.Flight is
            and then not Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode);
          M (Adaflight.Modes.Beep_GPS_Count) := True;
       end if;
-      M (Adaflight.Modes.Autopilot) := Adaflight.Build_Features.GPS;
-      M (Adaflight.Modes.WP_Capture) := Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing;
+      M (Adaflight.Modes.Autopilot) := Adaflight.Build_Features.GPS and then Adaflight.Plan_Build.Enabled;
+      M (Adaflight.Modes.WP_Capture) :=
+        Adaflight.Build_Features.GPS and then Adaflight.Plan_Build.Enabled and then not Adaflight.Build_Features.Wing;
       M (Adaflight.Modes.Failsafe) := True;
       M (Adaflight.Modes.Passthru) := Adaflight.Mixer_Init.Is_Fixed_Wing (Mixer);
       M (Adaflight.Modes.Beeper_On) := True;
