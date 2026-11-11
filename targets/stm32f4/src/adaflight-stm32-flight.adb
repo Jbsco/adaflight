@@ -5025,12 +5025,20 @@ package body Adaflight.STM32.Flight is
       Disarm   : Boolean;
       Changed  : Boolean;
       Asked    : Adaflight.Arming.Outputs;
+      Sticks    : constant Adaflight.Arming.Axis_Deflections := Adaflight.STM32.Pilot.Deflections;
       In_Flight : constant Adaflight.Failsafe.Inputs :=
         (Armed               => Adaflight.STM32.Pilot.Armed,
          Switch_On           => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
          Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
          Configurator_Active => Configurator_Active,
          Crash_Recovery      => Adaflight.STM32.Control.Crash_Recovery_Active,
+         Sticks_Active       =>
+           (for some A in Adaflight.Axes.Axis =>
+              Sticks (A) * 100.0 >= Float (Config.Failsafe_Config.Failsafe_Stick_Threshold)),
+         Rescue_Configured   =>
+           Adaflight.Build_Features.GPS
+           and then (Config.Failsafe_Config.Failsafe_Procedure = 2
+                     or else Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.GPS_Rescue)),
          others              => False);
    begin
       Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm);

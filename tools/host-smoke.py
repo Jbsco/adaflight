@@ -2241,6 +2241,98 @@ def main():
                 sim.close()
         if built("IBus_Telemetry") and built("Barometer"):
             ibus_barometer_checks()
+        # GPS rescue as the failsafe procedure: with the stick packets gone the rescue mode comes on without the
+        # failsafe mode, outlasts the landing time, stays on when the packets return with centred sticks, and
+        # ends at a stick movement.
+        def rescue_failsafe_checks():
+            store = os.path.join(work, "rescuefs.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
+                             "aux 0 0 0 1700 2100 0 0", "feature GPS", "set gps_provider = VIRTUAL",
+                             "set altitude_source = BARO_ONLY", "set failsafe_landing_time = 3"):
+                    cli(sock, line)
+                text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
+                check("GPS rescue set as the failsafe procedure", "failsafe_procedure set to GPS-RESCUE" in text,
+                      text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            done = threading.Event()
+            with_sticks = threading.Event()
+            with_sticks.set()
+            pulses = [1500, 1500, 1000, 1500] + [1000] * 12
+            place = [-105.25, 40.0, 1600.0]
+
+            def feed():
+                out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                tick = 0
+                while not done.is_set():
+                    out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
+                    if tick % 2 == 0 and with_sticks.is_set():
+                        out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
+                    tick += 1
+                    time.sleep(0.01)
+                out.close()
+
+            def modes():
+                status = msp(sock, 150)
+                if status is None or len(status) < 16 + status[15]:
+                    return None
+                return int.from_bytes(status[6:10], "little") | int.from_bytes(status[16:16 + status[15]], "little") << 32
+            try:
+                time.sleep(2.5)
+                threading.Thread(target=feed, daemon=True).start()
+                time.sleep(7.0)
+                msp(sock, 205)
+                time.sleep(4.0)
+                ids = list(msp(sock, 119) or b"")
+                arm, failsafe, rescue = (1 << ids.index(i) if i in ids else 0 for i in (0, 27, 46))
+                check("boxes of arming, failsafe and GPS rescue exist", arm and failsafe and rescue, repr(ids))
+                pulses[4] = 1800
+                armed, value = until(modes, lambda m: m is not None and m & arm, wait=8.0)
+                check("craft arms for the rescue failsafe", armed, repr(value))
+                # Raised throttle, then a place 111 m from home and 30 m up, for a rescue that has somewhere to go.
+                pulses[2] = 1400
+                place[1] += 0.001
+                place[2] += 30.0
+                time.sleep(4.0)
+                with_sticks.clear()
+                time.sleep(2.5)
+                value = modes()
+                check("lost link turns the rescue mode on without the failsafe mode",
+                      value is not None and value & rescue and not value & failsafe and value & arm, repr(value))
+                time.sleep(4.5)
+                value = modes()
+                check("rescue outlasts the failsafe's landing time", value is not None and value & rescue and value & arm,
+                      repr(value))
+                with_sticks.set()
+                time.sleep(2.0)
+                value = modes()
+                check("link's return with centred sticks leaves the rescue on", value is not None and value & rescue,
+                      repr(value))
+                pulses[0] = 1800
+                time.sleep(1.5)
+                value = modes()
+                check("stick movement ends the rescue", value is not None and not value & rescue and value & arm,
+                      repr(value))
+                pulses[0] = 1500
+                pulses[4] = 1000
+                time.sleep(1.0)
+            finally:
+                done.set()
+                stop(proc)
+                sock.close()
+        if built("GPS"):
+            rescue_failsafe_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
