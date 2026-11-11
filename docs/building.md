@@ -42,7 +42,7 @@ With `ADAFLIGHT_SIMULATOR=gazebo` or `legacy`, the host image links to a flight 
 
 `feature -RX_SERIAL` with `feature RX_UDP` takes the sticks from packets of sixteen pulses on port 9004. A serial receiver feature left on wins. With `motor_pwm_protocol = PWM` the motor outputs return as speed and raw packets, one pair per flight dynamics packet. Packet timestamps set the image's clock rate: a simulator at half speed slows flight software with it.
 
-The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names. With `ADAFLIGHT_BEEPER_LOG` set, each change of the beeper's state is written to the file it names, as a time in milliseconds and 1 or 0.
+The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names. With `ADAFLIGHT_BEEPER_LOG` set, each change of the beeper's state is written to the file it names, as a time in milliseconds and 1 or 0. `ADAFLIGHT_START_STALL_MS` pauses the image that many milliseconds between start-up and its first scheduler pass, for a check of its start on a busy host.
 
 ## MSP client
 
