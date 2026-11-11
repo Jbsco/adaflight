@@ -14133,3 +14133,19 @@ now reports whether a menu is open.
 
 A scan of core input records for fields that no board assigns found this one. Host smoke opens a menu, keeps those
 gyro calibration sticks for two seconds and expects no calibrating reason among arming disable flags.
+
+## D707. F4 code in flash sector 0 (2026-11-10)
+
+F4 images place code in flash sector 0 beside their vector table, by D538's method. Its linker script gains a second
+code section in that sector, and `--enable-non-contiguous-regions` sends each function that does not fit to its code
+region from sector 2. A GEPRC F411 image had 2806 bytes of flash left once a 4-way interface driver joined it (D700).
+It now places 15778 bytes of code in sector 0 and has 18162 bytes left. 1 MB boards had room and use that sector
+too, so one linker script serves every F4.
+
+`sector0.bin` now contains code on every board, so an image needs both flash files. `adaflight_dfu`, a HEX image and
+dfu-util steps in `docs/building.md` already write both.
+
+Under Renode's STM32F4 platform with a cycle counter stub, that F411 image starts, unpacks its data, elaborates and
+runs board start-up as far as its internal ADC check. An image without this change stops at that same check, since
+that platform's ADC never answers. Without a stub it waits in a delay procedure at 0x080006FA, inside sector 0. No
+board has run an F4 image with this layout, which waits for a bench check.
