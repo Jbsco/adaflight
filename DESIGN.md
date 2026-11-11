@@ -14211,3 +14211,17 @@ time. Host image now counts cycles from nanoseconds, so its counter moves within
 
 `ADAFLIGHT_START_STALL_MS` pauses an image that many milliseconds between start-up and its first scheduler pass.
 Host smoke starts an image with a 50 ms pause and expects its gyro task to run.
+
+## D713. Run-time vector table at code region start (2026-11-10)
+
+Run-time library code keeps its interrupt vector table in a section aligned to 512 bytes. Both linker scripts let
+that section fall wherever link order put it, in mid code, behind padding of up to 511 bytes that moved with every
+change of code size before it. Sector 0's code section took that alignment too and began 492 bytes after its short
+start-up table.
+
+Both scripts now place that table first in their code region from sector 2, whose start is aligned already, and
+keep it out of sector 0. GEPRC F411 gains 890 bytes of flash and AlienFlight NG F7 RX gains 491. An image's size
+now follows its code size without 512 byte steps.
+
+Under Renode a GEPRC F411 image starts through its relocated table, takes tick interrupts and runs board start-up
+as far as its internal ADC check, as before this change. No board has run this layout.
