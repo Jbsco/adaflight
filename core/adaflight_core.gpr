@@ -14,15 +14,25 @@ project Adaflight_Core is
      external ("ADAFLIGHT_CORE_LIBRARY_TYPE", external ("LIBRARY_TYPE", "static"));
    for Library_Kind use Library_Type;
 
-   --  A build without debug values takes the debug build spec that turns them off.
+   --  A build without debug values takes the debug build spec that turns them off, and a build without the
+   --  flight plan the plan build spec that turns it off.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
+   Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
+   Excluded := ();
    case Debug_Values is
       when "on" =>
-         for Excluded_Source_Files use ("adaflight-debug_build__off.ads");
+         Excluded := Excluded & ("adaflight-debug_build__off.ads");
       when "off" =>
-         for Excluded_Source_Files use ("adaflight-debug_build.ads");
+         Excluded := Excluded & ("adaflight-debug_build.ads");
    end case;
+   case Flight_Plan is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-plan_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-plan_build.ads");
+   end case;
+   for Excluded_Source_Files use Excluded;
 
    package Naming is
       case Debug_Values is
@@ -30,6 +40,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Debug_Build") use "adaflight-debug_build__off.ads";
+      end case;
+      case Flight_Plan is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Plan_Build") use "adaflight-plan_build__off.ads";
       end case;
    end Naming;
 

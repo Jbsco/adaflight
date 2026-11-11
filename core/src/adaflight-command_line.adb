@@ -9,6 +9,7 @@ with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
+with Adaflight.Plan_Build;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
@@ -4369,9 +4370,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Vtx_Table (Into, C.Vtx_Table_Config, Mode => Mode, Heading => "vtxtable");
       Put_Vtx_Conditions (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, Mode => Mode, Heading => "vtx");
       Put_Failsafes (Into, C.Rx_Failsafe_Channel_Configs, Mode => Mode, Heading => "rxfail");
-      Put_Waypoints
-        (Into, C.Flight_Plan_Config.Waypoint_Count, C.Flight_Plan_Config.Waypoints, Mode => Mode,
-         Heading => "waypoint");
+      if Adaflight.Plan_Build.Enabled then
+         Put_Waypoints
+           (Into, C.Flight_Plan_Config.Waypoint_Count, C.Flight_Plan_Config.Waypoints, Mode => Mode,
+            Heading => "waypoint");
+      end if;
    end Put_Sections;
 
    Hex_Digits : constant String (1 .. 16) := "0123456789abcdef";
@@ -5347,13 +5350,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Any : Boolean := False;
    begin
       for P in Command_Position loop
-         Help_Entry
-           (Into, Search, Command_Name (P),
-            Help_Text (Natural (Description_Starts (P)) + 1
-                       .. Natural (Description_Starts (P)) + Natural (Description_Lengths (P))),
-            Help_Text (Natural (Arguments_Starts (P)) + 1
-                       .. Natural (Arguments_Starts (P)) + Natural (Arguments_Lengths (P))),
-            Any);
+         if Adaflight.Plan_Build.Enabled or else Command_Name (P) /= "waypoint" then
+            Help_Entry
+              (Into, Search, Command_Name (P),
+               Help_Text (Natural (Description_Starts (P)) + 1
+                          .. Natural (Description_Starts (P)) + Natural (Description_Lengths (P))),
+               Help_Text (Natural (Arguments_Starts (P)) + 1
+                          .. Natural (Arguments_Starts (P)) + Natural (Arguments_Lengths (P))),
+               Any);
+         end if;
       end loop;
       if Search'Length > 0 and then not Any then
          Put_Error (Into, "help: NO MATCHES FOR '");
@@ -8290,6 +8295,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Buffer (Length + 1) := ASCII.NUL;
       Find_Command (Buffer, Kind, Arguments);
+      if Kind = Waypoint_Command_Word and then not Adaflight.Plan_Build.Enabled then
+         Kind := No_Command;
+      end if;
       declare
          Args : constant String := (if Kind = No_Command then "" else Text_At (Buffer, Arguments));
       begin
@@ -8438,7 +8446,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Vtx_Table_Command_Word =>
                Vtx_Table_Command (Into, C.Vtx_Table_Config, Args);
             when Waypoint_Command_Word =>
-               Waypoint_Command (Into, C.Flight_Plan_Config, Env.Navigation, Args);
+               if Adaflight.Plan_Build.Enabled then
+                  Waypoint_Command (Into, C.Flight_Plan_Config, Env.Navigation, Args);
+               end if;
          end case;
       end;
    end Process_Line;

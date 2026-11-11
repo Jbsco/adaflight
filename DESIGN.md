@@ -14313,3 +14313,17 @@ select that build and pass stick activity and whether a rescue is configured.
 Failsafe vectors now come from both builds of Betaflight's failsafe. Host smoke loses its stick packets while
 armed under a simulator link. It expects a rescue mode without a failsafe mode, still on past its landing time and
 after those packets return, and off after a stick movement.
+
+## D721. Flight plan code behind a build feature (2026-11-11)
+
+Betaflight builds its waypoint command and its OSD map only with its flight plan, which a standard board build
+lacks. Every adaflight image contained both, although no board runs a flight plan executor yet. An AlienFlight NG
+F7 RX image had 263 bytes of flash left.
+
+A build feature, Flight_Plan, now selects them, off unless named. Core code reads it from a spec that its project
+swaps, as for debug values, through a function so that proofs of a build with it read no branch as dead. Without it a command line knows no waypoint command, in help and dumps too, an OSD map
+element draws nothing, and build options leave its option out. That AlienFlight image now has 9498 bytes left.
+Flight plan settings and their configuration group stay in every build for now.
+
+`target.do` fails an image built without that feature that still links its command or map. Host smoke checks an
+image with it, and its wing build checks one without.

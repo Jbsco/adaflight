@@ -64,6 +64,7 @@ FEATURES = [
     ("Debug_Values", 0, "The debug values the debug mode selects."),
     ("Stack_Check", None, "The main stack's use measured from a pattern filled at start, shown in status."),
     ("Wing", None, "The wing build: fixed-wing flight in place of the multirotor-only features."),
+    ("Flight_Plan", None, "The flight plan: its waypoint command and its map on the OSD."),
     ("Board_Checks", 1024, "The run-time checks of the board crate."),
     ("Packed_Data", -1024, "Named tables, strings and initialized data kept compressed in flash, unpacked at start "
                            "(STM32F7)."),
