@@ -349,4 +349,26 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return C;
    end Channels_Of;
 
+   function Flight_Plan_Of (F : Flight_Plan_Config_Record) return Flight_Plan.Plan is
+      P : Flight_Plan.Plan;
+   begin
+      if F.Waypoint_Count <= Flight_Plan.Max_Waypoints then
+         P.Count := Natural (F.Waypoint_Count);
+      end if;
+      for I in P.Waypoints'Range loop
+         pragma Loop_Invariant (P.Count = P.Count'Loop_Entry);
+         P.Waypoints (I) :=
+           (Latitude      => F.Waypoints (I).Latitude,
+            Longitude     => F.Waypoints (I).Longitude,
+            Altitude      => F.Waypoints (I).Altitude,
+            Speed         => F.Waypoints (I).Speed,
+            Duration_Ds   => F.Waypoints (I).Duration,
+            Vert_Rate     => F.Waypoints (I).Vert_Rate,
+            Kind          => F.Waypoints (I).Type_Value,
+            Pattern       => F.Waypoints (I).Pattern,
+            Yaw_Behaviour => F.Waypoints (I).Yaw_Behaviour);
+      end loop;
+      return P;
+   end Flight_Plan_Of;
+
 end Adaflight.Config_Runtime;

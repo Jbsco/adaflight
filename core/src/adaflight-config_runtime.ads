@@ -24,6 +24,7 @@ with Adaflight.Dyn_Notch;
 with Adaflight.ExpressLRS;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Failsafe;
+with Adaflight.Flight_Plan;
 with Adaflight.Flight_Plan_Nav;
 with Adaflight.Flight_Stats;
 with Adaflight.Float_Bits;
@@ -249,6 +250,12 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Flight_Plan_Settings_Of
      (A : Autopilot_Config_Record; Rescue : Gps_Rescue_Record; H : Alt_Hold_Config_Record; Wing : Boolean)
       return Flight_Plan_Nav.Settings;
+
+   --  The plan the executor flies from the stored flight plan group; a
+   --  count past the list gives an empty plan.
+   function Flight_Plan_Of (F : Flight_Plan_Config_Record) return Flight_Plan.Plan
+     with Post => Flight_Plan_Of'Result.Count =
+                    (if F.Waypoint_Count <= Flight_Plan.Max_Waypoints then Natural (F.Waypoint_Count) else 0);
 
    --  The flight log settings from the stored blackbox group, with whether
    --  the build is a wing; a serial device runs fast from a megabaud up.
