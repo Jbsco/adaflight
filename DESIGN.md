@@ -14177,3 +14177,13 @@ Host image had no beeper output to check. Its sound driver now writes each chang
 simulator link with a virtual GPS at twelve satellites and expects groups of twelve pulses in that file.
 
 A read of board glue for constants passed where a core record expects a measured value found this one.
+
+## D710. Headfree offset beep within 45 degrees on boards (2026-11-10)
+
+A headfree offset switch sets that offset only with a craft within 45 degrees of level, and arming logic sounds its
+beep only when an offset was set. No board reported that condition, so a switch beeped at any attitude while its
+offset stayed unchanged. Attitude code now names that condition as a function, its offset procedure uses it, and
+board glue reports it.
+
+Host smoke rolls its simulated craft 60 degrees, turns that switch on and expects no pulse in its beeper log. It
+then levels that craft and expects pulses. An image built before this change beeps at both attitudes.

@@ -167,8 +167,12 @@ package Adaflight.Attitude with SPARK_Mode is
    procedure Set_From_Simulator (S : in out State; Q : Quaternion; Legacy_Bridge : Boolean; Headfree_Mode : Boolean);
    procedure Update_Simulated (S : in out State; C : Config; Armed : Boolean; Angle_Mode : Boolean);
 
-   --  Sets the headfree offset to the current heading when roll and pitch are
-   --  both within 45 degrees.
+   --  Roll and pitch both within 45 degrees, where a headfree offset can be
+   --  set.
+   function Headfree_Offset_Allowed (S : State) return Boolean is
+     (abs S.Euler.Roll < 450 and then abs S.Euler.Pitch < 450);
+
+   --  Sets the headfree offset to the current heading where one can be set.
    procedure Set_Headfree_Offset (S : in out State; Set : out Boolean);
 
    --  Turns an earth frame vector into the headfree frame, the attitude turned
