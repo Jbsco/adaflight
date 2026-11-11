@@ -3370,6 +3370,14 @@ def main():
             receiver_config = bytearray(msp(sock, 44) or bytes(39))
             receiver_config[25] = (receiver_config[25] + 5) % 200
             changed = msp(sock, 45, bytes(receiver_config))
+
+            def restart_asked():
+                status = msp(sock, 150)
+                if status is None or len(status) < 22 + status[15]:
+                    return None
+                return status[21 + status[15]]
+            passed, flag = until(restart_asked, lambda f: f == 1, wait=3.0)
+            check("extended status reply says a restart is needed after that change", passed, repr(flag))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "status")
@@ -4194,6 +4202,25 @@ def main():
                   ratio is not None and 1.3 <= ratio <= 1.7, repr((first, second, round(t_second - t_first, 2), ratio)))
         finally:
             stop_feed.set()
+            stop(proc)
+            sock.close()
+        # The status replies name the PID profile, the rate profile and the battery profile in use.
+        store = os.path.join(work, "profiles.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+
+            def profiles():
+                status, extended = msp(sock, 101), msp(sock, 150)
+                if status is None or extended is None or len(status) < 11 or len(extended) < 16:
+                    return None
+                return status[10], extended[10], extended[14], extended[-1]
+            first = profiles()
+            acks = [msp(sock, 210, bytes([choice])) for choice in (1, 0x80 | 2, 0x40 | 1)]
+            passed, now = until(profiles, lambda p: p == (1, 1, 2, 1), wait=3.0)
+            check("status replies name the selected PID, rate and battery profiles",
+                  first == (0, 0, 0, 0) and acks == [b""] * 3 and passed, repr((first, acks, now)))
+        finally:
             stop(proc)
             sock.close()
         # What a board reports for a request: its link, so an MSP arming disable from one link outlasts another

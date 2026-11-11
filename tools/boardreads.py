@@ -7,10 +7,10 @@ The processor's Views record is what a board fills for the replies, its Effects 
 after a message, and its Context record is what a board reports for a request. The task setup's Inputs record is
 what a board reports at its start. A field of any that no source under targets/ names is a reply or a decision
 that reads a default, or a write that does nothing. A field counts as named when its path under Out_Views,
-Effects, Ctx or Inputs appears in a target source, or when a record on that path is assigned, renamed or passed
-whole. The fields in OPEN are known to have no reader, each with its reason. The check
-fails on a field without a reader that OPEN does not list, and on a listed field that has gained one. Run from the
-repository root.
+Effects, Ctx or Inputs appears in a target source, directly or through a renaming of a record on that path, or
+when such a record is assigned or passed whole. The fields in OPEN are known to have no reader, each with its
+reason. The check fails on a field without a reader that OPEN does not list, and on a listed field that has gained
+one. Run from the repository root.
 """
 import pathlib
 import re
@@ -27,6 +27,7 @@ OPEN = {
     "Out_Views.Receiver.USB_HID": ALWAYS,
     "Out_Views.Hardware.DShot_Telemetry": ALWAYS,
     "Out_Views.Hardware.ESC_Sensor": ALWAYS,
+    "Out_Views.State.Status.I2C_Errors": "no board counts I2C errors",
     "Out_Views.Peripheral.Servo_Count": "the boards serve the default count",
     "Out_Views.Peripheral.VTX_Built": ALWAYS,
     "Out_Views.Peripheral.VTX_Table": ALWAYS,
@@ -101,13 +102,18 @@ def leaves(path, type_ref, home, depth=0):
 
 
 def named(targets, root, path):
-    """Whether a target source names the field, or assigns, renames or passes a record on its path whole."""
+    """Whether a target source names the field, assigns or passes a record on its path whole, or names the
+    field through a renaming of such a record."""
     if re.search(root + r"\." + r"\.".join(path) + r"\b", targets):
         return True
     for k in range(len(path) - 1, 0, -1):
         whole = root + r"\." + r"\.".join(path[:k])
-        if re.search(whole + r"\s*(:=|\)|,|;)", targets):
+        if re.search(r"(?<!renames )(?<!renames Ctx\.)" + whole + r"\s*(:=|\)|,|;)", targets):
             return True
+        rest = r"\.".join(path[k:])
+        for alias in re.findall(r"(\w+)\s*:\s*[\w.]+\s+renames\s+(?:Ctx\.)?" + whole + r"\s*;", targets):
+            if re.search(r"\b" + alias + r"\." + rest + r"\b", targets):
+                return True
     return False
 
 
