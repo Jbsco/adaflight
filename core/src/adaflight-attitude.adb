@@ -663,7 +663,7 @@ package body Adaflight.Attitude with SPARK_Mode is
       YY : constant Product := S.Q.Y * S.Q.Y;
       ZZ : constant Product := S.Q.Z * S.Q.Z;
    begin
-      Set := abs S.Euler.Roll < 450 and then abs S.Euler.Pitch < 450;
+      Set := Headfree_Offset_Allowed (S);
       if Set then
          declare
             Yaw : constant Half_Turn := -Atan2_Approx (2.0 * (WZ + XY), 1.0 - 2.0 * (YY + ZZ));

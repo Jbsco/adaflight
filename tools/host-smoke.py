@@ -1753,6 +1753,81 @@ def main():
                 sim.close()
         if built("GPS"):
             satellite_beep_checks()
+        # Headfree offset on the beeper: its switch sets the offset and sounds the beeper with the craft
+        # within 45 degrees of level, and stays silent with it rolled further.
+        def headfree_offset_checks():
+            store = os.path.join(work, "headadj.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("set rx_uart = UART3", "aux 0 7 1 1700 2100 0 0"):
+                    cli(sock, line)
+                text = cli(sock, "aux")
+                check("headfree offset switch set on AUX2", "aux 0 7 1 1700 2100 0 0" in text, text[:200])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            sent = [0]
+
+            def feed_roll(seconds, degrees):
+                half = math.radians(degrees / 2.0)
+                for _ in range(int(seconds * 100)):
+                    sim.sendto(struct.pack("<18d", sent[0] * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, math.cos(half),
+                                           math.sin(half), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                               ("127.0.0.1", 9003))
+                    sent[0] += 1
+                    time.sleep(0.01)
+
+            def beeps():
+                try:
+                    with open(store + ".beeper.txt") as f:
+                        return sum(1 for line in f.read().split() if line.endswith(",1"))
+                except OSError:
+                    return 0
+
+            def roll_deci():
+                reply = msp(sock, 108)
+                return int.from_bytes(reply[0:2], "little", signed=True) if reply and len(reply) >= 2 else None
+            switch_on = [992, 992, 172, 992, 992, 1811] + [992] * 10
+            switch_off = [992, 992, 172, 992] + [992] * 12
+            try:
+                time.sleep(2.5)
+                feed_roll(3.0, 60.0)
+                roll = roll_deci()
+                check("simulator attitude gives sixty degrees of roll", roll is not None and abs(roll - 600) <= 5,
+                      repr(roll))
+                before = beeps()
+                receiver.channels = switch_on
+                feed_roll(2.0, 60.0)
+                receiver.channels = switch_off
+                feed_roll(0.5, 60.0)
+                check("headfree offset switch stays silent beyond 45 degrees", beeps() == before,
+                      repr((before, beeps())))
+                feed_roll(1.0, 0.0)
+                before = beeps()
+                receiver.channels = switch_on
+                feed_roll(2.0, 0.0)
+                receiver.channels = switch_off
+                check("headfree offset switch sounds the beeper near level", beeps() > before,
+                      repr((before, beeps())))
+            finally:
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        headfree_offset_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
