@@ -2177,6 +2177,70 @@ def main():
                 sock.close()
                 sim.close()
         osd_runaway_warning_checks()
+        # Barometer over iBus telemetry: the temperature and pressure sensors read the barometer's values, and
+        # the altitude sensor its altitude, here the virtual barometer's under a simulator link.
+        def ibus_barometer_checks():
+            store = os.path.join(work, "ibusbaro.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("feature TELEMETRY", "set telemetry_1_protocol = IBUS", "set telemetry_1_uart = UART3"):
+                    cli(sock, line)
+                text = cli(sock, "set ibus_sensor = 1,65,131,0,0,0,0,0,0,0,0,0,0,0,0")
+                check("iBus temperature, pressure and altitude sensors set", "ibus_sensor set to 1,65,131" in text,
+                      text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+
+            def sensor_value(address):
+                line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                line.settimeout(0.3)
+                try:
+                    reply = b""
+                    for command in (0x80, 0x90, 0xA0):
+                        line.sendall(ibus_request(command, address))
+                        reply = read_all(line, 0.3)
+                        line.sendall(reply)
+                        time.sleep(0.05)
+                finally:
+                    line.close()
+                return int.from_bytes(reply[2:-2], "little") if len(reply) >= 6 else None
+            proc, sock = start(image, store)
+            try:
+                time.sleep(6.0)
+                # The host's BMP280 reads 25.08 degrees and 100653 Pa; the sensor adds 40 degrees in tenths.
+                value = sensor_value(1)
+                check("iBus temperature sensor reads the barometer's temperature", value == 651, repr(value))
+                value = sensor_value(2)
+                check("iBus pressure sensor reads the barometer's pressure with its temperature",
+                      value is not None and abs((value & 0x7FFFF) - 100653) <= 5 and value >> 19 == 651, repr(value))
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                time.sleep(2.5)
+                for i in range(600):
+                    sim.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                    time.sleep(0.01)
+                # The first address asked becomes the sensors' base, so the first sensor is asked first.
+                sensor_value(1)
+                value = sensor_value(3)
+                check("iBus altitude sensor reads the virtual barometer's 1600 m",
+                      value is not None and abs(value - 160000) <= 500, repr(value))
+            finally:
+                stop(proc)
+                sock.close()
+                sim.close()
+        if built("IBus_Telemetry") and built("Barometer"):
+            ibus_barometer_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

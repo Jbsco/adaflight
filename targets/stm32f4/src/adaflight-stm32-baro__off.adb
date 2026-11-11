@@ -32,5 +32,6 @@ package body Adaflight.STM32.Baro is
    function Interval_Us return Interfaces.Integer_32 is (0);
 
    function Temperature_Centi return Interfaces.Integer_32 is (0);
+   function Pressure return Interfaces.Integer_32 is (0);
 
 end Adaflight.STM32.Baro;
