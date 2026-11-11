@@ -5,6 +5,7 @@ with Adaflight.Launch_Debug;
 with Adaflight.STM32.Radio;
 with Adaflight.Board;
 with Adaflight.Build_Features;
+with Adaflight.Plan_Build;
 with Adaflight.Config_Runtime;
 with Adaflight.DShot_Command;
 with Adaflight.Vectors;
@@ -61,6 +62,9 @@ package body Adaflight.STM32.Pilot is
          Config.Mixer_Config, Config.Pid_Config, Config.Scheduler_Config, Config.Motor_Config,
          Config.Failsafe_Config, Config.Gps_Rescue_Config, Config.Pid_Profiles (P), Runtime_Features, F.Sensors);
       Arm_Settings.Camera_Control := Adaflight.Board.Camera_Control_Tag /= 0;
+      Arm_Settings.Flight_Plan :=
+        Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing;
+      Arm_Settings.Rescue_Plan := Arm_Settings.Flight_Plan;
       if Adaflight.Build_Features.Wing then
          Arm_Settings.Runaway_Prevention := False;
          Arm_Settings.Launch_Wing := True;

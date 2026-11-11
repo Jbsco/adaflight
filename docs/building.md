@@ -1,12 +1,15 @@
 # Building and flashing
 
-The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, LED strip, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
+The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, LED strip, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board with an SPI receiver also leaves out debug values.
 
+No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its mode boxes and its OSD map. Without it the GPS rescue is a flight mode of its own.
+
 `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region. `tools/featuresize.py BOARD` measures each feature's flash cost on a board, a build per feature, for a configurator's fit bar:
 
-    FEATURES="-Menus" bash target.do          # every feature but the menu system
+    FEATURES="-Menus" bash target.do          # every default feature but the menu system
+    FEATURES="+Flight_Plan" bash target.do    # with the flight plan
     FLASH_KB=512 bash target.do               # the features of a 512 KB board
     FEATURES="+Menus" FLASH_KB=512 bash target.do   # a 512 KB board with its menu system
     FLASH_KB=512 bash host.do                 # the host smoke on those features
