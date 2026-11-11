@@ -40,9 +40,9 @@
    appropriate memory map and output format. */
 
 /* Modified for adaflight from the light-tasking-stm32f4 runtime's common-ROM.ld and
-   memory-map.ld: the flash of an STM32F4 is laid out with the vector table alone in
-   sector 0, sector 1 kept for the configuration store, and the code from sector 2, as
-   gen/memory.ld (tools/memorygen.py) gives it. The RAM sections come from gen/ram_early.ld and
+   memory-map.ld: the flash of an STM32F4 is laid out with the vector table and the code
+   that fits beside it in sector 0, sector 1 kept for the configuration store, and the rest
+   of the code from sector 2, as gen/memory.ld (tools/memorygen.py) gives it. The RAM sections come from gen/ram_early.ld and
    gen/ram_late.ld (tools/featuregen.py): a packed build's initialized data and elaboration code load
    from the staging region, which is never flashed, and tools/datapack.py stores them compressed after
    .rodata; its tables stay in flash. */
@@ -67,6 +67,11 @@ SECTIONS
   .vectors :
   {
     KEEP (*(.vectors))
+  } > flash0
+
+  .text0 :
+  {
+    *(.text .text.* .gnu.linkonce.t*)
   } > flash0
 
   .text :

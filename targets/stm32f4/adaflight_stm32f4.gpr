@@ -43,7 +43,8 @@ project Adaflight_Stm32f4 is
 
    package Linker is
       for Switches ("Ada") use
-        ("-flto", "-flto-partition=one", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", "-Wl,--no-warn-rwx-segments",
+        ("-flto", "-flto-partition=one", "-Os", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+         "-Wl,--enable-non-contiguous-regions", "-Wl,--no-warn-rwx-segments",
          "-L" & Project'Project_Dir & "gen",
          "-T", Project'Project_Dir & "ld/adaflight-stm32f4.ld",
          "-Wl,-Map=" & Project'Project_Dir & "obj/adaflight_stm32f4.map");
