@@ -16,7 +16,9 @@ package Adaflight.Failsafe with SPARK_Mode is
    --  its own, the mission continued, or a landing.
    type Loss_Policy is (Disable, Continue, Land);
 
-   --  Delays in tenths of a second, the landing time in seconds.
+   --  Delays in tenths of a second, the landing time in seconds. Rescue_Plan
+   --  is a build with the flight plan executor, whose GPS rescue is a staged
+   --  plan; without it the GPS rescue is the rescue flight mode's own.
    type Settings is record
       Throttle_Low_Delay : Natural range 0 .. 300 := 100;
       Signal_Delay       : Positive range 1 .. 200 := 15;
@@ -25,6 +27,7 @@ package Adaflight.Failsafe with SPARK_Mode is
       Action             : Procedure_Kind := Drop;
       Recovery_Delay     : Positive range 1 .. 200 := 5;
       Policy             : Loss_Policy := Disable;
+      Rescue_Plan        : Boolean := True;
    end record;
 
    type Phase is
@@ -40,12 +43,14 @@ package Adaflight.Failsafe with SPARK_Mode is
       Crash_Recovery      : Boolean := False;
       --  The autopilot flight mode, whether the executor flies a plan,
       --  whether that plan ended, whether a rescue plan can be staged now,
-      --  and whether the sticks moved past the failsafe's threshold.
+      --  whether the sticks moved past the failsafe's threshold, and whether
+      --  the GPS rescue is configured, for a build without rescue plans.
       Autopilot_Mode       : Boolean := False;
       Nav_Active           : Boolean := False;
       Nav_Ended            : Boolean := False;
       Rescue_Plan_Possible : Boolean := False;
       Sticks_Active        : Boolean := False;
+      Rescue_Configured    : Boolean := False;
    end record;
 
    subtype Event_Count is Natural range 0 .. 32_767;
@@ -73,6 +78,7 @@ package Adaflight.Failsafe with SPARK_Mode is
       Rx_Link                         : Link := Down;
       Switch_Was_On                   : Boolean := False;
       Failsafe_Mode                   : Boolean := False;
+      Rescue_Mode                     : Boolean := False;
       Arming_Disabled_Rx              : Boolean := False;
       Arming_Disabled                 : Boolean := False;
       Autopilot_Engage_Deadline       : Time_Ms := 0;

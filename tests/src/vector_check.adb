@@ -4323,7 +4323,8 @@ procedure Vector_Check is
                          Switch             => Switch_Mode'Val (Int (6)),
                          Action             => Procedure_Kind'Val (Int (7)),
                          Recovery_Delay     => Integer (Int (8)),
-                         Policy             => Loss_Policy'Val (Int (11)));
+                         Policy             => Loss_Policy'Val (Int (11)),
+                         Rescue_Plan        => Int (12) /= 0);
          Init (FS_State, FS_Settings);
          FS_Disarms := 0;
          Record_Int ("fsinit.failure_period", Int (9), Integer_64 (FS_State.Rx_Data_Failure_Period));
@@ -4341,7 +4342,8 @@ procedure Vector_Check is
                Nav_Active           => Int (14) /= 0,
                Nav_Ended            => Int (15) /= 0,
                Rescue_Plan_Possible => Int (16) /= 0,
-               Sticks_Active        => Int (17) /= 0);
+               Sticks_Active        => Int (17) /= 0,
+               Rescue_Configured    => Int (NF) /= 0);
             Event     : constant Integer_64 := Int (10);
             Beeper    : Beep;
             Disarm    : Boolean;
@@ -4383,14 +4385,15 @@ procedure Vector_Check is
             Expect_Int ("received_at", Integer_64 (FS_State.Valid_Rx_Data_Received_At));
             Expect_Int ("failed_at", Integer_64 (FS_State.Valid_Rx_Data_Failed_At));
             Expect_Int ("flight_mode",
-                        (if FS_State.Failsafe_Mode then 1024 else 0) + (if In_Flight.Autopilot_Mode then 4096 else 0));
+                        (if FS_State.Failsafe_Mode then 1024 else 0) + (if FS_State.Rescue_Mode then 2048 else 0)
+                        + (if In_Flight.Autopilot_Mode then 4096 else 0));
             Expect_Int ("arming_disabled", Flags);
             Expect_Int ("disarms", FS_Disarms);
             Expect_Int ("beeper", (case Beeper is when Silence => -1, when Rx_Lost => 2, when Rx_Lost_Landing => 3));
             Expect_Int ("engage_deadline", Integer_64 (FS_State.Autopilot_Engage_Deadline));
             Expect_Int ("stage_calls", Boolean'Pos (Stage));
-            if K /= NF + 1 then
-               Put_Line ("fsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            if K /= NF then
+               Put_Line ("fsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF - 1) & " fields");
                Failures := Failures + 1;
             end if;
          end;
@@ -30245,7 +30248,7 @@ procedure Vector_Check is
          MC : constant Adaflight.Modes.Conditions :=
            Adaflight.Config_Runtime.Conditions_Of (C.Mode_Activation_Conditions);
          FS : constant Adaflight.Failsafe.Settings :=
-           Adaflight.Config_Runtime.Failsafe_Settings_Of (C.Failsafe_Config, C.Autopilot_Config);
+           Adaflight.Config_Runtime.Failsafe_Settings_Of (C.Failsafe_Config, C.Autopilot_Config, Rescue_Plan => True);
          RX : constant Adaflight.Receiver.Settings :=
            Adaflight.Config_Runtime.Receiver_Settings_Of
              (C.Rx_Config, C.Rx_Channel_Range_Configs, C.Rx_Failsafe_Channel_Configs, C.Flight3_D_Config,
