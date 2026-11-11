@@ -14288,3 +14288,13 @@ from arming state it already receives.
 Host smoke selects a second battery profile and expects its number on that element, then its name once set. Under
 a simulator link it arms, feeds a roll rate that trips runaway takeoff detection, and expects a screen with that
 warning alone.
+
+## D719. Barometer in iBus telemetry on boards (2026-11-11)
+
+iBus telemetry reads a barometer for three sensors: temperature, pressure and altitude. No board passed it a
+barometer's presence or values. Its temperature sensor fell back to its gyro's temperature, and its pressure and
+altitude sensors sent zero. Board glue now passes a detected barometer's temperature, pressure and altitude, and
+its barometer package gains a pressure reading for that.
+
+Host smoke configures those three sensors and expects its barometer model's temperature and pressure from them.
+Under a simulator link it expects a virtual barometer's 1600 m from its altitude sensor.

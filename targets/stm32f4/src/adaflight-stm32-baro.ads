@@ -25,4 +25,6 @@ package Adaflight.STM32.Baro is
    function Sample_Time_Us return Interfaces.Unsigned_32;
    function Interval_Us return Interfaces.Integer_32;
    function Temperature_Centi return Interfaces.Integer_32;
+   --  The last pressure in pascals.
+   function Pressure return Interfaces.Integer_32;
 end Adaflight.STM32.Baro;
