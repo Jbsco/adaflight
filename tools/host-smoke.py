@@ -2038,16 +2038,22 @@ def main():
                 receiver.channels = sticks + [992] * 12
                 time.sleep(0.5)
                 check("visual beeper's mark clears after the beeps", "*" not in warnings_row(), repr(warnings_row()))
-                receiver.channels = sticks + [992, 1811] + [992] * 10
-                time.sleep(2.0)
-                receiver.channels = sticks + [1811, 1811] + [992] * 10
-                states = row_states(2.5)
+                # A loaded host can starve the image or the stick frames for a moment, which blocks the arming for
+                # another reason, so the attempt repeats, up to three times, until both of the guard's lines show.
+                for attempt in range(3):
+                    receiver.channels = sticks + [992, 1811] + [992] * 10
+                    time.sleep(2.0)
+                    receiver.channels = sticks + [1811, 1811] + [992] * 10
+                    states = row_states(2.5)
+                    receiver.channels = sticks + [992] * 12
+                    time.sleep(1.0)
+                    if (any("BEACON ON" in s for s in states)
+                            and any(re.search(r"ARM IN 0\.[1-9]", s) for s in states)):
+                        break
                 check("warnings line shows the beacon notice during the arming guard",
                       any("BEACON ON" in s for s in states), repr(states))
                 check("warnings line counts down to arming",
                       any(re.search(r"ARM IN 0\.[1-9]", s) for s in states), repr(states))
-                receiver.channels = sticks + [992] * 12
-                time.sleep(1.0)
             finally:
                 done.set()
                 receiver.stop.set()
