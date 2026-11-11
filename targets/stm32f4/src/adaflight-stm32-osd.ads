@@ -89,6 +89,7 @@ package Adaflight.STM32.OSD is
       Was_Ever_Armed    : Boolean := False;
       Failsafe_Active   : Boolean := False;
       Trying_To_Arm     : Boolean := False;
+      Last_Beacon_Us    : Interfaces.Unsigned_32 := 0;
       Arm_Box           : Boolean := False;
       OSD_Switch        : Boolean := False;
       Disabled          : Adaflight.Arming.Disable_Set := (others => False);
@@ -202,6 +203,10 @@ package Adaflight.STM32.OSD is
 
    --  An active element or an enabled statistic reads the accelerometer.
    function Needs_Accelerometer return Boolean;
+
+   --  A beep began: the warnings show the visual beeper's mark at their
+   --  next rendering, once.
+   procedure Set_Visual_Beeper;
 
    --  The OSD task's check: due once a frame is.
    function Task_Due (Now_Us : Interfaces.Unsigned_32) return Boolean;

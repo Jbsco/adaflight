@@ -14235,3 +14235,17 @@ element list and its enabled statistics, and board glue passes it on.
 
 Host smoke shows an artificial horizon on a configuration without a calibration and expects that reason among
 its arming disable reasons. It expects that reason again with only that statistic enabled, and none with neither.
+
+## D715. Beeper inputs of OSD warnings on boards (2026-11-11)
+
+OSD warning code shows a mark while a beeper sounds. During an arming guard after a DShot beacon it shows a beacon
+notice and then a time to arming. No board passed it a beeper's visual state or its last beacon time, so that mark
+never showed and that guard read as a zero time. Board OSD code now keeps that visual state: a beep sets it, and
+any rendering of its warnings that shows its mark clears it, an MSP warnings request included. Board glue passes
+that beacon time.
+
+Host smoke reads its OSD screen under a simulator link. It expects a mark while its beeper switch beeps and none
+two seconds after. It then arms right after beacons and expects a beacon notice and a time above zero.
+
+Host's screen file can show that mark in two parts. Its chip model writes that file at most ten times a second,
+after a transfer, so a write can fall inside an update.

@@ -1971,6 +1971,87 @@ def main():
             check("no accelerometer calibration reason without that element and statistic",
                   "NO_ACC_CAL" not in reasons, reasons.strip()[:80])
         osd_accelerometer_checks()
+        # OSD warnings from the beeper: its visual mark while the beeper switch beeps and no mark after it, then
+        # the beacon notice and the time to arming while the arming guard after a beacon runs.
+        def osd_beeper_warning_checks():
+            store = os.path.join(work, "osdbeep.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("set rx_uart = UART3", "aux 0 0 0 1700 2100 0 0", "aux 1 13 1 1700 2100 0 0",
+                             "beacon RX_SET", "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL"):
+                    cli(sock, line)
+                text = cli(sock, "set osd_warnings_pos = 2314")
+                check("warnings line placed on a free row", "osd_warnings_pos set to 2314" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            done = threading.Event()
+
+            def feed_level():
+                tick = 0
+                while not done.is_set():
+                    sim.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                    tick += 1
+                    time.sleep(0.01)
+
+            def warnings_row():
+                try:
+                    with open(store + ".osd.txt") as f:
+                        lines = f.read().splitlines()
+                except OSError:
+                    lines = []
+                return lines[8].strip() if len(lines) > 8 else ""
+
+            def row_states(seconds):
+                seen = []
+                end = time.monotonic() + seconds
+                while time.monotonic() < end:
+                    now = warnings_row()
+                    if now and now not in seen:
+                        seen.append(now)
+                    time.sleep(0.02)
+                return seen
+            threading.Thread(target=feed_level, daemon=True).start()
+            sticks = [992, 992, 172, 992]
+            try:
+                time.sleep(8.0)
+                receiver.channels = sticks + [992, 1811] + [992] * 10
+                states = row_states(3.0)
+                check("warnings line shows the visual beeper's mark", any("*" in s for s in states), repr(states))
+                receiver.channels = sticks + [992] * 12
+                time.sleep(2.0)
+                check("visual beeper's mark clears after the beeps", "*" not in warnings_row(), repr(warnings_row()))
+                receiver.channels = sticks + [992, 1811] + [992] * 10
+                time.sleep(2.0)
+                receiver.channels = sticks + [1811, 1811] + [992] * 10
+                states = row_states(2.5)
+                check("warnings line shows the beacon notice during the arming guard",
+                      any("BEACON ON" in s for s in states), repr(states))
+                check("warnings line counts down to arming",
+                      any(re.search(r"ARM IN 0\.[1-9]", s) for s in states), repr(states))
+                receiver.channels = sticks + [992] * 12
+                time.sleep(1.0)
+            finally:
+                done.set()
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        osd_beeper_warning_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
@@ -3782,7 +3863,9 @@ def main():
         store = os.path.join(work, "warnings.bin")
         proc, sock = start(image, store)
         try:
-            time.sleep(2.5)
+            # A beep at start-up leaves the visual beeper's mark for one rendering, which the first request takes.
+            time.sleep(5.0)
+            msp2(sock, 0x3005)
             quiet = msp2(sock, 0x3005)
             check("MSP OSD warnings reply is empty while no warning shows", quiet == bytes(2), repr(quiet))
             receiver_config = bytearray(msp(sock, 44) or bytes(39))
