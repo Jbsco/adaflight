@@ -43,12 +43,14 @@ package Adaflight.Failsafe with SPARK_Mode is
       Crash_Recovery      : Boolean := False;
       --  The autopilot flight mode, whether the executor flies a plan,
       --  whether that plan ended, whether a rescue plan can be staged now,
-      --  whether the sticks moved past the failsafe's threshold, and whether
-      --  the GPS rescue is configured, for a build without rescue plans.
+      --  whether the plan has ended as read after that staging, whether the
+      --  sticks moved past the failsafe's threshold, and whether the GPS
+      --  rescue is configured, for a build without rescue plans.
       Autopilot_Mode       : Boolean := False;
       Nav_Active           : Boolean := False;
       Nav_Ended            : Boolean := False;
       Rescue_Plan_Possible : Boolean := False;
+      Staged_Nav_Ended     : Boolean := False;
       Sticks_Active        : Boolean := False;
       Rescue_Configured    : Boolean := False;
    end record;

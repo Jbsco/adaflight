@@ -4342,8 +4342,9 @@ procedure Vector_Check is
                Nav_Active           => Int (14) /= 0,
                Nav_Ended            => Int (15) /= 0,
                Rescue_Plan_Possible => Int (16) /= 0,
+               Staged_Nav_Ended     => Int (NF) /= 0,
                Sticks_Active        => Int (17) /= 0,
-               Rescue_Configured    => Int (NF) /= 0);
+               Rescue_Configured    => Int (NF - 1) /= 0);
             Event     : constant Integer_64 := Int (10);
             Beeper    : Beep;
             Disarm    : Boolean;
@@ -4392,8 +4393,8 @@ procedure Vector_Check is
             Expect_Int ("beeper", (case Beeper is when Silence => -1, when Rx_Lost => 2, when Rx_Lost_Landing => 3));
             Expect_Int ("engage_deadline", Integer_64 (FS_State.Autopilot_Engage_Deadline));
             Expect_Int ("stage_calls", Boolean'Pos (Stage));
-            if K /= NF then
-               Put_Line ("fsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF - 1) & " fields");
+            if K /= NF - 1 then
+               Put_Line ("fsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF - 2) & " fields");
                Failures := Failures + 1;
             end if;
          end;
