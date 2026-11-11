@@ -2055,6 +2055,24 @@ def main():
                 sock.close()
                 sim.close()
         osd_beeper_warning_checks()
+        # Simulator rate after a gap: fed exactly two flight dynamics packets, the image still answers MSP.
+        def simulator_gap_checks():
+            store = os.path.join(work, "simgap.bin")
+            proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                time.sleep(2.5)
+                for stamp in (0.0, 0.01):
+                    sim.sendto(struct.pack("<18d", stamp, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                    time.sleep(0.01)
+                time.sleep(0.3)
+                check("image answers MSP after two simulator packets", msp(sock, 108) is not None)
+            finally:
+                stop(proc)
+                sock.close()
+                sim.close()
+        simulator_gap_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
