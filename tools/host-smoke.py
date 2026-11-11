@@ -1682,6 +1682,77 @@ def main():
                 sim.close()
         if built("Barometer"):
             barometer_arming_checks()
+        # GPS satellite count on the beeper: with a fix from the virtual GPS, the count's switch sounds one short
+        # beep per satellite, which the host's beeper log shows as a group of pulses.
+        def satellite_beep_checks():
+            store = os.path.join(work, "beepgps.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("feature GPS", "set gps_provider = VIRTUAL", "set rx_uart = UART3",
+                             "aux 0 37 1 1700 2100 0 0"):
+                    cli(sock, line)
+                text = cli(sock, "aux")
+                check("satellite count switch set on AUX2", "aux 0 37 1 1700 2100 0 0" in text, text[:200])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=sim_link)
+            receiver = Receiver()
+            receiver.start()
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.5)
+            sent = [0]
+
+            def feed_fix(seconds):
+                for _ in range(int(seconds * 100)):
+                    sim.sendto(struct.pack("<18d", sent[0] * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+                    sent[0] += 1
+                    time.sleep(0.01)
+
+            def beeper_log():
+                try:
+                    with open(store + ".beeper.txt") as f:
+                        return [tuple(int(v) for v in line.split(",")) for line in f.read().split()]
+                except (OSError, ValueError):
+                    return []
+            try:
+                time.sleep(2.5)
+                feed_fix(6.0)
+                gps = msp(sock, 106)
+                sats = gps[1] if gps and len(gps) > 1 else None
+                check("virtual GPS gives twelve satellites for the beeper", gps is not None and gps[0] != 0
+                      and sats == 12, repr(gps[:2] if gps else gps))
+                before = len(beeper_log())
+                receiver.channels = [992, 992, 172, 992, 992, 1811] + [992] * 10
+                feed_fix(6.0)
+                receiver.channels = [992, 992, 172, 992] + [992] * 12
+                feed_fix(1.0)
+                starts = [ms for ms, on in beeper_log()[before:] if on == 1]
+                groups = []
+                for ms in starts:
+                    if groups and ms - groups[-1][-1] <= 300:
+                        groups[-1].append(ms)
+                    else:
+                        groups.append([ms])
+                sizes = [len(g) for g in groups]
+                check("satellite count switch sounds one beep per satellite",
+                      len(sizes) >= 2 and all(n == 12 for n in sizes[:-1]), repr(sizes))
+            finally:
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
+                sim.close()
+        if built("GPS"):
+            satellite_beep_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

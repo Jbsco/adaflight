@@ -14166,3 +14166,14 @@ altitude near zero. It then starts a compass calibration and expects a calibrati
 this change fails all three.
 
 A scan of core input records for fields that no board assigns led here (D706).
+
+## D709. GPS satellite count on the beeper on boards (2026-11-10)
+
+Board glue passed a satellite count of zero to its beeper, so a satellite count switch never sounded: that sequence
+needs a fix with more than four satellites. Board glue now passes its GPS solution's count.
+
+Host image had no beeper output to check. Its sound driver now writes each change of beeper state to a file that
+`ADAFLIGHT_BEEPER_LOG` names, as a time in milliseconds and 1 or 0. Host smoke turns that switch on under its
+simulator link with a virtual GPS at twelve satellites and expects groups of twelve pulses in that file.
+
+A read of board glue for constants passed where a core record expects a measured value found this one.

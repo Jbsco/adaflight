@@ -1903,7 +1903,7 @@ package body Adaflight.STM32.Flight is
       Satellite_Switch    => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beep_GPS_Count),
       GPS_Feature         => Adaflight.STM32.GPS.Enabled,
       GPS_Fix             => Adaflight.STM32.GPS.Current.Fix,
-      Satellites          => 0,
+      Satellites          => Natural (Adaflight.STM32.GPS.Current.Satellites),
       Motors_Running      => Adaflight.STM32.Control.Motors_Running,
       Failsafe_Monitoring => Adaflight.STM32.Radio.Failsafe_Monitoring,
       Failsafe_Receiving  => Adaflight.STM32.Radio.Failsafe_Receiving,
