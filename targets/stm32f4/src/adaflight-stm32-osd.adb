@@ -858,6 +858,8 @@ package body Adaflight.STM32.OSD is
       D.PIDs := F.PIDs;
       D.PID_Profile_Name := Name_Of (F.PID_Profile_Name);
       D.Rate_Profile_Name := Name_Of (F.Rate_Profile_Name);
+      D.Battery_Index := F.Battery_Index;
+      D.Battery_Profile_Name := Name_Of (F.Battery_Profile_Name);
       D.Pilot_Name := Name_Of (F.Pilot_Name);
       for M in D.Messages'Range loop
          D.Messages (M) := Name_Of (F.Messages (M));

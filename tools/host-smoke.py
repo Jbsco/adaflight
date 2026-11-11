@@ -2073,6 +2073,39 @@ def main():
                 sock.close()
                 sim.close()
         simulator_gap_checks()
+        # Battery profile on the OSD: the battery profile name element shows the selected profile's number and
+        # then its name.
+        def osd_battery_profile_checks():
+            store = os.path.join(work, "osdbat.bin")
+
+            def element_then(lines):
+                # The element's row of this start, then the commands for the next one.
+                proc, sock = start(image, store)
+                try:
+                    time.sleep(5.0)
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            rows = f.read().splitlines()
+                    except OSError:
+                        rows = []
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    for line in lines:
+                        cli(sock, line)
+                    if lines:
+                        cli(sock, "save", wait=2.0)
+                        proc.wait(timeout=10)
+                    return rows[8].strip() if len(rows) > 8 else ""
+                finally:
+                    stop(proc)
+                    sock.close()
+            element_then(["set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                          "set osd_battery_profile_name_pos = 2314", "battery_profile 1"])
+            shown = element_then(["set battery_profile_name = PACKB"])
+            check("battery profile name element shows the second profile's number", shown == "BAT2", repr(shown))
+            shown = element_then([])
+            check("battery profile name element shows the profile's name", shown == "PACKB", repr(shown))
+        osd_battery_profile_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
