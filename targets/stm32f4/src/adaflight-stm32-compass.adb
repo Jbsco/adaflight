@@ -463,6 +463,7 @@ package body Adaflight.STM32.Compass is
       end if;
    end Start_Calibration;
 
+   function Calibration_Complete return Boolean is (Adaflight.Compass.Calibration_Complete (State));
    function Calibrated return Boolean is (Live and then State.Calibrated);
    function Enabled_And_Calibrated return Boolean is
      (Live and then Adaflight.Compass.Enabled_And_Calibrated (State));

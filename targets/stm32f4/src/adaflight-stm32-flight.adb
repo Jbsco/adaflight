@@ -2469,6 +2469,8 @@ package body Adaflight.STM32.Flight is
       Sensed.Altitude_Available := Pos_State.Valid_Z;
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
+      Sensed.Baro_Calibrated := Adaflight.STM32.Baro.Calibrated;
+      Sensed.Mag_Calibrated := Adaflight.STM32.Compass.Calibration_Complete;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
       if Adaflight.Build_Features.Wing then
          Sensed.Launch_Sensed := Launch_Inputs (Channels);
@@ -2629,6 +2631,9 @@ package body Adaflight.STM32.Flight is
       end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
+      end if;
+      if Step.Commands (Adaflight.Arming.Baro_Ground_Level) then
+         Adaflight.STM32.Baro.Set_Ground_Level;
       end if;
       if Step.Commands (Adaflight.Arming.Acc_Calibration) then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
@@ -4809,7 +4814,9 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Current.Present;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
-      Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
+      Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
+                                         Baro => Adaflight.STM32.Baro.Detected,
+                                         Mag  => Adaflight.STM32.Compass.Detected),
                       Sample_Time_Us => Natural (Sample_Us),
                       Loop_Ratio     => Positive (Loop_Ratio),
                       CRSF           => Adaflight.STM32.Radio.Is_CRSF);

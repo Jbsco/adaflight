@@ -14149,3 +14149,20 @@ Under Renode's STM32F4 platform with a cycle counter stub, that F411 image start
 runs board start-up as far as its internal ADC check. An image without this change stops at that same check, since
 that platform's ADC never answers. Without a stub it waits in a delay procedure at 0x080006FA, inside sector 0. No
 board has run an F4 image with this layout, which waits for a bench check.
+
+## D708. Baro and compass in arming checks on boards (2026-11-10)
+
+Board glue told arming logic about a gyro and an accelerometer only. A detected barometer or compass never reached
+it, so their calibrations did not count in its calibrating reason, and its gyro calibration stick command never asked
+for a new barometer ground level. A craft could arm during a barometer's power-on calibration or a compass
+calibration.
+
+Board glue now reports both sensors as detected, a barometer's calibrated state and whether a compass calibration
+runs. It also acts on that ground level request, which no board handled.
+
+Host smoke times a calibrating reason after a start with a barometer and without one, and expects it to last longer
+with one. Under its simulator link it keeps gyro calibration sticks with a virtual barometer at 1600 m and expects an
+altitude near zero. It then starts a compass calibration and expects a calibrating reason. An image built before
+this change fails all three.
+
+A scan of core input records for fields that no board assigns led here (D706).
