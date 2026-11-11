@@ -14187,3 +14187,13 @@ board glue reports it.
 
 Host smoke rolls its simulated craft 60 degrees, turns that switch on and expects no pulse in its beeper log. It
 then levels that craft and expects pulses. An image built before this change beeps at both attitudes.
+
+## D711. Arming guard after a DShot beacon on boards (2026-11-10)
+
+Arming logic waits 1.2 s after a DShot beacon command before it arms, which keeps a beacon apart from its motor
+direction commands. No board reported its beeper's last beacon time, so that wait never ran after start-up. Board
+glue now reports it.
+
+Host smoke sends beacons with its beeper switch under a simulator link, then turns its arm switch on right after
+one. It reads its DShot command log and expects a first spin direction command more than a second after that last
+beacon. An image built before this change sends it within 50 ms.
