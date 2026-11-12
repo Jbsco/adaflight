@@ -44,4 +44,8 @@ package body Adaflight.STM32.Menu is
 
    function On_SRXL return Boolean is (False);
 
+   procedure Register_OLED is null;
+
+   function OLED_Grabbed return Boolean is (False);
+
 end Adaflight.STM32.Menu;
