@@ -3998,17 +3998,21 @@ package body Adaflight.STM32.Flight is
 
    --  A rescue plan stages on a copy of the executor before the pass, since
    --  the pass decides after its own disarms and mode update whether it
-   --  stages one. The copy becomes the executor when the pass staged. Then
-   --  the rescue descent, and the engagement, update or disengagement the
-   --  pass asked for.
+   --  stages one. After the pass the waypoint capture takes its step, and a
+   --  plan it edited goes back into the configuration. The copy becomes the
+   --  executor when the pass staged. Then the rescue descent, and the
+   --  engagement, update or disengagement the pass asked for.
    procedure Run_Plan_Modes
      (Channels : Adaflight.RC_Command.Channel_Values; Aux : Adaflight.Modes.Aux_Values; Now_Us : Unsigned_32;
       Delta_Us : Natural; Asked : in out Adaflight.Arming.Outputs)
    is
       package Nav renames Adaflight.Flight_Plan_Nav;
       use type Nav.Nav_State;
-      Plan          : constant Adaflight.Flight_Plan.Plan :=
+      use type Adaflight.Flight_Plan.Plan;
+      Stored        : constant Adaflight.Flight_Plan.Plan :=
         Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config);
+      Plan          : Adaflight.Flight_Plan.Plan := Stored;
+      GPS_Now       : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Set           : constant Nav.Settings := Plan_Settings;
       Legs          : constant Nav.Leg_Inputs := Plan_Leg_Inputs (Now_Us);
       Sensed        : Adaflight.Arming.Inputs := Sense (Channels);
@@ -4028,6 +4032,14 @@ package body Adaflight.STM32.Flight is
       Sensed.Rescue_Plan_Active := Nav.Is_Rescue_Plan_Active (Plan_Nav);
       Sensed.Rescue_Descent_Active := Nav.Is_Rescue_Descent_Active (Plan_Nav);
       Adaflight.STM32.Pilot.Modes_Pass (Sensed, Channels, Aux, Now_Us, Delta_Us, Asked);
+      Adaflight.STM32.OSD.Step_Capture
+        (Plan, Now_Us, Switch_Active => Asked.Capture_Switch, Channels_Valid => Asked.Capture_Channels_Valid,
+         Plan_Active => Plan_Nav.Active,
+         Where => (Fix => GPS_Now.Fix, Latitude => GPS_Now.Latitude, Longitude => GPS_Now.Longitude,
+                   Altitude_Cm => GPS_Now.Altitude_Cm));
+      if Plan /= Stored then
+         Config.Flight_Plan_Config := Adaflight.Config_Runtime.Flight_Plan_Group_Of (Plan);
+      end if;
       if Asked.Plan_Stage_Calls > 0 then
          Plan_Nav := Staged_Nav;
          Navigator := Staged_Target;

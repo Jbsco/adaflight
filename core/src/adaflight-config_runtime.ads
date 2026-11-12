@@ -257,6 +257,11 @@ package Adaflight.Config_Runtime with SPARK_Mode is
      with Post => Flight_Plan_Of'Result.Count =
                     (if F.Waypoint_Count <= Flight_Plan.Max_Waypoints then Natural (F.Waypoint_Count) else 0);
 
+   --  The stored flight plan group from a plan, as the waypoint capture
+   --  leaves it.
+   function Flight_Plan_Group_Of (P : Flight_Plan.Plan) return Flight_Plan_Config_Record
+     with Post => Natural (Flight_Plan_Group_Of'Result.Waypoint_Count) = P.Count;
+
    --  The flight log settings from the stored blackbox group, with whether
    --  the build is a wing; a serial device runs fast from a megabaud up.
    function Blackbox_Settings_Of (B : Blackbox_Config_Record; Wing : Boolean) return Blackbox.Settings;

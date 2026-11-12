@@ -627,6 +627,8 @@ package body Adaflight.STM32.OSD is
 
    Task_Data : Adaflight.OSD_Task.OSD;
    Visual_Beeper_On : Boolean := False;
+   --  The waypoint capture's gesture and message.
+   Capture          : Adaflight.Flight_Plan_Capture.Capture;
    Context   : Adaflight.OSD_Task.Context;
 
    --  A state's last run and an element draw's last time in microseconds,
@@ -707,6 +709,21 @@ package body Adaflight.STM32.OSD is
    begin
       Visual_Beeper_On := True;
    end Set_Visual_Beeper;
+
+   procedure Step_Capture
+     (Plan : in out Adaflight.Flight_Plan.Plan; Now_Us : Interfaces.Unsigned_32;
+      Switch_Active, Channels_Valid, Plan_Active : Boolean; Where : Adaflight.Flight_Plan_Capture.Position) is
+   begin
+      Adaflight.Flight_Plan_Capture.Update (Capture, Plan, Now_Us, Switch_Active, Channels_Valid, Plan_Active, Where);
+   end Step_Capture;
+
+   --  The warnings read the capture's message: the same read here clears an
+   --  expired one.
+   procedure Capture_Was_Read (Now_Us : Interfaces.Unsigned_32) is
+      Valid : Boolean;
+   begin
+      Adaflight.Flight_Plan_Capture.Read_Message (Capture, Now_Us, Valid);
+   end Capture_Was_Read;
 
    function Task_Due (Now_Us : Unsigned_32) return Boolean is
       Due : Boolean;
@@ -957,6 +974,7 @@ package body Adaflight.STM32.OSD is
       W.Trying_To_Arm := F.Trying_To_Arm;
       W.Last_Beacon_Time_Us := F.Last_Beacon_Us;
       W.Visual_Beeper := Visual_Beeper_On;
+      W.Capture := Capture;
       W.Failsafe_Active := F.Failsafe_Active;
       W.Motors := F.Motors;
       W.ESC_Sensor_Feature := F.ESC_Feature;
@@ -1133,6 +1151,9 @@ package body Adaflight.STM32.OSD is
       if Result.Reported.Beeper_Shown then
          Visual_Beeper_On := False;
       end if;
+      if Result.Reported.Capture_Read then
+         Capture_Was_Read (Context.Draw.Warn_Inputs.Now_Us);
+      end if;
       if On_MSP then
          Execute_MSP (Result);
       else
@@ -1154,11 +1175,15 @@ package body Adaflight.STM32.OSD is
       Reported : Adaflight.OSD_Warnings.Reports;
    begin
       Context.Draw.Warn_Inputs.Visual_Beeper := Visual_Beeper_On;
+      Context.Draw.Warn_Inputs.Capture := Capture;
       Adaflight.OSD_Warnings.Render
         (Task_Data.Warnings, Context.Draw.Warn_Settings, Context.Draw.Warn_Inputs, Line, Blinking, Severity,
          Reported);
       if Reported.Beeper_Shown then
          Visual_Beeper_On := False;
+      end if;
+      if Reported.Capture_Read then
+         Capture_Was_Read (Context.Draw.Warn_Inputs.Now_Us);
       end if;
    end Warning;
 

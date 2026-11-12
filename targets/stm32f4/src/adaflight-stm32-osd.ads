@@ -9,6 +9,8 @@ with Adaflight.Arming;
 with Adaflight.Battery;
 with Adaflight.Config_Groups;
 with Adaflight.ESC_Sensor;
+with Adaflight.Flight_Plan;
+with Adaflight.Flight_Plan_Capture;
 with Adaflight.Flight_Plan_Nav;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Font_In;
@@ -215,6 +217,12 @@ package Adaflight.STM32.OSD is
    --  A beep began: the warnings show the visual beeper's mark at their
    --  next rendering, once.
    procedure Set_Visual_Beeper;
+
+   --  One step of the waypoint capture's gesture, which edits the plan.
+   --  The warnings show its message and clear it once it has expired.
+   procedure Step_Capture
+     (Plan : in out Adaflight.Flight_Plan.Plan; Now_Us : Interfaces.Unsigned_32;
+      Switch_Active, Channels_Valid, Plan_Active : Boolean; Where : Adaflight.Flight_Plan_Capture.Position);
 
    --  The OSD task's check: due once a frame is.
    function Task_Due (Now_Us : Interfaces.Unsigned_32) return Boolean;

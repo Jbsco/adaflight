@@ -2565,6 +2565,156 @@ def main():
             flown("rescue descent", descent_part, altitude_store)
         if built("GPS"):
             rescue_plan_checks()
+        # Waypoint capture: a short press of its switch stores the GPS position as the plan's next waypoint, a
+        # press held past a second and a half deletes the last one, and the OSD warning line shows each message
+        # for a while, over MSP and on the screen. A switch that the receiver failsafe substitutes during a lost
+        # link edits nothing, and neither does a press while the executor flies the plan.
+        def waypoint_capture_checks():
+            store = os.path.join(work, "capture.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            proc, sock = start(image, store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                if 16427 not in {int(w) for w in cli(sock, "options").split() if w.isdigit()}:
+                    print("SKIP the waypoint capture checks: the build leaves the flight plan out")
+                    return
+                for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
+                             "aux 0 57 1 1700 2100 0 0", "aux 1 0 0 1700 2100 0 0", "aux 2 56 2 1700 2100 0 0",
+                             "feature GPS", "set gps_provider = VIRTUAL", "set altitude_source = BARO_ONLY",
+                             "set osd_warn_bitmask = 0", "set osd_displayport_device = MAX7456",
+                             "set vcd_video_system = PAL", "set osd_warnings_pos = 2314",
+                             "set debug_mode = FLIGHT_PLAN"):
+                    cli(sock, line)
+                text = cli(sock, "rxfail 5 s 1800")
+                check("receiver failsafe set to substitute the capture switch's channel", "rxfail 5 s 1800" in text,
+                      text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+
+            def flown(body):
+                proc, sock = start(image, store, extra=sim_link)
+                done = threading.Event()
+                with_sticks = threading.Event()
+                with_sticks.set()
+                pulses = [1500, 1500, 1000, 1500] + [1000] * 12
+                place = [-105.25, 40.0, 1600.0]
+
+                def feed():
+                    out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    tick = 0
+                    while not done.is_set():
+                        out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                               0.0, 0.0, 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
+                        if tick % 2 == 0 and with_sticks.is_set():
+                            out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
+                        tick += 1
+                        time.sleep(0.01)
+                    out.close()
+
+                def warning():
+                    return msp2(sock, 0x3005)
+
+                def listed():
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    return [line for line in cli(sock, "waypoint").splitlines() if line.startswith("waypoint insert")]
+                try:
+                    time.sleep(2.5)
+                    threading.Thread(target=feed, daemon=True).start()
+                    time.sleep(7.0)
+                    fix = msp(sock, 106)
+                    check("virtual GPS has a fix for the capture", fix is not None and fix[0] != 0,
+                          repr(fix and fix[:2]))
+                    body(sock, pulses, with_sticks, place, warning, listed)
+                finally:
+                    done.set()
+                    stop(proc)
+                    sock.close()
+
+            def press(pulses, seconds):
+                pulses[5] = 1800
+                time.sleep(seconds)
+                pulses[5] = 1000
+
+            def gesture_part(sock, pulses, with_sticks, place, warning, listed):
+                def screen_row():
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            lines = f.read().splitlines()
+                    except OSError:
+                        lines = []
+                    return lines[8].strip() if len(lines) > 8 else ""
+                press(pulses, 0.5)
+                drawn, row = until(screen_row, lambda r: "WP1 SET" in r, wait=3.0)
+                check("short press of the capture switch stores a waypoint, named on the screen's warnings row", drawn,
+                      repr(row))
+                shown, text = until(warning, lambda r: r is not None and b"WP1 SET" in r, wait=2.0)
+                check("MSP warnings reply names the stored waypoint too", shown, repr(text))
+                gone, text = until(warning, lambda r: r is not None and b"WP1 SET" not in r, wait=5.0)
+                check("capture's message leaves the OSD after a while", gone, repr(text))
+                press(pulses, 0.5)
+                shown, text = until(warning, lambda r: r is not None and b"WP2 SET" in r, wait=3.0)
+                check("second press stores a second waypoint", shown, repr(text))
+                pulses[5] = 1800
+                shown, text = until(warning, lambda r: r is not None and b"WP2 DELETED" in r, wait=4.0)
+                check("press held past a second and a half deletes the last waypoint", shown, repr(text))
+                pulses[5] = 1000
+                until(warning, lambda r: r is not None and b"WP" not in r, wait=5.0)
+                with_sticks.clear()
+                edited, text = until(warning, lambda r: r is not None and b"WP" in r, wait=3.5)
+                with_sticks.set()
+                time.sleep(1.0)
+                check("capture switch substituted during a lost link edits nothing", not edited, repr(text))
+                lines = listed()
+                check("plan keeps the first captured waypoint at the GPS position as a fly-by",
+                      len(lines) == 1 and lines[0].startswith("waypoint insert 0 40.0000000 -105.2500000 160000 0 FLYBY"),
+                      repr(lines))
+                cli(sock, "save", wait=2.0)
+
+            # The captured waypoint saved by the part before; the craft armed 22 m north of it and 20 m up, with the
+            # autopilot on.
+            def flying_part(sock, pulses, with_sticks, place, warning, listed):
+                def modes():
+                    status = msp(sock, 150)
+                    if status is None or len(status) < 16 + status[15]:
+                        return None
+                    return int.from_bytes(status[6:10], "little") | int.from_bytes(status[16:16 + status[15]], "little") << 32
+                def executor():
+                    values = msp(sock, 254)
+                    return struct.unpack("<3h", values[:6]) if values and len(values) >= 6 else None
+                msp(sock, 205)
+                time.sleep(4.0)
+                ids = list(msp(sock, 119) or b"")
+                arm, autopilot = (1 << ids.index(i) if i in ids else 0 for i in (0, 56))
+                pulses[4] = 1800
+                armed, value = until(modes, lambda m: m is not None and m & arm, wait=8.0)
+                check("craft arms for the capture in flight", armed and autopilot, repr((value, ids)))
+                pulses[2] = 1400
+                place[1] -= 0.0002
+                place[2] += 20.0
+                time.sleep(4.0)
+                pulses[6] = 1800
+                engaged, value = until(modes, lambda m: m is not None and m & autopilot, wait=5.0)
+                targeting, state = until(executor, lambda e: e == (1, 0, 0), wait=3.0)
+                check("autopilot flies the captured plan, saved by the part before", engaged and targeting,
+                      repr((value, state)))
+                press(pulses, 0.5)
+                edited, text = until(warning, lambda r: r is not None and b"SET" in r, wait=2.5)
+                check("press while the executor flies the plan edits nothing", not edited, repr(text))
+                pulses[6] = 1000
+                pulses[4] = 1000
+                until(modes, lambda m: m is not None and not m & arm, wait=3.0)
+                check("plan still has its one waypoint after that press", len(listed()) == 1, "")
+
+            flown(gesture_part)
+            flown(flying_part)
+        if built("GPS"):
+            waypoint_capture_checks()
         # Flight plan in the build: its boxes, its build option, and its waypoint command in the command line and
         # its help.
         def flight_plan_build_checks():
