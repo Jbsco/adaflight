@@ -3011,6 +3011,78 @@ def main():
                 stop(proc)
                 sock.close()
         flight_plan_build_checks()
+
+        # OLED dashboard: with the display feature on and its I2C bus named, the image starts the display, draws
+        # the welcome page and goes through its pages every five seconds. The host shows the display's memory in
+        # a screen file.
+        def dashboard_checks():
+            store = os.path.join(work, "dashboard.bin")
+            oled = {"ADAFLIGHT_OLED_SCREEN": store + ".oled.txt"}
+            proc, sock = start(image, store, extra=oled)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                options = {int(w) for w in cli(sock, "options").split() if w.isdigit()}
+                check("build options list the dashboard", 16408 in options, repr(sorted(options)))
+                text = cli(sock, "feature DISPLAY")
+                check("display feature on for the dashboard", "Enabled" in text, text[-120:])
+                text = cli(sock, "set dashboard_i2c_bus = 1")
+                check("dashboard's I2C bus named", "dashboard_i2c_bus set to 1" in text, text[-120:])
+
+                def setting(name):
+                    found = re.search(rf"^{name} = (\d+)", cli(sock, f"get {name}"), re.M)
+                    return int(found.group(1)) if found else None
+                gains = [setting(name) for name in ("p_roll", "i_roll", "d_roll")]
+                rc_rate = setting("roll_rc_rate")
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=oled)
+            try:
+                def rows():
+                    try:
+                        with open(store + ".oled.txt") as f:
+                            return f.read().splitlines()
+                    except OSError:
+                        return []
+
+                def page(title, wait):
+                    return until(rows, lambda r: len(r) == 8 and r[0].startswith(title), wait=wait)
+
+                shown, value = page("Adaflight", 6.0)
+                check("dashboard draws its welcome page at the start",
+                      shown and re.match(r"v\d+\.\d+", value[1]) is not None
+                      and re.match(r"\(\w+\)", value[2]) is not None and len(value[3].strip()) > 3, repr(value[:4]))
+                check("status corner sits at the end of the welcome page's first row",
+                      shown and len(value[0]) >= 21 and value[0][18] != " " and value[0][19] != " ", repr(value[:1]))
+                shown, value = page("PROFILE", 8.0)
+                found = re.match(r"ROL P: *(\d+) I: *(\d+) D: *(\d+)", value[2]) if shown else None
+                check("dashboard goes on to the PID profile page with the roll gains after five seconds",
+                      found is not None and None not in gains and [int(g) for g in found.groups()] == gains,
+                      repr((value[:4], gains)))
+                shown, value = page("RATE PROFILE", 8.0)
+                rate = next((r for r in value if r.startswith("RcRate")), "") if shown else ""
+                found = re.match(r"RcRate +(\d+)", rate)
+                check("rate profile page lists the roll RC rate", found is not None and int(found.group(1)) == rc_rate,
+                      repr((value[:5], rc_rate)))
+                shown, value = page("RX", 8.0)
+                check("receiver page follows the GPS page, which a build without the GPS feature leaves at once",
+                      shown, repr(value[:3]))
+                shown, value = page("BATTERY", 8.0)
+                check("battery page shows the voltage with the cells", shown and value[1].startswith("Volts:"),
+                      repr(value[:4]))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "tasks", 1.5)
+                check("dashboard task is listed among the tasks", "DASHBOARD" in text, text[-300:])
+            finally:
+                stop(proc)
+                sock.close()
+        if built("Dashboard"):
+            dashboard_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
