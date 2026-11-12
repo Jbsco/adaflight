@@ -905,7 +905,7 @@ def ltm_frames(data):
     return frames
 
 
-MAVLINK_CRC_EXTRA = {0: 50, 30: 39, 77: 143, 148: 178}
+MAVLINK_CRC_EXTRA = {0: 50, 30: 39, 42: 28, 44: 221, 46: 11, 47: 153, 51: 196, 73: 38, 77: 143, 148: 178}
 
 
 def x25(data, crc=0xFFFF):
@@ -932,12 +932,133 @@ def mavlink_frames(data):
     return frames
 
 
+def mavlink_sequences(data):
+    """The sequence numbers of the MAVLink 2 frames that follow one another in a byte stream, from its first frame
+    with a good checksum among the known messages."""
+    seqs = []
+    i = data.find(b"\xfd")
+    while 0 <= i and i + 12 <= len(data):
+        length = data[i + 1]
+        end = i + 12 + length + (13 if data[i + 2] & 1 else 0)
+        msg = data[i + 7] | data[i + 8] << 8 | data[i + 9] << 16
+        if seqs or (msg in MAVLINK_CRC_EXTRA and end <= len(data)
+                    and x25(bytes(data[i + 1:i + 10 + length]) + bytes([MAVLINK_CRC_EXTRA[msg]]))
+                    == data[i + 10 + length] | data[i + 11 + length] << 8):
+            if end > len(data):
+                break
+            seqs.append(data[i + 4])
+            i = end if end < len(data) and data[end] == 0xFD else -1
+        else:
+            i = data.find(b"\xfd", i + 1)
+    return seqs
+
+
 def mavlink_command_long(command, param1):
     """A COMMAND_LONG from a ground station (system 255) to system 1, component 1."""
     payload = struct.pack("<7fHBBB", param1, 0, 0, 0, 0, 0, 0, command, 1, 1, 0)
     header = bytes([len(payload), 0, 0, 0, 255, 190]) + (76).to_bytes(3, "little")
     crc = x25(header + payload + bytes([152]))
     return b"\xfd" + header + payload + crc.to_bytes(2, "little")
+
+
+def mavlink_frame(msg, payload, extra):
+    """A MAVLink 2 frame from a ground station (system 255, component 190) with the message's CRC extra."""
+    header = bytes([len(payload), 0, 0, 0, 255, 190]) + msg.to_bytes(3, "little")
+    crc = x25(header + payload + bytes([extra]))
+    return b"\xfd" + header + payload + crc.to_bytes(2, "little")
+
+
+def mavlink_exchange(mav, frame, wait=0.6):
+    """The frames a ground station's frame is answered with, each payload padded to its full length."""
+    mav.sendall(frame)
+    return [(m, bytes(p) + bytes(40)) for m, p in mavlink_frames(read_all(mav, wait))]
+
+
+def mavlink_first(frames, msg):
+    return next((p for m, p in frames if m == msg), None)
+
+
+MISSION_POINTS = [(407000000, -1050000000, 30.0), (407010000, -1050010000, 45.0)]
+
+
+def mavlink_mission_upload(mav):
+    """A ground station uploads two waypoints: the count, then each item as it is asked for."""
+    got = mavlink_exchange(mav, mavlink_frame(44, struct.pack("<HBBBI", 2, 1, 1, 0, 0), 221))
+    asked = mavlink_first(got, 51)
+    check("mission count answered with a request for item 0", asked is not None and asked[0] | asked[1] << 8 == 0,
+          repr([m for m, _ in got]))
+    for seq, (lat, lon, alt) in enumerate(MISSION_POINTS):
+        item = struct.pack("<4fiifHHBBBBBB", 0, 0, 0, 0, lat, lon, alt, seq, 16, 1, 1, 5, 0, 1, 0)
+        got = mavlink_exchange(mav, mavlink_frame(73, item, 38))
+        if seq == 0:
+            asked = mavlink_first(got, 51)
+            check("first mission item answered with a request for item 1",
+                  asked is not None and asked[0] | asked[1] << 8 == 1, repr([m for m, _ in got]))
+        else:
+            ack = mavlink_first(got, 47)
+            check("last mission item acknowledged as accepted", ack is not None and ack[2] == 0,
+                  repr([m for m, _ in got]))
+    current = [p for m, p in mavlink_exchange(mav, b"", 2.5) if m == 42]
+    check("mission current reports two stored items", any(p[2] | p[3] << 8 == 2 for p in current),
+          repr([bytes(p[:6]).hex() for p in current]))
+
+
+def mavlink_mission_readback(mav):
+    """After a restart the station reads both waypoints back, sets the current item and clears the plan."""
+    got = mavlink_exchange(mav, mavlink_frame(43, struct.pack("<BBB", 1, 1, 0), 132))
+    count = mavlink_first(got, 44)
+    check("stored mission survives a restart with its two items", count is not None and count[0] | count[1] << 8 == 2,
+          repr([m for m, _ in got]))
+    for seq, (lat, lon, alt) in enumerate(MISSION_POINTS):
+        got = mavlink_exchange(mav, mavlink_frame(51, struct.pack("<HBBB", seq, 1, 1, 0), 196))
+        item = mavlink_first(got, 73)
+        fields = struct.unpack("<4fiifHHBBBBBB", item[:38]) if item else None
+        check(f"mission item {seq} read back with its position and altitude",
+              fields is not None and fields[4] == lat and fields[5] == lon and abs(fields[6] - alt) < 0.01
+              and fields[7] == seq and fields[8] == 16, repr(fields))
+    mav.sendall(mavlink_frame(47, struct.pack("<BBBBI", 1, 1, 0, 0, 0), 153))
+    got = mavlink_exchange(mav, mavlink_frame(41, struct.pack("<HBB", 9, 1, 1), 28))
+    ack = mavlink_first(got, 47)
+    check("set current past the plan answered with an error", ack is not None and ack[2] == 1,
+          repr([m for m, _ in got]))
+    got = mavlink_exchange(mav, mavlink_frame(41, struct.pack("<HBB", 1, 1, 1), 28))
+    check("set current inside the plan answered with the current item and no error",
+          mavlink_first(got, 42) is not None and mavlink_first(got, 47) is None, repr([m for m, _ in got]))
+    got = mavlink_exchange(mav, mavlink_frame(45, struct.pack("<BBB", 1, 1, 0), 232))
+    ack = mavlink_first(got, 47)
+    check("mission clear acknowledged as accepted", ack is not None and ack[2] == 0, repr([m for m, _ in got]))
+    got = mavlink_exchange(mav, mavlink_frame(43, struct.pack("<BBB", 1, 1, 0), 132))
+    count = mavlink_first(got, 44)
+    check("cleared mission lists no item", count is not None and count[0] | count[1] << 8 == 0,
+          repr([m for m, _ in got]))
+    # A home set over the link and a mission count in one write: the item after them gives its altitude above
+    # that home, which no GPS has set here.
+    home = struct.pack("<7fHBBB", 0, 0, 0, 0, 40.7, -105.0, 100.0, 179, 1, 1, 0)
+    got = mavlink_exchange(mav, mavlink_frame(76, home, 152)
+                           + mavlink_frame(44, struct.pack("<HBBBI", 1, 1, 1, 0, 0), 221))
+    ack = mavlink_first(got, 77)
+    check("home set over MAVLink acknowledged as accepted", ack is not None and ack[2] == 0,
+          repr([m for m, _ in got]))
+    check("mission count after it answered with a request for item 0", mavlink_first(got, 51) is not None,
+          repr([m for m, _ in got]))
+    item = struct.pack("<4fiifHHBBBBBB", 0, 0, 0, 0, 407000000, -1050000000, 20.0, 0, 16, 1, 1, 6, 0, 1, 0)
+    got = mavlink_exchange(mav, mavlink_frame(73, item, 38))
+    ack = mavlink_first(got, 47)
+    check("mission item above home accepted once the link set a home", ack is not None and ack[2] == 0,
+          repr([(m, bytes(p[:4]).hex()) for m, p in got if m == 47]))
+    mavlink_exchange(mav, mavlink_frame(43, struct.pack("<BBB", 1, 1, 0), 132))
+    got = mavlink_exchange(mav, mavlink_frame(51, struct.pack("<HBBB", 0, 1, 1, 0), 196))
+    item = mavlink_first(got, 73)
+    fields = struct.unpack("<4fiifHHBBBBBB", item[:38]) if item else None
+    check("that item reads back at its altitude plus the home's", fields is not None and abs(fields[6] - 120.0) < 0.01,
+          repr(fields))
+    mav.sendall(mavlink_frame(47, struct.pack("<BBBBI", 1, 1, 0, 0, 0), 153))
+    read_all(mav, 0.3)
+    mav.sendall(mavlink_frame(43, struct.pack("<BBB", 1, 1, 0), 132))
+    seqs = mavlink_sequences(read_all(mav, 1.5))
+    check("mission replies take their own sequence numbers on the link",
+          len(seqs) >= 5 and all((b - a) % 256 == 1 for a, b in zip(seqs, seqs[1:])), repr(seqs[:24]))
+    mav.sendall(mavlink_frame(47, struct.pack("<BBBBI", 1, 1, 0, 0, 0), 153))
 
 
 def mavlink_override(channels_us):
@@ -2456,11 +2577,24 @@ def main():
 
             # A second waypoint 22 m past the first: the executor goes on to it, and the screen counts it.
             def advance_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn):
+                mav = None
+                if contains("MAVLink_Telemetry"):
+                    mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                    mav.settimeout(0.3)
                 fly(1, 20)
                 advanced, value = until(state, lambda s: s is not None and s[1] == (1, 0, 1), wait=6.0)
                 check("executor goes on to the plan's second waypoint", advanced, repr(value))
                 counted, value = until(lambda: screen()[0].strip() if screen() else "", lambda r: r == "WP2/2", wait=3.0)
                 check("screen counts the second waypoint of two", counted, repr(value))
+                if mav is not None:
+                    frames = mavlink_exchange(mav, b"", 2.0)
+                    mav.close()
+                    check("MAVLink reports the first waypoint reached",
+                          any(m == 46 and p[0] | p[1] << 8 == 0 for m, p in frames),
+                          repr(sorted({m for m, _ in frames})))
+                    check("MAVLink mission current names the second waypoint of an active mission",
+                          any(m == 42 and p[0] | p[1] << 8 == 1 and p[5] == 1 for m, p in frames),
+                          repr([bytes(p[:6]).hex() for m, p in frames if m == 42][-3:]))
 
             flown("flight plan", switch_part, store)
             flown("mission under a lost link", link_part, store)
@@ -2474,6 +2608,10 @@ def main():
                 read_all(sock, 0.8)
                 text = cli(sock, "waypoint insert 1 40.0004000 -105.2500000 162000 500 FLYOVER 0 NONE")
                 check("second waypoint 22 m past the first stored", "waypoint insert 1 40.0004000" in text, text[-120:])
+                if contains("MAVLink_Telemetry"):
+                    for line in ("feature TELEMETRY", "set telemetry_1_protocol = MAVLINK",
+                                 "set telemetry_1_uart = UART3"):
+                        cli(sock, line)
                 cli(sock, "save", wait=2.0)
                 proc.wait(timeout=10)
             finally:
@@ -3270,6 +3408,7 @@ def main():
                 time.sleep(2.5)
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
+                mission = 16427 in {int(w) for w in cli(sock, "options").split() if w.isdigit()}
                 text = cli(sock, "feature TELEMETRY")
                 check("telemetry feature on for MAVLink", "Enabled" in text, text[-120:])
                 text = cli(sock, "set telemetry_1_protocol = MAVLINK")
@@ -3294,6 +3433,18 @@ def main():
                 replies = mavlink_frames(read_all(mav, 1.5))
                 ids = [m for m, _ in replies]
                 check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
+                if mission:
+                    mavlink_mission_upload(mav)
+                    mav.close()
+                    stop(proc)
+                    sock.close()
+                    proc, sock = start(image, store)
+                    time.sleep(2.5)
+                    mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                    mav.settimeout(0.3)
+                    mavlink_mission_readback(mav)
+                else:
+                    print("SKIP the MAVLink mission checks: the build leaves the flight plan out")
                 mav.close()
                 ack = msp(sock, 68, bytes([1]))
                 check("MSP reboot into the bootloader accepted", ack == bytes([1]), repr(ack))
