@@ -1425,6 +1425,8 @@ def main():
             osd = msp(sock, 84)
             check("MSP OSD flags name the MAX7456 found", osd is not None and len(osd) > 0 and osd[0] & 0x31 == 0x31,
                   repr(osd[:1] if osd else osd))
+            check("MSP OSD configuration lists every element in a build with the flight plan",
+                  osd is not None and len(osd) > 7 and osd[7] == 99, repr(osd[:8] if osd else osd))
             glyph = msp(sock, 87, bytes([0x41, 0x00]) + bytes(range(64)))
             check("MSP font character written", glyph == b"", repr(glyph))
             time.sleep(2.5)

@@ -14421,3 +14421,18 @@ lists. A build test over that table takes a flight plan flag, and its default is
 
 Lookup tables stay unchanged: Betaflight keeps yaw mode, link loss and geofence tables in every multirotor build.
 Stored values keep their place in configuration.
+
+## D729. OSD element addresses by build (2026-11-11)
+
+Betaflight's last OSD elements exist only in a build with their options: waypoint elements with GPS and a flight
+plan, its map with those on a multirotor, position hold readiness with position hold, airspeed with a pitot. A
+build without one of them numbers every later element lower. Its configurator lays out an element list from
+reported build options.
+
+Boards answered MSP with every element in one fixed order. In an image without a flight plan, address 88 named a
+waypoint element where a configurator expects position hold readiness.
+
+An element's MSP address now names its place in a build's list. A configuration reply lists that build's elements
+alone, a position write maps its address through that list, and an address past it is an error. Boards derive
+that list from GPS, flight plan, wing and pitot features. Vectors come from Betaflight's element enumeration in
+builds with each set of options.

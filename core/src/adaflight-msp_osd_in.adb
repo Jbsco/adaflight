@@ -1,5 +1,6 @@
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
+with Adaflight.OSD_Elements;
 
 package body Adaflight.MSP_OSD_In with SPARK_Mode is
    use type Interfaces.Integer_64;
@@ -10,7 +11,6 @@ package body Adaflight.MSP_OSD_In with SPARK_Mode is
    Timer_Address   : constant := 254;
    Timer_Count     : constant := 2;
    Stat_Count      : constant := 31;
-   Item_Count      : constant := 99;
    Profile_Count   : constant := 3;
    NTSC            : constant := 2;
    HD              : constant := 3;
@@ -132,8 +132,11 @@ package body Adaflight.MSP_OSD_In with SPARK_Mode is
 
    --  A statistic's switch on the post flight screen, or an element's
    --  position on the flight screens; the screen is the flight screen
-   --  when the request leaves it out.
-   procedure Set_Element (C : in out Configuration; Request : Byte_Array; R : out Result; E : in out Effects)
+   --  when the request leaves it out. An element's address is its place in
+   --  the build's list.
+   procedure Set_Element
+     (C : in out Configuration; Request : Byte_Array; Elements : OSD_Element_List.List; R : out Result;
+      E : in out Effects)
      with Pre  => Request'Length <= Max_Request,
           Post => (if R = Error then C = C'Old and then E = E'Old)
    is
@@ -151,8 +154,10 @@ package body Adaflight.MSP_OSD_In with SPARK_Mode is
                C.Osd_Config.Enabled_Stats := C.Osd_Config.Enabled_Stats and not Bit;
             end if;
          end;
-      elsif Address < Item_Count then
-         C.Osd_Element_Config.Item_Pos (Natural (Address)) := Interfaces.Unsigned_16 (Value);
+      elsif Address < Integer_64 (OSD_Element_List.Count (Elements)) then
+         C.Osd_Element_Config.Item_Pos
+           (OSD_Elements.Item'Pos (OSD_Element_List.Element (Elements, Natural (Address)))) :=
+           Interfaces.Unsigned_16 (Value);
          E.OSD_Elements := True;
       else
          R := Error;
@@ -180,8 +185,8 @@ package body Adaflight.MSP_OSD_In with SPARK_Mode is
    end Set_Canvas;
 
    procedure Process
-     (C : in out Configuration; Command : Interfaces.Unsigned_16; Request : Byte_Array; R : out Result;
-      E : out Effects)
+     (C : in out Configuration; Command : Interfaces.Unsigned_16; Request : Byte_Array;
+      Elements : OSD_Element_List.List; R : out Result; E : out Effects)
    is
    begin
       E := No_Effects;
@@ -193,7 +198,7 @@ package body Adaflight.MSP_OSD_In with SPARK_Mode is
                when Timer_Address =>
                   Set_Timer (C, Request, R);
                when others =>
-                  Set_Element (C, Request, R, E);
+                  Set_Element (C, Request, Elements, R, E);
             end case;
          when Set_OSD_Canvas_Command =>
             Set_Canvas (C, Request, E);

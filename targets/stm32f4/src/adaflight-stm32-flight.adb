@@ -154,6 +154,7 @@ with Adaflight.STM32.SPI;
 with Adaflight.STM32.USB;
 with Adaflight.STM32.VTX;
 with Adaflight.MSP_OSD_Out;
+with Adaflight.OSD_Element_List;
 with Adaflight.OSD_Task;
 with Adaflight.OSD_Render;
 with Adaflight.STM32.Menu;
@@ -1366,6 +1367,10 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Hardware.P_Ratio := Adaflight.Blackbox.P_Ratio (Ctx.Log);
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
+      Ctx.Out_Views.OSD.Elements := Adaflight.OSD_Element_List.Of_Build
+        (GPS => Adaflight.Build_Features.GPS, Flight_Plan => Adaflight.Plan_Build.Enabled,
+         Wing => Adaflight.Build_Features.Wing, Position_Hold => Adaflight.Build_Features.GPS,
+         Pitot => Adaflight.Build_Features.Pitot);
       Ctx.Motors := Adaflight.STM32.Control.Motor_Count;
       Ctx.Motor_Outputs := Adaflight.STM32.Four_Way.ESC_Count;
       Ctx.Passthrough_Open := False;

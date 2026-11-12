@@ -49,7 +49,8 @@ package body Adaflight.MSP_OSD_Out with SPARK_Mode is
      with Pre  => Fits (S, B) and then Remaining (S) >= Max_Reply_Length,
           Post => S.Next - S.Next'Old in 0 .. Max_Reply_Length and then S.Last = S.Last'Old
    is
-      Count : constant Natural := (if V.VTX_Port then Legacy_Item_Count else Item_Count);
+      Count : constant Natural :=
+        (if V.VTX_Port then Legacy_Item_Count else Adaflight.OSD_Element_List.Count (V.Elements));
       Start : constant Position := S.Next with Ghost;
       Bits  : constant Interfaces.Unsigned_32 := Warning_Bits (V.Warnings);
    begin
@@ -63,7 +64,7 @@ package body Adaflight.MSP_OSD_Out with SPARK_Mode is
       Write_U16 (B, S, V.Alt_Alarm);
       for I in 0 .. Count - 1 loop
          pragma Loop_Invariant (S.Next = Start + 10 + 2 * I and then S.Last = S.Last'Loop_Entry);
-         Write_U16 (B, S, V.Positions (Adaflight.OSD_Elements.Item'Val (I)));
+         Write_U16 (B, S, V.Positions (Adaflight.OSD_Element_List.Element (V.Elements, I)));
       end loop;
       Write_U8 (B, S, Stat_Count);
       for St in Adaflight.OSD_Stats.Stat loop

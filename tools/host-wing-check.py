@@ -29,8 +29,16 @@ def main() -> int:
             hs.check("wing box ids offer launch", 58 in ids, repr(list(ids)))
             hs.check("wing box ids leave out altitude and position hold", 3 not in ids and 11 not in ids,
                      repr(list(ids)))
+            osd = hs.msp(sock, 84) or b""
+            hs.check("wing OSD configuration lists the elements of a build without the flight plan",
+                     len(osd) > 7 and osd[7] == 90, repr(osd[:8]))
+            hs.check("wing airspeed element placed by its address in that list",
+                     hs.msp(sock, 85, bytes([89]) + (2150).to_bytes(2, "little")) == b"")
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
+            text = hs.cli(sock, "get osd_airspeed")
+            hs.check("wing command line shows the airspeed position written over MSP", "osd_airspeed = 2150" in text,
+                     text[-120:])
             text = hs.cli(sock, "options")
             hs.check("wing build options list the wing", 16424 in {int(w) for w in text.split() if w.isdigit()},
                      text[-160:])

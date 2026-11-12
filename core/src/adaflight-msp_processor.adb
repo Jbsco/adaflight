@@ -395,7 +395,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          declare
             OR_Result : MSP_OSD_In.Result;
          begin
-            MSP_OSD_In.Process (C, Command, Request, OR_Result, E.OSD);
+            MSP_OSD_In.Process (C, Command, Request, Ctx.Out_Views.OSD.Elements, OR_Result, E.OSD);
             R := (if OR_Result = MSP_OSD_In.Ack then Ack else Error);
             E.Text.OSD_Elements := E.OSD.OSD_Elements;
             E.Save := E.OSD.Save;
