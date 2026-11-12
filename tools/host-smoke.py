@@ -2252,7 +2252,9 @@ def main():
         # ends the mode. With the policy that flies a mission on, a lost link leaves the mission flying in the
         # failsafe mode, and its end hands over to the failsafe's procedure, which disarms. The simulator's bridge
         # mirrors a fed position about its first packet, so a falling latitude flies north. Each part starts the
-        # image afresh, since the executor's debug values stay as its last update left them.
+        # image afresh, since the executor's debug values stay as its last update left them. The screen shows the
+        # plan's elements: the waypoint's number, the distance and the time to it, the flight mode, and the map with
+        # the waypoint's marker and the flown trail.
         def flight_plan_flight_checks():
             store = os.path.join(work, "planfly.bin")
             sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
@@ -2267,7 +2269,11 @@ def main():
                 for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
                              "aux 0 0 0 1700 2100 0 0", "aux 1 56 1 1700 2100 0 0", "feature GPS",
                              "set gps_provider = VIRTUAL", "set altitude_source = BARO_ONLY",
-                             "set osd_warn_bitmask = 0", "set debug_mode = FLIGHT_PLAN"):
+                             "set osd_warn_bitmask = 0", "set debug_mode = FLIGHT_PLAN",
+                             "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                             "set osd_wp_number_pos = 2049", "set osd_wp_distance_pos = 2081",
+                             "set osd_wp_direction_pos = 2113", "set osd_wp_eta_pos = 2145",
+                             "set osd_flymode_pos = 2177", "set osd_nav_map_pos = 2255"):
                     cli(sock, line)
                 text = cli(sock, "set ap_rx_loss_policy = CONTINUE")
                 check("policy that flies a mission on under a lost link set",
@@ -2282,21 +2288,23 @@ def main():
 
             # The image started, armed with a raised throttle, and the autopilot switch on; then the part's own
             # checks, which fly the leg in steps of 1.1 m with a matching northward velocity.
-            def flown(part, body):
-                proc, sock = start(image, store, extra=sim_link)
+            def flown(part, body, settings):
+                proc, sock = start(image, settings, extra=sim_link)
                 done = threading.Event()
                 with_sticks = threading.Event()
                 with_sticks.set()
                 pulses = [1500, 1500, 1000, 1500] + [1000] * 12
                 place = [-105.25, 40.0, 1600.0]
                 north = [0.0]
+                turn = [1.0, 0.0]
 
                 def feed():
                     out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     tick = 0
                     while not done.is_set():
-                        out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
-                                               0.0, north[0], 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
+                        out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, turn[0], 0.0, 0.0,
+                                               turn[1], 0.0, north[0], 0.0, place[0], place[1], place[2], 0.0),
+                                   ("127.0.0.1", 9003))
                         if tick % 2 == 0 and with_sticks.is_set():
                             out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
                         tick += 1
@@ -2312,6 +2320,13 @@ def main():
                     flags = int.from_bytes(status[6:10], "little")
                     flags |= int.from_bytes(status[16:at], "little") << 32
                     return flags, struct.unpack("<3h", values[:6]), int.from_bytes(status[at + 1:at + 5], "little")
+
+                def screen():
+                    try:
+                        with open(settings + ".osd.txt") as f:
+                            return f.read().splitlines()
+                    except OSError:
+                        return []
 
                 def fly(first, last):
                     north[0] = 3.7
@@ -2342,7 +2357,7 @@ def main():
                                            and s[1] == (1, 0, 0), wait=5.0)
                     check(f"autopilot switch engages the executor with both holds for the {part}", engaged,
                           repr(value))
-                    body(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds)
+                    body(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn)
                     pulses[4] = 1000
                     time.sleep(1.0)
                 finally:
@@ -2350,10 +2365,47 @@ def main():
                     stop(proc)
                     sock.close()
 
-            def switch_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds):
-                fly(1, 20)
+            def switch_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn):
+                # The elements' rows: the number at 0, the distance at 1, the direction at 2, the time at 3, the
+                # flight mode at 4, and the map from 6 with its inside from column 16.
+                def row(n):
+                    lines = screen()
+                    return lines[n].strip() if len(lines) > n else ""
+
+                def metres():
+                    found = re.match(r"(\d+)", row(1))
+                    return int(found.group(1)) if found else None
+                shown, value = until(lambda: (row(0), metres(), row(4)),
+                                     lambda v: v[0] == "WP1/1" and v[1] is not None and 18 <= v[1] <= 24
+                                     and v[2] == "POSH", wait=3.0)
+                check("screen names the waypoint, its distance of 22 m and the position hold mode", shown, repr(value))
+                marked, value = until(lambda: [line[16:28] for line in screen()[7:13]],
+                                      lambda rows: any("1" in r for r in rows), wait=3.0)
+                check("map marks the plan's waypoint", marked, repr(value))
+                frames = set()
+                end = time.monotonic() + 2.5
+                while time.monotonic() < end:
+                    frames.add(any("1" in line[16:28] for line in screen()[7:13]))
+                    time.sleep(0.05)
+                check("marker of the waypoint under way blinks", frames == {True, False}, repr(frames))
+                fly(1, 10)
+                value = (metres(), row(2), row(3))
+                check("distance, direction and time to the waypoint follow the leg",
+                      value[0] is not None and 4 <= value[0] <= 17 and value[1] not in ("", "-")
+                      and re.fullmatch(r"\d\d:\d\d", value[2]) is not None, repr(value))
+
+                def craft():
+                    for line in screen()[7:13]:
+                        for mark in line[16:28]:
+                            if mark not in " .+1":
+                                return mark
+                    return None
+                northward = craft()
+                fly(11, 20)
                 reached, value = until(state, lambda s: s is not None and s[1] == (3, 0, 0), wait=6.0)
                 check("leg flown to the waypoint completes the plan", reached, repr(value))
+                cleared, value = until(lambda: row(1), lambda r: r == "-", wait=3.0)
+                check("screen shows no distance once the plan is complete", cleared, repr(value))
                 named, shown = until(lambda: msp2(sock, 0x3005), lambda r: r is not None and b"WP COMPLETE" in r,
                                      wait=4.0)
                 check("OSD warning names the completed plan", named, repr(shown))
@@ -2364,6 +2416,18 @@ def main():
                 released, value = until(state, lambda s: s is not None and s[0] & arm and not s[0] & autopilot,
                                         wait=3.0)
                 check("switch's release ends the autopilot mode", released, repr(value))
+                turn[0], turn[1] = 0.7071068, 0.7071068
+                for step in range(1, 13):
+                    place[0] = -105.25 - 0.0000586 * step
+                    time.sleep(0.4)
+                trailed, value = until(lambda: screen()[8] if len(screen()) > 8 else "",
+                                       lambda r: re.search(r"1\.{3}[^ .] *$", r[16:28]) is not None, wait=4.0)
+                check("map draws the trail of a 60 m flight east of the waypoint, up to the craft's mark", trailed,
+                      repr(value))
+                eastward = craft()
+                check("map turns the craft's mark with its heading",
+                      northward is not None and eastward is not None and eastward != northward,
+                      repr((northward, eastward)))
                 pulses[4] = 1000
                 until(state, lambda s: s is not None and not s[0] & arm, wait=3.0)
                 sock.sendall(b"#")
@@ -2372,7 +2436,7 @@ def main():
                 check("waypoint status reports the executor inactive after the switch's release",
                       "Runtime status:" in text and "inactive" in text.split("Runtime status:")[-1], text[-160:])
 
-            def link_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds):
+            def link_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn):
                 fly(1, 8)
                 with_sticks.clear()
                 flying = arm | failsafe | autopilot
@@ -2388,8 +2452,32 @@ def main():
                 check("mission's end under a lost link hands over to the failsafe's procedure, which disarms",
                       dropped, repr(value))
 
-            flown("flight plan", switch_part)
-            flown("mission under a lost link", link_part)
+            # A second waypoint 22 m past the first: the executor goes on to it, and the screen counts it.
+            def advance_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn):
+                fly(1, 20)
+                advanced, value = until(state, lambda s: s is not None and s[1] == (1, 0, 1), wait=6.0)
+                check("executor goes on to the plan's second waypoint", advanced, repr(value))
+                counted, value = until(lambda: screen()[0].strip() if screen() else "", lambda r: r == "WP2/2", wait=3.0)
+                check("screen counts the second waypoint of two", counted, repr(value))
+
+            flown("flight plan", switch_part, store)
+            flown("mission under a lost link", link_part, store)
+            longer = os.path.join(work, "planfly2.bin")
+            with open(store, "rb") as saved, open(longer, "wb") as copy:
+                copy.write(saved.read())
+            proc, sock = start(image, longer, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "waypoint insert 1 40.0004000 -105.2500000 162000 500 FLYOVER 0 NONE")
+                check("second waypoint 22 m past the first stored", "waypoint insert 1 40.0004000" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            flown("plan of two waypoints", advance_part, longer)
         if built("GPS"):
             flight_plan_flight_checks()
         # Rescue plans: with the GPS rescue as the failsafe procedure, lost stick packets stage a rescue plan that
@@ -2411,7 +2499,9 @@ def main():
                 for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
                              "aux 0 0 0 1700 2100 0 0", "aux 1 46 1 1700 2100 0 0", "feature GPS",
                              "set gps_provider = VIRTUAL", "set altitude_source = BARO_ONLY",
-                             "set failsafe_landing_time = 3", "set debug_mode = FLIGHT_PLAN"):
+                             "set failsafe_landing_time = 3", "set debug_mode = FLIGHT_PLAN",
+                             "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                             "set osd_flymode_pos = 2177"):
                     cli(sock, line)
                 text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
                 check("GPS rescue set as the failsafe procedure of a build with rescue plans",
@@ -2425,10 +2515,12 @@ def main():
             # The image started, armed with a raised throttle, at a place 111 m from home and 30 m up, for a rescue
             # that has somewhere to go; then the part's own checks.
             sock_of = [None]
+            screen_of = [None]
 
             def flown(part, body, settings):
                 proc, sock = start(image, settings, extra=sim_link)
                 sock_of[0] = sock
+                screen_of[0] = settings + ".osd.txt"
                 done = threading.Event()
                 with_sticks = threading.Event()
                 with_sticks.set()
@@ -2491,6 +2583,16 @@ def main():
                                       and s[1] == (1, 0, 0), wait=5.0)
                 check("lost link flies a staged rescue plan in the failsafe mode, without the rescue mode", staged,
                       repr(value))
+
+                def mode_row():
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            lines = f.read().splitlines()
+                    except OSError:
+                        lines = []
+                    return lines[4].strip() if len(lines) > 4 else ""
+                named, value = until(mode_row, lambda r: r == "N-RESC", wait=3.0)
+                check("screen's flight mode names the rescue plan ahead of the failsafe", named, repr(value))
                 time.sleep(4.5)
                 value = state()
                 check("rescue plan outlasts the failsafe's landing time",
@@ -2533,7 +2635,13 @@ def main():
                       repr(value))
                 named, shown = until(lambda: msp2(sock_of[0], 0x3005), lambda r: r is not None and b"RESCUE FAIL" in r,
                                      wait=4.0)
-                check("OSD warning names the rescue's failure during the descent", named, repr(shown))
+                try:
+                    with open(screen_of[0]) as f:
+                        rows = [line.rstrip() for line in f.read().splitlines() if line.strip()][:6]
+                except OSError:
+                    rows = []
+                check("OSD warning names the rescue's failure during the descent", named,
+                      repr((shown, state(), rows)))
                 # The debug values are the throttle, the target and the altitude, in centimetres. The fed altitude
                 # never falls, so the target stops a little below it.
                 lowered, value = until(state, lambda s: s is not None and s[1][1] < s[1][2] - 100, wait=4.0)

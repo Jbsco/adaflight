@@ -3397,6 +3397,16 @@ package body Adaflight.STM32.Flight is
          F.Plan_State := Plan_Nav.Mode;
          F.Plan_Abort := Plan_Nav.Reason;
          F.Rescue_Descent := Adaflight.Flight_Plan_Nav.Is_Rescue_Descent_Active (Plan_Nav);
+         declare
+            Status : constant CLI.Navigation_Status := Plan_Status;
+         begin
+            F.Plan_Active := Status.Active;
+            F.Plan_Index := Status.Current_Index;
+            F.Plan_Distance_M := Float'Max (-1.0, Float'Min (1.0e9, Status.Distance_M));
+            F.Plan_Bearing_Deci := Status.Bearing_Deci;
+            F.Plan_ETA_S := Status.ETA_S;
+            F.Rescue_Plan := Adaflight.Flight_Plan_Nav.Is_Rescue_Plan_Active (Plan_Nav);
+         end;
       end if;
       F.Rescue_Configured := Rescue_Configured;
       F.Rescue_Available := Rescue_State.Is_Available;
@@ -4057,6 +4067,8 @@ package body Adaflight.STM32.Flight is
          Nav.Disengage (Plan_Nav, Navigator, Calls);
       end if;
       Apply_Plan_Calls (Calls, Now_Us);
+      Adaflight.STM32.OSD.Set_Plan (Plan);
+      Adaflight.STM32.OSD.Step_Trail (Now_Us, Adaflight.STM32.Pilot.Armed, GPS_Now);
    end Run_Plan_Modes;
 
    --  The flight modes as the reference's flight mode word: angle, horizon,

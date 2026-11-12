@@ -197,6 +197,16 @@ package Adaflight.STM32.OSD is
       Plan_State        : Adaflight.Flight_Plan_Nav.Nav_State := Adaflight.Flight_Plan_Nav.Idle;
       Plan_Abort        : Adaflight.Flight_Plan_Nav.Abort_Reason := Adaflight.Flight_Plan_Nav.None;
       Rescue_Descent    : Boolean := False;
+      --  For the map and the waypoint elements: whether the executor flies,
+      --  its waypoint, the distance to it in metres, the bearing in tenths
+      --  of a degree and the time in seconds, and whether it flies a rescue
+      --  plan.
+      Plan_Active       : Boolean := False;
+      Plan_Index        : Interfaces.Unsigned_8 := 0;
+      Plan_Distance_M   : Float range -1.0e9 .. 1.0e9 := -1.0;
+      Plan_Bearing_Deci : Interfaces.Integer_32 range -1 .. 3599 := -1;
+      Plan_ETA_S        : Interfaces.Unsigned_16 := 0;
+      Rescue_Plan       : Boolean := False;
       Rescue_Configured : Boolean := False;
       Rescue_Available  : Boolean := False;
       Rescue_OK         : Boolean := True;
@@ -217,6 +227,13 @@ package Adaflight.STM32.OSD is
    --  A beep began: the warnings show the visual beeper's mark at their
    --  next rendering, once.
    procedure Set_Visual_Beeper;
+
+   --  The flight plan the map and the waypoint elements show.
+   procedure Set_Plan (Plan : Adaflight.Flight_Plan.Plan);
+
+   --  One poll of the flown trail for the map, from the GPS solution, home
+   --  and the arming state.
+   procedure Step_Trail (Now_Us : Interfaces.Unsigned_32; Armed : Boolean; GPS : Adaflight.STM32.GPS.Readings);
 
    --  One step of the waypoint capture's gesture, which edits the plan.
    --  The warnings show its message and clear it once it has expired.

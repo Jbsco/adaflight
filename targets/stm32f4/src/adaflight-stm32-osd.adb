@@ -11,7 +11,11 @@ with Adaflight.MSP_Port;
 with Adaflight.OSD_Canvas;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Format;
+with Adaflight.Nav_Trail;
+with Adaflight.OSD_Nav_Map;
 with Adaflight.OSD_Page;
+with Adaflight.Plan_Build;
+with Adaflight.Position_Estimator;
 with Adaflight.OSD_Stats;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Serial_Feature_Map;
@@ -629,6 +633,8 @@ package body Adaflight.STM32.OSD is
    Visual_Beeper_On : Boolean := False;
    --  The waypoint capture's gesture and message.
    Capture          : Adaflight.Flight_Plan_Capture.Capture;
+   --  The flown trail the map draws.
+   Trail            : Adaflight.Nav_Trail.Trail;
    Context   : Adaflight.OSD_Task.Context;
 
    --  A state's last run and an element draw's last time in microseconds,
@@ -709,6 +715,33 @@ package body Adaflight.STM32.OSD is
    begin
       Visual_Beeper_On := True;
    end Set_Visual_Beeper;
+
+   procedure Set_Plan (Plan : Adaflight.Flight_Plan.Plan) is
+      Nav : Adaflight.OSD_Nav_Map.Inputs renames Context.Draw.Inputs.Nav;
+   begin
+      Nav.Waypoint_Count := Interfaces.Unsigned_8 (Plan.Count);
+      for I in Nav.Waypoints'Range loop
+         Nav.Waypoints (I) :=
+           (Kind => Plan.Waypoints (I).Kind, Latitude => Plan.Waypoints (I).Latitude,
+            Longitude => Plan.Waypoints (I).Longitude, Altitude => Plan.Waypoints (I).Altitude);
+      end loop;
+   end Set_Plan;
+
+   procedure Step_Trail (Now_Us : Interfaces.Unsigned_32; Armed : Boolean; GPS : Adaflight.STM32.GPS.Readings) is
+      Bound : constant := 1.0e9;
+      East  : Float;
+      North : Float;
+   begin
+      Adaflight.Position_Estimator.Distance_2d
+        (From => (Lat => GPS.Home.Lat, Lon => GPS.Home.Lon, Alt_Cm => GPS.Home.Alt_Cm),
+         To => (Lat => GPS.Latitude, Lon => GPS.Longitude, Alt_Cm => GPS.Altitude_Cm), Cos_Lat => GPS.Cos_Lat,
+         East => East, North => North);
+      Adaflight.Nav_Trail.Update
+        (Trail, Now_Us, Armed, GPS.Fix, GPS.Fix_Home, Float'Max (-Bound, Float'Min (Bound, East)),
+         Float'Max (-Bound, Float'Min (Bound, North)));
+      Context.Draw.Inputs.Nav.Trail_Count := Trail.Length;
+      Context.Draw.Inputs.Nav.Trail := Trail.Points;
+   end Step_Trail;
 
    procedure Step_Capture
      (Plan : in out Adaflight.Flight_Plan.Plan; Now_Us : Interfaces.Unsigned_32;
@@ -894,6 +927,7 @@ package body Adaflight.STM32.OSD is
       D.Uplink_Mw := F.Uplink_mW;
       D.Throttle_Percent := Interfaces.Integer_8 (F.Throttle_Percent);
       D.Modes := Modes_Of (F.Modes);
+      D.Modes.Rescue_Plan := F.Rescue_Plan;
       D.Airmode := F.Airmode;
       D.Motors := F.Motors;
       D.Motor_Output := F.Motor_Output;
@@ -906,6 +940,19 @@ package body Adaflight.STM32.OSD is
       for K in Adaflight.OSD_Render.Motor_Index loop
          D.ESC_RPM (K) := Natural (Interfaces.Integer_16'Max (0, F.ESC_Motors (K).Rpm));
       end loop;
+      if Adaflight.Plan_Build.Enabled then
+         D.Nav.Fix_Home := F.GPS.Fix_Home;
+         D.Nav.Fix := F.GPS.Fix;
+         D.Nav.Home := (Latitude => F.GPS.Home.Lat, Longitude => F.GPS.Home.Lon);
+         D.Nav.Craft := (Latitude => F.GPS.Latitude, Longitude => F.GPS.Longitude);
+         D.Nav.Cos_Lat := F.GPS.Cos_Lat;
+         D.Nav.Yaw_Deci := Interfaces.Integer_16 (F.Yaw);
+         D.Nav.Nav_Active := F.Plan_Active;
+         D.Nav.Nav_Index := F.Plan_Index;
+         D.WP_Distance_M := F.Plan_Distance_M;
+         D.WP_Bearing_Deci := F.Plan_Bearing_Deci;
+         D.WP_ETA_S := F.Plan_ETA_S;
+      end if;
       D.GPS_Present := F.GPS_Feature;
       D.GPS_Fix := F.GPS.Fix;
       D.GPS_Fix_Home := F.GPS.Fix_Home;
