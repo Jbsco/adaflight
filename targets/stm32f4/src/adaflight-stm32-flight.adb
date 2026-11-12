@@ -4221,6 +4221,7 @@ package body Adaflight.STM32.Flight is
       use type Adaflight.Battery.Voltage_Source;
       use type Adaflight.Battery.Current_Source;
       G       : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      GPS_Log : constant Adaflight.STM32.GPS.Link_Record := Adaflight.STM32.GPS.Link_Trace;
       PID_Idx : constant Natural := Natural'Min (Config.Pid_Profiles'Last, Natural (Config.System_Config.Pid_Profile_Index));
       Rate_Idx : constant Natural :=
         Natural'Min (Config.Control_Rate_Profiles'Last, Natural (Config.System_Config.Active_Rate_Profile));
@@ -4269,6 +4270,17 @@ package body Adaflight.STM32.Flight is
       R.Longitude := G.Longitude;
       R.Ground_Speed := G.Ground_Speed;
       R.Ground_Course := G.Ground_Course;
+      R.Packets := GPS_Log.Trace.Packets;
+      R.Sat_Info_Count := GPS_Log.Trace.Sat_Reports;
+      R.Errors := GPS_Log.Trace.Errors;
+      R.Timeouts := GPS_Log.Timeouts;
+      R.Nav_Interval_Ms := GPS_Log.Interval_Ms;
+      for I in GPS_Log.Trace.Log'Range loop
+         R.Log (I + 1) := Character'Val (GPS_Log.Trace.Log (I));
+      end loop;
+      for I in R.Signals'Range loop
+         R.Signals (I) := Adaflight.STM32.GPS.Satellite (I).Cno;
+      end loop;
       R.Voltage_Meter := Bat_Settings.Voltage_Meter /= Adaflight.Battery.None;
       R.Current_Meter := Bat_Settings.Current_Meter /= Adaflight.Battery.None;
       R.Voltage := Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered));

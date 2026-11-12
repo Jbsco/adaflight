@@ -1,6 +1,6 @@
 with Ada.Environment_Variables;
 with Ada.Real_Time;
-with Ada.Text_IO;
+with Ada.Wide_Text_IO;
 with Adaflight.OLED_Font;
 package body Adaflight.Host_OLED is
    use type Ada.Real_Time.Time;
@@ -66,16 +66,20 @@ package body Adaflight.Host_OLED is
    end Write;
 
    --  The character a cell's five columns show, in the normal format or
-   --  the inverse one.
-   function Shown (Row : Page_Number; Cell : Natural) return Character is
-      Inverse : constant Interfaces.Unsigned_8 := 16#7F#;
+   --  the inverse one. A level of the vertical bar graph, the font's last
+   --  seven glyphs, reads as the block element of that height.
+   function Shown (Row : Page_Number; Cell : Natural) return Wide_Character is
+      Inverse   : constant Interfaces.Unsigned_8 := 16#7F#;
+      Bar_First : constant := Adaflight.OLED_Font.Font'Last - 6;
    begin
       for Flip in Boolean loop
          for G in Adaflight.OLED_Font.Font'Range loop
             if (for all K in 0 .. 4 =>
                   (Memory (Row, 6 * Cell + K) xor (if Flip then Inverse else 0)) = Adaflight.OLED_Font.Font (G) (K))
             then
-               return (if G <= 94 then Character'Val (Adaflight.OLED_Font.First + G) else '#');
+               return (if G <= 94 then Wide_Character'Val (Adaflight.OLED_Font.First + G)
+                       elsif G >= Bar_First then Wide_Character'Val (16#2581# + G - Bar_First)
+                       else '#');
             end if;
          end loop;
       end loop;
@@ -83,16 +87,16 @@ package body Adaflight.Host_OLED is
    end Shown;
 
    procedure Dump is
-      File : Ada.Text_IO.File_Type;
+      File : Ada.Wide_Text_IO.File_Type;
    begin
-      Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name);
+      Ada.Wide_Text_IO.Create (File, Ada.Wide_Text_IO.Out_File, Name, Form => "WCEM=8");
       for Row in Page_Number loop
          for Cell in 0 .. 20 loop
-            Ada.Text_IO.Put (File, Shown (Row, Cell));
+            Ada.Wide_Text_IO.Put (File, Shown (Row, Cell));
          end loop;
-         Ada.Text_IO.New_Line (File);
+         Ada.Wide_Text_IO.New_Line (File);
       end loop;
-      Ada.Text_IO.Close (File);
+      Ada.Wide_Text_IO.Close (File);
    exception
       when others =>
          null;

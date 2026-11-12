@@ -14499,3 +14499,26 @@ its font. That font moved from display driver to a package of its own for this.
 
 Two parts stay open. Betaflight registers this display with its menu system, and boards do not. Its GPS page shows
 a packet log, packet and error counts and satellite signals, which GPS units do not record yet.
+
+## D734. GPS packet trace on dashboard (2026-11-12)
+
+Betaflight's dashboard GPS page shows satellite signals as bars, packet and error counts, link timeouts, solution
+interval and a packet log. Core GPS units recorded no packet log and no such counts, so D733 left those rows empty.
+
+Both frame decoders now record a packet trace in receiver state. An NMEA sentence with a checksum shifts a log of
+21 characters and marks its front: GGA, GSA, RMC, another sentence, or a failed parity. A u-blox message that passes
+both checksums does that too, with a mark per message kind. A u-blox frame dropped for an unreasonable length or a
+failed checksum marks an error and counts it.
+
+Packets and satellite reports have counts of their own. A GSV field for satellite number zero, which D79 skips,
+counts no report. Link init clears that log and its error count, and leaves those two counts alone.
+
+Every build records this trace, with or without a dashboard: 33 bytes of receiver state and a 20-byte move per
+packet. Dashboard readings take it from GPS state, with link timeouts, solution interval and each satellite's
+signal.
+
+Host display model now writes its screen file in UTF-8 and shows each level of a vertical bar graph as a block
+element of that height. A smoke check runs a u-blox module on a host serial port that falls silent for a while,
+and reads bars, both counts, a timeout, interval and log order from that page.
+
+Betaflight registers this display with its menu system, and boards do not yet.

@@ -36,6 +36,11 @@ package body Adaflight.STM32.GPS is
       return S : Adaflight.GPS_Frames.Satellite;
    end Satellite;
 
+   function Link_Trace return Link_Record is
+   begin
+      return T : Link_Record;
+   end Link_Trace;
+
    function Time return Adaflight.GPS_Frames.Date_Time is
    begin
       return T : Adaflight.GPS_Frames.Date_Time;

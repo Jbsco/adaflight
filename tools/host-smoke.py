@@ -172,6 +172,42 @@ class LapGPS(GPS):
             f"GPRMC,{clock},A,{lat},N,01131.00000,E,022.4,084.4,230394,003.1,W")
 
 
+def ubx_frame(kind, payload):
+    """A u-blox frame: the two sync bytes, the class and the id, the length, the payload and both checksums."""
+    body = bytes(kind) + len(payload).to_bytes(2, "little") + payload
+    first = second = 0
+    for byte in body:
+        first = (first + byte) & 0xFF
+        second = (second + first) & 0xFF
+    return b"\xb5\x62" + body + bytes([first, second])
+
+
+class UbloxGPS(GPS):
+    """A u-blox module that sends its version, a solution a second after the last one, a report of four
+    satellites with signals of 10, 25, 40 and 54 dBHz and a frame whose second checksum is wrong, in turn. It
+    falls silent from four seconds after its start for 3.6 seconds."""
+
+    def frames(self, tick):
+        if 20 <= tick < 38:
+            return b""
+        version = b"ROM CORE 3.01 (107888)".ljust(30, b"\0") + b"00080000".ljust(10, b"\0") \
+            + b"PROTVER=18.00".ljust(30, b"\0")
+        solution = bytearray(92)
+        struct.pack_into("<I", solution, 0, 100000 + 1000 * tick)
+        struct.pack_into("<HBBBBBB", solution, 4, 2026, 11, 12, 12, (tick // 60) % 60, tick % 60, 7)
+        solution[20], solution[21], solution[23] = 3, 1, 10
+        struct.pack_into("<iiii", solution, 24, 115166666, 481173000, 545400, 545400)
+        struct.pack_into("<H", solution, 76, 150)
+        satellites = bytearray(8 + 12 * 4)
+        satellites[4], satellites[5] = 1, 4
+        for i, signal in enumerate((10, 25, 40, 54)):
+            satellites[8 + 12 * i:11 + 12 * i] = bytes([0, i + 1, signal])
+        bad = bytearray(ubx_frame((0x01, 0x04), bytes(18)))
+        bad[-1] ^= 0x55
+        return ubx_frame((0x0A, 0x04), version) + ubx_frame((0x01, 0x07), bytes(solution)) \
+            + ubx_frame((0x01, 0x35), bytes(satellites)) + bytes(bad)
+
+
 def sbus_frame(channels):
     """An SBUS frame: the begin byte, sixteen eleven-bit channels packed from the low bit, no flags, the end
     byte."""
@@ -3044,7 +3080,7 @@ def main():
             try:
                 def rows():
                     try:
-                        with open(store + ".oled.txt") as f:
+                        with open(store + ".oled.txt", encoding="utf-8", errors="replace") as f:
                             return f.read().splitlines()
                     except OSError:
                         return []
@@ -3079,6 +3115,61 @@ def main():
                 text = cli(sock, "tasks", 1.5)
                 check("dashboard task is listed among the tasks", "DASHBOARD" in text, text[-300:])
             finally:
+                stop(proc)
+                sock.close()
+            # GPS page: with a u-blox module on UART4 that falls silent for a while, the page shows the
+            # satellites' signals as bars, the packets and the dropped frames counted, the link's timeout from
+            # the silence, the interval between solutions and the packet log with the newest packet first.
+            store = os.path.join(work, "dashgps.bin")
+            oled = {"ADAFLIGHT_OLED_SCREEN": store + ".oled.txt"}
+            proc, sock = start(image, store, extra=oled)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("feature DISPLAY", "feature GPS", "set dashboard_i2c_bus = 1", "set gps_provider = UBLOX",
+                             "set gps_auto_config = OFF", "set gps_uart = UART4"):
+                    cli(sock, line)
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=oled)
+            gps = UbloxGPS()
+            gps.start()
+            try:
+                def gps_rows():
+                    try:
+                        with open(store + ".oled.txt", encoding="utf-8", errors="replace") as f:
+                            found = f.read().splitlines()
+                    except OSError:
+                        return []
+                    return found if len(found) == 8 and found[0].startswith("GPS") else []
+
+                def full(r):
+                    return bool(r) and r[6].startswith("Dt: 1000 ") and "?IOM?IOM" in r[7]
+                shown, value = until(gps_rows, full, wait=24.0)
+                check("GPS page comes up with the GPS feature on", bool(value), repr(value[:2]))
+                check("GPS page draws the four satellites' signals as bars of rising height",
+                      bool(value) and "\u2582\u2584\u2586\u2587\u2581" in value[1], repr(value[1:2]))
+                found = re.match(r"RX: (\d+) +ERRs: (\d+) *$", value[5]) if value else None
+                counts = [int(g) for g in found.groups()] if found else [0, 0]
+                check("GPS page counts three packets that passed their checksums for each frame dropped",
+                      counts[1] >= 5 and abs(counts[0] - 3 * counts[1]) <= 3, repr(value[5:6]))
+                found = re.match(r"Dt: 1000 +TOs: (\d+) *$", value[6]) if value else None
+                check("GPS page shows the interval between solutions and the timeout of the module's silence",
+                      found is not None and 1 <= int(found.group(1)) <= 3, repr(value[6:7]))
+                check("GPS page's packet log has the newest packet first: dropped frame, satellites, solution, version",
+                      shown and re.fullmatch(r"[?IOM]{21}", value[7]) is not None, repr(value[7:8]))
+                tickers = set()
+                deadline = time.time() + 2.0
+                while time.time() < deadline:
+                    tickers.update(r[1][:1] for r in (gps_rows(),) if r)
+                    time.sleep(0.1)
+                check("GPS page's ticker moves with the satellite reports", len(tickers) >= 2, repr(sorted(tickers)))
+            finally:
+                gps.stop.set()
                 stop(proc)
                 sock.close()
         if built("Dashboard"):
