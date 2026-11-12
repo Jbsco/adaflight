@@ -133,6 +133,7 @@ with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
 with Adaflight.HoTT_Display_Port;
 with Adaflight.GHST_Telemetry;
+with Adaflight.Soft_Serial;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.SRXL_Display_Port;
@@ -8768,6 +8769,250 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Transponder_Line;
+
+   --  The software serial engine against the reference's driver: an open's
+   --  plan and each event's effects are written as the reference's pin and
+   --  timer calls in its call order, and compared with the calls it made.
+   SS_Seq    : Integer_64 := -1;
+   SS_Port   : Adaflight.Soft_Serial.Port;
+   SS_Req    : Adaflight.Soft_Serial.Open_Request;
+   SS_Plan   : Adaflight.Soft_Serial.Open_Plan;
+   SS_Tx_AF  : Integer_64 := 0;
+   SS_Rx_AF  : Integer_64 := 0;
+   SS_Period : Interfaces.Unsigned_16 := 0;
+
+   procedure Check_Soft_Serial_Line is
+      use Adaflight.Soft_Serial;
+      use Ada.Strings.Unbounded;
+      Name  : constant String := Str (1);
+      Calls : Unbounded_String;
+
+      function Image (N : Integer_64) return String is
+         I : constant String := Integer_64'Image (N);
+      begin
+         return I (I'First + 1 .. I'Last);
+      end Image;
+
+      procedure Call (Text : String) is
+      begin
+         if Length (Calls) > 0 then
+            Append (Calls, ";");
+         end if;
+         Append (Calls, Text);
+      end Call;
+
+      function Letter (P : Pin) return Character is
+        (case P is when No_Pin => 'n', when Tx_Pin => 't', when Rx_Pin => 'r');
+
+      function Bit (B : Boolean) return String is (if B then "1" else "0");
+
+      --  The main timer is the send pin's when that pin is the main one or
+      --  both pins are one.
+      function Main_AF return Integer_64 is
+        (if SS_Plan.Main = Tx_Pin or else SS_Req.Same_Pin then SS_Tx_AF else SS_Rx_AF);
+
+      procedure Output_Pin (Configuration : String) is
+      begin
+         if SS_Plan.Extra_Timer then
+            Call ("Ft" & Configuration & ":" & Image (SS_Tx_AF));
+         else
+            Call ("G" & Letter (SS_Plan.Send_On) & Configuration);
+         end if;
+      end Output_Pin;
+
+      procedure Input_On is
+         Configuration : constant String :=
+           (case Pull_Of (SS_Port.Options) is when None => "1", when Down => "2", when Up => "3");
+      begin
+         Call ("F" & Letter (SS_Plan.Receive_On) & Configuration & ":" & Image (Main_AF));
+         Call ("Em");
+      end Input_On;
+
+      procedure Sent (E : Tx_Effect) is
+      begin
+         case E is
+            when Nothing =>
+               null;
+            when To_Receive =>
+               Output_Pin ("5");
+               Input_On;
+            when To_Transmit =>
+               Call ("Dm");
+               Call ("G" & Letter (SS_Plan.Receive_On) & "5");
+               Output_Pin ("4");
+            when Level_Low =>
+               Call ("W0");
+            when Level_High =>
+               Call ("W1");
+         end case;
+      end Sent;
+
+      procedure Rearmed (Rearm : Boolean) is
+      begin
+         if Rearm then
+            Call ("Pm" & Bit (SS_Port.Options.Inverted));
+            Call ("Em");
+         end if;
+      end Rearmed;
+
+      procedure Record_State (K : Positive) is
+         Last : constant Adaflight.Soft_Serial.Buffer_Index :=
+           (if SS_Port.Rx_Head = 0 then Adaflight.Soft_Serial.Buffer_Index'Last else SS_Port.Rx_Head - 1);
+      begin
+         Record_Int (Name & ".searching", Int (K), Boolean'Pos (SS_Port.Searching));
+         Record_Int (Name & ".bit", Int (K + 1), Integer_64 (SS_Port.Rx_Bit));
+         Record_Int (Name & ".leading", Int (K + 2), Integer_64 (SS_Port.Rx_Last_Leading));
+         Record_Int (Name & ".edge", Int (K + 3), Edge_Kind'Pos (SS_Port.Rx_Edge));
+         Record_Int (Name & ".receiving", Int (K + 4), Boolean'Pos (SS_Port.Rx_Active));
+         Record_Int (Name & ".transmitting", Int (K + 5), Boolean'Pos (SS_Port.Transmitting));
+         Record_Int (Name & ".bitsleft", Int (K + 6), Integer_64 (SS_Port.Bits_Left));
+         Record_Int (Name & ".txregister", Int (K + 7), Integer_64 (SS_Port.Internal_Tx));
+         Record_Int (Name & ".rxregister", Int (K + 8), Integer_64 (SS_Port.Internal_Rx));
+         Record_Int (Name & ".txerrors", Int (K + 9), Integer_64 (SS_Port.Transmission_Errors));
+         Record_Int (Name & ".rxerrors", Int (K + 10), Integer_64 (SS_Port.Receive_Errors));
+         Record_Int (Name & ".timing", Int (K + 11), Timer_Mode'Pos (SS_Port.Timing));
+         Record_Int (Name & ".mode", Int (K + 12),
+                     Boolean'Pos (SS_Port.Mode.Rx) + 2 * Boolean'Pos (SS_Port.Mode.Tx));
+         Record_Int (Name & ".rxhead", Int (K + 13), Integer_64 (SS_Port.Rx_Head));
+         Record_Int (Name & ".rxtail", Int (K + 14), Integer_64 (SS_Port.Rx_Tail));
+         Record_Int (Name & ".txhead", Int (K + 15), Integer_64 (SS_Port.Tx_Head));
+         Record_Int (Name & ".txtail", Int (K + 16), Integer_64 (SS_Port.Tx_Tail));
+         Record_Int (Name & ".stored", Int (K + 17), Integer_64 (SS_Port.Rx_Buffer (Last)));
+         Record_Text (Name & ".calls", Str (K + 18), To_String (Calls));
+      end Record_State;
+
+      function Mode_Of (M : Integer_64) return Port_Mode is (Rx => M mod 2 = 1, Tx => (M / 2) mod 2 = 1);
+   begin
+      if Name = "ssopen" then
+         SS_Seq := Int (2);
+         SS_Req :=
+           (Mode        => Mode_Of (Int (4)),
+            Options     => (Inverted        => Int (5) mod 2 = 1,
+                            Bidirectional   => (Int (5) / 8) mod 2 = 1,
+                            No_Pull         => (Int (5) / 32) mod 2 = 1,
+                            SmartAudio_Pull => (Int (5) / 64) mod 2 = 1),
+            Baud        => Interfaces.Unsigned_32 (Int (6)),
+            Tx_Assigned => Int (7) = 1,
+            Rx_Assigned => Int (8) = 1,
+            Same_Pin    => Int (9) = 1,
+            Tx_Timer    => Int (10) = 1 and then Int (7) = 1,
+            Rx_Timer    => Int (11) = 1 and then Int (8) = 1,
+            Tx_N        => Int (12) = 1,
+            Rx_N        => Int (13) = 1,
+            Same_Timer  => Int (14) = 1,
+            Tx_Clock    => Interfaces.Unsigned_32 (Int (15)),
+            Rx_Clock    => Interfaces.Unsigned_32 (Int (16)));
+         SS_Tx_AF := Int (19);
+         SS_Rx_AF := Int (20);
+         Open (SS_Port, SS_Req, SS_Plan);
+         Record_Int (Name & ".pull", Int (17), Pull'Pos (Pull_Of (SS_Req.Options)));
+         Record_Int (Name & ".opened", Int (18), Boolean'Pos (SS_Plan.Opened));
+         if not SS_Plan.Opened then
+            return;
+         end if;
+         SS_Period := SS_Plan.Main_Base.Period;
+         Call ("A" & (if SS_Req.Tx_Assigned then "t" else "n") & "t");
+         if not SS_Req.Same_Pin then
+            Call ("A" & (if SS_Req.Rx_Assigned then "r" else "n") & "r");
+         end if;
+         if SS_Plan.Claim_Rx then
+            Call ("I" & Letter (SS_Plan.Receive_On) & "r");
+         end if;
+         if SS_Plan.Claim_Tx then
+            Call ("I" & Letter (SS_Plan.Send_On) & "t");
+         end if;
+         Call ("Cm" & Image (Integer_64 (SS_Plan.Main_Base.Period)) & ":"
+               & Image (Integer_64 (SS_Plan.Main_Base.Clock)));
+         Call ("Pm" & Bit (SS_Req.Options.Inverted));
+         if SS_Plan.Timing = Dual then
+            Call ("Cx" & Image (Integer_64 (SS_Plan.Second_Base.Period)) & ":"
+                  & Image (Integer_64 (SS_Plan.Second_Base.Clock)));
+            Call ("Kx01");
+            Call ("Km10");
+         else
+            Call ("Km11");
+         end if;
+         if not SS_Req.Options.Bidirectional then
+            Output_Pin ("4");
+            Call ("W" & Bit (not SS_Req.Options.Inverted));
+         end if;
+         Input_On;
+         Record_State (21);
+      elsif Name = "ssev" then
+         if Int (2) /= SS_Seq then
+            Put_Line ("software serial event without its open");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Kind   : constant Integer_64 := Int (4);
+            Result : Integer_64 := 0;
+            Effect : Tx_Effect := Nothing;
+            Rearm  : Boolean := False;
+            Acted, Centre, Rising : Boolean;
+            B      : Interfaces.Unsigned_8;
+         begin
+            case Kind is
+               when 0 =>
+                  if SS_Port.Timing = Single then
+                     Clock (SS_Port, Effect, Rearm);
+                  elsif SS_Port.Mode.Rx then
+                     Clock_Rx (SS_Port, Rearm);
+                  end if;
+                  Sent (Effect);
+                  Rearmed (Rearm);
+               when 9 =>
+                  if SS_Port.Mode.Tx then
+                     Clock_Tx (SS_Port, Effect);
+                  end if;
+                  Sent (Effect);
+               when 1 =>
+                  Edge (SS_Port, Acted, Centre, Rising);
+                  if Acted then
+                     if Centre then
+                        Call ("Sm" & Image (Integer_64 (SS_Period) / 2));
+                     end if;
+                     Call ("Pm" & Bit (Rising));
+                     Call ("Em");
+                  end if;
+               when 2 =>
+                  Write (SS_Port, Interfaces.Unsigned_8 (Int (5)));
+               when 3 =>
+                  Read (SS_Port, B);
+                  Result := Integer_64 (B);
+               when 4 =>
+                  Result := Integer_64 (Rx_Waiting (SS_Port));
+               when 5 =>
+                  Result := Integer_64 (Tx_Free (SS_Port));
+               when 6 =>
+                  Result := Boolean'Pos (Tx_Empty (SS_Port));
+               when 7 =>
+                  declare
+                     Main : constant Time_Base :=
+                       Time_Base_Of ((if SS_Plan.Main = Tx_Pin or else SS_Req.Same_Pin then SS_Req.Tx_Clock
+                                      else SS_Req.Rx_Clock), Interfaces.Unsigned_32 (Int (5)));
+                     Second : constant Time_Base := Time_Base_Of (SS_Req.Tx_Clock, Interfaces.Unsigned_32 (Int (5)));
+                  begin
+                     SS_Period := Main.Period;
+                     Call ("Cm" & Image (Integer_64 (Main.Period)) & ":" & Image (Integer_64 (Main.Clock)));
+                     if SS_Port.Timing = Dual then
+                        Call ("Cx" & Image (Integer_64 (Second.Period)) & ":" & Image (Integer_64 (Second.Clock)));
+                     end if;
+                  end;
+               when 8 =>
+                  Set_Mode (SS_Port, Mode_Of (Int (5)));
+               when others =>
+                  Put_Line ("unknown software serial event kind");
+                  Failures := Failures + 1;
+            end case;
+            Record_Int (Name & ".result", Int (6), Result);
+            Record_State (7);
+         end;
+      else
+         Put_Line ("unknown software serial case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Soft_Serial_Line;
 
    SX_Seq     : Integer_64 := -1;
    SX_Stream  : Adaflight.SRXL_Telemetry.Stream;
@@ -41437,6 +41682,8 @@ procedure Vector_Check is
                   Check_GHST_Telemetry_Line;
                elsif Kind = "transponder" then
                   Check_Transponder_Line;
+               elsif Kind = "softserial" then
+                  Check_Soft_Serial_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -41940,6 +42187,7 @@ begin
    Run (Dir & "/hott.csv", "hott");
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Run (Dir & "/transponder.csv", "transponder");
+   Run (Dir & "/softserial.csv", "softserial");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");

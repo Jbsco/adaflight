@@ -14576,3 +14576,29 @@ owners, and its vectors compare that table.
 
 Host output names its stream as a board does, so a smoke check reads it from that table: DMA1 stream 7 for a pin
 on TIM4 channel 3, and no transponder line on a board that started with no provider.
+
+## D738. Software serial engine (2026-11-12)
+
+Betaflight builds two software serial ports into its boards: a timer's overflow is a bit clock, and its capture of
+a receive pin's edges finds each start bit and each run of high bits. Boards run no such port yet. This entry adds
+its engine to core code, with no board driver.
+
+`Soft_Serial` keeps a port's state and two ring buffers of 256 bytes. An open answers with a plan: which pin's
+timer is its main timer, which pins it uses and claims, whether a second timer runs, and each time base.
+
+A tick of a sending clock shifts out a frame of a start bit, eight bits from a low one and a stop bit. A tick of a
+receiving clock counts bits, and an edge marks where a run of high bits began or ended. A half duplex port turns
+its one pin round with one bit of idle before a start bit. Each call answers what its caller must do with pins and
+timers.
+
+SPARK proves it free of run-time errors: bit indices stay within a frame and buffer indices within a buffer.
+
+An oracle includes Betaflight's driver as source and logs its pin and timer calls in call order. Its vectors open
+ports with drawn pins, timers, modes, options and rates, then run frames on a receive line, some damaged, written
+bytes, buffer calls, rate and mode changes and stray events. A check compares every state field and writes each
+plan and effect as those calls.
+
+Two findings came from that driver. With two timers it clocks reception from its sending timer, which no start
+bit aligns (F326). On an oracle time model a sender 2 percent slow loses nearly every byte when that timer's tick
+falls just after a start edge. This engine has separate receiving and sending clocks, so a board can clock
+reception from its main timer. A rate change sets a main timer only (F327). Vectors set both.
