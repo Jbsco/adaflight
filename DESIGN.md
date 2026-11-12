@@ -14354,3 +14354,13 @@ GPS build offered both, so a configurator's modes tab listed two boxes that a st
 Both boxes now follow that build feature (D721). Host smoke checks them on a build with it. `hostwing.do` now
 builds a multirotor image without it first and checks its box list, build options and command line there, then
 builds its wing image.
+
+## D724. Failsafe reads mission state after its own staging (2026-11-11)
+
+Betaflight's failsafe stages a rescue plan and, in that same update, its autopilot stage asks its executor whether
+a mission has ended. A staging on an executor in flight dispatches afresh, so that answer can differ from one read
+before it. Failsafe logic had one input for both reads, and its oracle's stub answered both alike.
+
+Failsafe inputs now include that state as read after a staging, which every read after an update's staging takes.
+That oracle's stub now answers by whether a staging came first, and failsafe vectors were regenerated. No board
+stages rescue plans yet, so no board behaviour changes.

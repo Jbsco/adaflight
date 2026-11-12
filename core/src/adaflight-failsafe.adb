@@ -184,6 +184,11 @@ package body Adaflight.Failsafe with SPARK_Mode is
       end Start_Procedure;
 
       Autopilot_Controls_Throttle : constant Boolean := In_Flight.Autopilot_Mode and then In_Flight.Nav_Active;
+
+      --  Whether the plan ended: a staging can change the executor's state,
+      --  so a read after this update's staging takes the answer for that.
+      function Ended return Boolean is
+        (if Stage_Rescue then In_Flight.Staged_Nav_Ended else In_Flight.Nav_Ended);
    begin
       Beeper := Silence;
       Disarm := False;
@@ -240,7 +245,7 @@ package body Adaflight.Failsafe with SPARK_Mode is
                else
                   S.Active := True;
                   Count_Event;
-                  if In_Flight.Autopilot_Mode and then In_Flight.Nav_Active and then not In_Flight.Nav_Ended
+                  if In_Flight.Autopilot_Mode and then In_Flight.Nav_Active and then not Ended
                     and then C.Policy = Continue
                   then
                      S.Failsafe_Mode := True;
@@ -313,11 +318,11 @@ package body Adaflight.Failsafe with SPARK_Mode is
                elsif not In_Flight.Armed then
                   S.Current := Landed;
                   Reprocess := True;
-               elsif not In_Flight.Autopilot_Mode and then not In_Flight.Nav_Ended
+               elsif not In_Flight.Autopilot_Mode and then not Ended
                  and then Before (Now, S.Autopilot_Engage_Deadline)
                then
                   Beeper := Rx_Lost_Landing;
-               elsif not In_Flight.Autopilot_Mode or else In_Flight.Nav_Ended then
+               elsif not In_Flight.Autopilot_Mode or else Ended then
                   Start_Procedure (if C.Action = GPS_Rescue then Auto_Landing else C.Action);
                   Reprocess := True;
                else
