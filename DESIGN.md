@@ -14396,3 +14396,15 @@ now run that gesture after each modes pass, with executor activity as it stood b
 Capture state sits beside OSD state, since warnings read its message, over MSP and on screen, and clear it once it
 has expired. Edits go into configuration in RAM, and a save stores them. A switch that a receiver failsafe
 substitutes during a lost link edits nothing, and neither does a press while an executor flies.
+
+## D727. Flight plan on the OSD (2026-11-11)
+
+Betaflight's flight mode element names a rescue plan ahead of a failsafe, as N-RESC, in a build with rescue plans.
+Core code had that element from a build without them. It now has that case, checked against a Betaflight build
+with rescue plans.
+
+Boards built with a flight plan now feed its OSD elements. Map and waypoint elements read stored waypoints, an
+executor's waypoint with distance, bearing and time to it, and a trail flown since arming. A modes pass records
+that trail from GPS position and home, as Betaflight does.
+
+Waypoints and trail go straight into render inputs, so neither costs a second copy in RAM.

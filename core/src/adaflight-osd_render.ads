@@ -155,6 +155,8 @@ package Adaflight.OSD_Render with SPARK_Mode is
    --  The flight modes the mode element names, in its order of precedence.
    type Mode_Flags is record
       Failsafe, GPS_Rescue, Headfree, Passthru, Pos_Hold, Alt_Hold, Chirp, Angle, Horizon : Boolean := False;
+      --  The executor flies a rescue plan, in a build with rescue plans.
+      Rescue_Plan : Boolean := False;
    end record;
 
    subtype Debug_Index is Natural range 0 .. 7;

@@ -13507,6 +13507,8 @@ procedure Vector_Check is
    end Check_OSD_Elements_Line;
 
    OR_Seq   : Integer_64 := -1;
+   --  Whether the next render line's executor flies a rescue plan.
+   OR_Plan  : Boolean := False;
    OR_State : Adaflight.OSD_Render.State;
 
    procedure Check_OSD_Render_Line is
@@ -13516,9 +13518,12 @@ procedure Vector_Check is
       if Name = "orinit" then
          OR_Seq := Int (2);
          OR_State := (others => <>);
+         OR_Plan := False;
       elsif Int (2) /= OR_Seq then
          Put_Line ("OSD render line without its start");
          Failures := Failures + 1;
+      elsif Name = "orplan" then
+         OR_Plan := Int (3) = 1;
       elsif Name = "orrender" then
          declare
             C        : Settings;
@@ -13593,7 +13598,9 @@ procedure Vector_Check is
                           Alt_Hold   => (Modes and 8) /= 0,
                           Chirp      => (Modes and 128) /= 0,
                           Angle      => (Modes and 1) /= 0,
-                          Horizon    => (Modes and 2) /= 0);
+                          Horizon    => (Modes and 2) /= 0,
+                          Rescue_Plan => OR_Plan);
+            OR_Plan := False;
             Inp.Acro_Trainer_Box := Int (80) = 1;
             Inp.Airmode := Int (81) = 1;
             Inp.Chirp_Total := Interfaces.Unsigned_8 (Int (82));
