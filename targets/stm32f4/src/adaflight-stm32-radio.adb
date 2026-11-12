@@ -28,6 +28,7 @@ with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Board;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.Plan_Build;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
@@ -320,7 +321,9 @@ package body Adaflight.STM32.Radio is
          Rx_Settings.Reported_Channels := Adaflight.MSP_Receiver.Channel_Count;
       end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of
-        (Config.Failsafe_Config, Config.Autopilot_Config, Rescue_Plan => False);
+        (Config.Failsafe_Config, Config.Autopilot_Config,
+         Rescue_Plan => Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS
+                        and then not Adaflight.Build_Features.Wing);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | SUMH_Provider
@@ -1304,9 +1307,7 @@ package body Adaflight.STM32.Radio is
 
    procedure Failsafe_Check
      (Now_Ms : Time_Ms; In_Flight : Adaflight.Failsafe.Inputs; Beep : out Adaflight.Failsafe.Beep;
-      Disarm : out Boolean)
-   is
-      Stage_Rescue : Boolean;
+      Disarm : out Boolean; Stage_Rescue : out Boolean) is
    begin
       Adaflight.Failsafe.Check_Data_Failure_Period (FS, Now_Ms);
       Adaflight.Failsafe.Update (FS, FS_Settings, Now_Ms, In_Flight, Beep, Disarm, Stage_Rescue);

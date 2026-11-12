@@ -35524,6 +35524,10 @@ procedure Vector_Check is
    Upd_Count  : Natural := 0;
    Upd_Index  : Interfaces.Unsigned_8 := 0;
    Upd_Kind   : Integer_64 := 0;
+   --  The debug mode and values 0 to 2 an update's line gave before its
+   --  output line.
+   Upd_Dbg_Mode   : Integer_64 := 0;
+   Upd_Dbg_Values : array (0 .. 2) of Integer_64 := (others => 0);
 
    procedure Check_Executor_Update_Line is
       use Adaflight.Flight_Plan_Nav;
@@ -35601,13 +35605,24 @@ procedure Vector_Check is
             Upd_Nav := (others => <>);
             Read_Navigator (B + 186, Upd_Nav);
          end;
+      elsif Name = "fudbg" then
+         Upd_Dbg_Mode := Int (4);
+         for J in Upd_Dbg_Values'Range loop
+            Upd_Dbg_Values (J) := Int (5 + J);
+         end loop;
       elsif Name = "fuout" then
          declare
             O        : Executor_Output;
             Accepted : Boolean := False;
+            Dbg      : Adaflight.Debug.State;
          begin
             case Upd_Kind is
                when 0 =>
+                  Adaflight.Debug.Select_Mode (Dbg, Interfaces.Unsigned_8 (Upd_Dbg_Mode));
+                  Adaflight.Autopilot_Debug.Record_Flight_Plan (Dbg, Upd_State);
+                  for J in Upd_Dbg_Values'Range loop
+                     Record_Int ("fudbg.value", Upd_Dbg_Values (J), Integer_64 (Dbg.Data (J)));
+                  end loop;
                   Update (Upd_State, Upd_Nav, Upd_Plan, Upd_Inputs, Upd_Config, O);
                when 1 =>
                   Engage (Upd_State, Upd_Nav, Upd_Plan, Upd_Inputs, Upd_Config, O);

@@ -54,6 +54,8 @@ with Adaflight.FAT;
 with Adaflight.Flash_Device;
 with Adaflight.Dispatch;
 with Adaflight.Dispatch_Targets;
+with Adaflight.Flight_Plan;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.Flight_Stats;
 with Adaflight.Gimbal_Control;
 with Adaflight.Gyro_Filters;
@@ -392,6 +394,14 @@ package body Adaflight.STM32.Flight is
    Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
 
    procedure Apply (Step : Adaflight.Arming.Outputs);
+   --  The modes pass of a build with the flight plan, with the executor's
+   --  answers before it and its requests after it.
+   procedure Run_Plan_Modes
+     (Channels : Adaflight.RC_Command.Channel_Values; Aux : Adaflight.Modes.Aux_Values; Now_Us : Unsigned_32;
+      Delta_Us : Natural; Asked : in out Adaflight.Arming.Outputs);
+   --  The position hold's update of a build with the flight plan, which
+   --  hands a reached leg to the executor.
+   procedure Run_Plan_Position_Hold (Inp : Adaflight.Position_Control.Inputs; Enable_XY : out Boolean);
    procedure Sync_Reasons;
    procedure Report_Battery;
    function Flight_Channels return Adaflight.RC_Command.Channel_Values;
@@ -444,6 +454,15 @@ package body Adaflight.STM32.Flight is
    Pos_Hold_Settings : Adaflight.Position_Hold.Settings;
    Pos_Hold_State    : Adaflight.Position_Hold.State;
    Navigator         : Adaflight.Position_Nav.Navigator;
+   --  The flight plan executor of a multirotor build with the flight plan
+   --  and the GPS, and the emergency descent it asks of the altitude hold.
+   --  Plan_Built is a function, so that a build without the flight plan
+   --  folds its uses and leaves the executor out.
+   function Plan_Built return Boolean is
+     (Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing);
+   Plan_Nav          : Adaflight.Flight_Plan_Nav.State;
+   Plan_Descent      : Boolean := False;
+   Plan_Descent_Rate : Adaflight.Altitude_Hold.Climb_Rate_Cms := 0.0;
    Rescue_Settings   : Adaflight.GPS_Rescue.Settings;
    Rescue_State      : Adaflight.GPS_Rescue.State;
    --  The GPS lap timer, the stamp of the last solution it took, and the
@@ -1676,6 +1695,9 @@ package body Adaflight.STM32.Flight is
    --  clock, the loop timing and load, the devices, the ESC readings, the
    --  altitude estimate, the video transmitter's power levels, the storage,
    --  the real-time clock, the OSD and the battery.
+   --  What the command line's waypoint status reports of the executor.
+   function Plan_Status return CLI.Navigation_Status;
+
    procedure Refresh_Views is
    begin
       Now_Ms := Adaflight.STM32.Time.Millis;
@@ -1686,6 +1708,9 @@ package body Adaflight.STM32.Flight is
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
       Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
+      if Plan_Built then
+         Env.Navigation := Plan_Status;
+      end if;
       Env.Motors := Adaflight.STM32.Control.Motor_Count;
       Env.Motor_Device := Adaflight.STM32.Motors.Device;
       Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
@@ -3220,7 +3245,11 @@ package body Adaflight.STM32.Flight is
                Adaflight.STM32.Control.Set_Stabilisation (Asked.Stabilisation_On, Asked.Iterm_Reset);
             end if;
          when Adaflight.RX_Task.Modes =>
-            Adaflight.STM32.Pilot.Modes_Pass (Sense (Channels), Channels, Aux, Before, Delta_Us, Asked);
+            if Plan_Built then
+               Run_Plan_Modes (Channels, Aux, Before, Delta_Us, Asked);
+            else
+               Adaflight.STM32.Pilot.Modes_Pass (Sense (Channels), Channels, Aux, Before, Delta_Us, Asked);
+            end if;
             if Asked.Run_Adjustments then
                Run_Adjustments (Aux);
             end if;
@@ -3364,6 +3393,11 @@ package body Adaflight.STM32.Flight is
       F.Vario := Estimated_Vario;
       F.Pos_Hold_Ready := Pos_Hold_Ready;
       F.Pos_Hold_Failure := Pos_Hold_Failure;
+      if Plan_Built then
+         F.Plan_State := Plan_Nav.Mode;
+         F.Plan_Abort := Plan_Nav.Reason;
+         F.Rescue_Descent := Adaflight.Flight_Plan_Nav.Is_Rescue_Descent_Active (Plan_Nav);
+      end if;
       F.Rescue_Configured := Rescue_Configured;
       F.Rescue_Available := Rescue_State.Is_Available;
       F.Rescue_OK := Rescue_State.Is_OK;
@@ -3672,8 +3706,8 @@ package body Adaflight.STM32.Flight is
           Throttle_Command      => Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Pilot.Throttle_Command)),
           Throttle_Low          => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
           Failsafe_Active       => Adaflight.STM32.Radio.Failsafe_Active,
-          Emergency_Descent     => False,
-          Emergency_Rate_Cms    => 0.0,
+          Emergency_Descent     => Plan_Descent,
+          Emergency_Rate_Cms    => Plan_Descent_Rate,
           Altitude_Cm           => Pos_State.Control_Altitude_Cm,
           Vertical_Velocity     => Pos_State.Control_Derivative,
           Vertical_Acceleration => Pos_State.Control_Acceleration,
@@ -3740,7 +3774,11 @@ package body Adaflight.STM32.Flight is
       if Adaflight.Build_Features.Wing then
          return;
       end if;
-      Adaflight.Position_Hold.Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY);
+      if Plan_Built then
+         Run_Plan_Position_Hold (Inp, Enable_XY);
+      else
+         Adaflight.Position_Hold.Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY);
+      end if;
       Adaflight.Autopilot_Debug.Record_Heading (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control);
       Adaflight.Autopilot_Debug.Record_Position
         (Adaflight.STM32.Debug_Values.State, Pos_Hold_State.Control, Adaflight.STM32.Debug_Values.Axis);
@@ -3826,6 +3864,188 @@ package body Adaflight.STM32.Flight is
       and then (not Adaflight.Position_Estimator.Heading_Required
                       (Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros))
                 or else Heading_Valid));
+
+   --  The executor's settings from the configuration as it stands.
+   function Plan_Settings return Adaflight.Flight_Plan_Nav.Settings is
+     (Adaflight.Config_Runtime.Flight_Plan_Settings_Of
+        (Config.Autopilot_Config, Config.Gps_Rescue_Config, Config.Alt_Hold_Config, Wing => False));
+
+   --  What an executor cycle reads: the estimate with its origin and
+   --  validity, the attitude's yaw and heading trust, the GPS solution and
+   --  home, the position controller's error, and the rescue's highest
+   --  altitude. No listener takes reached waypoints yet.
+   function Plan_Leg_Inputs (Now_Us : Unsigned_32) return Adaflight.Flight_Plan_Nav.Leg_Inputs is
+      G         : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Error     : constant Adaflight.Position_Control.Vector2_Cm :=
+        Adaflight.Position_Control.Position_Error (Pos_Hold_State.Control);
+      Bound     : constant := Adaflight.Flight_Plan_Nav.Distance_Bound;
+      Alt_Bound : constant := 2.0 ** 24;
+      function Held (V : Float) return Float is (Float'Max (-Bound, Float'Min (Bound, V)));
+      function Held_Alt (V : Float) return Float is (Float'Max (-Alt_Bound, Float'Min (Alt_Bound, V)));
+   begin
+      return
+        (Est               =>
+           (Position => (East => Pos_State.Position_East, North => Pos_State.Position_North,
+                         Up => Pos_State.Position_Up),
+            Velocity => (East => Pos_State.Velocity_East, North => Pos_State.Velocity_North,
+                         Up => Pos_State.Velocity_Up)),
+         Dt_S              => 0.0,
+         Now_Us            => Now_Us,
+         Yaw_Decidegrees   => Integer_32 (Att_State.Euler.Yaw),
+         Ground_Course     => Unsigned_16'Min (3_600, G.Ground_Course),
+         Ground_Speed      => G.Ground_Speed,
+         Has_Origin        => Pos_State.Origin_Set,
+         Origin            => Pos_State.Origin,
+         Cos_Lat           => G.Cos_Lat,
+         Heading_Valid     => Heading_Valid,
+         Heading_Required  =>
+           Adaflight.Position_Estimator.Heading_Required (Pos_Settings, Position_Inputs (Now_Us)),
+         Below_Landing     =>
+           Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M),
+         Listener          => False,
+         Position_Error    => (X => Held (Error.X), Y => Held (Error.Y)),
+         Estimator_Valid   => Pos_State.Valid_XY,
+         Home_Fix          => G.Fix_Home,
+         Home_Distance_M   => G.Distance_To_Home_M,
+         Home              => (Lat => G.Home.Lat, Lon => G.Home.Lon, Alt_Cm => G.Home.Alt_Cm),
+         GPS_Fix           => G.Fix,
+         GPS               => (Lat => G.Latitude, Lon => G.Longitude, Alt_Cm => G.Altitude_Cm),
+         Estimator_Alt_Cm  => Held_Alt (Pos_State.Position_Up),
+         Rescue_Max_Alt_Cm => Held_Alt (Rescue_State.Want.Max_Altitude_Cm));
+   end Plan_Leg_Inputs;
+
+   function Plan_Status return CLI.Navigation_Status is
+      Est : constant Adaflight.Position_Nav.Estimate := Plan_Leg_Inputs (Adaflight.STM32.Time.Micros).Est;
+   begin
+      return
+        (Active        => Plan_Nav.Active,
+         State         => Adaflight.Flight_Plan_Nav.Nav_State'Pos (Plan_Nav.Mode),
+         Current_Index => Plan_Nav.Current_Index,
+         Distance_M    => Adaflight.Flight_Plan_Nav.Distance_To_Waypoint (Plan_Nav, Navigator, Est),
+         Bearing_Deci  => Adaflight.Flight_Plan_Nav.Bearing_To_Waypoint (Plan_Nav, Navigator, Est),
+         ETA_S         => Adaflight.Flight_Plan_Nav.Eta_Seconds (Plan_Nav, Navigator, Est),
+         Abort_Reason  => Adaflight.Flight_Plan_Nav.Abort_Reason'Pos (Plan_Nav.Reason));
+   end Plan_Status;
+
+   --  The executor's calls out, in their order: the nose's heading, the
+   --  heading recovery, the yaw rate limit and the level park to the position
+   --  controller, the emergency descent to the altitude hold, and a disarm
+   --  on touchdown.
+   procedure Apply_Plan_Calls (O : Adaflight.Flight_Plan_Nav.Executor_Output; Now_Us : Unsigned_32) is
+      package Nav renames Adaflight.Flight_Plan_Nav;
+      package Control renames Adaflight.Position_Control;
+      use type Nav.Call_Kind;
+      function Held (V, Low, High : Float) return Float is (Float'Max (Low, Float'Min (High, V)));
+      Asked : Adaflight.Arming.Outputs;
+   begin
+      for I in 1 .. O.Count loop
+         declare
+            C : Nav.Outgoing_Call renames O.Calls (I);
+         begin
+            case C.Kind is
+               when Nav.Nose_Override =>
+                  Control.Set_Nav_Heading_Override (Pos_Hold_State.Control, C.On, Held (C.Value, -720.0, 720.0));
+               when Nav.Heading_Recovery =>
+                  Control.Set_Heading_Recovery (Pos_Hold_State.Control, C.On, Held (C.Value, -90.0, 90.0));
+               when Nav.Yaw_Rate_Limit =>
+                  Control.Set_Yaw_Rate_Limit (Pos_Hold_State.Control, Held (C.Value, 0.0, 1_000.0));
+               when Nav.Level_Park =>
+                  Control.Set_Force_Level_Park (Pos_Hold_State.Control, C.On);
+               when Nav.Disarm =>
+                  Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Landing, Now_Us, Asked);
+                  Apply (Asked);
+               when Nav.Reached_Waypoint =>
+                  null;
+               when Nav.Emergency_Descent =>
+                  Plan_Descent := C.On;
+                  Plan_Descent_Rate := Held (C.Value, 0.0, 4_000.0);
+            end case;
+         end;
+      end loop;
+   end Apply_Plan_Calls;
+
+   --  The navigator's update between the position hold's two halves. A
+   --  reached leg with a handler goes to the executor, and a leg the
+   --  executor did not replace ends as one without a handler does.
+   procedure Run_Plan_Position_Hold (Inp : Adaflight.Position_Control.Inputs; Enable_XY : out Boolean) is
+      Now_Us  : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Proceed : Boolean;
+      Reached : Boolean;
+      Leg     : Unsigned_32;
+      Calls   : Adaflight.Flight_Plan_Nav.Executor_Output;
+   begin
+      Adaflight.Position_Hold.Begin_Update (Pos_Hold_State, Control_Settings, Inp, Navigator, Enable_XY, Proceed);
+      if not Proceed then
+         return;
+      end if;
+      Adaflight.Position_Nav.Update
+        (Navigator, Adaflight.Position_Control.Interval (Inp.Interval_Us), Adaflight.Position_Control.Nav_Estimate (Inp),
+         Reached);
+      if Reached then
+         Leg := Navigator.Cmd.Sequence;
+         if Navigator.Cmd.Handler then
+            Adaflight.Flight_Plan_Nav.Waypoint_Reached
+              (Plan_Nav, Navigator, Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config),
+               Plan_Leg_Inputs (Now_Us), Plan_Settings, Calls);
+            Apply_Plan_Calls (Calls, Now_Us);
+         end if;
+         if Navigator.Cmd.Sequence = Leg then
+            Adaflight.Position_Nav.Finish_Leg (Navigator);
+         end if;
+      end if;
+      Adaflight.Position_Hold.Finish_Update (Pos_Hold_State, Control_Settings, Inp, Navigator);
+   end Run_Plan_Position_Hold;
+
+   --  A rescue plan stages on a copy of the executor before the pass, since
+   --  the pass decides after its own disarms and mode update whether it
+   --  stages one. The copy becomes the executor when the pass staged. Then
+   --  the rescue descent, and the engagement, update or disengagement the
+   --  pass asked for.
+   procedure Run_Plan_Modes
+     (Channels : Adaflight.RC_Command.Channel_Values; Aux : Adaflight.Modes.Aux_Values; Now_Us : Unsigned_32;
+      Delta_Us : Natural; Asked : in out Adaflight.Arming.Outputs)
+   is
+      package Nav renames Adaflight.Flight_Plan_Nav;
+      use type Nav.Nav_State;
+      Plan          : constant Adaflight.Flight_Plan.Plan :=
+        Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config);
+      Set           : constant Nav.Settings := Plan_Settings;
+      Legs          : constant Nav.Leg_Inputs := Plan_Leg_Inputs (Now_Us);
+      Sensed        : Adaflight.Arming.Inputs := Sense (Channels);
+      Staged_Nav    : Nav.State := Plan_Nav;
+      Staged_Target : Adaflight.Position_Nav.Navigator := Navigator;
+      Staged_Calls  : Nav.Executor_Output;
+      Calls         : Nav.Executor_Output;
+      Staged        : Boolean;
+   begin
+      Nav.Stage_Rescue_Plan (Staged_Nav, Staged_Target, Plan, Legs, Set, Staged_Calls, Staged);
+      Sensed.GPS_Sensor := Adaflight.STM32.GPS.Current.Present;
+      Sensed.Channels_Valid := Adaflight.STM32.Radio.Flight_Channels_Valid;
+      Sensed.Failsafe_Autopilot := Adaflight.STM32.Radio.Failsafe_Phase in Adaflight.Failsafe.Autopilot;
+      Sensed.Rescue_Plan_Stages := Staged;
+      Sensed.Plan_Aborted := Plan_Nav.Mode = Nav.Aborted;
+      Sensed.Staged_Plan_Aborted := Staged_Nav.Mode = Nav.Aborted;
+      Sensed.Rescue_Plan_Active := Nav.Is_Rescue_Plan_Active (Plan_Nav);
+      Sensed.Rescue_Descent_Active := Nav.Is_Rescue_Descent_Active (Plan_Nav);
+      Adaflight.STM32.Pilot.Modes_Pass (Sensed, Channels, Aux, Now_Us, Delta_Us, Asked);
+      if Asked.Plan_Stage_Calls > 0 then
+         Plan_Nav := Staged_Nav;
+         Navigator := Staged_Target;
+         Calls := Staged_Calls;
+      end if;
+      Nav.Rescue_Descent (Plan_Nav, Navigator, Legs, Set, Calls, Request => Asked.Rescue_Descent_Request);
+      if Asked.Plan_Engages > 0 then
+         Nav.Engage (Plan_Nav, Navigator, Plan, Legs, Set, Calls);
+      end if;
+      if Asked.Plan_Updates > 0 then
+         Adaflight.Autopilot_Debug.Record_Flight_Plan (Adaflight.STM32.Debug_Values.State, Plan_Nav);
+         Nav.Update (Plan_Nav, Navigator, Plan, Legs, Set, Calls);
+      end if;
+      if Asked.Plan_Disengages > 0 then
+         Nav.Disengage (Plan_Nav, Navigator, Calls);
+      end if;
+      Apply_Plan_Calls (Calls, Now_Us);
+   end Run_Plan_Modes;
 
    --  The flight modes as the reference's flight mode word: angle, horizon,
    --  magnetometer and altitude hold in bits 0 to 3, then position hold,
@@ -4340,7 +4560,7 @@ package body Adaflight.STM32.Flight is
          Armed                 => Adaflight.STM32.Pilot.Armed,
          Failsafe_Switch       => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
          Rescue_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.GPS_Rescue),
-         Rescue_Plan           => False,
+         Rescue_Plan           => Plan_Built and then Adaflight.Flight_Plan_Nav.Is_Rescue_Plan_Active (Plan_Nav),
          Position_Hold_Failure => Pos_Hold_Failure,
          Airmode               => Adaflight.STM32.Pilot.Airmode_Enabled,
          Arming_Disabled       => (for some R in Adaflight.Arming.Disable_Reason => Disabled (R)),
@@ -4933,10 +5153,18 @@ package body Adaflight.STM32.Flight is
         (Config.Autopilot_Config, Config.Alt_Hold_Config, Config.Rx_Config);
       Adaflight.Altitude_Hold.Init (Alt_Hold_State, Alt_Hold_Settings, Pos_State.Control_Altitude_Cm);
       Control_Settings := Adaflight.Config_Runtime.Position_Control_Settings_Of
-        (Config.Autopilot_Config, Config.Rc_Controls_Config, Rescue_Plan => False);
+        (Config.Autopilot_Config, Config.Rc_Controls_Config, Rescue_Plan => Plan_Built);
       Pos_Hold_Settings := Adaflight.Config_Runtime.Position_Hold_Settings_Of (Config.Pos_Hold_Config);
       Adaflight.Position_Hold.Init (Pos_Hold_State, Pos_Hold_Settings, Control_Settings);
       Adaflight.Position_Nav.Init (Navigator);
+      if Plan_Built then
+         declare
+            Calls : Adaflight.Flight_Plan_Nav.Executor_Output;
+         begin
+            Adaflight.Flight_Plan_Nav.Init (Plan_Nav, Calls);
+            Apply_Plan_Calls (Calls, Adaflight.STM32.Time.Micros);
+         end;
+      end if;
       Rescue_Settings := Adaflight.Config_Runtime.GPS_Rescue_Settings_Of
         (Config.Gps_Rescue_Config, Config.Autopilot_Config, Config.Gps_Config);
       Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
@@ -5023,13 +5251,45 @@ package body Adaflight.STM32.Flight is
    --  recovery, with no autopilot on this image: its lost link tones, its
    --  landed stage's disarm, and its flight mode with the confirmation beep
    --  of a change.
+   --  The failsafe's check in a build with the flight plan: the executor's
+   --  state for it, and a rescue plan staged on a copy that becomes the
+   --  executor when the failsafe staged one.
+   procedure Check_Plan_Failsafe
+     (In_Flight : in out Adaflight.Failsafe.Inputs; Beep : out Adaflight.Failsafe.Beep; Disarm : out Boolean)
+   is
+      package Nav renames Adaflight.Flight_Plan_Nav;
+      use type Nav.Nav_State;
+      Now_Us        : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Staged_Nav    : Nav.State := Plan_Nav;
+      Staged_Target : Adaflight.Position_Nav.Navigator := Navigator;
+      Staged_Calls  : Nav.Executor_Output;
+      Staged        : Boolean;
+      Stage_Rescue  : Boolean;
+   begin
+      Nav.Stage_Rescue_Plan
+        (Staged_Nav, Staged_Target, Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config),
+         Plan_Leg_Inputs (Now_Us), Plan_Settings, Staged_Calls, Staged);
+      In_Flight.Autopilot_Mode := Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Autopilot_Mode);
+      In_Flight.Nav_Active := Plan_Nav.Active;
+      In_Flight.Nav_Ended := Plan_Nav.Mode in Nav.Complete | Nav.Aborted;
+      In_Flight.Rescue_Plan_Possible := Staged;
+      In_Flight.Staged_Nav_Ended := Staged_Nav.Mode in Nav.Complete | Nav.Aborted;
+      Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm, Stage_Rescue);
+      if Stage_Rescue then
+         Plan_Nav := Staged_Nav;
+         Navigator := Staged_Target;
+         Apply_Plan_Calls (Staged_Calls, Now_Us);
+      end if;
+   end Check_Plan_Failsafe;
+
    procedure Check_Failsafe is
       Beep     : Adaflight.Failsafe.Beep;
       Disarm   : Boolean;
       Changed  : Boolean;
+      Staged   : Boolean;
       Asked    : Adaflight.Arming.Outputs;
       Sticks    : constant Adaflight.Arming.Axis_Deflections := Adaflight.STM32.Pilot.Deflections;
-      In_Flight : constant Adaflight.Failsafe.Inputs :=
+      In_Flight : Adaflight.Failsafe.Inputs :=
         (Armed               => Adaflight.STM32.Pilot.Armed,
          Switch_On           => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
          Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
@@ -5044,7 +5304,11 @@ package body Adaflight.STM32.Flight is
                      or else Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.GPS_Rescue)),
          others              => False);
    begin
-      Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm);
+      if Plan_Built then
+         Check_Plan_Failsafe (In_Flight, Beep, Disarm);
+      else
+         Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm, Staged);
+      end if;
       Sync_Reasons;
       case Beep is
          when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);

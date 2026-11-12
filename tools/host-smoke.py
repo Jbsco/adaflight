@@ -2247,98 +2247,324 @@ def main():
                 sim.close()
         if built("IBus_Telemetry") and built("Barometer"):
             ibus_barometer_checks()
-        # GPS rescue as the failsafe procedure: with the stick packets gone the rescue mode comes on without the
-        # failsafe mode, outlasts the landing time, stays on when the packets return with centred sticks, and
-        # ends at a stick movement.
-        def rescue_failsafe_checks():
-            store = os.path.join(work, "rescuefs.bin")
+        # Flight plan executor: with a stored waypoint the autopilot switch engages the executor with the altitude
+        # and position holds, a leg flown to the waypoint completes it with its OSD warning, and the switch's release
+        # ends the mode. With the policy that flies a mission on, a lost link leaves the mission flying in the
+        # failsafe mode, and its end hands over to the failsafe's procedure, which disarms. The simulator's bridge
+        # mirrors a fed position about its first packet, so a falling latitude flies north. Each part starts the
+        # image afresh, since the executor's debug values stay as its last update left them.
+        def flight_plan_flight_checks():
+            store = os.path.join(work, "planfly.bin")
             sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
             proc, sock = start(image, store, extra=sim_link)
             try:
                 time.sleep(2.5)
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
+                if 16427 not in {int(w) for w in cli(sock, "options").split() if w.isdigit()}:
+                    print("SKIP the flight plan's flight checks: the build leaves the flight plan out")
+                    return
                 for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
-                             "aux 0 0 0 1700 2100 0 0", "feature GPS", "set gps_provider = VIRTUAL",
-                             "set altitude_source = BARO_ONLY", "set failsafe_landing_time = 3"):
+                             "aux 0 0 0 1700 2100 0 0", "aux 1 56 1 1700 2100 0 0", "feature GPS",
+                             "set gps_provider = VIRTUAL", "set altitude_source = BARO_ONLY",
+                             "set osd_warn_bitmask = 0", "set debug_mode = FLIGHT_PLAN"):
                     cli(sock, line)
-                text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
-                check("GPS rescue set as the failsafe procedure", "failsafe_procedure set to GPS-RESCUE" in text,
-                      text[-120:])
+                text = cli(sock, "set ap_rx_loss_policy = CONTINUE")
+                check("policy that flies a mission on under a lost link set",
+                      "ap_rx_loss_policy set to CONTINUE" in text, text[-120:])
+                text = cli(sock, "waypoint insert 0 40.0002000 -105.2500000 162000 500 FLYOVER 0 NONE")
+                check("waypoint 22 m north of the start stored", "waypoint insert 0 40.0002000" in text, text[-120:])
                 cli(sock, "save", wait=2.0)
                 proc.wait(timeout=10)
             finally:
                 stop(proc)
                 sock.close()
+
+            # The image started, armed with a raised throttle, and the autopilot switch on; then the part's own
+            # checks, which fly the leg in steps of 1.1 m with a matching northward velocity.
+            def flown(part, body):
+                proc, sock = start(image, store, extra=sim_link)
+                done = threading.Event()
+                with_sticks = threading.Event()
+                with_sticks.set()
+                pulses = [1500, 1500, 1000, 1500] + [1000] * 12
+                place = [-105.25, 40.0, 1600.0]
+                north = [0.0]
+
+                def feed():
+                    out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    tick = 0
+                    while not done.is_set():
+                        out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                               0.0, north[0], 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
+                        if tick % 2 == 0 and with_sticks.is_set():
+                            out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
+                        tick += 1
+                        time.sleep(0.01)
+                    out.close()
+
+                def state():
+                    status = msp(sock, 150)
+                    values = msp(sock, 254)
+                    if status is None or len(status) < 21 + status[15] or values is None or len(values) < 6:
+                        return None
+                    at = 16 + status[15]
+                    flags = int.from_bytes(status[6:10], "little")
+                    flags |= int.from_bytes(status[16:at], "little") << 32
+                    return flags, struct.unpack("<3h", values[:6]), int.from_bytes(status[at + 1:at + 5], "little")
+
+                def fly(first, last):
+                    north[0] = 3.7
+                    for step in range(first, last + 1):
+                        place[1] = 40.0 - 0.00001 * step
+                        time.sleep(0.3)
+                    north[0] = 0.0
+                try:
+                    time.sleep(2.5)
+                    threading.Thread(target=feed, daemon=True).start()
+                    time.sleep(7.0)
+                    msp(sock, 205)
+                    time.sleep(4.0)
+                    ids = list(msp(sock, 119) or b"")
+                    arm, alt_hold, pos_hold, failsafe, autopilot = (1 << ids.index(i) if i in ids else 0
+                                                                    for i in (0, 3, 11, 27, 56))
+                    check(f"boxes of arming, both holds, failsafe and the autopilot exist for the {part}",
+                          arm and alt_hold and pos_hold and failsafe and autopilot, repr(ids))
+                    pulses[4] = 1800
+                    armed, value = until(state, lambda s: s is not None and s[0] & arm, wait=8.0)
+                    check(f"craft arms for the {part}", armed, repr(value))
+                    pulses[2] = 1400
+                    place[2] += 20.0
+                    time.sleep(4.0)
+                    pulses[5] = 1800
+                    holds = arm | alt_hold | pos_hold | autopilot
+                    engaged, value = until(state, lambda s: s is not None and s[0] & holds == holds
+                                           and s[1] == (1, 0, 0), wait=5.0)
+                    check(f"autopilot switch engages the executor with both holds for the {part}", engaged,
+                          repr(value))
+                    body(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds)
+                    pulses[4] = 1000
+                    time.sleep(1.0)
+                finally:
+                    done.set()
+                    stop(proc)
+                    sock.close()
+
+            def switch_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds):
+                fly(1, 20)
+                reached, value = until(state, lambda s: s is not None and s[1] == (3, 0, 0), wait=6.0)
+                check("leg flown to the waypoint completes the plan", reached, repr(value))
+                named, shown = until(lambda: msp2(sock, 0x3005), lambda r: r is not None and b"WP COMPLETE" in r,
+                                     wait=4.0)
+                check("OSD warning names the completed plan", named, repr(shown))
+                value = state()
+                check("completed plan leaves the craft armed in the autopilot mode",
+                      value is not None and value[0] & holds == holds, repr(value))
+                pulses[5] = 1000
+                released, value = until(state, lambda s: s is not None and s[0] & arm and not s[0] & autopilot,
+                                        wait=3.0)
+                check("switch's release ends the autopilot mode", released, repr(value))
+                pulses[4] = 1000
+                until(state, lambda s: s is not None and not s[0] & arm, wait=3.0)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "waypoint status")
+                check("waypoint status reports the executor inactive after the switch's release",
+                      "Runtime status:" in text and "inactive" in text.split("Runtime status:")[-1], text[-160:])
+
+            def link_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds):
+                fly(1, 8)
+                with_sticks.clear()
+                flying = arm | failsafe | autopilot
+                kept, value = until(state, lambda s: s is not None and s[0] & flying == flying and s[1] == (1, 0, 0),
+                                    wait=5.0)
+                check("lost link leaves the mission flying in the failsafe mode", kept, repr(value))
+                fly(9, 14)
+                value = state()
+                check("mission flies on short of its waypoint", value is not None and value[0] & flying == flying,
+                      repr(value))
+                fly(15, 20)
+                dropped, value = until(state, lambda s: s is not None and not s[0] & arm, wait=8.0)
+                check("mission's end under a lost link hands over to the failsafe's procedure, which disarms",
+                      dropped, repr(value))
+
+            flown("flight plan", switch_part)
+            flown("mission under a lost link", link_part)
+        if built("GPS"):
+            flight_plan_flight_checks()
+        # Rescue plans: with the GPS rescue as the failsafe procedure, lost stick packets stage a rescue plan that
+        # the autopilot flies in the failsafe mode past the landing time, the link's return with centred sticks
+        # leaves it flying, and a stick movement ends it. The rescue switch flies a rescue plan without the failsafe
+        # mode. No waypoint is stored, so an executor that targets one flies a staged rescue plan, and each part
+        # starts the image afresh, since the executor's debug values stay as its last update left them.
+        def rescue_plan_checks():
+            store = os.path.join(work, "rescueplan.bin")
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
             proc, sock = start(image, store, extra=sim_link)
-            done = threading.Event()
-            with_sticks = threading.Event()
-            with_sticks.set()
-            pulses = [1500, 1500, 1000, 1500] + [1000] * 12
-            place = [-105.25, 40.0, 1600.0]
-
-            def feed():
-                out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                tick = 0
-                while not done.is_set():
-                    out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0,
-                                           0.0, 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
-                    if tick % 2 == 0 and with_sticks.is_set():
-                        out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
-                    tick += 1
-                    time.sleep(0.01)
-                out.close()
-
-            def modes():
-                status = msp(sock, 150)
-                if status is None or len(status) < 16 + status[15]:
-                    return None
-                return int.from_bytes(status[6:10], "little") | int.from_bytes(status[16:16 + status[15]], "little") << 32
             try:
                 time.sleep(2.5)
-                threading.Thread(target=feed, daemon=True).start()
-                time.sleep(7.0)
-                msp(sock, 205)
-                time.sleep(4.0)
-                ids = list(msp(sock, 119) or b"")
-                arm, failsafe, rescue = (1 << ids.index(i) if i in ids else 0 for i in (0, 27, 46))
-                check("boxes of arming, failsafe and GPS rescue exist", arm and failsafe and rescue, repr(ids))
-                pulses[4] = 1800
-                armed, value = until(modes, lambda m: m is not None and m & arm, wait=8.0)
-                check("craft arms for the rescue failsafe", armed, repr(value))
-                # Raised throttle, then a place 111 m from home and 30 m up, for a rescue that has somewhere to go.
-                pulses[2] = 1400
-                place[1] += 0.001
-                place[2] += 30.0
-                time.sleep(4.0)
-                with_sticks.clear()
-                time.sleep(2.5)
-                value = modes()
-                check("lost link turns the rescue mode on without the failsafe mode",
-                      value is not None and value & rescue and not value & failsafe and value & arm, repr(value))
-                time.sleep(4.5)
-                value = modes()
-                check("rescue outlasts the failsafe's landing time", value is not None and value & rescue and value & arm,
-                      repr(value))
-                with_sticks.set()
-                time.sleep(2.0)
-                value = modes()
-                check("link's return with centred sticks leaves the rescue on", value is not None and value & rescue,
-                      repr(value))
-                pulses[0] = 1800
-                time.sleep(1.5)
-                value = modes()
-                check("stick movement ends the rescue", value is not None and not value & rescue and value & arm,
-                      repr(value))
-                pulses[0] = 1500
-                pulses[4] = 1000
-                time.sleep(1.0)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                if 16427 not in {int(w) for w in cli(sock, "options").split() if w.isdigit()}:
+                    print("SKIP the rescue plan checks: the build leaves the flight plan out")
+                    return
+                for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM",
+                             "aux 0 0 0 1700 2100 0 0", "aux 1 46 1 1700 2100 0 0", "feature GPS",
+                             "set gps_provider = VIRTUAL", "set altitude_source = BARO_ONLY",
+                             "set failsafe_landing_time = 3", "set debug_mode = FLIGHT_PLAN"):
+                    cli(sock, line)
+                text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
+                check("GPS rescue set as the failsafe procedure of a build with rescue plans",
+                      "failsafe_procedure set to GPS-RESCUE" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
             finally:
-                done.set()
                 stop(proc)
                 sock.close()
+
+            # The image started, armed with a raised throttle, at a place 111 m from home and 30 m up, for a rescue
+            # that has somewhere to go; then the part's own checks.
+            sock_of = [None]
+
+            def flown(part, body, settings):
+                proc, sock = start(image, settings, extra=sim_link)
+                sock_of[0] = sock
+                done = threading.Event()
+                with_sticks = threading.Event()
+                with_sticks.set()
+                pulses = [1500, 1500, 1000, 1500] + [1000] * 12
+                place = [-105.25, 40.0, 1600.0]
+
+                def feed():
+                    out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    tick = 0
+                    while not done.is_set():
+                        out.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0,
+                                               0.0, 0.0, 0.0, place[0], place[1], place[2], 0.0), ("127.0.0.1", 9003))
+                        if tick % 2 == 0 and with_sticks.is_set():
+                            out.sendto(struct.pack("<d16H", tick * 0.01, *pulses), ("127.0.0.1", 9004))
+                        tick += 1
+                        time.sleep(0.01)
+                    out.close()
+
+                def state():
+                    status = msp(sock, 150)
+                    values = msp(sock, 254)
+                    if status is None or len(status) < 16 + status[15] or values is None or len(values) < 6:
+                        return None
+                    flags = int.from_bytes(status[6:10], "little")
+                    flags |= int.from_bytes(status[16:16 + status[15]], "little") << 32
+                    return flags, struct.unpack("<3h", values[:6])
+                try:
+                    time.sleep(2.5)
+                    threading.Thread(target=feed, daemon=True).start()
+                    time.sleep(7.0)
+                    msp(sock, 205)
+                    time.sleep(4.0)
+                    ids = list(msp(sock, 119) or b"")
+                    arm, failsafe, rescue, autopilot = (1 << ids.index(i) if i in ids else 0 for i in (0, 27, 46, 56))
+                    check(f"boxes of arming, failsafe, GPS rescue and the autopilot exist for the {part}",
+                          arm and failsafe and rescue and autopilot, repr(ids))
+                    pulses[4] = 1800
+                    armed, value = until(state, lambda s: s is not None and s[0] & arm, wait=8.0)
+                    check(f"craft arms for the {part}", armed, repr(value))
+                    pulses[2] = 1400
+                    place[1] -= 0.001
+                    place[2] += 30.0
+                    time.sleep(4.0)
+                    value = state()
+                    check(f"executor is idle before the {part}",
+                          value is not None and value[1] == (0, 0, 0) and not value[0] & autopilot, repr(value))
+                    alt_hold = 1 << ids.index(3) if 3 in ids else 0
+                    body(state, pulses, with_sticks, place, arm, failsafe, rescue, autopilot, alt_hold)
+                    pulses[4] = 1000
+                    time.sleep(1.0)
+                finally:
+                    done.set()
+                    stop(proc)
+                    sock.close()
+
+            def failsafe_part(state, pulses, with_sticks, place, arm, failsafe, rescue, autopilot, alt_hold):
+                flying = arm | failsafe | autopilot
+                with_sticks.clear()
+                staged, value = until(state, lambda s: s is not None and s[0] & flying == flying and not s[0] & rescue
+                                      and s[1] == (1, 0, 0), wait=5.0)
+                check("lost link flies a staged rescue plan in the failsafe mode, without the rescue mode", staged,
+                      repr(value))
+                time.sleep(4.5)
+                value = state()
+                check("rescue plan outlasts the failsafe's landing time",
+                      value is not None and value[0] & flying == flying, repr(value))
+                with_sticks.set()
+                time.sleep(2.0)
+                value = state()
+                check("link's return with centred sticks leaves the rescue plan flying",
+                      value is not None and value[0] & autopilot and value[0] & arm, repr(value))
+                pulses[0] = 1800
+                ended, value = until(state, lambda s: s is not None and s[0] & arm
+                                     and not s[0] & (autopilot | failsafe), wait=3.0)
+                check("stick movement ends the rescue plan", ended, repr(value))
+                pulses[0] = 1500
+                time.sleep(0.5)
+
+            def switch_part(state, pulses, with_sticks, place, arm, failsafe, rescue, autopilot, alt_hold):
+                pulses[5] = 1800
+                switched, value = until(state, lambda s: s is not None and s[0] & arm and s[0] & autopilot
+                                        and not s[0] & failsafe and s[1] == (1, 0, 0), wait=4.0)
+                check("rescue switch flies a staged rescue plan without the failsafe mode", switched, repr(value))
+                pulses[5] = 1000
+                released, value = until(state, lambda s: s is not None and s[0] & arm and not s[0] & autopilot,
+                                        wait=3.0)
+                check("rescue switch's release ends that plan", released, repr(value))
+
+            # A latitude out of range stops the virtual GPS, so the position estimate lapses and the plan aborts.
+            # The switch then asks for the descent: the altitude hold alone, with the rescue's failure warning and
+            # a target below the craft, which this part reads from the autopilot's altitude debug values.
+            def descent_part(state, pulses, with_sticks, place, arm, failsafe, rescue, autopilot, alt_hold):
+                pulses[5] = 1800
+                switched, value = until(state, lambda s: s is not None and s[0] & autopilot, wait=4.0)
+                check("rescue switch flies a rescue plan before the abort", switched, repr(value))
+                time.sleep(1.0)
+                before = state()
+                place[1] = 91.5
+                descending, value = until(state, lambda s: s is not None and s[0] & arm and s[0] & alt_hold
+                                          and not s[0] & autopilot, wait=8.0)
+                check("aborted rescue plan leaves the altitude hold without the autopilot mode", descending,
+                      repr(value))
+                named, shown = until(lambda: msp2(sock_of[0], 0x3005), lambda r: r is not None and b"RESCUE FAIL" in r,
+                                     wait=4.0)
+                check("OSD warning names the rescue's failure during the descent", named, repr(shown))
+                # The debug values are the throttle, the target and the altitude, in centimetres. The fed altitude
+                # never falls, so the target stops a little below it.
+                lowered, value = until(state, lambda s: s is not None and s[1][1] < s[1][2] - 100, wait=4.0)
+                check("altitude hold's target goes below the craft in the rescue descent",
+                      lowered and before is not None and before[1][1] >= before[1][2] - 100, repr((before, value)))
+                pulses[5] = 1000
+                released, value = until(state, lambda s: s is not None and s[0] & arm and not s[0] & alt_hold,
+                                        wait=3.0)
+                check("rescue switch's release ends the descent", released, repr(value))
+
+            flown("failsafe's rescue plan", failsafe_part, store)
+            flown("rescue switch", switch_part, store)
+            altitude_store = os.path.join(work, "rescuedescent.bin")
+            with open(store, "rb") as saved, open(altitude_store, "wb") as copy:
+                copy.write(saved.read())
+            proc, sock = start(image, altitude_store, extra=sim_link)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set debug_mode = AUTOPILOT_ALTITUDE")
+                check("debug mode set to the autopilot's altitude for the descent",
+                      "debug_mode set to AUTOPILOT_ALTITUDE" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            flown("rescue descent", descent_part, altitude_store)
         if built("GPS"):
-            rescue_failsafe_checks()
+            rescue_plan_checks()
         # Flight plan in the build: its boxes, its build option, and its waypoint command in the command line and
         # its help.
         def flight_plan_build_checks():

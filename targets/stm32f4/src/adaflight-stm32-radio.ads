@@ -158,10 +158,11 @@ package Adaflight.STM32.Radio is
    function Active_Antenna return Interfaces.Integer_8;
    --  The failsafe's check every ten milliseconds of the realtime block.
    --  The failsafe's check over what it reads in flight; Disarm says its
-   --  landed stage asks for a disarm.
+   --  landed stage asks for a disarm, and Stage_Rescue that it staged a
+   --  rescue plan.
    procedure Failsafe_Check
      (Now_Ms : Time_Ms; In_Flight : Adaflight.Failsafe.Inputs; Beep : out Adaflight.Failsafe.Beep;
-      Disarm : out Boolean);
+      Disarm : out Boolean; Stage_Rescue : out Boolean);
    --  The failsafe's own flight mode.
    function Failsafe_Mode return Boolean;
    --  The failsafe's arming disable reasons: the link lost and the failsafe

@@ -14364,3 +14364,25 @@ before it. Failsafe logic had one input for both reads, and its oracle's stub an
 Failsafe inputs now include that state as read after a staging, which every read after an update's staging takes.
 That oracle's stub now answers by whether a staging came first, and failsafe vectors were regenerated. No board
 stages rescue plans yet, so no board behaviour changes.
+
+## D725. Flight plan executor on boards (2026-11-11)
+
+A multirotor board built with its flight plan and GPS now runs that plan's executor. Builds without that feature
+link none of it: board code and arming logic read its build switch through a function, and `target.do` fails an
+image that still contains executor code.
+
+Arming logic decides inside its modes pass whether a rescue plan stages, after its own disarms and its mode update.
+A board cannot ask first, so it stages on a copy of its executor before that pass and keeps that copy only when
+that pass staged. Failsafe checks work alike. After a modes pass a board sends its descent request, then engages,
+updates or disengages as that pass asked.
+
+Betaflight's navigator calls its executor back when a leg is reached. Position hold now runs in two halves around
+a navigator update, and a reached leg with a handler goes to an executor between them.
+
+Executor requests reach their owners. Nose heading, heading recovery, yaw rate limit and level park go to position
+control, an emergency descent goes to altitude hold, and a touchdown disarms. OSD warnings read executor state, so
+an abort or a completed plan shows. Debug mode FLIGHT_PLAN records state, abort reason and waypoint index at each
+update, checked against a Betaflight build.
+
+`waypoint status` reports executor state. Waypoint capture, a listener for reached waypoints and OSD plan
+elements are not wired yet.

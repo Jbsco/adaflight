@@ -9,6 +9,7 @@ with Adaflight.Arming;
 with Adaflight.Battery;
 with Adaflight.Config_Groups;
 with Adaflight.ESC_Sensor;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Font_In;
 with Adaflight.OSD_Render;
@@ -189,6 +190,11 @@ package Adaflight.STM32.OSD is
       Vario             : Interfaces.Integer_16 := 0;
       Pos_Hold_Ready    : Boolean := False;
       Pos_Hold_Failure  : Boolean := False;
+      --  The flight plan executor's state and abort reason, and whether its
+      --  rescue descent flies, in a build with the flight plan.
+      Plan_State        : Adaflight.Flight_Plan_Nav.Nav_State := Adaflight.Flight_Plan_Nav.Idle;
+      Plan_Abort        : Adaflight.Flight_Plan_Nav.Abort_Reason := Adaflight.Flight_Plan_Nav.None;
+      Rescue_Descent    : Boolean := False;
       Rescue_Configured : Boolean := False;
       Rescue_Available  : Boolean := False;
       Rescue_OK         : Boolean := True;

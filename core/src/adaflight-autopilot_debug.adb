@@ -149,4 +149,13 @@ package body Adaflight.Autopilot_Debug with SPARK_Mode is
       end if;
    end Record_Rescue;
 
+   procedure Record_Flight_Plan (D : in out Debug.State; S : Flight_Plan_Nav.State) is
+   begin
+      if S.Active then
+         Debug.Set (D, Debug.Flight_Plan, 0, Flight_Plan_Nav.Nav_State'Pos (S.Mode));
+         Debug.Set (D, Debug.Flight_Plan, 1, Flight_Plan_Nav.Abort_Reason'Pos (S.Reason));
+         Debug.Set (D, Debug.Flight_Plan, 2, Interfaces.Integer_16 (S.Current_Index));
+      end if;
+   end Record_Flight_Plan;
+
 end Adaflight.Autopilot_Debug;

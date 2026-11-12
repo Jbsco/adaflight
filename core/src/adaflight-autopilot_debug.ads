@@ -11,6 +11,7 @@
 with Adaflight.Axes;
 with Adaflight.Altitude_Control;
 with Adaflight.Debug;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.GPS_Rescue;
 with Adaflight.Position_Control;
 with Adaflight.Position_Hold;
@@ -36,6 +37,11 @@ package Adaflight.Autopilot_Debug with SPARK_Mode is
 
    --  After a rescue update.
    procedure Record_Rescue (D : in out Debug.State; R : GPS_Rescue.State)
+     with Global => null;
+
+   --  At the start of an executor update, while it flies a plan: its state,
+   --  its abort reason and its waypoint index.
+   procedure Record_Flight_Plan (D : in out Debug.State; S : Flight_Plan_Nav.State)
      with Global => null;
 
 end Adaflight.Autopilot_Debug;
