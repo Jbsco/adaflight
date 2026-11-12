@@ -1,9 +1,11 @@
+with Adaflight.Dashboard;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.Menu;
 with Adaflight.Menu_Content;
 with Adaflight.Menu_Nav;
 with Adaflight.PID_Profile;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.Dashboard;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Radio;
@@ -20,54 +22,57 @@ package body Adaflight.STM32.Menu is
    Save_Asked  : Boolean := False;
    Reset_Asked : Boolean := False;
    Armed_Now   : Boolean := False;
-   --  The CRSF and SRXL transmitters' displays among the registered ones,
-   --  when they are.
+   --  The CRSF and SRXL transmitters' displays and the OLED dashboard's
+   --  among the registered ones, when they are.
    CRSF_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
    SRXL_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
+   OLED_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
+   --  The grabs of the OLED display less its releases.
+   OLED_Grabs   : Natural := 0;
 
-   --  A write costs the bytes it queues on the MSP display port and nothing on
-   --  the MAX7456 or the CRSF display, which has no layers, background or
-   --  heartbeat.
+   --  The device a registered display is: the OSD's unless it is one of the
+   --  three registered after it.
+   type Device is (OSD, CRSF, SRXL, OLED);
+   function Device_Of (On : Adaflight.Menu.Display_Index) return Device is
+     (if On = CRSF_Display then CRSF elsif On = SRXL_Display then SRXL elsif On = OLED_Display then OLED else OSD);
+
+   --  Layers, background, redraw and heartbeat are the OSD's alone. The OLED
+   --  display counts a grab and a release.
    procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer) is
-      CRSF   : constant Boolean := On = CRSF_Display;
-      SRXL   : constant Boolean := On = SRXL_Display;
-      Remote : constant Boolean := CRSF or else SRXL;
+      To : constant Device := Device_Of (On);
    begin
       case A is
          when Adaflight.Menu.Grab =>
-            if CRSF then
-               Adaflight.STM32.Radio.Display_Grab;
-            elsif SRXL then
-               Adaflight.STM32.Radio.SRXL_Display_Grab;
-            else
-               Adaflight.STM32.OSD.Menu_Grab;
-            end if;
+            case To is
+               when CRSF => Adaflight.STM32.Radio.Display_Grab;
+               when SRXL => Adaflight.STM32.Radio.SRXL_Display_Grab;
+               when OLED => OLED_Grabs := OLED_Grabs + 1;
+               when OSD  => Adaflight.STM32.OSD.Menu_Grab;
+            end case;
          when Adaflight.Menu.Release =>
-            if CRSF then
-               Adaflight.STM32.Radio.Display_Release (Adaflight.STM32.Time.Millis);
-            elsif SRXL then
-               Adaflight.STM32.Radio.SRXL_Display_Release;
-            else
-               Adaflight.STM32.OSD.Menu_Release;
-            end if;
+            case To is
+               when CRSF => Adaflight.STM32.Radio.Display_Release (Adaflight.STM32.Time.Millis);
+               when SRXL => Adaflight.STM32.Radio.SRXL_Display_Release;
+               when OLED => OLED_Grabs := Natural'Max (1, OLED_Grabs) - 1;
+               when OSD  => Adaflight.STM32.OSD.Menu_Release;
+            end case;
          when Adaflight.Menu.Clear =>
-            if CRSF then
-               Adaflight.STM32.Radio.Display_Clear (Adaflight.STM32.Time.Millis);
-            elsif SRXL then
-               Adaflight.STM32.Radio.SRXL_Display_Clear;
-            else
-               Adaflight.STM32.OSD.Menu_Clear;
-            end if;
+            case To is
+               when CRSF => Adaflight.STM32.Radio.Display_Clear (Adaflight.STM32.Time.Millis);
+               when SRXL => Adaflight.STM32.Radio.SRXL_Display_Clear;
+               when OLED => Adaflight.STM32.Dashboard.Menu_Clear;
+               when OSD  => Adaflight.STM32.OSD.Menu_Clear;
+            end case;
          when Adaflight.Menu.Layer_Select =>
-            if not Remote then
+            if To = OSD then
                Adaflight.STM32.OSD.Menu_Layer_Select (Natural'Max (0, Arg));
             end if;
          when Adaflight.Menu.Background =>
-            if not Remote then
+            if To = OSD then
                Adaflight.STM32.OSD.Menu_Background (Natural'Max (0, Arg));
             end if;
          when Adaflight.Menu.Redraw =>
-            if not Remote then
+            if To = OSD then
                Adaflight.STM32.OSD.Menu_Redraw (Armed_Now);
             end if;
          when Adaflight.Menu.Save_Config =>
@@ -85,7 +90,7 @@ package body Adaflight.STM32.Menu is
          when Adaflight.Menu.Set_Reboot_Required =>
             Reboot_Flag := True;
          when Adaflight.Menu.Heartbeat =>
-            if not Remote then
+            if To = OSD then
                Adaflight.STM32.OSD.Menu_Heartbeat;
             end if;
          when Adaflight.Menu.Begin_Transaction | Adaflight.Menu.Commit_Transaction =>
@@ -93,21 +98,21 @@ package body Adaflight.STM32.Menu is
       end case;
    end Act;
 
+   --  A write costs the bytes it queues on the OSD's MSP display port and
+   --  nothing elsewhere.
    procedure Write
      (On : Adaflight.Menu.Display_Index; X : Adaflight.Menu.Column; Y : Adaflight.Menu.Column;
       Attr : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32)
    is
       pragma Unreferenced (Attr);
    begin
-      if On = CRSF_Display then
-         Adaflight.STM32.Radio.Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
-         Cost := 0;
-      elsif On = SRXL_Display then
-         Adaflight.STM32.Radio.SRXL_Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
-         Cost := 0;
-      else
-         Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text, Cost);
-      end if;
+      Cost := 0;
+      case Device_Of (On) is
+         when CRSF => Adaflight.STM32.Radio.Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
+         when SRXL => Adaflight.STM32.Radio.SRXL_Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
+         when OLED => Adaflight.STM32.Dashboard.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
+         when OSD  => Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text, Cost);
+      end case;
    end Write;
 
    procedure Write_Char
@@ -117,13 +122,16 @@ package body Adaflight.STM32.Menu is
       pragma Unreferenced (Attr);
       Unused_Cost : Unsigned_32;
    begin
-      if On = CRSF_Display then
-         Adaflight.STM32.Radio.Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
-      elsif On = SRXL_Display then
-         Adaflight.STM32.Radio.SRXL_Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
-      else
-         Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C), Unused_Cost);
-      end if;
+      case Device_Of (On) is
+         when CRSF =>
+            Adaflight.STM32.Radio.Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
+         when SRXL =>
+            Adaflight.STM32.Radio.SRXL_Display_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
+         when OLED =>
+            Adaflight.STM32.Dashboard.Menu_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), C);
+         when OSD =>
+            Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C), Unused_Cost);
+      end case;
    end Write_Char;
 
    package Nav is new Adaflight.Menu_Nav
@@ -237,8 +245,7 @@ package body Adaflight.STM32.Menu is
                  Joystick_Active         => False);
       Nav.Update
         (State, T, Keys, Sliders (C), Sticks, Reboot_Flag, Now_Us, Now_Ms,
-         (if (CRSF_Display >= 0 and then State.Port = CRSF_Display)
-            or else (SRXL_Display >= 0 and then State.Port = SRXL_Display)
+         (if State.Port in Adaflight.Menu.Display_Index and then Device_Of (State.Port) /= OSD
           then Unsigned_32'Last
           else Adaflight.STM32.OSD.Menu_Room));
       if Was_Open or else State.In_Menu then
@@ -288,6 +295,16 @@ package body Adaflight.STM32.Menu is
    end Register_SRXL;
 
    function SRXL_Registered return Boolean is (SRXL_Display >= 0);
+
+   procedure Register_OLED is
+   begin
+      if State.Port_Count < Adaflight.Menu.Max_Displays then
+         Nav.Register_Display (State, Display_Of (Adaflight.Dashboard.Columns, Adaflight.Dashboard.Rows));
+         OLED_Display := State.Port_Count - 1;
+      end if;
+   end Register_OLED;
+
+   function OLED_Grabbed return Boolean is (OLED_Grabs > 0);
 
    function On_SRXL return Boolean is (State.In_Menu and then SRXL_Display >= 0 and then State.Port = SRXL_Display);
 

@@ -71,7 +71,6 @@ package body Adaflight.STM32.Dashboard is
          end if;
       end Pass;
    begin
-      Given.Grabbed := False;
       Given.Present := Answers;
       Pass (Trial);
       for I in 1 .. Ops.Count loop
@@ -136,5 +135,22 @@ package body Adaflight.STM32.Dashboard is
    end Reset_Cycling;
 
    function Present return Boolean is (Answers);
+
+   procedure Menu_Clear is
+   begin
+      Display.Clear_Quick (Device);
+   end Menu_Clear;
+
+   procedure Menu_Write (Column, Row : Interfaces.Unsigned_8; Text : String) is
+   begin
+      Display.Set_XY (Device, Column, Row);
+      Display.Send_String (Device, Screen, Text);
+   end Menu_Write;
+
+   procedure Menu_Write_Char (Column, Row : Interfaces.Unsigned_8; C : Character) is
+   begin
+      Display.Set_XY (Device, Column, Row);
+      Display.Send_Char (Device, Screen, Character'Pos (C));
+   end Menu_Write_Char;
 
 end Adaflight.STM32.Dashboard;

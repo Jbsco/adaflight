@@ -3065,6 +3065,7 @@ def main():
                 check("display feature on for the dashboard", "Enabled" in text, text[-120:])
                 text = cli(sock, "set dashboard_i2c_bus = 1")
                 check("dashboard's I2C bus named", "dashboard_i2c_bus set to 1" in text, text[-120:])
+                cli(sock, "set rx_uart = UART3")
 
                 def setting(name):
                     found = re.search(rf"^{name} = (\d+)", cli(sock, f"get {name}"), re.M)
@@ -3110,6 +3111,52 @@ def main():
                 shown, value = page("BATTERY", 8.0)
                 check("battery page shows the voltage with the cells", shown and value[1].startswith("Volts:"),
                       repr(value[:4]))
+                if built("Menus"):
+                    # Menu on the dashboard's display, registered after the OSD's: the stick gesture opens the
+                    # menu on the OSD, the gesture again moves it to the dashboard's display, where the pages
+                    # stop while the menu holds it, and a third gesture moves it on and the pages come back.
+                    receiver = Receiver()
+                    receiver.start()
+                    try:
+                        time.sleep(1.5)
+
+                        def gesture():
+                            receiver.set(992, 1811, 992, 172)
+                            time.sleep(0.3)
+                            receiver.set(992, 992, 172, 992)
+                            time.sleep(0.7)
+
+                        def menu_on(found):
+                            return len(found) == 8 and re.match(r"  -- (QUICK|MAIN) --", found[1]) is not None
+
+                        def menu_holds_arming():
+                            status = msp(sock, 150)
+                            if status is None or len(status) < 21 + status[15]:
+                                return False
+                            at = 16 + status[15]
+                            return bool(int.from_bytes(status[at + 1:at + 5], "little") & 0x4000)
+                        gesture()
+                        opened, _ = until(menu_holds_arming, lambda held: held, wait=3.0)
+                        check("stick gesture opens the menu away from the dashboard's display, the second one",
+                              opened and not menu_on(rows()), repr(rows()[:3]))
+                        gesture()
+                        moved, value = until(rows, menu_on, wait=4.0)
+                        check("second gesture moves the menu to the dashboard's display, title on its second row",
+                              moved, repr(value[:4]))
+                        check("menu clears the dashboard's page: the first row is empty",
+                              moved and value[0].strip() == "", repr(value[:1]))
+                        check("menu draws its cursor and the mark of a further page beside its entries",
+                              moved and value[2][2:3] == ">" and any(row[1:2] == "v" for row in value), repr(value))
+                        time.sleep(6.0)
+                        value = rows()
+                        check("dashboard draws no page while the menu holds its display",
+                              menu_on(value) and menu_holds_arming(), repr(value[:4]))
+                        gesture()
+                        back, value = until(rows, lambda found: len(found) == 8 and not menu_on(found)
+                                            and re.match(r"[A-Z]{2,}", found[0]) is not None, wait=9.0)
+                        check("pages return when the menu leaves the dashboard's display", back, repr(value[:3]))
+                    finally:
+                        receiver.stop.set()
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
                 text = cli(sock, "tasks", 1.5)

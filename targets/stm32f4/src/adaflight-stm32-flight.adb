@@ -4213,9 +4213,8 @@ package body Adaflight.STM32.Flight is
       end if;
    end Serve_MAVLink_Requests;
 
-   --  What the dashboard's pages read. The GPS page's packet count, error
-   --  count, packet log and satellite signals stay empty: the GPS units do
-   --  not record them yet.
+   --  What the dashboard's pages read, and whether the menu holds the
+   --  display.
    function Dashboard_Readings return Adaflight.Dashboard.Readings is
       package DB renames Adaflight.Dashboard;
       use type Adaflight.Battery.Voltage_Source;
@@ -4242,6 +4241,7 @@ package body Adaflight.STM32.Flight is
 
       function Held (V : Float) return Float is (Float'Max (-1.0e6, Float'Min (1.0e6, V)));
    begin
+      R.Grabbed := Adaflight.STM32.Menu.OLED_Grabbed;
       R.Armed := Adaflight.STM32.Pilot.Armed;
       R.Phase := Adaflight.STM32.Radio.Failsafe_Phase;
       R.Rx_Signal := Adaflight.STM32.Radio.Receiving;
@@ -5441,6 +5441,9 @@ package body Adaflight.STM32.Flight is
       Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
       if Adaflight.Build_Features.Dashboard and then (Runtime_Features and Feature_Dashboard) /= 0 then
          Adaflight.STM32.Dashboard.Init (Config, Adaflight.STM32.Time.Micros, Dashboard_Readings);
+         if Adaflight.Build_Features.Menus and then Adaflight.STM32.Dashboard.Present then
+            Adaflight.STM32.Menu.Register_OLED;
+         end if;
          Adaflight.STM32.Dashboard.Reset_Cycling;
          Adaflight.STM32.Dashboard.Enable_Cycling;
       end if;

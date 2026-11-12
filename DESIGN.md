@@ -14522,3 +14522,18 @@ element of that height. A smoke check runs a u-blox module on a host serial port
 and reads bars, both counts, a timeout, interval and log order from that page.
 
 Betaflight registers this display with its menu system, and boards do not yet.
+
+## D735. Menus on OLED display (2026-11-12)
+
+Betaflight registers its dashboard's display with its menu system. A second stick gesture moves an open menu from
+an OSD to that display, and dashboard pages stop while a menu is there. D733 left this open.
+
+Board menu unit now registers that display at 21 columns by 8 rows when it answered its start, after an OSD's
+display and before a transmitter's. Menu draws go through board dashboard unit: a clear, and a text or character
+at a cell. Grab and release only count. Dashboard readings report that display as grabbed while its count is above
+zero, and core code then skips page updates. One mapping from display to device routes every menu action.
+
+Core menu navigation needed no change, and menu vectors already open menus on displays of this size.
+
+A smoke check opens a menu with a stick gesture, moves it to that display with a second one, waits past a page
+period and moves it on with a third. Pages then return.

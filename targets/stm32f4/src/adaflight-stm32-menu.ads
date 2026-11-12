@@ -89,4 +89,8 @@ package Adaflight.STM32.Menu is
    procedure Register_SRXL;
    function SRXL_Registered return Boolean;
    function On_SRXL return Boolean;
+   --  The OLED dashboard's display, registered after the OSD's when the
+   --  display answered its start, and whether the menu holds it.
+   procedure Register_OLED;
+   function OLED_Grabbed return Boolean;
 end Adaflight.STM32.Menu;
