@@ -13,6 +13,15 @@ package body Adaflight.Transponder with SPARK_Mode is
    type Jitter_Table is array (0 .. 14) of Unsigned_32;
    Jitter_Steps : constant Jitter_Table := (0, 9, 4, 8, 3, 9, 6, 7, 1, 6, 9, 7, 8, 2, 6);
 
+   function Prescaler (Clock : Unsigned_32; P : Provider) return Unsigned_16 is
+      Rate : constant Unsigned_32 := Timer_MHz (P) * 1_000_000;
+   begin
+      if Rate = 0 or else Rate > Clock then
+         return 0;
+      end if;
+      return Unsigned_16'Mod ((Clock + Rate / 2) / Rate) - 1;
+   end Prescaler;
+
    function Delay_Us (P : Provider) return Unsigned_32 is
      (case P is when ILAP => 4500, when Arcitimer => 4500, when ERLT => 22500, when None => 0);
 

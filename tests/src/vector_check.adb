@@ -8750,6 +8750,19 @@ procedure Vector_Check is
             Record_Int (Name & ".transmit", Int (7), (if Transmit then 1 else 0));
             Record_Int (Name & ".next", Int (8), Integer_64 (TP_Sched.Next_Update_Us));
          end;
+      elsif Name = "tptimer" then
+         declare
+            P        : constant Provider := Provider'Val (Int (4));
+            Clock    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Prescale : constant Interfaces.Unsigned_16 := Prescaler (Clock, P);
+            Reload   : constant Interfaces.Unsigned_16 := Adaflight.Transponder.Period (Clock, Prescale, P);
+         begin
+            Record_Int (Name & ".rate", Int (6), Integer_64 (Timer_MHz (P)));
+            Record_Int (Name & ".carrier", Int (7), Integer_64 (Carrier_Hz (P)));
+            Record_Int (Name & ".prescaler", Int (8), Integer_64 (Prescale));
+            Record_Int (Name & ".period", Int (9), Integer_64 (Reload));
+            Record_Int (Name & ".toggle", Int (10), Integer_64 (Toggle_Of (Reload)));
+         end;
       else
          Put_Line ("unknown transponder case " & Name);
          Failures := Failures + 1;
