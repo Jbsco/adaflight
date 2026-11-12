@@ -37,7 +37,7 @@ package body Adaflight.Transponder with SPARK_Mode is
             pragma Loop_Invariant (Pos = (B * 8 + Bit) * Arcitimer_Toggles);
             for T in 0 .. Arcitimer_Toggles - 1 loop
                Result.Buffer (Pos + T) :=
-                 (if (Data (B) and Interfaces.Shift_Left (1, Bit)) /= 0 then Unsigned_32 (Toggle) else 0);
+                 (if (Data (B) and Interfaces.Shift_Left (1, Bit)) /= 0 then Toggle else 0);
             end loop;
             Pos := Pos + Arcitimer_Toggles;
          end loop;
@@ -60,7 +60,7 @@ package body Adaflight.Transponder with SPARK_Mode is
                   else (Data (B) and Interfaces.Shift_Left (1, Bit - 1)) /= 0);
             begin
                for T in 0 .. ILAP_Toggles - 1 loop
-                  Result.Buffer (Pos + T) := (if Pulsed then Unsigned_32 (Toggle) else 0);
+                  Result.Buffer (Pos + T) := (if Pulsed then Toggle else 0);
                end loop;
                Result.Buffer (Pos + ILAP_Toggles) := 0;
                Pos := Pos + ILAP_Toggles + 1;
@@ -75,12 +75,12 @@ package body Adaflight.Transponder with SPARK_Mode is
    --  pulsed on the odd bits; the pulse value passes through a byte, as
    --  the reference narrows it (finding F84).
    procedure Encode_ERLT (Data : Code; Toggle : Unsigned_16; Result : in out Pattern) is
-      Pulse  : constant Unsigned_32 := Unsigned_32 (Toggle and 16#FF#);
+      Pulse  : constant Unsigned_16 := Toggle and 16#FF#;
       Value  : constant Unsigned_8 := not Data (0);
       Pos    : Natural := 0;
       Parity : Natural := 0;
 
-      procedure Add (Cycles : Natural; Width : Unsigned_32)
+      procedure Add (Cycles : Natural; Width : Unsigned_16)
         with Pre => Cycles <= ERLT_One_Cycles and then Pos <= Max_Toggles - ERLT_One_Cycles - 1,
              Post => Pos = Pos'Old + Cycles
       is

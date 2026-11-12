@@ -20,7 +20,7 @@ package Adaflight.Transponder with SPARK_Mode is
 
    Max_Toggles : constant := 720;
    subtype Toggle_Count is Natural range 0 .. Max_Toggles;
-   type Toggles is array (0 .. Max_Toggles - 1) of Unsigned_32;
+   type Toggles is array (0 .. Max_Toggles - 1) of Unsigned_16;
 
    --  The toggles of one transmission: the coding's buffer, the ILAP and
    --  Arcitimer ones of fixed length with silence after the bits, the
