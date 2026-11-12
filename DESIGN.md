@@ -14456,3 +14456,12 @@ reached waypoint follows (F325). Boards start a session on both ports.
 Vectors come from a Betaflight build of its telemetry and mission files in one unit, with command and mission
 frames mixed on one port. Host smoke uploads a plan over MAVLink, restarts, reads it back, sets its current item
 and clears it.
+
+## D731. Host log of arming events (2026-11-12)
+
+Two CI runs failed a smoke check that found a craft disarmed in autopilot failsafe flight. Neither a loaded host
+nor two pinned cores reproduced it, and no command shows why a craft disarmed.
+
+Host image now appends each arm and disarm to a file, with uptime and a disarm's reason. Host smoke prints those
+events when a flown part of its flight plan or rescue checks fails. One smoke check reads that file: a mission's
+end under a lost link disarms with failsafe as its reason.
