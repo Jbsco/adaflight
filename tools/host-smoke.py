@@ -208,6 +208,32 @@ class UbloxGPS(GPS):
             + ubx_frame((0x01, 0x35), bytes(satellites)) + bytes(bad)
 
 
+def ilap_toggles(code):
+    """The toggles of an ILAP transmission as the host's transponder log writes them: for each of the code's six
+    bytes a start bit of pulses, its eight bits low first and a silent stop bit, each bit eleven toggles and a
+    gap."""
+    text = ""
+    for byte in code[:6]:
+        for bit in range(10):
+            pulsed = bit == 0 or (1 <= bit <= 8 and byte >> (bit - 1) & 1)
+            text += ("1" if pulsed else "0") * 11 + "0"
+    return text
+
+
+def erlt_toggles(code):
+    """The toggles of an ERLT transmission: a header of ten pulses and ten silent cycles, the inverted code's low
+    six bits high first, a one as 25 cycles and a zero as 10, pulsed for the odd bit places, a pulsed parity
+    bit and a silent end."""
+    value = ~code & 0xFF
+    text = "1" * 10 + "0" * 10
+    ones = 0
+    for place in range(5, -1, -1):
+        bit = value >> place & 1
+        ones += bit
+        text += ("1" if place % 2 else "0") * (25 if bit else 10)
+    return text + "1" * (25 if ones % 2 else 10) + "0"
+
+
 def sbus_frame(channels):
     """An SBUS frame: the begin byte, sixteen eleven-bit channels packed from the low bit, no flags, the end
     byte."""
@@ -3221,6 +3247,106 @@ def main():
                 sock.close()
         if built("Dashboard"):
             dashboard_checks()
+
+        # Race transponder: with its feature on and its pin on the LED strip's timer channel, the image sends the
+        # configured code in its provider's coding each time the coding's repeat schedule comes round, and a
+        # write of another provider's code over MSP changes the coding at once. The host logs each transmission
+        # with its timer values and toggles.
+        def transponder_checks():
+            store = os.path.join(work, "transponder.bin")
+            log = {"ADAFLIGHT_TRANSPONDER_LOG": store + ".transponder.txt"}
+            proc, sock = start(image, store, extra=log)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                cli(sock, "resource LED_STRIP 1 NONE")
+                cli(sock, "resource MOTOR 5 NONE")
+                text = cli(sock, "resource TRANSPONDER 1 B08")
+                check("transponder pin assigned", "Resource is set to B08" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+
+            def sent():
+                try:
+                    with open(store + ".transponder.txt") as f:
+                        return [line.split(",") for line in f.read().splitlines() if line.startswith("transmit,")]
+                except OSError:
+                    return []
+            proc, sock = start(image, store, extra=log)
+            try:
+                time.sleep(3.0)
+                check("transponder with a pin and its feature off sends nothing", not sent(), str(len(sent())))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "feature TRANSPONDER")
+                check("transponder feature on", "Enabled TRANSPONDER" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=log)
+            try:
+                found, lines = until(sent, lambda s: len(s) >= 50, wait=10.0)
+                check("transponder transmits with its feature on", found, str(len(lines)))
+                first = lines[0] if lines else [""] * 8
+                check("ILAP coding counts an 84 MHz timer at prescaler 3 over a period of 45, a toggle at 22",
+                      first[2:7] == ["ILAP", "3", "45", "22", "720"], repr(first[:7]))
+                check("ILAP transmission spells the stored code",
+                      first[7] == ilap_toggles(bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC])), first[7][:60])
+                gaps = sorted(int(b[1]) - int(a[1]) for a, b in zip(lines, lines[1:]))
+                check("ILAP transmissions keep 4.5 ms and a jitter apart",
+                      bool(gaps) and gaps[0] >= 4 and gaps[len(gaps) // 2] <= 20 and gaps[0] != gaps[-1],
+                      repr(gaps[:3] + gaps[-3:]))
+                check("ERLT code written over MSP", msp(sock, 83, bytes([3, 0x2A])) == b"")
+                changed, lines = until(sent, lambda s: len(s) > 0 and s[-1][2] == "ERLT", wait=5.0)
+                last = lines[-1] if lines else [""] * 8
+                check("provider written over MSP changes the coding at once: ERLT at prescaler 4, period 442",
+                      changed and last[2:6] == ["ERLT", "4", "442", "221"], repr(last[:7]))
+                check("ERLT transmission spells the written code",
+                      changed and last[7] == erlt_toggles(0x2A) and last[6] == str(len(last[7])), last[7][:80])
+                check("ILAP code written over MSP", msp(sock, 83, bytes([1, 1, 2, 3, 4, 5, 6])) == b"")
+                changed, lines = until(sent, lambda s: len(s) > 0 and s[-1][2] == "ILAP", wait=5.0)
+                last = lines[-1] if lines else [""] * 8
+                check("ILAP coding returns with the new code",
+                      changed and last[3:7] == ["3", "45", "22", "720"]
+                      and last[7] == ilap_toggles(bytes([1, 2, 3, 4, 5, 6])), repr(last[:7]))
+                check("no provider written over MSP", msp(sock, 83, bytes([0])) == b"")
+                time.sleep(0.3)
+                before = len(sent())
+                time.sleep(1.0)
+                check("transponder with no provider stops sending", len(sent()) == before, f"{before} {len(sent())}")
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "timer show", 1.5)
+                check("timer list names the transponder's channel", "TRANSPONDER" in text, text[-200:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store, extra=log)
+            try:
+                time.sleep(2.5)
+                before = len(sent())
+                written = msp(sock, 83, bytes([1, 1, 2, 3, 4, 5, 6]))
+                time.sleep(1.0)
+                check("board started with no provider sends nothing after a code written over MSP, until a restart",
+                      written == b"" and len(sent()) == before, f"{written!r} {before} {len(sent())}")
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "timer show", 1.5)
+                check("board started with no provider takes no timer channel for the transponder",
+                      "CH" in text and "TRANSPONDER" not in text, text[-200:])
+            finally:
+                stop(proc)
+                sock.close()
+        if built("Transponder"):
+            transponder_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

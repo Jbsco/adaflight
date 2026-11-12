@@ -165,6 +165,7 @@ with Adaflight.STM32.Menu;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.OSD_Custom_Text;
 with Adaflight.STM32.Time;
+with Adaflight.STM32.Transponder;
 with Adaflight.STM32.USART;
 with Adaflight.Stream_Buffers;
 with Adaflight.Task_Functions;
@@ -305,7 +306,10 @@ package body Adaflight.STM32.Flight is
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
+   --  The scheduler's state lives in the core coupled memory too. Its init
+   --  sets all of it.
    Sched    : Scheduler.State;
+   pragma Linker_Section (Sched, ".bss.ccm");
    Session  : Terminal.Session;
    Into     : CLI.Output;
    Changes  : CLI.Effects;
@@ -469,6 +473,7 @@ package body Adaflight.STM32.Flight is
    --  The feature bit of the OLED dashboard, which the command line names
    --  DISPLAY.
    Feature_Dashboard : constant Unsigned_32 := 16#0002_0000#;
+   Feature_Transponder : constant Unsigned_32 := 16#0020_0000#;
    --  The MAVLink mission protocol's state, and whether a session of it
    --  has started, from when on it takes the waypoints the executor reaches.
    Mission_State     : Adaflight.MAVLink_Mission.State;
@@ -1234,7 +1239,7 @@ package body Adaflight.STM32.Flight is
          VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
          Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True,
-         LED_Strip => Adaflight.Build_Features.LED_Strip,
+         LED_Strip => Adaflight.Build_Features.LED_Strip, Transponder => Adaflight.Build_Features.Transponder,
          Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.Build_Features.Compass,
          Pitot => Adaflight.Build_Features.Pitot, Optical_Flow => Adaflight.Build_Features.Optical_Flow,
          Dashboard => Adaflight.Build_Features.Dashboard,
@@ -1267,6 +1272,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.Feature_Dashboard := (Runtime_Features and Feature_Dashboard) /= 0;
+      Inputs.Feature_Transponder := (Runtime_Features and Feature_Transponder) /= 0;
       Inputs.Receiver :=
         (case Config.Rx_Config.Serialrx_Provider is
             when 8      => Adaflight.Task_Init.Jeti_ExBus,
@@ -1502,6 +1508,11 @@ package body Adaflight.STM32.Flight is
       end case;
       if Effects.Peripheral.Table_Init then
          VTX_Table_Stale := True;
+      end if;
+      if Effects.Peripheral.Transponder_Data and then Adaflight.Build_Features.Transponder
+        and then (Runtime_Features and Feature_Transponder) /= 0
+      then
+         Adaflight.STM32.Transponder.Update_Data (Config);
       end if;
       if Effects.Receiver.Reboot_Required then
          MSP_Reboot_Required := True;
@@ -5129,6 +5140,10 @@ package body Adaflight.STM32.Flight is
             end if;
          when Scheduler.LED_Strip =>
             Run_LED_Strip;
+         when Scheduler.Transponder =>
+            if Adaflight.Build_Features.Transponder then
+               Adaflight.STM32.Transponder.Run (Config, Before);
+            end if;
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
          when Scheduler.Dispatch =>
@@ -5383,6 +5398,9 @@ package body Adaflight.STM32.Flight is
             end if;
          end loop;
       end;
+      if Adaflight.Build_Features.Transponder and then (Runtime_Features and Feature_Transponder) /= 0 then
+         Adaflight.STM32.Transponder.Init (Config);
+      end if;
       Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
