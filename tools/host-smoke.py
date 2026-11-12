@@ -2333,12 +2333,17 @@ def main():
                 sock.close()
         if built("GPS"):
             rescue_failsafe_checks()
-        # Flight plan in the build: its build option, and its waypoint command in the command line and its help.
+        # Flight plan in the build: its boxes, its build option, and its waypoint command in the command line and
+        # its help.
         def flight_plan_build_checks():
             store = os.path.join(work, "plan.bin")
             proc, sock = start(image, store)
             try:
                 time.sleep(2.5)
+                if built("GPS"):
+                    ids = (msp(sock, 119) or b"") + (msp(sock, 119, bytes([1])) or b"")
+                    check("box ids offer the autopilot", 56 in ids, repr(list(ids)))
+                    check("box ids offer waypoint capture", 57 in ids, repr(list(ids)))
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
                 options = {int(w) for w in cli(sock, "options").split() if w.isdigit()}
