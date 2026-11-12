@@ -595,6 +595,8 @@ private
       Rescue_Available           => True,
       OSD_Feature                => (Features and Config_Fix.Feature_OSD) /= 0,
       Failsafe_GPS_Rescue        => F.Failsafe_Procedure = 2,
+      Flight_Plan                => False,
+      Rescue_Plan                => False,
       Rescue_Arming_Without_Fix  => Rescue.Allow_Arming_Without_Fix /= 0,
       Rescue_Min_Sats            => Natural (Rescue.Min_Sats),
       Altitude_Control           => True,

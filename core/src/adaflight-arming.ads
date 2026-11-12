@@ -119,6 +119,17 @@ package Adaflight.Arming with SPARK_Mode is
       --  course over ground for the heading.
       GPS_Home_Resets           : Small_Count := 0;
       GPS_Heading_Blocked       : Boolean := False;
+      --  What a pass asks of the flight plan executor: rescue plan
+      --  stagings, the rescue descent, engagements, updates and
+      --  disengagements, and the waypoint capture's switch with the flight
+      --  channels' validity.
+      Plan_Stage_Calls          : Small_Count := 0;
+      Rescue_Descent_Request    : Boolean := False;
+      Plan_Engages              : Small_Count := 0;
+      Plan_Updates              : Small_Count := 0;
+      Plan_Disengages           : Small_Count := 0;
+      Capture_Switch            : Boolean := False;
+      Capture_Channels_Valid    : Boolean := False;
       --  The persistent statistics' arm and disarm calls, and the OSD
       --  statistics screen.
       Stats_Arms                : Small_Count := 0;
@@ -195,6 +206,10 @@ package Adaflight.Arming with SPARK_Mode is
       Rescue_Available           : Boolean := True;
       OSD_Feature                : Boolean := False;
       Failsafe_GPS_Rescue        : Boolean := False;
+      --  A build with the flight plan, and one that flies the GPS rescue as
+      --  a staged rescue plan in place of the rescue flight mode.
+      Flight_Plan                : Boolean := False;
+      Rescue_Plan                : Boolean := False;
       Rescue_Arming_Without_Fix  : Boolean := False;
       Rescue_Min_Sats            : Natural range 0 .. 255 := 8;
       Altitude_Control           : Boolean := True;
@@ -257,6 +272,19 @@ package Adaflight.Arming with SPARK_Mode is
       CMS_In_Menu                : Boolean := False;
       CLI_Mode                   : Boolean := False;
       VTX_Can_Update             : Boolean := True;
+      --  For a build with the flight plan: the GPS sensor, valid flight
+      --  channels, the failsafe in its autopilot stage, whether a rescue
+      --  plan stages now, the mission aborted as read without a staging and
+      --  as read after one, and the rescue plan and the rescue descent in
+      --  flight as read before this pass's requests.
+      GPS_Sensor                 : Boolean := False;
+      Channels_Valid             : Boolean := True;
+      Failsafe_Autopilot         : Boolean := False;
+      Rescue_Plan_Stages         : Boolean := False;
+      Plan_Aborted               : Boolean := False;
+      Staged_Plan_Aborted        : Boolean := False;
+      Rescue_Plan_Active         : Boolean := False;
+      Rescue_Descent_Active      : Boolean := False;
       --  Whether the board may be in use as a USB joystick.
       Joystick_Active            : Boolean := False;
       --  The sensors the wing launch reads to tell whether the airframe is at
@@ -298,6 +326,10 @@ package Adaflight.Arming with SPARK_Mode is
       Last_Disarm_Us       : Time_Us := 0;
       Last_Disarm_Reason   : Disarm_Reason := Arming_Disabled;
       Throttle_Raised      : Boolean := False;
+      --  The rescue switch's staged rescue plan, and its descent once that
+      --  plan aborted.
+      Rescue_Switch_Staged     : Boolean := False;
+      Rescue_Switch_Descending : Boolean := False;
       Airmode_Active       : Boolean := False;
       Had_Rx               : Boolean := False;
       Armed_Beeper_On      : Boolean := False;
