@@ -3,9 +3,11 @@ with Interfaces;
 --  address 16#76#, answering its identity, the calibration and the raw
 --  readings of its datasheet's worked example, whose compensation gives
 --  2508 hundredths of a degree and 100653 pascal, and keeping the control
---  registers written to it. Every other address and bus answers nothing.
+--  registers written to it, and the OLED display's model when one is on.
+--  Every other address and bus answers nothing.
 with Ada.Environment_Variables;
 with Adaflight.Board;
+with Adaflight.Host_OLED;
 package body Adaflight.STM32.I2C is
    use type Interfaces.Unsigned_8;
    Running : array (Bus) of Boolean := (others => False);
@@ -40,7 +42,8 @@ package body Adaflight.STM32.I2C is
 
    function Answers (B : Bus; Address : Byte) return Boolean is
      (B = I2C1 and then Running (B)
-      and then ((Address = Chip_Address and then Adaflight.Board.Baro_BMP280) or else Address = Pitot_Address));
+      and then ((Address = Chip_Address and then Adaflight.Board.Baro_BMP280) or else Address = Pitot_Address
+                or else (Address = Adaflight.Host_OLED.Address and then Adaflight.Host_OLED.On)));
 
    procedure Read (B : Bus; Address : Byte; Register : Byte; Data : out Byte_Array; OK : out Boolean) is
    begin
@@ -78,7 +81,9 @@ package body Adaflight.STM32.I2C is
    procedure Write (B : Bus; Address : Byte; Register : Byte; Value : Byte; OK : out Boolean) is
    begin
       OK := Answers (B, Address);
-      if OK then
+      if OK and then Address = Adaflight.Host_OLED.Address then
+         Adaflight.Host_OLED.Write (Register, Value);
+      elsif OK then
          if Register = 16#F4# then
             Control := Value;
          elsif Register = 16#F5# then

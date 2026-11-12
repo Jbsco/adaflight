@@ -1,5 +1,6 @@
 with GNAT.OS_Lib;
 with Adaflight.Host_Arming_Log;
+with Adaflight.Host_OLED;
 with Adaflight.Host_Screen;
 with Adaflight.Host_Simulator;
 with Adaflight.Sim_FDM;
@@ -36,6 +37,7 @@ package body Adaflight.STM32.MCU is
    begin
       Adaflight.Host_Simulator.Poll;
       Adaflight.Host_Screen.Poll;
+      Adaflight.Host_OLED.Poll;
       Adaflight.Host_Arming_Log.Poll;
    end Simulator_Poll;
 

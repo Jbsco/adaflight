@@ -14478,3 +14478,24 @@ then shows a failsafe disarm at 150 s of uptime, seconds after arming.
 
 A pass now reads every waiting packet first and gives each an arrival time spread evenly from its last packet's
 to now. Host smoke pauses its image for 150 ms in each flown part of its flight plan checks.
+
+## D733. OLED dashboard on boards (2026-11-12)
+
+Betaflight's standard build for boards with 1024 KB of flash contains an OLED dashboard: a 128 by 64 display on an
+I2C bus that shows one page of board state at a time. Core code had its pages and its display driver, and no board
+ran them. Boards with 1024 KB now do, behind a Dashboard build feature and Betaflight's DISPLAY feature.
+
+A board starts that display at init with 200 ms before and after, draws a welcome page, resets its page cycle and
+enables it. Its task runs at 10 Hz. Stick commands stop and start that cycle. Readings come from flight state:
+arming, failsafe phase, receiver channels, both profiles, GPS solution, battery, sensors, attitude, task
+statistics, flight log device and debug values.
+
+Core pages ask for a display start before they draw, and read whether that start was answered. A board learns that
+answer first: a trial update on a copy of page state counts its starts, a board performs them, and a second update
+reads their last answer.
+
+Host image models that display on its first I2C bus and writes its memory to a screen file, read back through
+its font. That font moved from display driver to a package of its own for this.
+
+Two parts stay open. Betaflight registers this display with its menu system, and boards do not. Its GPS page shows
+a packet log, packet and error counts and satellite signals, which GPS units do not record yet.

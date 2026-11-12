@@ -29,6 +29,8 @@ with Adaflight.DShot_Bitbang;
 with Adaflight.DShot_Command;
 with Adaflight.LED_Strip;
 with Adaflight.LTM_Telemetry;
+with Adaflight.Dashboard;
+with Adaflight.STM32.Dashboard;
 with Adaflight.MAVLink;
 with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Mission;
@@ -464,6 +466,9 @@ package body Adaflight.STM32.Flight is
    function Plan_Built return Boolean is
      (Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing);
    Plan_Nav          : Adaflight.Flight_Plan_Nav.State;
+   --  The feature bit of the OLED dashboard, which the command line names
+   --  DISPLAY.
+   Feature_Dashboard : constant Unsigned_32 := 16#0002_0000#;
    --  The MAVLink mission protocol's state, and whether a session of it
    --  has started, from when on it takes the waypoints the executor reaches.
    Mission_State     : Adaflight.MAVLink_Mission.State;
@@ -580,6 +585,7 @@ package body Adaflight.STM32.Flight is
        Build.Altitude_Hold | Build.GPS | Build.Position_Hold => Adaflight.Build_Features.GPS,
        Build.Servos => Adaflight.Build_Features.Servos,
        Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
+       Build.Dashboard => Adaflight.Build_Features.Dashboard,
        Build.Mag => Adaflight.Build_Features.Compass,
        Build.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
        Build.LED_Strip => Adaflight.Build_Features.LED_Strip,
@@ -1231,6 +1237,7 @@ package body Adaflight.STM32.Flight is
          LED_Strip => Adaflight.Build_Features.LED_Strip,
          Baro => Adaflight.STM32.Baro.Detected, Mag => Adaflight.Build_Features.Compass,
          Pitot => Adaflight.Build_Features.Pitot, Optical_Flow => Adaflight.Build_Features.Optical_Flow,
+         Dashboard => Adaflight.Build_Features.Dashboard,
          Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0,
          Stack_Check => Adaflight.Build_Features.Stack_Check, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
@@ -1259,6 +1266,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
       Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
+      Inputs.Feature_Dashboard := (Runtime_Features and Feature_Dashboard) /= 0;
       Inputs.Receiver :=
         (case Config.Rx_Config.Serialrx_Provider is
             when 8      => Adaflight.Task_Init.Jeti_ExBus,
@@ -2717,6 +2725,12 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Control.Init (Config, Runtime_Features);
          end if;
       end loop;
+      if Step.Commands (Adaflight.Arming.Dashboard_Cycling_Off) then
+         Adaflight.STM32.Dashboard.Disable_Cycling;
+      end if;
+      if Step.Commands (Adaflight.Arming.Dashboard_Cycling_On) then
+         Adaflight.STM32.Dashboard.Enable_Cycling;
+      end if;
       if Step.Trim_Roll /= 0 or else Step.Trim_Pitch /= 0 then
          Trims (0) := Integer_16 (Integer'Max (-300, Integer'Min (300, Integer (Trims (0)) + Step.Trim_Roll)));
          Trims (1) := Integer_16 (Integer'Max (-300, Integer'Min (300, Integer (Trims (1)) + Step.Trim_Pitch)));
@@ -4199,6 +4213,99 @@ package body Adaflight.STM32.Flight is
       end if;
    end Serve_MAVLink_Requests;
 
+   --  What the dashboard's pages read. The GPS page's packet count, error
+   --  count, packet log and satellite signals stay empty: the GPS units do
+   --  not record them yet.
+   function Dashboard_Readings return Adaflight.Dashboard.Readings is
+      package DB renames Adaflight.Dashboard;
+      use type Adaflight.Battery.Voltage_Source;
+      use type Adaflight.Battery.Current_Source;
+      G       : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      PID_Idx : constant Natural := Natural'Min (Config.Pid_Profiles'Last, Natural (Config.System_Config.Pid_Profile_Index));
+      Rate_Idx : constant Natural :=
+        Natural'Min (Config.Control_Rate_Profiles'Last, Natural (Config.System_Config.Active_Rate_Profile));
+      Rates   : Adaflight.Config_Groups.Control_Rate_Config_Record renames Config.Control_Rate_Profiles (Rate_Idx);
+      Field   : constant Adaflight.Vectors.Vector3 := Adaflight.STM32.Compass.Field;
+      Working : Boolean;
+      Full    : Boolean;
+      Log     : Integer_32;
+      R       : DB.Readings;
+
+      function Text (S : String) return DB.Identity is
+         I : DB.Identity;
+      begin
+         I.Length := Natural'Min (I.Data'Length, S'Length);
+         I.Data (1 .. I.Length) := S (S'First .. S'First + I.Length - 1);
+         return I;
+      end Text;
+
+      function Held (V : Float) return Float is (Float'Max (-1.0e6, Float'Min (1.0e6, V)));
+   begin
+      R.Armed := Adaflight.STM32.Pilot.Armed;
+      R.Phase := Adaflight.STM32.Radio.Failsafe_Phase;
+      R.Rx_Signal := Adaflight.STM32.Radio.Receiving;
+      R.Rx_Valid := Adaflight.STM32.Radio.Flight_Channels_Valid;
+      R.GPS_Enabled := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
+      R.Acc_On := Gyro_Report.Acc_Found;
+      R.Gyro_On := Selection.Found;
+      R.Mag_On := Adaflight.STM32.Compass.Detected;
+      R.Channel_Count := Natural'Min (DB.Max_Channels, Adaflight.STM32.Radio.Channel_Count);
+      for I in 0 .. R.Channel_Count - 1 loop
+         R.Channels (I) := Held (Adaflight.STM32.Radio.Channel (Adaflight.Receiver.Channel (I)));
+      end loop;
+      R.PID_Index := Unsigned_8 (PID_Idx);
+      R.Rate_Index := Unsigned_8 (Rate_Idx);
+      for A in 0 .. 2 loop
+         R.P_Gains (A) := Config.Pid_Profiles (PID_Idx).Pid (A).P;
+         R.I_Gains (A) := Config.Pid_Profiles (PID_Idx).Pid (A).I;
+         R.D_Gains (A) := Config.Pid_Profiles (PID_Idx).Pid (A).D;
+         R.RC_Rates (A) := Rates.Rc_Rates (A);
+         R.Super_Rates (A) := Rates.Rates (A);
+         R.Expos (A) := Rates.Rc_Expo (A);
+      end loop;
+      R.Satellites := G.Satellites;
+      R.Fix := G.Fix;
+      R.Latitude := G.Latitude;
+      R.Longitude := G.Longitude;
+      R.Ground_Speed := G.Ground_Speed;
+      R.Ground_Course := G.Ground_Course;
+      R.Voltage_Meter := Bat_Settings.Voltage_Meter /= Adaflight.Battery.None;
+      R.Current_Meter := Bat_Settings.Current_Meter /= Adaflight.Battery.None;
+      R.Voltage := Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered));
+      R.Cells := Unsigned_8 (Natural'Min (255, Bat.Cells));
+      R.Percentage := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
+      R.Amperage := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage)));
+      R.MAh_Drawn := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn)));
+      R.Acc := (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z));
+      R.Gyro := (Held (Gyro_State.Filtered (Adaflight.Axes.Roll)), Held (Gyro_State.Filtered (Adaflight.Axes.Pitch)),
+                 Held (Gyro_State.Filtered (Adaflight.Axes.Yaw)));
+      R.Mag := (Held (Field.X), Held (Field.Y), Held (Field.Z));
+      R.Roll := Integer_16 (Att_State.Euler.Roll);
+      R.Pitch := Integer_16 (Att_State.Euler.Pitch);
+      R.Yaw := Integer_16 (Att_State.Euler.Yaw);
+      for Id in Scheduler.Task_Id loop
+         declare
+            Info : constant Scheduler.Task_Info := Scheduler.Info (Sched, Id);
+         begin
+            R.Tasks (Id) :=
+              (Enabled => Info.Enabled, Max_Exec_Us => Info.Max_Exec_Us, Average_Exec_10th => Info.Average_Exec_10th,
+               Max_Load_10th => Info.Max_Load_10th, Average_Load_10th => Info.Average_Load_10th);
+         end;
+      end loop;
+      Adaflight.STM32.Blackbox.Device_State (Working, Full, Log);
+      R.Blackbox_Working := Working;
+      R.Blackbox_Device := Config.Blackbox_Config.Device;
+      R.Log_File := Integer_8 (Integer_32'Max (-128, Integer_32'Min (127, Log)));
+      for I in R.Debug_Values_In'Range loop
+         R.Debug_Values_In (I) := Adaflight.STM32.Debug_Values.State.Data (I);
+      end loop;
+      R.Firmware := Text ("Adaflight");
+      R.Version := Text (Version_Text);
+      R.Revision := Text ("0000000");
+      R.Target := Text (Adaflight.Board.MCU_Name);
+      return R;
+   end Dashboard_Readings;
+
    --  A build with MAVLink telemetry and the flight plan runs the mission
    --  protocol behind the command dispatch. A function, so that a build
    --  without it folds its uses and leaves the protocol out.
@@ -5026,6 +5133,8 @@ package body Adaflight.STM32.Flight is
             end;
          when Scheduler.Stack_Check =>
             Env.Status.Stack_Used := Adaflight.STM32.Stack_Check.Used;
+         when Scheduler.Dashboard =>
+            Adaflight.STM32.Dashboard.Update (Unsigned_32 (Before), Dashboard_Readings);
          when others =>
             null;
       end case;
@@ -5318,6 +5427,11 @@ package body Adaflight.STM32.Flight is
       Rescue_Settings := Adaflight.Config_Runtime.GPS_Rescue_Settings_Of
         (Config.Gps_Rescue_Config, Config.Autopilot_Config, Config.Gps_Config);
       Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
+      if Adaflight.Build_Features.Dashboard and then (Runtime_Features and Feature_Dashboard) /= 0 then
+         Adaflight.STM32.Dashboard.Init (Config, Adaflight.STM32.Time.Micros, Dashboard_Readings);
+         Adaflight.STM32.Dashboard.Reset_Cycling;
+         Adaflight.STM32.Dashboard.Enable_Cycling;
+      end if;
       declare
          Hub_Settings : constant Adaflight.FrSky_Hub_Telemetry.Settings :=
            Adaflight.Config_Runtime.FrSky_Hub_Settings_Of

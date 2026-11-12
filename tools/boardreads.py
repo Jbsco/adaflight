@@ -61,7 +61,6 @@ OPEN = {
     "Effects.Font.Size": "the boards write whole characters",
     "Effects.Passthrough_Mode": "not served: an ESC's serial link",
     "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
-    "Inputs.Feature_Dashboard": "not served: no board runs the dashboard",
     "Inputs.Feature_Transponder": "not served: no board drives a transponder",
     "Inputs.DroneCAN_Initialised": "no board build has DroneCAN",
 }
