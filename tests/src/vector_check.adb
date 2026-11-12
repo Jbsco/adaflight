@@ -29934,7 +29934,8 @@ procedure Vector_Check is
    --  The build the settings and defaults files name, and the settings each
    --  build's file listed.
    Settings_Wing  : Boolean := False;
-   Settings_Count : array (Boolean) of Natural := (others => 0);
+   Settings_Plan  : Boolean := True;
+   Settings_Count : array (Boolean, Boolean) of Natural := (others => (others => 0));
 
    --  The settings table's position of a build's lookup table, from that
    --  build's own position of it.
@@ -29979,7 +29980,7 @@ procedure Vector_Check is
    begin
       if Str (1) = "setting" then
          while Settings_Seen <= Setting'Pos (Setting'Last)
-           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing)
+           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing, Settings_Plan)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -29994,7 +29995,7 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            Settings_Count (Settings_Wing) := Settings_Count (Settings_Wing) + 1;
+            Settings_Count (Settings_Wing, Settings_Plan) := Settings_Count (Settings_Wing, Settings_Plan) + 1;
             Record_Text ("settings.name", Str (2), Name (S));
             Record_Text ("settings.type", Str (3), Trim (Kind_Names (D.Kind)));
             Record_Text ("settings.scope", Str (4), Trim (Scope_Names (D.Where)));
@@ -30034,7 +30035,7 @@ procedure Vector_Check is
       Start : constant Configuration := (if Settings_Wing then Wing_Defaults else Defaults);
    begin
       while Defaults_Seen <= Setting'Pos (Setting'Last)
-        and then not In_Build (Setting'Val (Defaults_Seen), Settings_Wing)
+        and then not In_Build (Setting'Val (Defaults_Seen), Settings_Wing, Settings_Plan)
       loop
          Defaults_Seen := Defaults_Seen + 1;
       end loop;
@@ -30090,7 +30091,7 @@ procedure Vector_Check is
       Pos : Natural := 0;
    begin
       for S in Setting loop
-         if In_Build (S, False) and then Describe (S).How /= Text then
+         if In_Build (S, False, True) and then Describe (S).How /= Text then
             for P in 0 .. Profile_Count (S) - 1 loop
                for K in 0 .. Element_Count (S) - 1 loop
                   Sum := Sum + Interfaces.Unsigned_64 ((Pos + 1) * 31 + P * 7 + K)
@@ -30098,7 +30099,7 @@ procedure Vector_Check is
                end loop;
             end loop;
          end if;
-         if In_Build (S, False) then
+         if In_Build (S, False, True) then
             Pos := Pos + 1;
          end if;
       end loop;
@@ -41262,8 +41263,11 @@ procedure Vector_Check is
                   Check_CX10_Line;
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
-               elsif Kind = "settings" or else Kind = "settingswing" then
-                  Settings_Wing := Kind = "settingswing";
+               elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
+                 or else Kind = "settingswingnoplan"
+               then
+                  Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
+                  Settings_Plan := Kind = "settings" or else Kind = "settingswing";
                   Check_Settings_Line;
                elsif Kind = "confgroups" or else Kind = "confgroupswing" then
                   Settings_Wing := Kind = "confgroupswing";
@@ -41634,7 +41638,12 @@ begin
    Defaults_Seen := 0;
    Run (Dir & "/settings-wing.csv", "settingswing");
    Run (Dir & "/confgroups-wing.csv", "confgroupswing");
+   Settings_Seen := 0;
+   Run (Dir & "/settings-noplan.csv", "settingsnoplan");
+   Settings_Seen := 0;
+   Run (Dir & "/settings-wing-noplan.csv", "settingswingnoplan");
    Settings_Wing := False;
+   Settings_Plan := True;
    Run (Dir & "/confset.csv", "confset");
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
@@ -41711,19 +41720,22 @@ begin
    Run (Dir & "/cligyroregs.csv", "cliset");
    Run (Dir & "/cliflash.csv", "cliset");
    for W in Boolean loop
-      declare
-         Expected : Natural := 0;
-      begin
-         for S in Adaflight.Settings_Table.Setting loop
-            if Adaflight.Settings_Table.In_Build (S, W) then
-               Expected := Expected + 1;
+      for P in Boolean loop
+         declare
+            Expected : Natural := 0;
+         begin
+            for S in Adaflight.Settings_Table.Setting loop
+               if Adaflight.Settings_Table.In_Build (S, W, P) then
+                  Expected := Expected + 1;
+               end if;
+            end loop;
+            if Settings_Count (W, P) /= Expected then
+               Put_Line
+                 ("settings: the vectors hold" & Settings_Count (W, P)'Image & " settings of" & Expected'Image);
+               Failures := Failures + 1;
             end if;
-         end loop;
-         if Settings_Count (W) /= Expected then
-            Put_Line ("settings: the vectors hold" & Settings_Count (W)'Image & " settings of" & Expected'Image);
-            Failures := Failures + 1;
-         end if;
-      end;
+         end;
+      end loop;
    end loop;
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");

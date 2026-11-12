@@ -14408,3 +14408,16 @@ executor's waypoint with distance, bearing and time to it, and a trail flown sin
 that trail from GPS position and home, as Betaflight does.
 
 Waypoints and trail go straight into render inputs, so neither costs a second copy in RAM.
+
+## D728. Flight plan settings behind its build feature (2026-11-11)
+
+A Betaflight build without a flight plan lists no waypoint element positions, no map settings and no settings of
+waypoint navigation, landing, L1 guidance or geofence. Its command line answers those names as unknown.
+
+Core code now marks those settings in its settings table. That table's generator reads Betaflight builds of both
+airframes, each with a flight plan and without one, and names every setting that only a build with a flight plan
+lists. A build test over that table takes a flight plan flag, and its default is an image's build switch. So `get`,
+`set`, `dump`, `diff` and MSP setting messages by name follow that switch.
+
+Lookup tables stay unchanged: Betaflight keeps yaw mode, link loss and geofence tables in every multirotor build.
+Stored values keep their place in configuration.
