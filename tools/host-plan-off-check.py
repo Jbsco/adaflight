@@ -124,6 +124,11 @@ def main() -> int:
                      len(ids) > 30 and 3 in ids and 11 in ids, repr(list(ids)))
             hs.check("box ids without the flight plan leave out the autopilot", 56 not in ids, repr(list(ids)))
             hs.check("box ids without the flight plan leave out waypoint capture", 57 not in ids, repr(list(ids)))
+            kept = hs.msp2(sock, 0x3010, b"ap_max_angle")
+            hs.check("setting outside the flight plan reads by name over MSP there",
+                     kept is not None and kept.startswith(b"ap_max_angle = "), repr(kept))
+            hs.check("setting of the flight plan has no name over MSP there",
+                     hs.msp2(sock, 0x3010, b"ap_l1_enable") is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             options = {int(w) for w in hs.cli(sock, "options").split() if w.isdigit()}
@@ -138,6 +143,16 @@ def main() -> int:
             hs.check("dump has no waypoint section there",
                      any(line.startswith("aux ") for line in lines)
                      and not any(line.startswith("waypoint") for line in lines), repr(lines[-3:]))
+            names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
+            plan = [n for n in names
+                    if n.startswith(("osd_wp_", "osd_nav_map", "ap_waypoint", "ap_nav_", "ap_l1_", "ap_landing_spiral"))
+                    or n in ("ap_yaw_mode", "ap_rx_loss_policy", "ap_geofence_action")]
+            hs.check("dump has no setting of the flight plan there",
+                     "ap_max_angle" in names and "osd_pos_hold_ready_pos" in names and not plan, repr(plan[:4]))
+            text = hs.cli(sock, "get osd_wp")
+            hs.check("get finds no waypoint element position there", "INVALID NAME" in text, text[-120:])
+            text = hs.cli(sock, "set ap_l1_enable = ON")
+            hs.check("set refuses a setting of the flight plan there", "INVALID NAME" in text, text[-120:])
         finally:
             hs.stop(proc)
             sock.close()

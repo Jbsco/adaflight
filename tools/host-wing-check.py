@@ -38,6 +38,9 @@ def main() -> int:
             hs.check("wing command line lists launch settings", "launch_throttle = 80" in text, text[-120:])
             text = hs.cli(sock, "get gps_rescue_return_alt")
             hs.check("wing command line leaves out multirotor rescue settings", "INVALID NAME" in text, text[-120:])
+            text = hs.cli(sock, "get osd_wp")
+            hs.check("wing build without the flight plan lists no waypoint element position", "INVALID NAME" in text,
+                     text[-120:])
             text = hs.cli(sock, "set tpa_low_rate = -128")
             hs.check("wing command line takes wing TPA limits", "tpa_low_rate set to -128" in text, text[-120:])
             text = hs.cli(sock, "status")

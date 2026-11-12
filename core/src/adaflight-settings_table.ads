@@ -2,6 +2,7 @@
 --  mode with its limits, the parameter group that holds it, and the
 --  lookup tables of value names. Generated from the settings oracle.
 with Interfaces;
+with Adaflight.Plan_Build;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
@@ -227,8 +228,9 @@ package Adaflight.Settings_Table with SPARK_Mode is
 
    function Describe (S : Setting; Wing : Boolean := False) return Info;
 
-   --  Whether the multirotor or the wing build has a setting.
-   function In_Build (S : Setting; Wing : Boolean) return Boolean;
+   --  Whether the multirotor or the wing build has a setting, with the flight plan or without it.
+   function In_Build
+     (S : Setting; Wing : Boolean; Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table.
    function Table_In_Build (T : Lookup_Table; Wing : Boolean) return Boolean;

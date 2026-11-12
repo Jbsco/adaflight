@@ -2601,8 +2601,14 @@ package body Adaflight.Settings_Table with SPARK_Mode is
      (if Wing then (case S is when Tpa_Low_Rate => 15, when others => Infos (S).Limits)
       else Infos (S).Limits);
 
-   function In_Build (S : Setting; Wing : Boolean) return Boolean is
-     (if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor);
+   --  Whether a setting exists only in a build with the flight plan.
+   function Needs_Flight_Plan (S : Setting) return Boolean is
+     (S in Osd_Wp_Number_Pos .. Osd_Nav_Map_Min_Scale_M | Ap_Waypoint_Arrival_Radius .. Ap_Geofence_Action);
+
+   function In_Build
+     (S : Setting; Wing : Boolean; Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled) return Boolean is
+     ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
+      and then (Flight_Plan or else not Needs_Flight_Plan (S)));
 
    function Table_In_Build (T : Lookup_Table; Wing : Boolean) return Boolean is
      (case T is
