@@ -305,7 +305,10 @@ package body Adaflight.STM32.Flight is
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
+   --  The scheduler's state lives in the core coupled memory too. Its init
+   --  sets all of it.
    Sched    : Scheduler.State;
+   pragma Linker_Section (Sched, ".bss.ccm");
    Session  : Terminal.Session;
    Into     : CLI.Output;
    Changes  : CLI.Effects;
