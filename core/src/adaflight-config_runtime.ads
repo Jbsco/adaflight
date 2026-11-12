@@ -104,7 +104,8 @@ package Adaflight.Config_Runtime with SPARK_Mode is
 
    --  The failsafe settings from the stored failsafe group and the
    --  autopilot's loss policy.
-   function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings;
+   function Failsafe_Settings_Of
+     (F : Failsafe_Config_Record; A : Autopilot_Config_Record; Rescue_Plan : Boolean) return Failsafe.Settings;
 
    --  The receiver settings from the stored receiver, channel range,
    --  channel failsafe, 3D and failsafe groups, the features in use, which
@@ -604,14 +605,16 @@ private
       Inflight_Acc_Cal           => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0,
       Camera_Control             => False);
 
-   function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
+   function Failsafe_Settings_Of
+     (F : Failsafe_Config_Record; A : Autopilot_Config_Record; Rescue_Plan : Boolean) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),
       Signal_Delay       => Held (Integer (F.Failsafe_Delay), 1, 200),
       Landing_Time       => Held (Integer (F.Failsafe_Landing_Time), 0, 250),
       Switch             => Failsafe.Switch_Mode'Val (Code (F.Failsafe_Switch_Mode, 2)),
       Action             => Failsafe.Procedure_Kind'Val (Code (F.Failsafe_Procedure, 2)),
       Recovery_Delay     => Held (Integer (F.Failsafe_Recovery_Delay), 1, 200),
-      Policy             => Failsafe.Loss_Policy'Val (Code (A.Rx_Loss_Policy, 2)));
+      Policy             => Failsafe.Loss_Policy'Val (Code (A.Rx_Loss_Policy, 2)),
+      Rescue_Plan        => Rescue_Plan);
 
    --  The receiver source the features name, in the setup's order of
    --  precedence; the UDP source needs a build the boards do not have.

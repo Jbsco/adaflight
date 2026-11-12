@@ -14298,3 +14298,18 @@ its barometer package gains a pressure reading for that.
 
 Host smoke configures those three sensors and expects its barometer model's temperature and pressure from them.
 Under a simulator link it expects a virtual barometer's 1600 m from its altitude sensor.
+
+## D720. Failsafe GPS rescue on boards without rescue plans (2026-11-11)
+
+Failsafe code ported Betaflight's build with its flight plan executor, where a GPS rescue failsafe stages a rescue
+plan. Standard board builds lack that executor, and so do adaflight's boards. Their failsafe found no plan
+possible and fell back to a landing. Its rescue flight mode then flew under a landing phase, which disarms after
+its landing time and ends as soon as a link returns.
+
+Failsafe code now knows both builds. Without rescue plans a GPS rescue failsafe turns its rescue flight mode on
+when a rescue is configured, has no landing timer, and ends at a stick movement after its link returned. Boards
+select that build and pass stick activity and whether a rescue is configured.
+
+Failsafe vectors now come from both builds of Betaflight's failsafe. Host smoke loses its stick packets while
+armed under a simulator link. It expects a rescue mode without a failsafe mode, still on past its landing time and
+after those packets return, and off after a stick movement.

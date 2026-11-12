@@ -147,9 +147,10 @@ package body Adaflight.Failsafe with SPARK_Mode is
          end if;
       end Count_Event;
 
-      --  The GPS rescue asks for the executor's rescue plan and waits in the
-      --  autopilot stage for its engagement; without a possible plan it
-      --  lands.
+      --  With rescue plans, the GPS rescue asks for the executor's plan and
+      --  waits in the autopilot stage for its engagement, and lands without a
+      --  possible plan. Without them it turns the rescue flight mode on when
+      --  the rescue is configured, and lands otherwise.
       procedure Start_Procedure (Action : Procedure_Kind) is
       begin
          case Action is
@@ -161,12 +162,21 @@ package body Adaflight.Failsafe with SPARK_Mode is
                S.Failsafe_Mode := True;
                S.Current := Landed;
             when GPS_Rescue =>
-               S.Failsafe_Mode := True;
-               Stage_Rescue := True;
-               if In_Flight.Rescue_Plan_Possible then
-                  S.Current := Autopilot;
-                  S.Autopilot_Engage_Deadline := Now + Autopilot_Engage_Grace;
+               if C.Rescue_Plan then
+                  S.Failsafe_Mode := True;
+                  Stage_Rescue := True;
+                  if In_Flight.Rescue_Plan_Possible then
+                     S.Current := Autopilot;
+                     S.Autopilot_Engage_Deadline := Now + Autopilot_Engage_Grace;
+                  else
+                     S.Current := Landing;
+                     S.Landing_Should_Be_Finished_At := Now + Time_Ms (C.Landing_Time) * Millis_Per_Second;
+                  end if;
+               elsif In_Flight.Rescue_Configured then
+                  S.Rescue_Mode := True;
+                  S.Current := GPS_Rescue;
                else
+                  S.Failsafe_Mode := True;
                   S.Current := Landing;
                   S.Landing_Should_Be_Finished_At := Now + Time_Ms (C.Landing_Time) * Millis_Per_Second;
                end if;
@@ -279,6 +289,7 @@ package body Adaflight.Failsafe with SPARK_Mode is
                S.Current := Idle;
                S.Active := False;
                S.Failsafe_Mode := False;
+               S.Rescue_Mode := False;
                S.Arming_Disabled := False;
                Reprocess := True;
             when GPS_Rescue =>

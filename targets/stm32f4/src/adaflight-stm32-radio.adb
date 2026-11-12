@@ -319,7 +319,8 @@ package body Adaflight.STM32.Radio is
       if Rx_Settings.Source in Adaflight.Receiver.MSP then
          Rx_Settings.Reported_Channels := Adaflight.MSP_Receiver.Channel_Count;
       end if;
-      FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
+      FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of
+        (Config.Failsafe_Config, Config.Autopilot_Config, Rescue_Plan => False);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | SUMH_Provider
