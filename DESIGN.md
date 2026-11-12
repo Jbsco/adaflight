@@ -14537,3 +14537,31 @@ Core menu navigation needed no change, and menu vectors already open menus on di
 
 A smoke check opens a menu with a stick gesture, moves it to that display with a second one, waits past a page
 period and moves it on with a third. Pages then return.
+
+## D736. IR transponder on boards (2026-11-12)
+
+Betaflight's standard build for boards with 1024 KB of flash drives an infrared race transponder from a timer
+channel. Core code had its three codings, its repeat schedule and its MSP messages, and no board sent anything.
+Boards with 1024 KB now do, behind a Transponder build feature and Betaflight's TRANSPONDER feature.
+
+Core code now picks a coding's timer values from a timer's clock: a prescaler for its counting rate, a period for
+its carrier, and half that period as a toggle. A transponder oracle prints those values for drawn clocks.
+
+A board takes a transponder pin's timer channel through timer pin map owners and a DMA stream from that map's
+option. It skips a stream that motors, an LED strip or analog inputs use. A task run starts one transmission when
+a coding's schedule asks: DMA writes one compare value per toggle. Toggles are sixteen bits wide, half of
+Betaflight's buffer, since an STM32F405 had no main RAM left for more.
+
+Making that room took two more changes. A dashboard's operation list went from 256 entries to 192, above a receiver
+page's 164. Scheduler state moved to core coupled memory.
+
+An MSP write for another provider sets that timer up again for its coding, where Betaflight keeps a boot
+provider's coding until a restart (F195). A board that started with no provider stays off until a restart, as
+Betaflight does. A code load waits for a running transmission, for 30 ms at most.
+
+Host image logs each transmission with its timer values and toggles. A smoke check reads a stored ILAP code from
+that log, writes an ERLT code over MSP and reads it back in ERLT coding, then returns to ILAP. It ends with no
+provider: sending stops, and stays stopped after a restart and a new code.
+
+Two parts stay open. Betaflight turns its transponder off in its failure mode, which boards do not have. A DMA
+table in a command line lists no transponder stream yet.

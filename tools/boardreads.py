@@ -46,7 +46,6 @@ OPEN = {
     "Out_Views.OSD.Frame_Buffer_OSD": ALWAYS,
     "Effects.Handled": "the caller reads the result instead",
     "Effects.Receiver.Adjustments_Reset": "the adjustment pass rebuilds its lists when the stored ranges change",
-    "Effects.Peripheral.Transponder_Data": "no board has a transponder",
     "Effects.OSD.Profile": "the boards configure the OSD from the stored profile on Profile_Change",
     "Effects.OSD.Save": FOLDED,
     "Effects.OSD.Reboot": FOLDED,
@@ -61,7 +60,6 @@ OPEN = {
     "Effects.Font.Size": "the boards write whole characters",
     "Effects.Passthrough_Mode": "not served: an ESC's serial link",
     "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
-    "Inputs.Feature_Transponder": "not served: no board drives a transponder",
     "Inputs.DroneCAN_Initialised": "no board build has DroneCAN",
 }
 

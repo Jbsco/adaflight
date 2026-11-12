@@ -39,6 +39,7 @@ FEATURES = [
     ("Menus", 1024, "The menu system on the OSD, the display port and the CRSF transmitter's screen."),
     ("Gimbal", 1024, "The gimbal control on a UART."),
     ("LED_Strip", 1024, "The LED strip on a timer."),
+    ("Transponder", 1024, "The race transponder on a timer."),
     ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "

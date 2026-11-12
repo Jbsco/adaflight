@@ -33,6 +33,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.I2C") use "adaflight-host-i2c.adb";
       for Body ("Adaflight.STM32.Gyro") use "adaflight-host-gyro.adb";
       for Body ("Adaflight.STM32.LED_Strip") use "adaflight-host-led_strip.adb";
+      for Body ("Adaflight.STM32.Transponder_Output") use "adaflight-host-transponder_output.adb";
       for Body ("Adaflight.STM32.MCU") use "adaflight-host-mcu.adb";
       for Body ("Adaflight.STM32.Motors") use "adaflight-host-motors.adb";
       for Body ("Adaflight.STM32.Servos") use "adaflight-host-servos.adb";
