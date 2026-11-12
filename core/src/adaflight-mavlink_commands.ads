@@ -7,7 +7,9 @@
 --  the home position and reboots. Arming over the link, an option the
 --  default build leaves out, answers unsupported. Disarming, the mode
 --  overrides and the home position go out as requests in call order. A
---  reboot goes out at the end of the pass that accepted it.
+--  reboot goes out at the end of the pass that accepted it. A build with the
+--  mission protocol drains in steps: a step ends at a message the dispatch
+--  leaves to that protocol, so the caller handles it in arrival order.
 with Interfaces;
 with Adaflight.MAVLink;
 with Adaflight.MAVLink_Frames;
@@ -120,5 +122,50 @@ package Adaflight.MAVLink_Commands with SPARK_Mode is
       Rx  : in out Adaflight.MAVLink.State;
       O   : out Output;
       R   : out Requests);
+
+   --  Whether the dispatch takes a message: a heartbeat, which it ignores,
+   --  or one it answers or executes.
+   function Dispatched (Msg : Adaflight.MAVLink.Message) return Boolean;
+
+   --  A step of the owned port's drain: bytes through the parser until the
+   --  budget or the waiting bytes end, each complete frame dispatched. A
+   --  frame the dispatch does not take ends the step and comes back with
+   --  Other set; the caller handles it and calls again with the bytes and
+   --  the budget left. Replies and requests add to those given.
+   procedure Process_Port_Step
+     (S        : in out State;
+      T        : in out Adaflight.MAVLink_Telemetry.State;
+      TC       : Adaflight.MAVLink_Telemetry.Settings;
+      C        : Settings;
+      Inp      : Inputs;
+      Waiting  : Adaflight.MAVLink_Frames.Byte_Buffer;
+      Budget   : Natural;
+      Consumed : out Natural;
+      O        : in out Output;
+      R        : in out Requests;
+      Other    : out Boolean;
+      Msg      : out Adaflight.MAVLink.Message)
+     with Post => Consumed <= Natural'Min (Budget, Waiting'Length)
+                  and then (if not Other then Consumed = Natural'Min (Budget, Waiting'Length));
+
+   --  A step of the receiver's queue likewise: messages popped and
+   --  dispatched until the budget or the queue ends, or until one the
+   --  dispatch does not take. The budget counts the messages popped.
+   procedure Process_Queue_Step
+     (S      : in out State;
+      T      : in out Adaflight.MAVLink_Telemetry.State;
+      TC     : Adaflight.MAVLink_Telemetry.Settings;
+      C      : Settings;
+      Inp    : Inputs;
+      Rx     : in out Adaflight.MAVLink.State;
+      Budget : in out Natural;
+      O      : in out Output;
+      R      : in out Requests;
+      Other  : out Boolean;
+      Msg    : out Adaflight.MAVLink.Message)
+     with Post => Budget <= Budget'Old;
+
+   --  The reboot a drain accepted, once its last step has ended.
+   procedure End_Drain (S : in out State; R : in out Requests);
 
 end Adaflight.MAVLink_Commands;

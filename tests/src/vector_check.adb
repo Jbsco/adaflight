@@ -34695,6 +34695,327 @@ procedure Vector_Check is
       end if;
    end Check_MAVLink_Mission_Line;
 
+   --  The port with the mission protocol behind the command dispatch: the
+   --  command unit's state, the mission's, and the stored plan.
+   MP_Seq       : Integer_64 := -1;
+   MP_Queue     : Boolean := False;
+   MP_State     : MVC.State;
+   MP_Config    : MVC.Settings;
+   MP_Link      : Adaflight.MAVLink_Telemetry.State;
+   MP_Link_Conf : Adaflight.MAVLink_Telemetry.Settings;
+   MP_Rx        : Adaflight.MAVLink.State;
+   MP_Receiver  : Adaflight.Receiver.State;
+   MP_Fifo      : Adaflight.MAVLink_Frames.Byte_Buffer (1 .. 8192) := (others => 0);
+   MP_Waiting   : Natural := 0;
+   MP_Mission   : Adaflight.MAVLink_Mission.State;
+   MP_Plan      : Adaflight.Flight_Plan.Plan;
+   MP_Inputs    : Adaflight.MAVLink_Mission.Inputs;
+
+   procedure MP_Record_State (Name : String; F : Positive) is
+   begin
+      for M in MVT.Output_Message loop
+         Record_Int
+           (Name & ".interval", Int (F + MVT.Output_Message'Pos (M)), Integer_64 (MP_Link.Streams (M).Interval_Ms));
+      end loop;
+      Record_Int (Name & ".seq", Int (F + 10), Integer_64 (MP_Link.Tx_Seq));
+      Record_Int
+        (Name & ".parse_state", Int (F + 11), Adaflight.MAVLink.Parse_State'Pos (MP_State.Port.Status.State));
+      Record_Int (Name & ".packet_idx", Int (F + 12), Integer_64 (MP_State.Port.Status.Packet_Idx));
+      Record_Int (Name & ".pending", Int (F + 13), Boolean'Pos (MP_State.Reboot_Pending));
+      Record_Int (Name & ".bootloader", Int (F + 14), Boolean'Pos (MP_State.To_Bootloader));
+   end MP_Record_State;
+
+   --  A pass as a board runs it: the drain in steps, each ending at a
+   --  message the command dispatch leaves to the mission protocol, the
+   --  requests of a step served before that message is handled, then the
+   --  reboot the drain accepted and the mission update.
+   procedure Check_MAVLink_Port_Line is
+      package MIS renames Adaflight.MAVLink_Mission;
+      Name : constant String := Str (1);
+
+      --  FNV-1a over the stored items, as the oracle hashes them.
+      function Hash (Fence : Boolean) return MIS.Unsigned_32 is
+         H : MIS.Unsigned_32 := 2166136261;
+         procedure Put (V : MIS.Unsigned_32; Bytes : Positive) is
+            W : MIS.Unsigned_32 := V;
+         begin
+            for K in 1 .. Bytes loop
+               H := (H xor (W and 16#FF#)) * 16777619;
+               W := Interfaces.Shift_Right (W, 8);
+            end loop;
+         end Put;
+         function Bits (V : Interfaces.Integer_32) return MIS.Unsigned_32 is (MIS.Unsigned_32'Mod (V));
+      begin
+         if Fence then
+            for F of MP_Mission.Fence loop
+               Put (MIS.Unsigned_32 (F.Command), 2);
+               Put (Bits (F.Latitude), 4);
+               Put (Bits (F.Longitude), 4);
+               Put (F.Param1_Bits, 4);
+            end loop;
+         else
+            for W of MP_Plan.Waypoints loop
+               Put (Bits (W.Latitude), 4);
+               Put (Bits (W.Longitude), 4);
+               Put (Bits (W.Altitude), 4);
+               Put (MIS.Unsigned_32 (W.Speed), 2);
+               Put (MIS.Unsigned_32 (W.Duration_Ds), 2);
+               Put (MIS.Unsigned_32 (W.Vert_Rate), 2);
+               Put (MIS.Unsigned_32 (W.Kind), 1);
+               Put (MIS.Unsigned_32 (W.Pattern), 1);
+               Put (MIS.Unsigned_32 (W.Yaw_Behaviour), 1);
+            end loop;
+         end if;
+         return H;
+      end Hash;
+   begin
+      if Name = "mqinit" then
+         MP_Seq := Int (2);
+         MP_Queue := Int (3) = 1;
+         MP_State := (others => <>);
+         MP_Config := (others => <>);
+         MP_Link := (others => <>);
+         MP_Link_Conf := (others => <>);
+         MP_Waiting := 0;
+         for K in 0 .. 2 loop
+            MP_Config.UID (K) := Interfaces.Unsigned_32 (Int (4 + K));
+         end loop;
+         for St in MVT.Stream loop
+            MP_Link_Conf.Rates (St) := Interfaces.Unsigned_8 (Int (7 + MVT.Stream'Pos (St)));
+         end loop;
+         MVT.Configure_Intervals (MP_Link, MP_Link_Conf, Interfaces.Unsigned_32 (Int (13)));
+         Adaflight.MAVLink.Init (MP_Rx, 1500);
+         MP_Record_State (Name, 14);
+         MIS.Init (MP_Mission);
+         MP_Inputs := (Radius => Interfaces.Unsigned_16 (Int (29)), Max_Speed => Interfaces.Unsigned_16 (Int (30)),
+                       others => <>);
+         MP_Plan := (Count => Integer (Int (31)), Waypoints => <>);
+         for I in MP_Plan.Waypoints'Range loop
+            declare
+               K : constant Positive := 32 + 9 * I;
+            begin
+               MP_Plan.Waypoints (I) :=
+                 (Latitude      => Interfaces.Integer_32 (Int (K)),
+                  Longitude     => Interfaces.Integer_32 (Int (K + 1)),
+                  Altitude      => Interfaces.Integer_32 (Int (K + 2)),
+                  Speed         => Interfaces.Unsigned_16 (Int (K + 3)),
+                  Duration_Ds   => Interfaces.Unsigned_16 (Int (K + 4)),
+                  Vert_Rate     => Interfaces.Unsigned_16 (Int (K + 5)),
+                  Kind          => Interfaces.Unsigned_8 (Int (K + 6)),
+                  Pattern       => Interfaces.Unsigned_8 (Int (K + 7)),
+                  Yaw_Behaviour => Interfaces.Unsigned_8 (Int (K + 8)));
+            end;
+         end loop;
+      elsif Int (2) /= MP_Seq then
+         Put_Line ("MAVLink port line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mqstep" then
+         declare
+            Inp       : MVC.Inputs;
+            O         : MVC.Output;
+            R         : MVC.Requests;
+            Incoming  : constant Byte_Array := Hex_Bytes (12);
+            Sent      : Byte_Array (0 .. 16383) := (others => 0);
+            Sent_Len  : Natural := 0;
+            Ops       : String (1 .. 400);
+            Op_Count  : Natural := 0;
+            Boxes     : String (1 .. 400);
+            Box_Len   : Natural := 0;
+            Overrides : Natural := 0;
+            Fix_Home  : Boolean := Int (7) = 1;
+            Lat       : Integer_64 := Int (8);
+            Lon       : Integer_64 := Int (9);
+            Alt       : Integer_64 := Int (10);
+            Other     : Boolean;
+            Msg       : Adaflight.MAVLink.Message;
+
+            procedure Op (C : Character) is
+            begin
+               Op_Count := Op_Count + 1;
+               Ops (Op_Count) := C;
+            end Op;
+
+            procedure Send (Data : Adaflight.MAVLink_Frames.Byte_Buffer) is
+            begin
+               for B of Data loop
+                  Sent (Sent_Len) := Byte (B);
+                  Sent_Len := Sent_Len + 1;
+               end loop;
+            end Send;
+
+            --  The requests a step made, as the flight controller serves
+            --  them: a home set over the link is the mission's home from
+            --  then on.
+            procedure Serve is
+            begin
+               for K in 1 .. R.Count loop
+                  case R.List (K).Kind is
+                     when MVC.Disarm =>
+                        Op ('D');
+                     when MVC.Clear_Overrides =>
+                        Op ('C');
+                     when MVC.Set_Override =>
+                        Op ('S');
+                        declare
+                           Img : constant String := Integer'Image (Adaflight.Modes.Box'Pos (R.List (K).Box));
+                        begin
+                           if Overrides > 0 then
+                              Box_Len := Box_Len + 1;
+                              Boxes (Box_Len) := ':';
+                           end if;
+                           Boxes (Box_Len + 1 .. Box_Len + Img'Length - 1) := Img (Img'First + 1 .. Img'Last);
+                           Box_Len := Box_Len + Img'Length - 1;
+                           Overrides := Overrides + 1;
+                        end;
+                     when MVC.Reset_Home =>
+                        Op ('H');
+                     when MVC.Set_Home =>
+                        Fix_Home := True;
+                        Lat := Integer_64 (R.List (K).Latitude);
+                        Lon := Integer_64 (R.List (K).Longitude);
+                        Alt := Integer_64 (R.List (K).Altitude_Cm);
+                        MP_Inputs.Home_Fix := True;
+                        MP_Inputs.Home_Altitude_Cm := R.List (K).Altitude_Cm;
+                  end case;
+               end loop;
+            end Serve;
+
+            procedure Mission_Message is
+               MO   : MIS.Output;
+               Done : Boolean;
+            begin
+               MIS.Handle (MP_Mission, MP_Plan, Msg, MP_Inputs, MP_Link.Tx_Seq, MO, Done);
+               if MO.Set_Current then
+                  declare
+                     Img : constant String := Interfaces.Unsigned_8'Image (MO.Set_Current_Index);
+                  begin
+                     Op ('c');
+                     for C of Img (Img'First + 1 .. Img'Last) loop
+                        Op (C);
+                     end loop;
+                     Op (';');
+                  end;
+                  MIS.Complete_Set_Current (MP_Mission, MP_Plan, Int (43) /= 0, MP_Inputs, MP_Link.Tx_Seq, MO);
+               end if;
+               if MO.Save_Config then
+                  Op ('v');
+               end if;
+               Send (MO.Data (1 .. MO.Length));
+            end Mission_Message;
+         begin
+            Inp.Armed := Int (5) = 1;
+            Inp.GPS_Fix := Int (6) = 1;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (4));
+            MP_Inputs.Now_Ms := Inp.Now_Ms;
+            MP_Inputs.Executor := (Active        => Int (39) /= 0,
+                                   Injected      => Int (40) /= 0,
+                                   Current_Index => Interfaces.Unsigned_8 (Int (41)),
+                                   Complete      => Int (42) /= 0);
+            MP_Inputs.Autopilot_Mode := Int (44) /= 0;
+            MP_Inputs.Home_Fix := Fix_Home;
+            MP_Inputs.Home_Altitude_Cm := Interfaces.Integer_32 (Alt);
+            if Int (61) /= 0 then
+               MIS.Start_Session (MP_Mission);
+            end if;
+            if Int (45) >= 0 then
+               MIS.Waypoint_Reached (MP_Mission, Interfaces.Unsigned_8 (Int (45)));
+            end if;
+            if MP_Queue then
+               for B of Incoming loop
+                  Adaflight.MAVLink.Receive_Byte (MP_Rx, MP_Receiver, Natural (B), Inp.Now_Us);
+               end loop;
+               declare
+                  Budget : Natural := MVC.Queue_Budget;
+               begin
+                  loop
+                     O := (others => <>);
+                     R := (others => <>);
+                     MVC.Process_Queue_Step
+                       (MP_State, MP_Link, MP_Link_Conf, MP_Config, Inp, MP_Rx, Budget, O, R, Other, Msg);
+                     Send (O.Data (1 .. O.Length));
+                     Serve;
+                     exit when not Other;
+                     Mission_Message;
+                  end loop;
+               end;
+               Record_Int
+                 (Name & ".queue", Int (14),
+                  Integer_64
+                    ((MP_Rx.Head - MP_Rx.Tail + Adaflight.MAVLink.Queue_Size) mod Adaflight.MAVLink.Queue_Size));
+            else
+               for B of Incoming loop
+                  MP_Waiting := MP_Waiting + 1;
+                  MP_Fifo (MP_Waiting) := Interfaces.Unsigned_8 (B);
+               end loop;
+               declare
+                  Budget   : Natural := MVC.Port_Budget;
+                  Used     : Natural := 0;
+                  Consumed : Natural;
+               begin
+                  loop
+                     O := (others => <>);
+                     R := (others => <>);
+                     MVC.Process_Port_Step
+                       (MP_State, MP_Link, MP_Link_Conf, MP_Config, Inp, MP_Fifo (Used + 1 .. MP_Waiting), Budget,
+                        Consumed, O, R, Other, Msg);
+                     Used := Used + Consumed;
+                     Budget := Budget - Consumed;
+                     Send (O.Data (1 .. O.Length));
+                     Serve;
+                     exit when not Other;
+                     Mission_Message;
+                  end loop;
+                  MP_Fifo (1 .. MP_Waiting - Used) := MP_Fifo (Used + 1 .. MP_Waiting);
+                  MP_Waiting := MP_Waiting - Used;
+               end;
+               Record_Int (Name & ".waiting", Int (13), Integer_64 (MP_Waiting));
+            end if;
+            R := (others => <>);
+            MVC.End_Drain (MP_State, R);
+            case R.Reboot is
+               when MVC.None => null;
+               when MVC.Reset => Op ('W'); Op ('M'); Op ('R');
+               when MVC.Bootloader => Op ('W'); Op ('M'); Op ('B');
+            end case;
+            declare
+               MO : MIS.Output;
+            begin
+               MIS.Update (MP_Mission, MP_Plan, MP_Inputs, MP_Link.Tx_Seq, MO);
+               Send (MO.Data (1 .. MO.Length));
+            end;
+            Record_Int (Name & ".length", Int (15), Integer_64 (Sent_Len));
+            Record_Bytes (Name & ".bytes", Hex_Bytes (16), Sent (0 .. Sent_Len - 1));
+            Record_Text (Name & ".ops", Str (17), (if Op_Count = 0 then "-" else Ops (1 .. Op_Count)));
+            Record_Int (Name & ".overrides", Int (18), Integer_64 (Overrides));
+            Record_Text (Name & ".boxes", Str (19), Boxes (1 .. Box_Len));
+            Record_Int (Name & ".fix_home", Int (20), Boolean'Pos (Fix_Home));
+            Record_Int (Name & ".home_lat", Int (21), Lat);
+            Record_Int (Name & ".home_lon", Int (22), Lon);
+            Record_Int (Name & ".home_alt", Int (23), Alt);
+            MP_Record_State (Name, 24);
+            Record_Int (Name & ".transfer", Int (46), MIS.Transfer_State'Pos (MP_Mission.Transfer));
+            Record_Int (Name & ".mission_type", Int (47), Integer_64 (MP_Mission.Mission_Type));
+            Record_Int (Name & ".next_seq", Int (48), Integer_64 (MP_Mission.Next_Seq));
+            Record_Int (Name & ".total_count", Int (49), Integer_64 (MP_Mission.Total_Count));
+            Record_Int (Name & ".partner_sys", Int (50), Integer_64 (MP_Mission.Partner_Sys));
+            Record_Int (Name & ".partner_comp", Int (51), Integer_64 (MP_Mission.Partner_Comp));
+            Record_Int (Name & ".last_activity", Int (52), Integer_64 (MP_Mission.Last_Activity_Ms));
+            Record_Int (Name & ".retries", Int (53), Integer_64 (MP_Mission.Retries));
+            Record_Int (Name & ".last_current", Int (54), Integer_64 (MP_Mission.Last_Current_Tx_Ms));
+            Record_Int (Name & ".pending_reached", Int (55), Integer_64 (MP_Mission.Pending_Reached));
+            Record_Int (Name & ".rtl", Int (56), Boolean'Pos (MP_Mission.RTL_Terminator));
+            Record_Int (Name & ".plan_count", Int (57), Integer_64 (MP_Plan.Count));
+            Record_Int (Name & ".plan_hash", Int_Hex (58), Integer_64 (Hash (False)));
+            Record_Int (Name & ".fence_count", Int (59), Integer_64 (MP_Mission.Fence_Count));
+            Record_Int (Name & ".fence_hash", Int_Hex (60), Integer_64 (Hash (True)));
+         end;
+      else
+         Put_Line ("unknown MAVLink port case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MAVLink_Port_Line;
+
    Helper_State : Adaflight.Flight_Plan_Nav.State;
 
    procedure Check_Executor_Helper_Line is
@@ -41368,6 +41689,8 @@ procedure Vector_Check is
                   Check_Flight_Plan_Capture_Line;
                elsif Kind = "mavmission" then
                   Check_MAVLink_Mission_Line;
+               elsif Kind = "mavport" then
+                  Check_MAVLink_Port_Line;
                elsif Kind = "fpnhelpers" then
                   Check_Executor_Helper_Line;
                elsif Kind = "fpnlegs" then
@@ -41819,6 +42142,7 @@ begin
    Run (Dir & "/rxspi.csv", "rxspi");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
+   Run (Dir & "/mavport.csv", "mavport");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");
    Run (Dir & "/fpnlegs.csv", "fpnlegs");
    Run (Dir & "/fpndispatch.csv", "fpndispatch");
