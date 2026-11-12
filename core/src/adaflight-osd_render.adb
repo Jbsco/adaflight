@@ -424,7 +424,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    is
       Axis_Char : constant Character := Axis_Chars (Inp.Chirp_Axis + 1);
    begin
-      if Inp.Modes.Failsafe then
+      if Inp.Modes.Rescue_Plan then
+         Append_String (O.Line, "N-RESC");
+      elsif Inp.Modes.Failsafe then
          Append_String (O.Line, "!FS!");
       elsif Inp.Modes.GPS_Rescue then
          Append_String (O.Line, "RESC");

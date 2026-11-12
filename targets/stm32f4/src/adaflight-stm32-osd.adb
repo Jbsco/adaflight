@@ -741,7 +741,8 @@ package body Adaflight.STM32.OSD is
        Alt_Hold   => M (Adaflight.Arming.Alt_Hold_Mode),
        Chirp      => M (Adaflight.Arming.Chirp_Mode),
        Angle      => M (Adaflight.Arming.Angle_Mode),
-       Horizon    => M (Adaflight.Arming.Horizon_Mode)));
+       Horizon    => M (Adaflight.Arming.Horizon_Mode),
+       Rescue_Plan => False));
 
    --  The frame's readings into the task's context.
    procedure Refresh (F : Facts; Now_Us : Unsigned_32) is
