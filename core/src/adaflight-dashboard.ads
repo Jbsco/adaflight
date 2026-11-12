@@ -34,7 +34,8 @@ package Adaflight.Dashboard with SPARK_Mode is
       Data   : String (1 .. Max_Text) := (others => ' ');
       Length : Natural range 0 .. Max_Text := 0;
    end record;
-   Max_Operations : constant := 256;
+   --  The receiver page's 164 operations are the most a page draws.
+   Max_Operations : constant := 192;
    type Operation_List is array (1 .. Max_Operations) of Operation;
    type Output is record
       Operations : Operation_List;
