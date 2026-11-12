@@ -1,4 +1,5 @@
 with GNAT.OS_Lib;
+with Adaflight.Host_Arming_Log;
 with Adaflight.Host_Screen;
 with Adaflight.Host_Simulator;
 with Adaflight.Sim_FDM;
@@ -29,12 +30,13 @@ package body Adaflight.STM32.MCU is
 
    function Simulated return Boolean is (Adaflight.Host_Simulator.Enabled);
 
-   --  The host's work once per scheduler pass: the simulator's packets and
-   --  the OSD screen file.
+   --  The host's work once per scheduler pass: the simulator's packets, the
+   --  screen files and the log of arming events.
    procedure Simulator_Poll is
    begin
       Adaflight.Host_Simulator.Poll;
       Adaflight.Host_Screen.Poll;
+      Adaflight.Host_Arming_Log.Poll;
    end Simulator_Poll;
 
    procedure Simulator_Attitude

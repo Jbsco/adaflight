@@ -14456,3 +14456,25 @@ reached waypoint follows (F325). Boards start a session on both ports.
 Vectors come from a Betaflight build of its telemetry and mission files in one unit, with command and mission
 frames mixed on one port. Host smoke uploads a plan over MAVLink, restarts, reads it back, sets its current item
 and clears it.
+
+## D731. Host log of arming events (2026-11-12)
+
+Two CI runs failed a smoke check that found a craft disarmed in autopilot failsafe flight. Neither a loaded host
+nor two pinned cores reproduced it, and no command shows why a craft disarmed.
+
+Host image now appends each arm and disarm to a file, with uptime and a disarm's reason. Host smoke prints those
+events when a flown part of its flight plan or rescue checks fails. One smoke check reads that file: a mission's
+end under a lost link disarms with failsafe as its reason.
+
+## D732. Arrival times of queued simulator packets (2026-11-12)
+
+Host image reads simulator packets in its main loop and measures a simulator's rate from one packet to its next.
+When a busy host keeps that image off its CPU, packets queue. Read back to back, each looked microseconds after
+its predecessor, so that rate rose a hundredfold and scaled time leapt by minutes. A receiver's signal then timed
+out, and failsafe disarmed a craft.
+
+Three CI runs failed that way, and a 150 ms pause of that image every three seconds reproduces it: an arming log
+then shows a failsafe disarm at 150 s of uptime, seconds after arming.
+
+A pass now reads every waiting packet first and gives each an arrival time spread evenly from its last packet's
+to now. Host smoke pauses its image for 150 ms in each flown part of its flight plan checks.

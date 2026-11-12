@@ -8,6 +8,7 @@ with Adaflight.Host_Clock;
 with Adaflight.Bytes;
 package body Adaflight.Host_Simulator is
    use type Ada.Real_Time.Time;
+   use type Ada.Real_Time.Time_Span;
    use type Ada.Streams.Stream_Element_Offset;
    use type Interfaces.Integer_64;
    use type Interfaces.Unsigned_32;
@@ -62,19 +63,23 @@ package body Adaflight.Host_Simulator is
    function Acc return Adaflight.Sim_FDM.Axes is (Feed_Acc);
    function Mag return Adaflight.Sim_FDM.Axes is (Feed_Mag);
 
-   function Micros return Interfaces.Unsigned_64 is
-     (Interfaces.Unsigned_64 (Ada.Real_Time.To_Duration (Ada.Real_Time.Clock - Epoch) * 1_000_000));
+   function Micros_At (T : Ada.Real_Time.Time) return Interfaces.Unsigned_64 is
+     (Interfaces.Unsigned_64 (Ada.Real_Time.To_Duration (T - Epoch) * 1_000_000));
 
-   --  The monotonic clock as seconds and nanoseconds.
-   function Now_Spec return Adaflight.Sim_FDM.Time_Spec is
+   --  A monotonic time as seconds and nanoseconds.
+   function Spec_At (T : Ada.Real_Time.Time) return Adaflight.Sim_FDM.Time_Spec is
       Seconds : Ada.Real_Time.Seconds_Count;
       Rest    : Ada.Real_Time.Time_Span;
    begin
-      Ada.Real_Time.Split (Ada.Real_Time.Clock, Seconds, Rest);
+      Ada.Real_Time.Split (T, Seconds, Rest);
       return (Sec  => Interfaces.Integer_64 (Seconds) mod 2 ** 40,
               Nsec => Interfaces.Integer_64'Min (999_999_999,
                         Interfaces.Integer_64 (Ada.Real_Time.To_Duration (Rest) * 1_000_000_000)));
-   end Now_Spec;
+   end Spec_At;
+
+   --  The arrival of the last packet a poll took, once one has arrived.
+   Last_Arrival : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+   Arrived      : Boolean := False;
 
    procedure Open is
       use GNAT.Sockets;
@@ -140,7 +145,6 @@ package body Adaflight.Host_Simulator is
       P     : Adaflight.Sim_FDM.Packet;
       Valid : Boolean;
       F     : Adaflight.Sim_FDM.Feed;
-      Start : Interfaces.Unsigned_64;
    begin
       if not On then
          return;
@@ -148,42 +152,68 @@ package body Adaflight.Host_Simulator is
       if not Opened then
          Open;
       end if;
-      loop
-         begin
-            Receive_Socket (State_Socket, Item, Last, From);
-         exception
-            when Socket_Error =>
-               exit;
-         end;
-         exit when Last < Item'Last;
-         for I in Item'Range loop
-            Bytes (Natural (I - Item'First)) := Adaflight.Bytes.Byte (Item (I));
+      --  The packets waiting are read first. A pass that follows a pause of
+      --  the image finds several, and stamped at their reading they would
+      --  look like a simulator far faster than real time: the clock would
+      --  leap. Each takes an arrival time spread evenly from the last
+      --  packet's to now.
+      declare
+         Max_Batch : constant := 64;
+         Batch     : array (1 .. Max_Batch) of Adaflight.Sim_FDM.Packet;
+         Count     : Natural := 0;
+         Now       : Ada.Real_Time.Time;
+      begin
+         while Count < Max_Batch loop
+            begin
+               Receive_Socket (State_Socket, Item, Last, From);
+            exception
+               when Socket_Error =>
+                  exit;
+            end;
+            exit when Last < Item'Last;
+            for I in Item'Range loop
+               Bytes (Natural (I - Item'First)) := Adaflight.Bytes.Byte (Item (I));
+            end loop;
+            Adaflight.Sim_FDM.Decode (Bytes, P, Valid);
+            if Valid then
+               Count := Count + 1;
+               Batch (Count) := P;
+            end if;
          end loop;
-         Adaflight.Sim_FDM.Decode (Bytes, P, Valid);
-         if Valid then
-            Start := Micros;
-            Adaflight.Sim_FDM.Step (FDM, P, Bridge, Start, Micros, Now_Spec, F);
-            Adaflight.Host_Clock.Set_Rate (Float (FDM.Sim_Rate));
-            case F.Kind is
-               when Adaflight.Sim_FDM.Timeout =>
-                  Send_Motor_Packets;
-               when Adaflight.Sim_FDM.Update =>
-                  Feed_Gyro := F.Gyro;
-                  Feed_Acc := F.Acc;
-                  Feed_Mag := F.Mag;
-                  Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
-                  Fresh_Q := True;
-                  Pressure_Pa := F.Pressure;
-                  Send_Due := True;
-                  if F.GPS_Set then
-                     Latest_GPS := F.GPS;
-                     Fresh_GPS := True;
-                  end if;
-               when Adaflight.Sim_FDM.Stale =>
-                  null;
-            end case;
+         Now := Ada.Real_Time.Clock;
+         for K in 1 .. Count loop
+            declare
+               Arrival : constant Ada.Real_Time.Time :=
+                 (if Arrived then Last_Arrival + (Now - Last_Arrival) * K / Count else Now);
+               Stamp   : constant Interfaces.Unsigned_64 := Micros_At (Arrival);
+            begin
+               Adaflight.Sim_FDM.Step (FDM, Batch (K), Bridge, Stamp, Stamp, Spec_At (Arrival), F);
+               Adaflight.Host_Clock.Set_Rate (Float (FDM.Sim_Rate));
+               case F.Kind is
+                  when Adaflight.Sim_FDM.Timeout =>
+                     Send_Motor_Packets;
+                  when Adaflight.Sim_FDM.Update =>
+                     Feed_Gyro := F.Gyro;
+                     Feed_Acc := F.Acc;
+                     Feed_Mag := F.Mag;
+                     Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
+                     Fresh_Q := True;
+                     Pressure_Pa := F.Pressure;
+                     Send_Due := True;
+                     if F.GPS_Set then
+                        Latest_GPS := F.GPS;
+                        Fresh_GPS := True;
+                     end if;
+                  when Adaflight.Sim_FDM.Stale =>
+                     null;
+               end case;
+            end;
+         end loop;
+         if Count > 0 then
+            Last_Arrival := Now;
+            Arrived := True;
          end if;
-      end loop;
+      end;
       loop
          declare
             RC_Item : Ada.Streams.Stream_Element_Array (1 .. 40);

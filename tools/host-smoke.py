@@ -15,6 +15,7 @@ import math
 import os
 import re
 import select
+import signal
 import socket
 import struct
 import subprocess
@@ -1160,6 +1161,7 @@ def start(image, store, extra=None, port=PORT):
                ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt",
                ADAFLIGHT_PWM_LOG=store + ".pwm.txt", ADAFLIGHT_LED_LOG=store + ".led.txt",
                ADAFLIGHT_CAMERA_LOG=store + ".camera.txt", ADAFLIGHT_BEEPER_LOG=store + ".beeper.txt",
+               ADAFLIGHT_ARMING_LOG=store + ".arming.txt",
                **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
@@ -1174,6 +1176,15 @@ def start(image, store, extra=None, port=PORT):
             time.sleep(0.1)
     proc.kill()
     raise SystemExit(f"host: the image did not open its port {port}")
+
+
+def arming_events(store):
+    """The image's arm and disarm events since its store was made: uptime in milliseconds, and a disarm's reason."""
+    try:
+        with open(store + ".arming.txt") as f:
+            return f.read().splitlines()
+    except OSError:
+        return []
 
 
 def read_all(sock, wait):
@@ -2412,6 +2423,7 @@ def main():
             # The image started, armed with a raised throttle, and the autopilot switch on; then the part's own
             # checks, which fly the leg in steps of 1.1 m with a matching northward velocity.
             def flown(part, body, settings):
+                failed_before = len(failures)
                 proc, sock = start(image, settings, extra=sim_link)
                 done = threading.Event()
                 with_sticks = threading.Event()
@@ -2480,10 +2492,17 @@ def main():
                                            and s[1] == (1, 0, 0), wait=5.0)
                     check(f"autopilot switch engages the executor with both holds for the {part}", engaged,
                           repr(value))
+                    # A pause of the image, as a busy host gives it: simulator packets queue meanwhile, and the
+                    # flight goes on after it.
+                    os.kill(proc.pid, signal.SIGSTOP)
+                    time.sleep(0.15)
+                    os.kill(proc.pid, signal.SIGCONT)
                     body(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn)
                     pulses[4] = 1000
                     time.sleep(1.0)
                 finally:
+                    if len(failures) > failed_before:
+                        print("  arming events: " + "; ".join(arming_events(settings)[-8:]), flush=True)
                     done.set()
                     stop(proc)
                     sock.close()
@@ -2574,6 +2593,9 @@ def main():
                 dropped, value = until(state, lambda s: s is not None and not s[0] & arm, wait=8.0)
                 check("mission's end under a lost link hands over to the failsafe's procedure, which disarms",
                       dropped, repr(value))
+                events = arming_events(store)
+                check("arming log gives the failsafe as that disarm's reason",
+                      bool(events) and events[-1].endswith("disarmed FAILSAFE"), repr(events[-3:]))
 
             # A second waypoint 22 m past the first: the executor goes on to it, and the screen counts it.
             def advance_part(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn):
@@ -2658,6 +2680,7 @@ def main():
             screen_of = [None]
 
             def flown(part, body, settings):
+                failed_before = len(failures)
                 proc, sock = start(image, settings, extra=sim_link)
                 sock_of[0] = sock
                 screen_of[0] = settings + ".osd.txt"
@@ -2712,6 +2735,8 @@ def main():
                     pulses[4] = 1000
                     time.sleep(1.0)
                 finally:
+                    if len(failures) > failed_before:
+                        print("  arming events: " + "; ".join(arming_events(settings)[-8:]), flush=True)
                     done.set()
                     stop(proc)
                     sock.close()
