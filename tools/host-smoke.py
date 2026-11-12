@@ -15,6 +15,7 @@ import math
 import os
 import re
 import select
+import signal
 import socket
 import struct
 import subprocess
@@ -2491,6 +2492,11 @@ def main():
                                            and s[1] == (1, 0, 0), wait=5.0)
                     check(f"autopilot switch engages the executor with both holds for the {part}", engaged,
                           repr(value))
+                    # A pause of the image, as a busy host gives it: simulator packets queue meanwhile, and the
+                    # flight goes on after it.
+                    os.kill(proc.pid, signal.SIGSTOP)
+                    time.sleep(0.15)
+                    os.kill(proc.pid, signal.SIGCONT)
                     body(sock, state, fly, pulses, with_sticks, arm, failsafe, autopilot, holds, place, screen, turn)
                     pulses[4] = 1000
                     time.sleep(1.0)
