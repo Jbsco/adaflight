@@ -39,6 +39,16 @@ def main() -> int:
             hs.check("wing command line leaves out multirotor rescue settings", "INVALID NAME" in text, text[-120:])
             text = hs.cli(sock, "set tpa_low_rate = -128")
             hs.check("wing command line takes wing TPA limits", "tpa_low_rate set to -128" in text, text[-120:])
+            options = {int(w) for w in hs.cli(sock, "options").split() if w.isdigit()}
+            hs.check("build without the flight plan leaves its build option out", 16427 not in options,
+                     repr(sorted(options)))
+            text = hs.cli(sock, "waypoint")
+            hs.check("build without the flight plan knows no waypoint command", "UNKNOWN COMMAND" in text,
+                     text[-120:])
+            text = hs.cli(sock, "help waypoint")
+            hs.check("help lists no waypoint command there", "NO MATCHES" in text, text[-120:])
+            text = hs.cli(sock, "dump all", 4.0)
+            hs.check("dump has no waypoint lines there", "aux " in text and "waypoint" not in text, text[-120:])
             text = hs.cli(sock, "status")
             hs.check("wing status answers", "System Uptime" in text or "MCU" in text, text[:160])
         finally:

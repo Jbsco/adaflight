@@ -18,9 +18,17 @@ BOARD_NAME="${BOARD:-$([ "$CRATE" = stm32f7 ] && echo KAKUTEF7 || echo CLRACINGF
 ADAFLIGHT_DEBUG_VALUES="$(python3 ../../tools/featuregen.py --feature Debug_Values ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_DEBUG_VALUES
+ADAFLIGHT_FLIGHT_PLAN="$(python3 ../../tools/featuregen.py --feature Flight_Plan ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_FLIGHT_PLAN
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
+if [ "$ADAFLIGHT_FLIGHT_PLAN" = off ] \
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "waypoint_command\|osd_nav_map__"; then
+    echo "target: flight plan code in an image built without it"
+    exit 1
+fi
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
     gen/adaflight-build_features.ads | tr '\n' ' ')"
 if grep -q "Packed_Data *: constant Boolean := True" gen/adaflight-build_features.ads; then

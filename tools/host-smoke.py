@@ -2333,6 +2333,24 @@ def main():
                 sock.close()
         if built("GPS"):
             rescue_failsafe_checks()
+        # Flight plan in the build: its build option, and its waypoint command in the command line and its help.
+        def flight_plan_build_checks():
+            store = os.path.join(work, "plan.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                options = {int(w) for w in cli(sock, "options").split() if w.isdigit()}
+                check("build options list the flight plan", 16427 in options, repr(sorted(options)))
+                text = cli(sock, "waypoint")
+                check("command line knows the waypoint command", "UNKNOWN COMMAND" not in text, text[-120:])
+                text = cli(sock, "help waypoint")
+                check("help lists the waypoint command", "waypoint" in text and "NO MATCHES" not in text, text[-120:])
+            finally:
+                stop(proc)
+                sock.close()
+        flight_plan_build_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

@@ -32,6 +32,7 @@ with Adaflight.LTM_Telemetry;
 with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Telemetry;
 with Adaflight.Maths;
+with Adaflight.Plan_Build;
 with Adaflight.Position_Control;
 with Adaflight.Position_Estimator;
 with Adaflight.Position_Hold;
@@ -556,6 +557,7 @@ package body Adaflight.STM32.Flight is
        Build.Mag => Adaflight.Build_Features.Compass,
        Build.Optical_Flow => Adaflight.Build_Features.Optical_Flow,
        Build.LED_Strip => Adaflight.Build_Features.LED_Strip,
+       Build.Flight_Plan => Adaflight.Plan_Build.Enabled,
        Build.Brushed | Build.DShot | Build.MultiShot | Build.OneShot | Build.PWM_Output => True,
        others => False));
 

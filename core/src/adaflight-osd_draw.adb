@@ -1,3 +1,4 @@
+with Adaflight.Plan_Build;
 package body Adaflight.OSD_Draw with SPARK_Mode is
    use Adaflight.OSD_Elements;
 
@@ -119,6 +120,9 @@ package body Adaflight.OSD_Draw with SPARK_Mode is
            (WS, X.Warn_Settings, X.Warn_Inputs, X.Craft_Name_Messages, B.State, Inp, Craft, R, Reported);
          O.Reported := Reported;
       elsif I = Nav_Map then
+         if not Adaflight.Plan_Build.Enabled then
+            return;
+         end if;
          Adaflight.OSD_Render.Render_Nav_Map (S, X.Settings, Inp, Cy.Pos_X, Cy.Pos_Y, R);
       else
          Inp.Item_Blinks := B.Bits (I);
