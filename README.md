@@ -4,7 +4,7 @@
 [![Vector Checks](https://github.com/Jbsco/adaflight/actions/workflows/test.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/test.yml)
 [![Style](https://github.com/Jbsco/adaflight/actions/workflows/style.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/style.yml)
 
-adaflight is flight control firmware for multirotors and fixed-wing aircraft, written in Ada and SPARK as a port of [Betaflight](https://github.com/betaflight/betaflight). It aims at parity with Betaflight in features and flight behaviour. Its core is proved free of run-time errors with SPARK: no filter or controller can produce an infinity or a NaN whatever its input history, no decoder can index outside its buffer, and every motor command is in range by type.
+adaflight is flight control firmware for multirotors and fixed-wing aircraft, written in Ada and SPARK as a port of [Betaflight](https://github.com/betaflight/betaflight). It aims at parity with Betaflight in features and flight behaviour. Its core is proved free of run-time errors with SPARK. No filter or controller can produce an infinity or a NaN whatever its input history. No decoder can index outside its buffer, and every motor command is in range by type.
 
 ## Contents
 
@@ -30,7 +30,7 @@ Flight software is ported and runs on host, where each ported function replays i
 - **Barometers**: BMP085, BMP280, BMP388, BMP5xx, DPS310, MS5611, LPS, LPS22DF, QMP6988, 2SMPB-02B
 - **Compasses**: HMC5883L, QMC5883, IST8310, LIS3MDL, LIS2MDL, AK8963, AK8975, AK9916, MMC560X, BMM350
 - **Rangefinders, optical flow and airspeed**: TF, Nooploop, HC-SR04 and MT rangefinders, MT and UP-T1 optical flow, pitot airspeed
-- **Receivers**: SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2, FPORT, PPM, PWM, MSP and MAVLink, and SPI receivers for ExpressLRS, FrSky D8 and X, Redpine, S-FHSS, FlySky AFHDS and AFHDS 2A, Spektrum DSM2 and DSMX and NRF24L01 protocols
+- **Receivers**: SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2, FPORT, PPM, PWM, MSP and MAVLink. SPI receivers for ExpressLRS, FrSky D8 and X, Redpine, S-FHSS, FlySky AFHDS and AFHDS 2A, Spektrum DSM2 and DSMX and NRF24L01 protocols
 - **Telemetry**: CRSF, SmartPort, FrSky hub, iBus, HoTT, Ghost, SRXL, LTM, MAVLink with the mission protocol, Jeti EX Bus, MSP over telemetry
 - **Configuration**: parameter groups and settings of a board build, command line with Betaflight's setting names, dump and diff, resource, timer and dma commands, MSP with the messages Betaflight Configurator uses, configuration storage image
 - **OSD and menus**: MAX7456, MSP display port, FrSky OSD and OLED dashboard, OSD elements, warnings, statistics and navigation map, menus over the OSD and CRSF
@@ -62,10 +62,10 @@ Host image simulator link (flight dynamics in, sticks in, motors out, clock rate
 
 ## Verification
 
-- Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except the bodies outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
+- Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except the bodies outside SPARK that `DESIGN.md` names. Those are the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` counts both on every run.
-- A pull request proves the units whose sources it changed (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
-- A ported function keeps the operation order of its Betaflight original, so the host build reproduces its results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
+- Pull requests prove the units whose sources they changed (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
+- Ported functions keep the operation order of their Betaflight originals, so the host build reproduces their results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
 - Vectors under `tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a tool outside this repository.
 
 ## Repository layout
