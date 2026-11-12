@@ -517,6 +517,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
    begin
       L := (others => <>);
       R.UBX.Version := Undefined;
+      R.Trace.Errors := 0;
+      R.Trace.Log := (others => 0);
       Set_State (L, R, Unknown);
       if C.Source in MSP | Virtual then
          Set_State (L, R, Initialized);

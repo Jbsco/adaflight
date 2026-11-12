@@ -20,6 +20,19 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
    Preamble_1 : constant Unsigned_8 := 16#B5#;
    Preamble_2 : constant Unsigned_8 := 16#62#;
 
+   Mark_Error   : constant Unsigned_8 := Character'Pos ('?');
+   Mark_Ignored : constant Unsigned_8 := Character'Pos ('!');
+   Mark_GGA     : constant Unsigned_8 := Character'Pos ('g');
+   Mark_GSA     : constant Unsigned_8 := Character'Pos ('s');
+   Mark_RMC     : constant Unsigned_8 := Character'Pos ('r');
+   Mark_Dop     : constant Unsigned_8 := Character'Pos ('D');
+   Mark_Sol     : constant Unsigned_8 := Character'Pos ('O');
+   Mark_Status  : constant Unsigned_8 := Character'Pos ('S');
+   Mark_Svinfo  : constant Unsigned_8 := Character'Pos ('I');
+   Mark_Posllh  : constant Unsigned_8 := Character'Pos ('P');
+   Mark_Velned  : constant Unsigned_8 := Character'Pos ('V');
+   Mark_Version : constant Unsigned_8 := Character'Pos ('M');
+
    Week_Ms          : constant Unsigned_32 := 7 * 24 * 3600 * 1000;
    GPS_Epoch_Offset : constant Integer_64 := 315_964_800;
    Leap_Seconds     : constant Integer_64 := 18;
@@ -54,6 +67,19 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
 
    function I16 (P : Payload_Bytes; Off : Payload_Index) return Integer_16 is (To_Signed_16 (U16 (P, Off)))
      with Pre => Off <= Payload_Index'Last - 1;
+
+   --  Room for a new character at the front of the packet log.
+   procedure Shift_Log (T : in out Packet_Trace) is
+   begin
+      T.Log (1 .. Packet_Log_Index'Last) := T.Log (0 .. Packet_Log_Index'Last - 1);
+   end Shift_Log;
+
+   procedure Log_Error (T : in out Packet_Trace) is
+   begin
+      Shift_Log (T);
+      T.Log (0) := Mark_Error;
+      T.Errors := T.Errors + 1;
+   end Log_Error;
 
    procedure Set_Fix (R : in out Receiver; On : Boolean) is
    begin
@@ -409,6 +435,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
                         when others =>
                            null;
                      end case;
+                     R.Trace.Sat_Reports := R.Trace.Sat_Reports + 1;
                   end if;
                end;
             end if;
@@ -442,6 +469,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
       New_Solution := False;
       case R.NMEA.Frame is
          when GGA =>
+            R.Trace.Log (0) := Mark_GGA;
             Set_Fix (R, R.NMEA.Values.Fix);
             if R.Fix then
                R.Sol.Llh.Lat := R.NMEA.Values.Latitude;
@@ -458,8 +486,10 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
             end;
             New_Solution := True;
          when GSA =>
+            R.Trace.Log (0) := Mark_GSA;
             R.Sol.Dop := (Pdop => R.NMEA.Values.Pdop, Hdop => R.NMEA.Values.Hdop, Vdop => R.NMEA.Values.Vdop);
          when RMC =>
+            R.Trace.Log (0) := Mark_RMC;
             R.Sol.Ground_Speed := R.NMEA.Values.Speed;
             R.Sol.Ground_Course := R.NMEA.Values.Ground_Course;
             if not Clock_Has_Time and then R.NMEA.Values.Date /= 0 and then R.NMEA.Values.Time /= 0 then
@@ -523,12 +553,17 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
             end if;
          when CR | LF =>
             if R.NMEA.Checksum_Param then
+               Shift_Log (R.Trace);
                declare
                   Checksum : constant Unsigned_8 :=
                     Unsigned_8'Mod (16 * Hex_Value (R.NMEA.Field (0)) + Hex_Value (R.NMEA.Field (1)));
                begin
                   if Checksum = R.NMEA.Parity then
+                     R.Trace.Log (0) := Mark_Ignored;
+                     R.Trace.Packets := R.Trace.Packets + 1;
                      Write_Solution (R, Clock_Has_Time, New_Solution, Clock);
+                  else
+                     R.Trace.Log (0) := Mark_Error;
                   end if;
                end;
             end if;
@@ -747,30 +782,41 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
       Known : Boolean := True;
    begin
       New_Solution := False;
+      R.Trace.Log (0) := Mark_Ignored;
       case R.UBX.Class is
          when 16#01# =>
             case R.UBX.Id is
                when 16#07# =>
+                  R.Trace.Log (0) := Mark_Sol;
                   Parse_PVT (R, Clock_Has_Time, Clock);
                when 16#35# =>
+                  R.Trace.Log (0) := Mark_Svinfo;
                   Parse_Sat (R);
+                  R.Trace.Sat_Reports := R.Trace.Sat_Reports + 1;
                when 16#02# =>
+                  R.Trace.Log (0) := Mark_Posllh;
                   Parse_Posllh (R);
                when 16#03# =>
+                  R.Trace.Log (0) := Mark_Status;
                   R.UBX.Valid_Fix := (R.UBX.Payload (5) and 1) /= 0 and then R.UBX.Payload (4) = 3;
                   if not R.UBX.Valid_Fix then
                      R.Fix := False;
                   end if;
                when 16#04# =>
+                  R.Trace.Log (0) := Mark_Dop;
                   R.Sol.Dop := (Pdop => U16 (R.UBX.Payload, 6),
                                 Hdop => U16 (R.UBX.Payload, 12),
                                 Vdop => U16 (R.UBX.Payload, 10));
                when 16#06# =>
+                  R.Trace.Log (0) := Mark_Sol;
                   Parse_Sol (R, Clock_Has_Time, Clock);
                when 16#12# =>
+                  R.Trace.Log (0) := Mark_Velned;
                   Parse_Velned (R, Clock_Has_Time, Clock);
                when 16#30# =>
+                  R.Trace.Log (0) := Mark_Svinfo;
                   Parse_Svinfo (R);
+                  R.Trace.Sat_Reports := R.Trace.Sat_Reports + 1;
                when others =>
                   Known := False;
             end case;
@@ -795,6 +841,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
             end if;
          when 16#0A# =>
             if R.UBX.Id = 16#04# then
+               R.Trace.Log (0) := Mark_Version;
                Parse_Version (R.UBX);
             else
                Known := False;
@@ -864,6 +911,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
             if R.UBX.Length = 0 then
                R.UBX.Phase := Checksum_A;
             elsif R.UBX.Length > Max_Sane_Length then
+               Log_Error (R.Trace);
                R.UBX.Phase := (if C = Preamble_1 then Sync_2 else Sync_1);
             else
                R.UBX.Counter := 0;
@@ -876,13 +924,17 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
                R.UBX.Phase := Checksum_B;
                R.UBX.Almost_Done := True;
             else
+               Log_Error (R.Trace);
                R.UBX.Phase := (if C = Preamble_1 then Sync_2 else Sync_1);
             end if;
          when Checksum_B =>
             if R.UBX.Ck_B = C then
+               R.Trace.Packets := R.Trace.Packets + 1;
+               Shift_Log (R.Trace);
                Parse_Message (R, Clock_Has_Time, New_Solution, Clock);
                R.UBX.Phase := Sync_1;
             else
+               Log_Error (R.Trace);
                R.UBX.Phase := (if C = Preamble_1 then Sync_2 else Sync_1);
             end if;
       end case;

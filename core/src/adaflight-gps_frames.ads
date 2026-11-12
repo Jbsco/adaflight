@@ -152,6 +152,19 @@ package Adaflight.GPS_Frames with SPARK_Mode is
       M9_Or_Above  : Boolean := False;
    end record;
 
+   --  The packet trace a display's GPS page shows: a character for each
+   --  packet or error with the newest first, and the counts of the packets
+   --  that passed their checksum, of the satellite reports and of the UBX
+   --  frames dropped.
+   Packet_Log_Length : constant := 21;
+   subtype Packet_Log_Index is Natural range 0 .. Packet_Log_Length - 1;
+   type Packet_Log is array (Packet_Log_Index) of Unsigned_8;
+
+   type Packet_Trace is record
+      Log                          : Packet_Log := (others => 0);
+      Packets, Sat_Reports, Errors : Unsigned_32 := 0;
+   end record;
+
    type Receiver is record
       Sol           : Solution;
       Fix, Fix_Ever : Boolean := False;
@@ -160,6 +173,7 @@ package Adaflight.GPS_Frames with SPARK_Mode is
       Last_Nav_Time : Unsigned_32 := 0;
       NMEA          : NMEA_Decoder;
       UBX           : UBX_Decoder;
+      Trace         : Packet_Trace;
    end record;
 
    --  The interval between solutions from the time of week, held between
@@ -168,12 +182,15 @@ package Adaflight.GPS_Frames with SPARK_Mode is
 
    --  One byte of an NMEA stream. New_Solution reports a GGA sentence that
    --  passed its parity. Clock carries the setting an RMC sentence asks for
-   --  while the clock has no time.
+   --  while the clock has no time. A sentence with a checksum shifts the
+   --  packet log and marks its kind there, or its failed parity.
    procedure Receive_NMEA (R : in out Receiver; C : Unsigned_8; Clock_Has_Time : Boolean;
                            New_Solution : out Boolean; Clock : out Clock_Request);
 
    --  One byte of a UBX stream. New_Solution reports the message that
-   --  completed a new position and a new speed together.
+   --  completed a new position and a new speed together. A message that
+   --  passed both checksums shifts the packet log and marks its kind there;
+   --  an unreasonable length and a failed checksum mark an error.
    procedure Receive_UBX (R : in out Receiver; C : Unsigned_8; Clock_Has_Time : Boolean;
                           New_Solution : out Boolean; Clock : out Clock_Request);
 

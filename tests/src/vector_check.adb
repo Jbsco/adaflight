@@ -9975,6 +9975,19 @@ procedure Vector_Check is
          Record_Int (Name & ".cno", Int (K + 3), Integer_64 (GPS_State.Sats (S).Cno));
          K := K + 4;
       end loop;
+      declare
+         Log : constant Byte_Array := Hex_Bytes (K);
+      begin
+         Record_Int (Name & ".loglen", Integer_64 (Packet_Log_Length), Integer_64 (Log'Length));
+         if Log'Length = Packet_Log_Length then
+            for I in Packet_Log_Index loop
+               Record_Int (Name & ".log", Integer_64 (Log (Log'First + I)), Integer_64 (GPS_State.Trace.Log (I)));
+            end loop;
+         end if;
+      end;
+      Record_Int (Name & ".packets", Int (K + 1), Integer_64 (GPS_State.Trace.Packets));
+      Record_Int (Name & ".satreports", Int (K + 2), Integer_64 (GPS_State.Trace.Sat_Reports));
+      Record_Int (Name & ".errors", Int (K + 3), Integer_64 (GPS_State.Trace.Errors));
    end Check_GPS_Line;
 
    procedure Check_UBX_Config_Line is
@@ -10065,6 +10078,22 @@ procedure Vector_Check is
       function Rate_Code (B : Baud_Rate; Open : Boolean) return Integer_64 is
         (if Open then Integer_64 (Rate_Of (B)) else 0);
 
+      --  The packet trace against a line's last four fields.
+      procedure Record_Trace (K : Positive) is
+         Log : constant Byte_Array := Hex_Bytes (K);
+         T   : Packet_Trace renames GPSL_Receiver.Trace;
+      begin
+         Record_Int (Name & ".loglen", Integer_64 (Packet_Log_Length), Integer_64 (Log'Length));
+         if Log'Length = Packet_Log_Length then
+            for I in Packet_Log_Index loop
+               Record_Int (Name & ".log", Integer_64 (Log (Log'First + I)), Integer_64 (T.Log (I)));
+            end loop;
+         end if;
+         Record_Int (Name & ".packets", Int (K + 1), Integer_64 (T.Packets));
+         Record_Int (Name & ".satreports", Int (K + 2), Integer_64 (T.Sat_Reports));
+         Record_Int (Name & ".errors", Int (K + 3), Integer_64 (T.Errors));
+      end Record_Trace;
+
       procedure Record_Link (K : Positive) is
          L : Link renames GPSL_Link;
          R : Receiver renames GPSL_Receiver;
@@ -10146,7 +10175,12 @@ procedure Vector_Check is
             end loop;
          end;
          GPSL_Settings.Port_Assigned := Int (18) = 1;
+         GPSL_Receiver.Trace := (Log         => (others => Interfaces.Unsigned_8 (Int (35))),
+                                 Packets     => Unsigned_32 (Int (36)),
+                                 Sat_Reports => Unsigned_32 (Int (37)),
+                                 Errors      => Unsigned_32 (Int (38)));
          Init (GPSL_Link, GPSL_Receiver, GPSL_Settings, Unsigned_32 (Int (20)), Int (19) = 1);
+         Record_Trace (39);
          Record_Int (Name & ".state", Int (21), State_Code (GPSL_Link.State));
          Record_Int (Name & ".position", Int (22), Integer_64 (GPSL_Link.Position));
          Record_Int (Name & ".userbaud", Int (23), Integer_64 (Baud_Rate'Pos (GPSL_Link.User_Baud)));
@@ -10243,6 +10277,7 @@ procedure Vector_Check is
             Record_Int (Name & ".pdop", Int (97), Integer_64 (GPSL_Receiver.Sol.Dop.Pdop));
             Record_Int (Name & ".groundspeed", Int (98), Integer_64 (GPSL_Receiver.Sol.Ground_Speed));
             Record_Int (Name & ".groundcourse", Int (99), Integer_64 (GPSL_Receiver.Sol.Ground_Course));
+            Record_Trace (100);
          end;
       else
          Put_Line ("unknown gps link case " & Name);
