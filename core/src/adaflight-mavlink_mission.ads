@@ -93,6 +93,13 @@ package Adaflight.MAVLink_Mission with SPARK_Mode is
    procedure Init (M : out State)
      with Global => null;
 
+   --  The link's port opened again: the transfer, the reports and the
+   --  partner start over, and the fence in memory stays.
+   procedure Start_Session (M : in out State)
+     with Global => null,
+          Post   => M.Fence = M.Fence'Old and then M.Fence_Count = M.Fence_Count'Old
+                    and then M.Transfer = Idle and then M.Pending_Reached = -1;
+
    --  A message from the link; Handled says it was a mission message.
    procedure Handle
      (M       : in out State;

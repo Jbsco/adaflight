@@ -475,6 +475,15 @@ package body Adaflight.MAVLink_Mission with SPARK_Mode is
       M := (others => <>);
    end Init;
 
+   -------------------
+   -- Start_Session --
+   -------------------
+
+   procedure Start_Session (M : in out State) is
+   begin
+      M := (Fence => M.Fence, Fence_Count => M.Fence_Count, others => <>);
+   end Start_Session;
+
    ------------
    -- Handle --
    ------------

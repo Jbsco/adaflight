@@ -25,7 +25,7 @@ alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
 if [ "$ADAFLIGHT_FLIGHT_PLAN" = off ] \
-    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "waypoint_command\|osd_nav_map__\|flight_plan_nav__"; then
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "waypoint_command\|osd_nav_map__\|flight_plan_nav__\|mavlink_mission__"; then
     echo "target: flight plan code in an image built without it"
     exit 1
 fi

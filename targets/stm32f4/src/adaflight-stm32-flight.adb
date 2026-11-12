@@ -29,7 +29,9 @@ with Adaflight.DShot_Bitbang;
 with Adaflight.DShot_Command;
 with Adaflight.LED_Strip;
 with Adaflight.LTM_Telemetry;
+with Adaflight.MAVLink;
 with Adaflight.MAVLink_Commands;
+with Adaflight.MAVLink_Mission;
 with Adaflight.MAVLink_Telemetry;
 with Adaflight.Maths;
 with Adaflight.Plan_Build;
@@ -462,6 +464,10 @@ package body Adaflight.STM32.Flight is
    function Plan_Built return Boolean is
      (Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS and then not Adaflight.Build_Features.Wing);
    Plan_Nav          : Adaflight.Flight_Plan_Nav.State;
+   --  The MAVLink mission protocol's state, and whether a session of it
+   --  has started, from when on it takes the waypoints the executor reaches.
+   Mission_State     : Adaflight.MAVLink_Mission.State;
+   Mission_Listening : Boolean := False;
    Plan_Descent      : Boolean := False;
    Plan_Descent_Rate : Adaflight.Altitude_Hold.Climb_Rate_Cms := 0.0;
    Rescue_Settings   : Adaflight.GPS_Rescue.Settings;
@@ -3888,7 +3894,7 @@ package body Adaflight.STM32.Flight is
    --  What an executor cycle reads: the estimate with its origin and
    --  validity, the attitude's yaw and heading trust, the GPS solution and
    --  home, the position controller's error, and the rescue's highest
-   --  altitude. No listener takes reached waypoints yet.
+   --  altitude. The mission protocol takes reached waypoints once it runs.
    function Plan_Leg_Inputs (Now_Us : Unsigned_32) return Adaflight.Flight_Plan_Nav.Leg_Inputs is
       G         : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Error     : constant Adaflight.Position_Control.Vector2_Cm :=
@@ -3917,7 +3923,7 @@ package body Adaflight.STM32.Flight is
            Adaflight.Position_Estimator.Heading_Required (Pos_Settings, Position_Inputs (Now_Us)),
          Below_Landing     =>
            Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M),
-         Listener          => False,
+         Listener          => Mission_Listening,
          Position_Error    => (X => Held (Error.X), Y => Held (Error.Y)),
          Estimator_Valid   => Pos_State.Valid_XY,
          Home_Fix          => G.Fix_Home,
@@ -3970,7 +3976,8 @@ package body Adaflight.STM32.Flight is
                   Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Landing, Now_Us, Asked);
                   Apply (Asked);
                when Nav.Reached_Waypoint =>
-                  null;
+                  Adaflight.MAVLink_Mission.Waypoint_Reached
+                    (Mission_State, Interfaces.Unsigned_8 (Held (C.Value, 0.0, 255.0)));
                when Nav.Emergency_Descent =>
                   Plan_Descent := C.On;
                   Plan_Descent_Rate := Held (C.Value, 0.0, 4_000.0);
@@ -4191,6 +4198,118 @@ package body Adaflight.STM32.Flight is
          Reset;
       end if;
    end Serve_MAVLink_Requests;
+
+   --  A build with MAVLink telemetry and the flight plan runs the mission
+   --  protocol behind the command dispatch. A function, so that a build
+   --  without it folds its uses and leaves the protocol out.
+   function Mission_Built return Boolean is (Adaflight.Build_Features.MAVLink_Telemetry and then Plan_Built);
+
+   --  What the mission protocol reads now: the executor, the autopilot
+   --  mode, the home, and the plan's hold radius and speed limit.
+   function Mission_Inputs return Adaflight.MAVLink_Mission.Inputs is
+      package Nav renames Adaflight.Flight_Plan_Nav;
+      use type Nav.Nav_State;
+      G   : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Set : constant Nav.Settings := Plan_Settings;
+   begin
+      return
+        (Executor         =>
+           (Active        => Plan_Nav.Active,
+            Injected      => Nav.Is_Injected_Plan_Active (Plan_Nav),
+            Current_Index => Plan_Nav.Current_Index,
+            Complete      => Plan_Nav.Mode = Nav.Complete),
+         Autopilot_Mode   => Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Autopilot_Mode),
+         Home_Fix         => G.Fix_Home,
+         Home_Altitude_Cm => G.Home.Alt_Cm,
+         Radius           => Set.Radius,
+         Max_Speed        => Set.Max_Speed,
+         Now_Ms           => Adaflight.STM32.Time.Millis);
+   end Mission_Inputs;
+
+   --  A message the command dispatch left to the mission protocol. A
+   --  set-current request goes to the executor before its answer is
+   --  built, a changed plan goes into the configuration, and an upload's
+   --  end or a cleared plan is written, read back and confirmed with a beep
+   --  before the acknowledgement leaves.
+   procedure Mission_Message (Msg : Adaflight.MAVLink.Message) is
+      package Nav renames Adaflight.Flight_Plan_Nav;
+      use type Adaflight.Flight_Plan.Plan;
+      Now_Us         : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+      Stored         : constant Adaflight.Flight_Plan.Plan :=
+        Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config);
+      Plan           : Adaflight.Flight_Plan.Plan := Stored;
+      O              : Adaflight.MAVLink_Mission.Output;
+      Seq            : Interfaces.Unsigned_8 := Adaflight.STM32.MAVLink.Sequence;
+      Handled        : Boolean;
+      Accepted       : Boolean;
+      Calls          : Nav.Executor_Output;
+      Unused_Success : Boolean;
+   begin
+      Adaflight.MAVLink_Mission.Handle (Mission_State, Plan, Msg, Mission_Inputs, Seq, O, Handled);
+      if not Handled then
+         return;
+      end if;
+      if O.Set_Current then
+         Nav.Set_Current_Index
+           (Plan_Nav, Navigator, Plan, Plan_Leg_Inputs (Now_Us), Plan_Settings, Calls, O.Set_Current_Index,
+            Accepted);
+         Apply_Plan_Calls (Calls, Now_Us);
+         Adaflight.MAVLink_Mission.Complete_Set_Current (Mission_State, Plan, Accepted, Mission_Inputs, Seq, O);
+      end if;
+      if Plan /= Stored then
+         Config.Flight_Plan_Config := Adaflight.Config_Runtime.Flight_Plan_Group_Of (Plan);
+      end if;
+      if O.Save_Config then
+         Write_Configuration;
+         Load_Configuration (Unused_Success);
+         Confirmation_Beeps (1);
+      end if;
+      Adaflight.STM32.MAVLink.Send (O.Data (1 .. O.Length), Seq);
+   end Mission_Message;
+
+   --  A telemetry pass with the mission protocol. A session of it starts
+   --  when the telemetry starts on its port. The drain goes in steps: each
+   --  step's requests are served before the message that ended it reaches
+   --  the mission protocol, so that message reads a home set just before
+   --  it. A reboot the drain accepted follows it, then the mission's
+   --  timeouts and reports, then the streams.
+   procedure Run_MAVLink_Mission (Inp : Adaflight.MAVLink_Telemetry.Inputs) is
+      Requests : Adaflight.MAVLink_Commands.Requests;
+      Other    : Boolean;
+      Msg      : Adaflight.MAVLink.Message;
+      Started  : Boolean;
+   begin
+      Adaflight.STM32.MAVLink.Take_Started (Started);
+      if Started then
+         Adaflight.MAVLink_Mission.Start_Session (Mission_State);
+         Mission_Listening := True;
+      end if;
+      if not Adaflight.STM32.MAVLink.Running then
+         return;
+      end if;
+      Adaflight.STM32.MAVLink.Begin_Drain;
+      loop
+         Adaflight.STM32.MAVLink.Drain_Step
+           ((Armed  => Adaflight.STM32.Pilot.Armed, GPS_Fix => Adaflight.STM32.GPS.Current.Fix,
+             Now_Us => Adaflight.STM32.Time.Micros, Now_Ms => Adaflight.STM32.Time.Millis),
+            Requests, Other, Msg);
+         Serve_MAVLink_Requests (Requests);
+         exit when not Other;
+         Mission_Message (Msg);
+      end loop;
+      Adaflight.STM32.MAVLink.End_Drain (Requests);
+      Serve_MAVLink_Requests (Requests);
+      declare
+         Stored : constant Adaflight.Flight_Plan.Plan :=
+           Adaflight.Config_Runtime.Flight_Plan_Of (Config.Flight_Plan_Config);
+         O      : Adaflight.MAVLink_Mission.Output;
+         Seq    : Interfaces.Unsigned_8 := Adaflight.STM32.MAVLink.Sequence;
+      begin
+         Adaflight.MAVLink_Mission.Update (Mission_State, Stored, Mission_Inputs, Seq, O);
+         Adaflight.STM32.MAVLink.Send (O.Data (1 .. O.Length), Seq);
+      end;
+      Adaflight.STM32.MAVLink.Send_Streams (Adaflight.STM32.Time.Micros, Adaflight.STM32.Time.Millis, Inp);
+   end Run_MAVLink_Mission;
 
    --  What the LTM stream reads: the attitude, the flight modes, the arming
    --  and the failsafe, the battery, the signal, the GPS solution with its
@@ -4867,7 +4986,9 @@ package body Adaflight.STM32.Flight is
                   Adaflight.STM32.Radio.Jeti_Telemetry_Step (Jeti_Inputs, Adaflight.STM32.Time.Micros);
                end if;
                Adaflight.STM32.Radio.SRXL_Telemetry_Step (SRXL_Inputs);
-               if Adaflight.Build_Features.MAVLink_Telemetry then
+               if Mission_Built then
+                  Run_MAVLink_Mission (MAVLink_Inputs);
+               elsif Adaflight.Build_Features.MAVLink_Telemetry then
                   declare
                      Requests : Adaflight.MAVLink_Commands.Requests;
                   begin

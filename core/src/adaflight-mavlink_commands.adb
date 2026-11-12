@@ -12,6 +12,7 @@ package body Adaflight.MAVLink_Commands with SPARK_Mode is
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_64 is Interfaces.Unsigned_64;
 
+   Heartbeat_Id             : constant := 0;
    Ping_Id                  : constant := 4;
    Timesync_Id              : constant := 111;
    Command_Long_Id          : constant := 76;
@@ -746,5 +747,98 @@ package body Adaflight.MAVLink_Commands with SPARK_Mode is
          R.Reboot := (if S.To_Bootloader then Bootloader else Reset);
       end if;
    end Process_Queue;
+
+   ----------------
+   -- Dispatched --
+   ----------------
+
+   function Dispatched (Msg : Adaflight.MAVLink.Message) return Boolean is
+     (Msg.Id in Heartbeat_Id | Ping_Id | Timesync_Id | Command_Long_Id | Command_Int_Id);
+
+   -----------------------
+   -- Process_Port_Step --
+   -----------------------
+
+   procedure Process_Port_Step
+     (S        : in out State;
+      T        : in out Adaflight.MAVLink_Telemetry.State;
+      TC       : Adaflight.MAVLink_Telemetry.Settings;
+      C        : Settings;
+      Inp      : Inputs;
+      Waiting  : Adaflight.MAVLink_Frames.Byte_Buffer;
+      Budget   : Natural;
+      Consumed : out Natural;
+      O        : in out Output;
+      R        : in out Requests;
+      Other    : out Boolean;
+      Msg      : out Adaflight.MAVLink.Message)
+   is
+      Count  : constant Natural := Natural'Min (Budget, Waiting'Length);
+      Framed : Adaflight.MAVLink.Framing;
+   begin
+      Other := False;
+      Msg := S.Port.Received;
+      Consumed := 0;
+      for K in 0 .. Count - 1 loop
+         pragma Loop_Invariant (Consumed = K and then not Other);
+         Adaflight.MAVLink.Parse_Byte (S.Port, Natural (Waiting (Waiting'First + K)), Framed);
+         Consumed := K + 1;
+         if Framed = Adaflight.MAVLink.OK then
+            Msg := S.Port.Received;
+            if not Dispatched (Msg) then
+               Other := True;
+               return;
+            end if;
+            Dispatch (S, T, TC, C, Inp, Msg, O, R);
+         end if;
+      end loop;
+   end Process_Port_Step;
+
+   ------------------------
+   -- Process_Queue_Step --
+   ------------------------
+
+   procedure Process_Queue_Step
+     (S      : in out State;
+      T      : in out Adaflight.MAVLink_Telemetry.State;
+      TC     : Adaflight.MAVLink_Telemetry.Settings;
+      C      : Settings;
+      Inp    : Inputs;
+      Rx     : in out Adaflight.MAVLink.State;
+      Budget : in out Natural;
+      O      : in out Output;
+      R      : in out Requests;
+      Other  : out Boolean;
+      Msg    : out Adaflight.MAVLink.Message)
+   is
+      Got : Boolean;
+   begin
+      Other := False;
+      Msg := S.Port.Received;
+      while Budget > 0 loop
+         pragma Loop_Invariant (not Other and then Budget <= Budget'Loop_Entry);
+         pragma Loop_Variant (Decreases => Budget);
+         Adaflight.MAVLink.Pop_Queue (Rx, Msg, Got);
+         exit when not Got;
+         Budget := Budget - 1;
+         if not Dispatched (Msg) then
+            Other := True;
+            return;
+         end if;
+         Dispatch (S, T, TC, C, Inp, Msg, O, R);
+      end loop;
+   end Process_Queue_Step;
+
+   ---------------
+   -- End_Drain --
+   ---------------
+
+   procedure End_Drain (S : in out State; R : in out Requests) is
+   begin
+      if S.Reboot_Pending then
+         S.Reboot_Pending := False;
+         R.Reboot := (if S.To_Bootloader then Bootloader else Reset);
+      end if;
+   end End_Drain;
 
 end Adaflight.MAVLink_Commands;

@@ -1,9 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
-with Adaflight.MAVLink;
 with Adaflight.MAVLink_Debug;
-with Adaflight.MAVLink_Frames;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.MAVLink_Link;
@@ -28,6 +26,11 @@ package body Adaflight.STM32.MAVLink is
    --  started there, and the free transmitter buffer it waits for.
    On_RX_Port  : Boolean := False;
    Shared_On   : Boolean := False;
+   --  A drain in steps: the budget left, the pending bytes it took, and
+   --  whether the telemetry started since the caller last asked.
+   Budget      : Natural := 0;
+   Taken       : Natural range 0 .. Pending_Size := 0;
+   Started_Now : Boolean := False;
    Min_Free    : Adaflight.MAVLink.Byte := 0;
    MAVLink_Provider : constant Interfaces.Unsigned_8 := 16;
 
@@ -42,6 +45,9 @@ package body Adaflight.STM32.MAVLink is
       Station_Set.UID := UID;
       Waiting := 0;
       Shared_On := False;
+      Budget := 0;
+      Taken := 0;
+      Started_Now := False;
       Min_Free := Adaflight.MAVLink.Byte (Config.Telemetry_Config.Mavlink_Min_Txbuff);
       declare
          package SFM renames Adaflight.Serial_Feature_Map;
@@ -66,6 +72,7 @@ package body Adaflight.STM32.MAVLink is
       if On_RX_Port then
          if not Shared_On and then Adaflight.STM32.MAVLink_Link.Open then
             Shared_On := True;
+            Started_Now := True;
             Tlm.Last_Flags := (others => False);
             Telemetry.Configure_Intervals (Tlm, Tlm_Set, Now_Ms);
          end if;
@@ -73,6 +80,7 @@ package body Adaflight.STM32.MAVLink is
       end if;
       Port_Of.Check_State (Armed, Box_Present, Box_Active);
       if Port_Of.Enabled and then not Was then
+         Started_Now := True;
          Tlm.Last_Flags := (others => False);
          Station.Port := (others => <>);
          Waiting := 0;
@@ -110,9 +118,6 @@ package body Adaflight.STM32.MAVLink is
       Count     : Natural;
       Consumed  : Natural;
       Replies   : Commands.Output;
-      Stream    : Telemetry.Output;
-      Tx_Valid  : Boolean;
-      Tx_Should : Boolean;
    begin
       R := (others => <>);
       if not Running then
@@ -134,6 +139,97 @@ package body Adaflight.STM32.MAVLink is
          Waiting := Waiting - Consumed;
       end if;
       Put (Replies.Data (1 .. Replies.Length));
+      Send_Streams (Now_Us, Now_Ms, Inp);
+   end Run;
+
+   function On_Queue return Boolean is (Adaflight.STM32.MAVLink_Link.Present and then Shared_On);
+
+   procedure Begin_Drain is
+      Count : Natural;
+   begin
+      Budget := 0;
+      Taken := 0;
+      if not Running then
+         return;
+      end if;
+      if On_Queue then
+         Budget := Commands.Queue_Budget;
+      else
+         Adaflight.STM32.USART.Take (Port_Of.Line, Input, Count);
+         for I in 0 .. Count - 1 loop
+            exit when Waiting = Pending_Size;
+            Waiting := Waiting + 1;
+            Pending (Waiting) := Input (I);
+         end loop;
+         Budget := Commands.Port_Budget;
+      end if;
+   end Begin_Drain;
+
+   procedure Drain_Step
+     (Cmd   : Commands.Inputs;
+      R     : out Commands.Requests;
+      Other : out Boolean;
+      Msg   : out Adaflight.MAVLink.Message)
+   is
+      Replies  : Commands.Output;
+      Consumed : Natural;
+   begin
+      R := (others => <>);
+      Other := False;
+      Msg := Station.Port.Received;
+      if not Running then
+         return;
+      end if;
+      if On_Queue then
+         Commands.Process_Queue_Step
+           (Station, Tlm, Tlm_Set, Station_Set, Cmd, Adaflight.STM32.MAVLink_Link.Slot (1), Budget, Replies, R,
+            Other, Msg);
+      else
+         Commands.Process_Port_Step
+           (Station, Tlm, Tlm_Set, Station_Set, Cmd, Pending (Taken + 1 .. Waiting), Budget, Consumed, Replies, R,
+            Other, Msg);
+         Taken := Taken + Consumed;
+         Budget := Budget - Consumed;
+      end if;
+      Put (Replies.Data (1 .. Replies.Length));
+   end Drain_Step;
+
+   procedure End_Drain (R : out Commands.Requests) is
+   begin
+      R := (others => <>);
+      if not Running then
+         return;
+      end if;
+      Pending (1 .. Waiting - Taken) := Pending (Taken + 1 .. Waiting);
+      Waiting := Waiting - Taken;
+      Taken := 0;
+      Commands.End_Drain (Station, R);
+   end End_Drain;
+
+   function Sequence return Interfaces.Unsigned_8 is (Tlm.Tx_Seq);
+
+   procedure Send (Data : Adaflight.MAVLink_Frames.Byte_Buffer; Sequence_After : Interfaces.Unsigned_8) is
+   begin
+      Tlm.Tx_Seq := Sequence_After;
+      if Running then
+         Put (Data);
+      end if;
+   end Send;
+
+   procedure Take_Started (Started : out Boolean) is
+   begin
+      Started := Started_Now;
+      Started_Now := False;
+   end Take_Started;
+
+   procedure Send_Streams (Now_Us, Now_Ms : Interfaces.Unsigned_32; Inp : Telemetry.Inputs) is
+      Stream    : Telemetry.Output;
+      Tx_Valid  : Boolean;
+      Tx_Should : Boolean;
+   begin
+      if not Running then
+         return;
+      end if;
       --  The receiver's last radio status, where one runs.
       Tx_Valid := Adaflight.STM32.MAVLink_Link.Present and then Adaflight.STM32.MAVLink_Link.Open
         and then Adaflight.STM32.MAVLink_Link.Slot (1).Tx_Buffer_Valid;
@@ -144,7 +240,7 @@ package body Adaflight.STM32.MAVLink is
       Adaflight.MAVLink_Debug.Record_Telemetry
         (Adaflight.STM32.Debug_Values.State, Tlm, Tx_Valid => Tx_Valid, Tx_Should_Send => Tx_Should);
       Put (Stream.Data (1 .. Stream.Length));
-   end Run;
+   end Send_Streams;
    procedure Finish_Transmit is
    begin
       for Count in 1 .. 1_000 loop

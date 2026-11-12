@@ -14436,3 +14436,23 @@ An element's MSP address now names its place in a build's list. A configuration 
 alone, a position write maps its address through that list, and an address past it is an error. Boards derive
 that list from GPS, flight plan, wing and pitot features. Vectors come from Betaflight's element enumeration in
 builds with each set of options.
+
+## D730. MAVLink mission protocol on boards (2026-11-12)
+
+Betaflight hands a MAVLink message its command dispatch does not take to its mission protocol, in arrival order,
+in a build with a flight plan and MAVLink telemetry. Boards built that way now run that protocol. A ground station
+uploads and downloads a stored plan, sets its current item and clears it, and reads reached waypoints and a
+current item report.
+
+Core code drains a port or a receiver's queue in steps. A step ends at a message for that protocol, and a board
+serves that step's requests before it handles that message, so a mission item reads a home set by a command just
+before it. A set-current request goes to an executor before its answer is built. An upload's end is written and
+confirmed with a beep before its acknowledgement leaves.
+
+A mission session starts each time telemetry starts on its port, and its fence in memory stays. Betaflight starts
+no session on a MAVLink receiver's shared port, so there its first update reports waypoint 0 reached and no
+reached waypoint follows (F325). Boards start a session on both ports.
+
+Vectors come from a Betaflight build of its telemetry and mission files in one unit, with command and mission
+frames mixed on one port. Host smoke uploads a plan over MAVLink, restarts, reads it back, sets its current item
+and clears it.
