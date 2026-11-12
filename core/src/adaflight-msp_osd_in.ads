@@ -3,12 +3,13 @@
 --  profile, stick overlay and camera frame; a timer; an element's position
 --  or a statistic's switch; and the canvas size an HD transmitter reports.
 --  A request reads zero past its end. A timer past the two, an element past
---  the 99, or a field outside its setting's range is an error that writes
---  and changes nothing.
+--  the build's list, or a field outside its setting's range is an error that
+--  writes and changes nothing.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.MSP_Write_Plans;
+with Adaflight.OSD_Element_List;
 
 package Adaflight.MSP_OSD_In with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -39,8 +40,8 @@ package Adaflight.MSP_OSD_In with SPARK_Mode is
    Max_Request : constant := MSP_Write_Plans.Max_Request;
 
    procedure Process
-     (C : in out Configuration; Command : Interfaces.Unsigned_16; Request : Byte_Array; R : out Result;
-      E : out Effects)
+     (C : in out Configuration; Command : Interfaces.Unsigned_16; Request : Byte_Array;
+      Elements : OSD_Element_List.List; R : out Result; E : out Effects)
      with Pre  => Handles (Command) and then Request'Length <= Max_Request,
           Post => (if R = Error then C = C'Old and then E = No_Effects);
 

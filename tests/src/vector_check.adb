@@ -316,6 +316,7 @@ with Adaflight.Display_Port_MSP;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Elements;
+with Adaflight.OSD_Element_List;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
 with Adaflight.OSD_Spec;
@@ -36903,6 +36904,74 @@ procedure Vector_Check is
       end if;
    end Check_MSP_OSD_Line;
 
+   --  The build whose element list the lines after it describe, and a
+   --  configuration its element writes go into.
+   OSD_Items_List   : Adaflight.OSD_Element_List.List;
+   OSD_Items_Config : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+
+   --  A build's options with its element count, then each element's place in
+   --  that build's list and in the item set. The configuration reply puts an
+   --  element's position at its place in the list, and an element write
+   --  takes its place there as the address.
+   procedure Check_OSD_Items_Line is
+      use Adaflight.OSD_Element_List;
+      use type Adaflight.MSP_OSD_In.Result;
+      Name    : constant String := Str (1);
+      Result  : Adaflight.MSP_OSD_In.Result;
+      Effects : Adaflight.MSP_OSD_In.Effects;
+      Listed  : Natural;
+   begin
+      Listed := Adaflight.OSD_Element_List.Count (OSD_Items_List);
+      if Name = "osdbuild" then
+         OSD_Items_List := Of_Build
+           (GPS => Int (3) /= 0, Flight_Plan => Int (4) /= 0, Wing => Int (5) /= 0, Position_Hold => Int (6) /= 0,
+            Pitot => Int (7) /= 0);
+         Listed := Adaflight.OSD_Element_List.Count (OSD_Items_List);
+         Record_Int ("osditems.count", Int (8), Integer_64 (Listed));
+         Adaflight.MSP_OSD_In.Process
+           (OSD_Items_Config, Adaflight.MSP_OSD_In.Set_OSD_Config_Command,
+            (0 => Byte (Listed), 1 => 1, 2 => 0), OSD_Items_List, Result, Effects);
+         Record_Int ("osditems.past_end", 1, Boolean'Pos (Result = Adaflight.MSP_OSD_In.Error));
+      elsif Name = "osditem" then
+         declare
+            Place : constant Natural := Natural (Int (3));
+            Item  : constant Natural := Natural (Int (4));
+            V     : Adaflight.MSP_OSD_Out.Snapshot;
+            Reply : Byte_Array (0 .. 511) := (others => 0);
+            St    : Adaflight.Stream_Buffers.Stream;
+            Value : constant Natural := 2000 + Place;
+         begin
+            if Place >= Listed then
+               Put_Line ("osditems: place" & Place'Image & " is past the build's list");
+               Failures := Failures + 1;
+               return;
+            end if;
+            Record_Int ("osditems.element", Integer_64 (Item),
+                        Adaflight.OSD_Elements.Item'Pos (Element (OSD_Items_List, Place)));
+            V.OSD := True;
+            V.Elements := OSD_Items_List;
+            for I in Adaflight.OSD_Elements.Item loop
+               V.Positions (I) := Interfaces.Unsigned_16 (1000 + Adaflight.OSD_Elements.Item'Pos (I));
+            end loop;
+            Adaflight.Stream_Buffers.Init (St, 0, Reply'Last + 1);
+            Adaflight.MSP_OSD_Out.Reply (Reply, St, Adaflight.MSP_OSD_Out.OSD_Config_Command, V);
+            Record_Int ("osditems.reply_count", Integer_64 (Listed), Integer_64 (Reply (7)));
+            Record_Int ("osditems.reply_position", Integer_64 (1000 + Item),
+                        Integer_64 (Reply (10 + 2 * Place)) + 256 * Integer_64 (Reply (11 + 2 * Place)));
+            Adaflight.MSP_OSD_In.Process
+              (OSD_Items_Config, Adaflight.MSP_OSD_In.Set_OSD_Config_Command,
+               (0 => Byte (Place), 1 => Byte (Value mod 256), 2 => Byte (Value / 256)), OSD_Items_List, Result,
+               Effects);
+            Record_Int ("osditems.write_result", 1, Boolean'Pos (Result = Adaflight.MSP_OSD_In.Ack));
+            Record_Int ("osditems.written", Integer_64 (Value),
+                        Integer_64 (OSD_Items_Config.Osd_Element_Config.Item_Pos (Item)));
+         end;
+      else
+         Put_Line ("unknown OSD items case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_OSD_Items_Line;
+
    SM_Options    : Adaflight.Serial_Feature_Map.Options;
    SM_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
      (others => -1);
@@ -41329,6 +41398,8 @@ procedure Vector_Check is
                   Check_MSP_Simplified_Line;
                elsif Kind = "msposd" then
                   Check_MSP_OSD_Line;
+               elsif Kind = "osditems" then
+                  Check_OSD_Items_Line;
                elsif Kind = "serialmap" then
                   Check_Serial_Map_Line;
                elsif Kind = "mspalloc" then
@@ -41763,6 +41834,7 @@ begin
    Run (Dir & "/simpfilt.csv", "simpfilt");
    Run (Dir & "/mspsimp.csv", "mspsimp");
    Run (Dir & "/msposd.csv", "msposd");
+   Run (Dir & "/osditems.csv", "osditems");
    Run (Dir & "/serialmap.csv", "serialmap");
    Run (Dir & "/telshare.csv", "serialmap");
    Run (Dir & "/mspalloc.csv", "mspalloc");

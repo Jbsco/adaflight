@@ -8,6 +8,7 @@
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Stream_Buffers;
+with Adaflight.OSD_Element_List;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Stats;
@@ -53,6 +54,8 @@ package Adaflight.MSP_OSD_Out with SPARK_Mode is
       Cap_Alarm           : Unsigned_16 := 0;
       Alt_Alarm           : Unsigned_16 := 0;
       Positions           : Adaflight.OSD_Elements.Positions := (others => 0);
+      --  The elements the build lists.
+      Elements            : Adaflight.OSD_Element_List.List;
       Stats               : Adaflight.OSD_Stats.Stat_Set := (others => False);
       Timers              : Adaflight.OSD_Elements.Timer_Settings := (others => 0);
       Warnings            : Adaflight.OSD_Warnings.Warning_Set := (others => False);

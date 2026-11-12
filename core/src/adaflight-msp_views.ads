@@ -19,6 +19,7 @@ with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Tuning_Out;
+with Adaflight.OSD_Element_List;
 with Adaflight.OSD_Task;
 with Adaflight.OSD_Warnings;
 with Adaflight.Receiver;
@@ -139,6 +140,8 @@ package Adaflight.MSP_Views with SPARK_Mode is
       Warning_Line        : OSD_Warnings.Text;
       Warning_Blinking    : Boolean := False;
       Warning_Severity    : OSD_Warnings.Severity := OSD_Warnings.Normal;
+      --  The elements the build lists.
+      Elements            : OSD_Element_List.List;
    end record;
 
    function OSD_View (C : Configuration; R : OSD_Runtime) return MSP_OSD_Out.Snapshot;

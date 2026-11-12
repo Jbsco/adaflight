@@ -124,6 +124,17 @@ def main() -> int:
                      len(ids) > 30 and 3 in ids and 11 in ids, repr(list(ids)))
             hs.check("box ids without the flight plan leave out the autopilot", 56 not in ids, repr(list(ids)))
             hs.check("box ids without the flight plan leave out waypoint capture", 57 not in ids, repr(list(ids)))
+            osd = hs.msp(sock, 84) or b""
+            hs.check("OSD configuration lists the elements of a build without the flight plan",
+                     len(osd) > 7 and osd[7] == 90, repr(osd[:8]))
+            hs.check("position hold readiness element placed by its address in that list",
+                     hs.msp(sock, 85, bytes([88]) + (2115).to_bytes(2, "little")) == b"")
+            hs.check("airspeed element placed by its address in that list",
+                     hs.msp(sock, 85, bytes([89]) + (2147).to_bytes(2, "little")) == b"")
+            hs.check("element address past that list is refused", hs.msp(sock, 85, bytes([90, 1, 0])) is None)
+            osd = hs.msp(sock, 84) or b""
+            hs.check("OSD configuration reads both elements back at those places",
+                     osd[186:190] == (2115).to_bytes(2, "little") + (2147).to_bytes(2, "little"), repr(osd[184:190]))
             kept = hs.msp2(sock, 0x3010, b"ap_max_angle")
             hs.check("setting outside the flight plan reads by name over MSP there",
                      kept is not None and kept.startswith(b"ap_max_angle = "), repr(kept))
@@ -134,6 +145,12 @@ def main() -> int:
             options = {int(w) for w in hs.cli(sock, "options").split() if w.isdigit()}
             hs.check("build without the flight plan leaves its build option out", 16427 not in options,
                      repr(sorted(options)))
+            text = hs.cli(sock, "get osd_pos_hold_ready_pos")
+            hs.check("command line shows the position hold readiness position written over MSP",
+                     "osd_pos_hold_ready_pos = 2115" in text, text[-120:])
+            text = hs.cli(sock, "get osd_airspeed")
+            hs.check("command line shows the airspeed position written over MSP", "osd_airspeed = 2147" in text,
+                     text[-120:])
             text = hs.cli(sock, "waypoint")
             hs.check("build without the flight plan knows no waypoint command", "UNKNOWN COMMAND" in text,
                      text[-120:])

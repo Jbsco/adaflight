@@ -510,6 +510,7 @@ package body Adaflight.MSP_Views with SPARK_Mode is
       V.Stick_Overlay := R.Stick_Overlay;
       V.Display_Port_Font := R.Display_Port_Font;
       V.Frame_Buffer_OSD := R.Frame_Buffer_OSD;
+      V.Elements := R.Elements;
       V.VTX_Port := R.VTX_Port;
       V.Device := R.Device;
       V.Device_Ready := R.Device_Ready;
