@@ -5400,6 +5400,9 @@ package body Adaflight.STM32.Flight is
       end;
       if Adaflight.Build_Features.Transponder and then (Runtime_Features and Feature_Transponder) /= 0 then
          Adaflight.STM32.Transponder.Init (Config);
+         if Adaflight.STM32.Transponder.Stream_Number > 0 then
+            Env.DMA_Owners (Adaflight.STM32.Transponder.Stream_Number) := (Kind => CLI.Transponder, Index => 0);
+         end if;
       end if;
       Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Bat_Settings := Battery_Settings;

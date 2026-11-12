@@ -39600,6 +39600,8 @@ procedure Vector_Check is
          Busy (D) := Head (1 .. Head_Length) /= "FREE";
          if Head (1 .. Head_Length) = "ADC" then
             Busy_Owners (D) := (Kind => CLI.Analog, Index => Natural (Values (1)));
+         elsif Head (1 .. Head_Length) = "TRANSPONDER" then
+            Busy_Owners (D) := (Kind => CLI.Transponder, Index => 0);
          elsif Busy (D) then
             Busy_Owners (D) := (Kind => CLI.Strip, Index => 0);
          end if;

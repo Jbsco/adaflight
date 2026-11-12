@@ -3324,6 +3324,9 @@ def main():
                 read_all(sock, 0.8)
                 text = cli(sock, "timer show", 1.5)
                 check("timer list names the transponder's channel", "TRANSPONDER" in text, text[-200:])
+                text = cli(sock, "dma show", 1.5)
+                check("DMA list names the transponder's stream, the first option of its timer channel",
+                      "DMA1 Stream 7: TRANSPONDER\r\n" in text, text[-300:])
                 cli(sock, "save", wait=2.0)
                 proc.wait(timeout=10)
             finally:
@@ -3342,6 +3345,9 @@ def main():
                 text = cli(sock, "timer show", 1.5)
                 check("board started with no provider takes no timer channel for the transponder",
                       "CH" in text and "TRANSPONDER" not in text, text[-200:])
+                text = cli(sock, "dma show", 1.5)
+                check("board started with no provider takes no stream for the transponder",
+                      "DMA1 Stream 7: FREE" in text and "TRANSPONDER" not in text, text[-300:])
             finally:
                 stop(proc)
                 sock.close()
