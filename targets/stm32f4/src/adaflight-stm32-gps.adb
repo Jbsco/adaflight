@@ -197,5 +197,8 @@ package body Adaflight.STM32.GPS is
    function Satellite (I : Adaflight.GPS_Frames.Satellite_Index) return Adaflight.GPS_Frames.Satellite is
      (Rx.Sats (I));
 
+   function Link_Trace return Link_Record is
+     ((Trace => Rx.Trace, Timeouts => Link.Timeouts, Interval_Ms => Rx.Sol.Nav_Interval_Ms));
+
    function Time return Adaflight.GPS_Frames.Date_Time is (Rx.Sol.Utc);
 end Adaflight.STM32.GPS;

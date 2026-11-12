@@ -90,5 +90,13 @@ package Adaflight.STM32.GPS is
    --  The port's rate as the status command's index.
    function Port_Baud return Adaflight.Serial_Feature_Map.Baud_Index;
    function Satellite (I : Adaflight.GPS_Frames.Satellite_Index) return Adaflight.GPS_Frames.Satellite;
+   --  The link's record for a display's GPS page: the packet trace, the
+   --  link's timeouts and the interval between solutions in milliseconds.
+   type Link_Record is record
+      Trace       : Adaflight.GPS_Frames.Packet_Trace;
+      Timeouts    : Interfaces.Unsigned_32 := 0;
+      Interval_Ms : Interfaces.Unsigned_32 := 0;
+   end record;
+   function Link_Trace return Link_Record;
    function Time return Adaflight.GPS_Frames.Date_Time;
 end Adaflight.STM32.GPS;
