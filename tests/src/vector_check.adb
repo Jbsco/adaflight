@@ -133,6 +133,7 @@ with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
 with Adaflight.HoTT_Display_Port;
 with Adaflight.GHST_Telemetry;
+with Adaflight.ESC_Serial;
 with Adaflight.Soft_Serial;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
@@ -9013,6 +9014,285 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Soft_Serial_Line;
+
+   --  The ESC serial engine against the reference's driver: each call's
+   --  operations are written as the reference's pin, timer and motor calls
+   --  in its call order, and compared with the calls it made. A passthrough
+   --  run replays its script pass by pass.
+   ES_Seq    : Integer_64 := -1;
+   ES_Port   : Adaflight.ESC_Serial.Port;
+   ES_Parser : Adaflight.ESC_Serial.Exit_Parser;
+   ES_Exit   : Integer_64 := -1;
+
+   procedure Check_ESC_Serial_Line is
+      use Adaflight.ESC_Serial;
+      use Ada.Strings.Unbounded;
+      use type Interfaces.Unsigned_8;
+      Name  : constant String := Str (1);
+      Calls : Unbounded_String;
+
+      function Image (N : Integer_64) return String is
+         I : constant String := Integer_64'Image (N);
+      begin
+         return I (I'First + 1 .. I'Last);
+      end Image;
+
+      function Hex (B : Interfaces.Unsigned_32) return String is
+         Digit : constant String := "0123456789ABCDEF";
+      begin
+         return Digit (Natural (B / 16) mod 16 + 1) & Digit (Natural (B mod 16) + 1);
+      end Hex;
+
+      function Letter (T : Target) return Character is
+        (if T = Send_Pin then 'x' elsif T = Nothing then '?' else Character'Val (Character'Pos ('0') + T));
+
+      procedure Call (O : Op) is
+         A : constant String := Image (Integer_64 (O.A));
+         B : constant String := Image (Integer_64 (O.B));
+         W : constant Character := Letter (O.Who);
+      begin
+         if Length (Calls) > 0 then
+            Append (Calls, ";");
+         end if;
+         Append
+           (Calls,
+            (case O.Kind is
+                when Allocate    => "A" & W,
+                when Claim       => "I" & W,
+                when Pin_Mode    => "G" & W & A,
+                when Pin_High    => "H" & W,
+                when Pin_Low     => "L" & W,
+                when Configure   => "C" & W & A & ":" & B,
+                when Reset       => "R" & W,
+                when Time_Base   => "B" & W & A & ":" & B,
+                when Start       => "T" & W,
+                when Set_Counter => "S" & W & A,
+                when Polarity    => "P" & W & A,
+                when Clear_Flag  => "F" & W,
+                when Interrupt   => "N" & W & A,
+                when Tick_Handler | Edge_Handler => "K" & W & A,
+                when Motors_Off  => "M",
+                when Wait        => "D" & A,
+                when Host_Byte   => "wp" & Hex (O.A),
+                when ESC_Byte    => "we" & Hex (O.A)));
+      end Call;
+
+      procedure Call_All (Ops : Op_List) is
+      begin
+         for I in 1 .. Ops.Count loop
+            Call (Ops.Items (I));
+         end loop;
+      end Call_All;
+
+      function Board_From (First : Positive; Clock : Integer_64) return Board is
+         B : Board;
+         function Bit (Field : Positive; I : Motor_Index) return Boolean is ((Int (Field) / 2 ** I) mod 2 = 1);
+      begin
+         for I in Motor_Index loop
+            B.Motors (I) :=
+              (Assigned => Bit (First, I), Timer => Bit (First + 1, I), Complementary => Bit (First + 2, I),
+               Inverted => Bit (First + 3, I), Enabled => Bit (First + 4, I), Has_Pin => Bit (First + 5, I));
+         end loop;
+         B.Send_Set := Int (First + 6) = 1;
+         B.Send_Timer := Int (First + 7) = 1;
+         B.Send_Same_Timer := Int (First + 8) = 1;
+         B.Core_Clock := Interfaces.Unsigned_32 (Clock);
+         return B;
+      end Board_From;
+
+      procedure Record_State (K : Positive) is
+         Last : constant Adaflight.ESC_Serial.Buffer_Index :=
+           (if ES_Port.Rx_Head = 0 then Adaflight.ESC_Serial.Buffer_Index'Last else ES_Port.Rx_Head - 1);
+      begin
+         Record_Int (Name & ".searching", Int (K), Boolean'Pos (ES_Port.Searching));
+         Record_Int (Name & ".bit", Int (K + 1), Integer_64 (ES_Port.Rx_Bit));
+         Record_Int (Name & ".leading", Int (K + 2), Integer_64 (ES_Port.Rx_Last_Leading));
+         Record_Int (Name & ".edge", Int (K + 3), Edge_Kind'Pos (ES_Port.Rx_Edge));
+         Record_Int (Name & ".transmitting", Int (K + 4), Boolean'Pos (ES_Port.Transmitting));
+         Record_Int (Name & ".receiving", Int (K + 5), Boolean'Pos (ES_Port.Receiving));
+         Record_Int (Name & ".bitsleft", Int (K + 6), Integer_64 (ES_Port.Bits_Left));
+         Record_Int (Name & ".txregister", Int (K + 7), Integer_64 (ES_Port.Internal_Tx));
+         Record_Int (Name & ".rxregister", Int (K + 8), Integer_64 (ES_Port.Internal_Rx));
+         Record_Int (Name & ".timeout", Int (K + 9), Integer_64 (ES_Port.Receive_Timeout));
+         Record_Int (Name & ".txerrors", Int (K + 10), Integer_64 (ES_Port.Transmission_Errors));
+         Record_Int (Name & ".rxerrors", Int (K + 11), Integer_64 (ES_Port.Receive_Errors));
+         Record_Int (Name & ".mode", Int (K + 12), Protocol'Pos (ES_Port.Mode));
+         Record_Int (Name & ".outputs", Int (K + 13), Integer_64 (ES_Port.Output_Count));
+         Record_Int (Name & ".rxhead", Int (K + 14), Integer_64 (ES_Port.Rx_Head));
+         Record_Int (Name & ".rxtail", Int (K + 15), Integer_64 (ES_Port.Rx_Tail));
+         Record_Int (Name & ".txhead", Int (K + 16), Integer_64 (ES_Port.Tx_Head));
+         Record_Int (Name & ".txtail", Int (K + 17), Integer_64 (ES_Port.Tx_Tail));
+         Record_Int (Name & ".stored", Int (K + 18), Integer_64 (ES_Port.Rx_Buffer (Last)));
+         Record_Int (Name & ".quarter", Int (K + 19), Integer_64 (ES_Port.Quarter));
+         Record_Int (Name & ".preamble", Int (K + 20), Integer_64 (ES_Port.Preamble));
+         Record_Int (Name & ".halfzeros", Int (K + 21), Integer_64 (ES_Port.Half_Zeros));
+         Record_Int (Name & ".bits", Int (K + 22), Integer_64 (ES_Port.Bits));
+         Record_Int (Name & ".bytes", Int (K + 23), Integer_64 (ES_Port.Bytes));
+         Record_Text (Name & ".calls", Str (K + 24), To_String (Calls));
+      end Record_State;
+
+      function Nibble (C : Character) return Interfaces.Unsigned_8 is
+        (if C in '0' .. '9' then Character'Pos (C) - Character'Pos ('0')
+         else Character'Pos (C) - Character'Pos ('A') + 10);
+
+      function Bytes_Of (Text : String) return Byte_Array is
+         Data : Byte_Array (0 .. Text'Length / 2 - 1);
+      begin
+         for I in Data'Range loop
+            Data (I) := 16 * Nibble (Text (Text'First + 2 * I)) + Nibble (Text (Text'First + 2 * I + 1));
+         end loop;
+         return Data;
+      end Bytes_Of;
+
+      --  Each call's list has the room the call asks for and no more.
+      Open_List  : Op_List (Open_Ops);
+      Start_List : Op_List (Start_Ops);
+      Tick_List  : Op_List (Tick_Ops);
+      Edge_List  : Op_List (Edge_Ops);
+      Close_List : Op_List (Close_Ops);
+      Chunk_List : Op_List (Chunk);
+      Host_List  : Op_List (From_Host_Ops);
+   begin
+      if Name = "esopen" then
+         ES_Seq := Int (2);
+         declare
+            Opened : Boolean;
+         begin
+            Open (ES_Port, Protocol'Val (Int (3)), Motor_Index (Int (4)), Interfaces.Unsigned_32 (Int (5)),
+                  Board_From (7, Int (6)), Open_List, Opened);
+            Call_All (Open_List);
+            Record_Int (Name & ".opened", Int (16), Boolean'Pos (Opened));
+            Record_State (17);
+         end;
+      elsif Name = "esev" then
+         if Int (2) /= ES_Seq then
+            Put_Line ("ESC serial event without its open");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Kind   : constant Integer_64 := Int (4);
+            Result : Integer_64 := 0;
+            B      : Interfaces.Unsigned_8;
+         begin
+            case Kind is
+               when 0 =>
+                  Tick (ES_Port, Tick_List);
+                  Call_All (Tick_List);
+               when 1 =>
+                  Edge (ES_Port, Interfaces.Unsigned_16 (Int (5)), Edge_List);
+                  Call_All (Edge_List);
+               when 2 =>
+                  Write (ES_Port, Interfaces.Unsigned_8 (Int (5)));
+               when 3 =>
+                  Read (ES_Port, B);
+                  Result := Integer_64 (B);
+               when 4 =>
+                  Result := Integer_64 (Rx_Waiting (ES_Port));
+               when 6 =>
+                  Result := Boolean'Pos (Tx_Empty (ES_Port));
+               when 7 =>
+                  Close (ES_Port, Close_List);
+                  Call_All (Close_List);
+               when 8 =>
+                  ES_Port.Rx_Head := Adaflight.ESC_Serial.Buffer_Index (Int (5));
+                  ES_Port.Rx_Tail := ES_Port.Rx_Head;
+                  ES_Port.Tx_Head := ES_Port.Rx_Head;
+                  ES_Port.Tx_Tail := ES_Port.Rx_Head;
+               when others =>
+                  Put_Line ("unknown ESC serial event kind");
+                  Failures := Failures + 1;
+            end case;
+            Record_Int (Name & ".result", Int (6), Result);
+            Record_State (7);
+         end;
+      elsif Name = "esexit" then
+         if Int (2) /= ES_Exit then
+            ES_Exit := Int (2);
+            ES_Parser := (others => <>);
+         end if;
+         declare
+            Leave : Boolean;
+         begin
+            Exit_Step (ES_Parser, Interfaces.Unsigned_8 (Int (4)), Leave);
+            Record_Int (Name & ".leave", Int (5), Boolean'Pos (Leave));
+            Record_Int (Name & ".state", Int (6), Parser_State'Pos (ES_Parser.State));
+            Record_Int (Name & ".size", Int (7), Integer_64 (ES_Parser.Size));
+            Record_Int (Name & ".offset", Int (8), Integer_64 (ES_Parser.Offset));
+            Record_Int (Name & ".checksum", Int (9), Integer_64 (ES_Parser.Checksum));
+            Record_Int (Name & ".command", Int (10), Integer_64 (ES_Parser.Command));
+         end;
+      elsif Name = "espass" then
+         declare
+            Script  : constant String := Str (15);
+            Started : Boolean;
+            Left    : Boolean := False;
+            Result  : Integer_64;
+            From    : Positive := Script'First;
+            Step    : Natural := 0;
+         begin
+            ES_Seq := -1;
+            ES_Parser := (others => <>);
+            Start (ES_Port, Protocol'Val (Int (3)), Natural (Int (4)), Board_From (6, Int (5)), Start_List, Started);
+            Call_All (Start_List);
+            if not Started then
+               Result := 0;
+            else
+               Result := -1;
+               while From <= Script'Last + 1 and then not Left loop
+                  declare
+                     To    : Natural := From;
+                     Colon : Natural := 0;
+                  begin
+                     while To <= Script'Last and then Script (To) /= '/' loop
+                        if Script (To) = ':' then
+                           Colon := To;
+                        end if;
+                        To := To + 1;
+                     end loop;
+                     if Step > 0 then
+                        for B of Bytes_Of (Script (Colon + 1 .. To - 1)) loop
+                           ES_Port.Rx_Buffer (ES_Port.Rx_Head) := B;
+                           ES_Port.Rx_Head := (ES_Port.Rx_Head + 1) mod Adaflight.ESC_Serial.Buffer_Size;
+                        end loop;
+                     end if;
+                     declare
+                        Host : constant Byte_Array := Bytes_Of (Script (From .. Colon - 1));
+                        At_K : Natural := Host'First;
+                        More : Boolean := True;
+                     begin
+                        while More loop
+                           Forward (ES_Port, Chunk_List, More);
+                           Call_All (Chunk_List);
+                        end loop;
+                        while At_K <= Host'Last and then not Left loop
+                           From_Host
+                             (ES_Port, ES_Parser, Host (At_K .. Natural'Min (Host'Last, At_K + Chunk - 1)), Host_List,
+                              Left);
+                           Call_All (Host_List);
+                           At_K := At_K + Chunk;
+                        end loop;
+                        if not Left and then To <= Script'Last and then Pass_Wait_Ms (ES_Port) > 0 then
+                           Call ((Kind => Wait, Who => Nothing, A => Interfaces.Unsigned_32 (Pass_Wait_Ms (ES_Port)),
+                                  B => 0));
+                        end if;
+                     end;
+                     From := To + 1;
+                     Step := Step + 1;
+                  end;
+               end loop;
+               if Left then
+                  Result := 1;
+               end if;
+            end if;
+            Record_Int (Name & ".result", Int (16), Result);
+            Record_State (17);
+         end;
+      else
+         Put_Line ("unknown ESC serial case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_ESC_Serial_Line;
 
    SX_Seq     : Integer_64 := -1;
    SX_Stream  : Adaflight.SRXL_Telemetry.Stream;
@@ -41684,6 +41964,8 @@ procedure Vector_Check is
                   Check_Transponder_Line;
                elsif Kind = "softserial" then
                   Check_Soft_Serial_Line;
+               elsif Kind = "escserial" then
+                  Check_ESC_Serial_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -42188,6 +42470,9 @@ begin
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Run (Dir & "/transponder.csv", "transponder");
    Run (Dir & "/softserial.csv", "softserial");
+   Run (Dir & "/escserial.csv", "escserial");
+   Run (Dir & "/escexit.csv", "escserial");
+   Run (Dir & "/escpass.csv", "escserial");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");
