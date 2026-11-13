@@ -14670,3 +14670,27 @@ for BLHeli and Castle, as D738's port does on one timer, and refuses SimonK, whi
 every motor with no motor timer goes on with a null timer (F332); this engine refuses.
 
 That one-timer arrangement is adaflight's own. It has not run on hardware.
+
+## D741. Interrupt stack check (2026-11-13)
+
+Interrupt handlers do not run on a task's stack. GNAT's run-time library moves its environment task to a process
+stack and gives every handler one interrupt stack of 2,048 bytes, which nested handlers share. No gate checked it:
+`stackdepth.py` followed start-up paths on a main stack alone.
+
+D739 put software serial handlers at top priority, so they nest over any other handler, and an alarm of that
+library nests over them. With a context switch and a USB setup request underneath, that worst case came to
+2,164 bytes on an STM32F405 image. It takes four events at once, and no board has shown it.
+
+Most of it was one frame. `USB_VCP` emptied its action list with a whole-record aggregate, whose temporary took
+1,096 bytes of a USB handler's stack. It now empties each action in a loop.
+
+`stackdepth.py` now adds up that worst case for every image: a context switch, a handler of each priority, then an
+alarm. Each level costs its entry code and deepest path, and each level above a first an exception frame, extended
+where a level below uses floating point.
+
+Handlers and priorities come from `Attach_Handler` aspects in board sources. A form it cannot read fails a build.
+So does a handler path that calls through a register, unless its callees were registered through a call it
+knows. Callbacks of EXTI lines, of an ExpressLRS timer and of an SPI receiver's edge are followed from their
+registration calls.
+
+That image now needs 1,156 bytes. A build fails when fewer than 256 bytes stay free.

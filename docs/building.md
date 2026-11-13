@@ -1,6 +1,6 @@
 # Building and flashing
 
-The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
+The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers. It also leaves out the board crate's run-time checks.
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board with an SPI receiver also leaves out debug values.
 
@@ -15,6 +15,8 @@ No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its execu
     FLASH_KB=512 bash host.do                 # the host smoke on those features
 
 `target.do` also checks each image's deepest call paths against its main stack. `tools/stackdepth.py` adds up function frames along each path from start-up and fails a build whose path leaves less than 1,024 bytes of stack. In a packed image, unpacking must fit above its model and elaboration above boot code. Run it by hand with `--paths N` to list further paths from start-up, each the deepest one that avoids the largest frame of those listed before it.
+
+It also checks interrupt handlers against the run-time library's interrupt stack, which nested handlers share: a context switch, one handler of each priority and an alarm, each with its exception frame, must leave 256 bytes.
 
 An image is flashed through the STM32 bootloader over USB with the board in DFU mode. `target.do` writes two flash files beside the image. `sector0.bin` contains the vector table and the code placed beside it in sector 0. `code.bin` contains the code from sector 2: 0x08008000, or 0x08010000 on an F745 or F746. Sector 1 keeps the configuration, and neither file writes it. `target.do` also writes `adaflight_stm32f4.hex` or `adaflight_stm32f7.hex`, both files as one Intel HEX image with the configuration sector left out, for a configurator's local firmware flash.
 
