@@ -14565,3 +14565,14 @@ provider: sending stops, and stays stopped after a restart and a new code.
 
 Two parts stay open. Betaflight turns its transponder off in its failure mode, which boards do not have. A DMA
 table in a command line lists no transponder stream yet.
+
+## D737. Transponder stream in DMA table (2026-11-12)
+
+Betaflight's dma command lists each stream's owner by name, a transponder's among them. D736 left that open.
+
+Core command line gained a transponder owner kind and prints TRANSPONDER for it. A board marks its transponder's
+stream in that table once its output is taken. Bit-bang setup oracle now draws a transponder among busy stream
+owners, and its vectors compare that table.
+
+Host output names its stream as a board does, so a smoke check reads it from that table: DMA1 stream 7 for a pin
+on TIM4 channel 3, and no transponder line on a board that started with no provider.

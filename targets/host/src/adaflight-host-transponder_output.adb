@@ -1,6 +1,7 @@
 --  The host's transponder output: the transponder's pin takes its timer
---  channel as on the board, and each transmission adds a line to the file
---  the environment variable ADAFLIGHT_TRANSPONDER_LOG names: the uptime in
+--  channel and names its stream as on the board, and each transmission adds
+--  a line to the file the environment variable ADAFLIGHT_TRANSPONDER_LOG
+--  names: the uptime in
 --  milliseconds, the coding, the prescaler, the period and the one-toggle
 --  value its timer takes from that timer's clock, the count of toggles, and
 --  the toggles, a 1 for one at that value, a 0 for silence and a 2 for any
@@ -21,6 +22,7 @@ package body Adaflight.STM32.Transponder_Output is
    Period   : Unsigned_16 := 0;
    Toggle   : Unsigned_16 := 0;
    Channel  : Timer_Entry;
+   Stream   : DMA_Stream;
 
    procedure Log (Line : String) is
       Name : constant String :=
@@ -53,12 +55,20 @@ package body Adaflight.STM32.Transponder_Output is
          return;
       end if;
       Allocate (Tag, Adaflight.CLI_Resources.Transponder, E, Index, Found);
-      if Found and then Option_Of (Index) in 0 .. Options_Of (E.Timer, E.Channel)'Length - 1 then
-         Channel := E;
-         Taken := True;
-      else
-         Found := False;
+      if not Found then
+         return;
       end if;
+      declare
+         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
+         Option : constant Integer := Option_Of (Index);
+      begin
+         Found := Option in 0 .. O'Length - 1;
+         if Found then
+            Channel := E;
+            Stream := O (O'First + Option);
+            Taken := True;
+         end if;
+      end;
    end Take;
 
    procedure Configure (P : Core.Provider) is
@@ -96,6 +106,6 @@ package body Adaflight.STM32.Transponder_Output is
            & "," & Image (Unsigned_32 (Toggles.Length)) & "," & Text);
    end Transmit;
 
-   function Stream_Number return Natural is (0);
+   function Stream_Number return Natural is (if Taken then (Stream.Controller - 1) * 8 + Stream.Stream + 1 else 0);
 
 end Adaflight.STM32.Transponder_Output;
