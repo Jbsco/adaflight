@@ -14706,3 +14706,20 @@ A ring now stores bytes alone. One array of arrival times belongs to whichever U
 returns those stamps; a take from any other returns its take time, as a software serial port does.
 
 This frees about 3 KB of an STM32F405's main RAM, for an ESC serial port's buffers.
+
+## D743. Timer interrupt dispatch (2026-11-13)
+
+Software serial's board driver attached every timer vector its ports could use to its own protected object (D739).
+One vector takes one attached handler, so no other unit could run on those timers. An ESC serial link needs them:
+it clocks bits on a motor pin's timer.
+
+`Timer_Dispatch` now attaches those vectors, TIM1 to TIM4 and TIM8 to TIM14, at top interrupt priority. A unit
+registers one procedure per timer, and that procedure runs in a handler when its timer interrupts. Software serial
+registers its `Serve` procedure for each timer a port opens on. Its protected object keeps task-side calls: at top
+ceiling they mask every interrupt, so they still exclude `Serve`.
+
+TIM5's vector stays with an ExpressLRS timer, as before. Its tick shares an SPI bus with that radio's EXTI handler
+and relies on equal priority.
+
+D741's stack check follows a registered procedure from its `Register` call. Its worst case for an STM32F405 image
+is unchanged.

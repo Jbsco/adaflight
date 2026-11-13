@@ -1,8 +1,8 @@
-with Ada.Interrupts.Names;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Soft_Serial;
 with Adaflight.STM32.Soft_Serial_Logic;
+with Adaflight.STM32.Timer_Dispatch;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
 package body Adaflight.STM32.Soft_Serial is
    use Interfaces;
@@ -132,18 +132,41 @@ package body Adaflight.STM32.Soft_Serial is
       Regs.CR1 := Regs.CR1 or CEN;
    end Start_Clock;
 
-   --  TIM1's update and capture interrupts by number: the STM32F7 run time's
-   --  names give the update the break's number and leave the capture out.
-   TIM1_Update_ID  : constant Ada.Interrupts.Interrupt_ID := 25;
-   TIM1_Capture_ID : constant Ada.Interrupts.Interrupt_ID := 27;
+   --  A timer's pending work: its update as a tick for the ports it
+   --  clocks, then its capture as an edge for the port it is the main
+   --  timer of.
+   procedure Serve (T : Timer_Name) is
+      Regs   : Timer_Registers with Import, Address => Timer_Base (T);
+      Status : Interfaces.Unsigned_32;
+   begin
+      if not (for some N in Port_Number =>
+                HW (N).Used and then (HW (N).Main.Timer = T or else (HW (N).Dual and then HW (N).Second = T)))
+      then
+         return;
+      end if;
+      Status := Regs.SR and Regs.DIER;
+      if (Status and Update_Flag) /= 0 then
+         Regs.SR := not Update_Flag;
+         for N in Port_Number loop
+            if HW (N).Used and then HW (N).Main.Timer = T then
+               Logic.Tick (N, Logic.Main);
+            end if;
+            if HW (N).Used and then HW (N).Dual and then HW (N).Second = T then
+               Logic.Tick (N, Logic.Second);
+            end if;
+         end loop;
+      end if;
+      for N in Port_Number loop
+         if HW (N).Used and then HW (N).Main.Timer = T and then (Status and Capture_Flag (HW (N).Main)) /= 0 then
+            Regs.SR := not Capture_Flag (HW (N).Main);
+            Logic.Edge (N);
+         end if;
+      end loop;
+   end Serve;
 
-   --  The timers that have an interrupt handler here. TIM5's interrupt is
-   --  the SPI receiver's.
-   function Served (T : Timer_Name) return Boolean is (T /= TIM5);
-
-   --  The handlers run above the other interrupt handlers of the board, so
-   --  a UART's or the USB port's work does not hold a bit clock's tick off.
-   protected Handlers with Interrupt_Priority => System.Interrupt_Priority'Last is
+   --  The task-side calls run with every interrupt held off, so a tick or an
+   --  edge never meets one of them half done.
+   protected Ports with Interrupt_Priority => System.Interrupt_Priority'Last is
       procedure Open
         (N : Port_Number; Baud : Positive; Half_Duplex : Boolean; Inverted : Boolean; Resistor : GPIO.Pull;
          Opened : out Boolean);
@@ -153,22 +176,9 @@ package body Adaflight.STM32.Soft_Serial is
       function Free (N : Port_Number) return Natural;
       function Empty (N : Port_Number) return Boolean;
       function Is_Open (N : Port_Number) return Boolean;
-   private
-      procedure Serve (T : Timer_Name);
-      procedure TIM1_Update with Attach_Handler => TIM1_Update_ID;
-      procedure TIM1_Capture with Attach_Handler => TIM1_Capture_ID;
-      procedure TIM9_Any with Attach_Handler => Ada.Interrupts.Names.TIM1_BRK_TIM9_Interrupt;
-      procedure TIM11_Any with Attach_Handler => Ada.Interrupts.Names.TIM1_TRG_COM_TIM11_Interrupt;
-      procedure TIM2_Any with Attach_Handler => Ada.Interrupts.Names.TIM2_Interrupt;
-      procedure TIM3_Any with Attach_Handler => Ada.Interrupts.Names.TIM3_Interrupt;
-      procedure TIM4_Any with Attach_Handler => Ada.Interrupts.Names.TIM4_Interrupt;
-      procedure TIM8_Update with Attach_Handler => Ada.Interrupts.Names.TIM8_UP_TIM13_Interrupt;
-      procedure TIM8_Capture with Attach_Handler => Ada.Interrupts.Names.TIM8_CC_Interrupt;
-      procedure TIM12_Any with Attach_Handler => Ada.Interrupts.Names.TIM8_BRK_TIM12_Interrupt;
-      procedure TIM14_Any with Attach_Handler => Ada.Interrupts.Names.TIM8_TRG_COM_TIM14_Interrupt;
-   end Handlers;
+   end Ports;
 
-   protected body Handlers is
+   protected body Ports is
 
       procedure Open
         (N : Port_Number; Baud : Positive; Half_Duplex : Boolean; Inverted : Boolean; Resistor : GPIO.Pull;
@@ -190,7 +200,9 @@ package body Adaflight.STM32.Soft_Serial is
          H.Main := (if Plan.Main = Engine.Tx_Pin then C.TX else C.RX);
          H.Dual := Plan.Timing = Engine.Dual;
          H.Second := C.TX.Timer;
-         if not Served (H.Main.Timer) or else (H.Dual and then not Served (H.Second)) then
+         if not Timer_Dispatch.Served (H.Main.Timer)
+           or else (H.Dual and then not Timer_Dispatch.Served (H.Second))
+         then
             Logic.Close (N);
             return;
          end if;
@@ -210,6 +222,7 @@ package body Adaflight.STM32.Soft_Serial is
                when Engine.None => GPIO.No_Pull, when Engine.Down => GPIO.Down, when Engine.Up => GPIO.Up);
          H.Used := True;
          HW (N) := H;
+         Timer_Dispatch.Register (H.Main.Timer, Serve'Access);
          Start_Clock (H.Main.Timer, Plan.Main_Base);
          Capture_Polarity (H.Main, Rising => Inverted);
          declare
@@ -218,6 +231,7 @@ package body Adaflight.STM32.Soft_Serial is
             Regs.DIER := Regs.DIER or Capture_Flag (H.Main);
          end;
          if H.Dual then
+            Timer_Dispatch.Register (H.Second, Serve'Access);
             Start_Clock (H.Second, Plan.Second_Base);
          end if;
          if H.Has_Send then
@@ -263,96 +277,7 @@ package body Adaflight.STM32.Soft_Serial is
 
       function Is_Open (N : Port_Number) return Boolean is (Logic.Is_Open (N));
 
-      --  A timer's pending work: its update as a tick for the ports it
-      --  clocks, then its capture as an edge for the port it is the main
-      --  timer of.
-      procedure Serve (T : Timer_Name) is
-         Regs   : Timer_Registers with Import, Address => Timer_Base (T);
-         Status : Interfaces.Unsigned_32;
-      begin
-         if not (for some N in Port_Number =>
-                   HW (N).Used and then (HW (N).Main.Timer = T or else (HW (N).Dual and then HW (N).Second = T)))
-         then
-            return;
-         end if;
-         Status := Regs.SR and Regs.DIER;
-         if (Status and Update_Flag) /= 0 then
-            Regs.SR := not Update_Flag;
-            for N in Port_Number loop
-               if HW (N).Used and then HW (N).Main.Timer = T then
-                  Logic.Tick (N, Logic.Main);
-               end if;
-               if HW (N).Used and then HW (N).Dual and then HW (N).Second = T then
-                  Logic.Tick (N, Logic.Second);
-               end if;
-            end loop;
-         end if;
-         for N in Port_Number loop
-            if HW (N).Used and then HW (N).Main.Timer = T and then (Status and Capture_Flag (HW (N).Main)) /= 0 then
-               Regs.SR := not Capture_Flag (HW (N).Main);
-               Logic.Edge (N);
-            end if;
-         end loop;
-      end Serve;
-
-      procedure TIM1_Update is
-      begin
-         Serve (TIM1);
-         Serve (TIM10);
-      end TIM1_Update;
-
-      procedure TIM1_Capture is
-      begin
-         Serve (TIM1);
-      end TIM1_Capture;
-
-      procedure TIM9_Any is
-      begin
-         Serve (TIM9);
-      end TIM9_Any;
-
-      procedure TIM11_Any is
-      begin
-         Serve (TIM11);
-      end TIM11_Any;
-
-      procedure TIM2_Any is
-      begin
-         Serve (TIM2);
-      end TIM2_Any;
-
-      procedure TIM3_Any is
-      begin
-         Serve (TIM3);
-      end TIM3_Any;
-
-      procedure TIM4_Any is
-      begin
-         Serve (TIM4);
-      end TIM4_Any;
-
-      procedure TIM8_Update is
-      begin
-         Serve (TIM8);
-         Serve (TIM13);
-      end TIM8_Update;
-
-      procedure TIM8_Capture is
-      begin
-         Serve (TIM8);
-      end TIM8_Capture;
-
-      procedure TIM12_Any is
-      begin
-         Serve (TIM12);
-      end TIM12_Any;
-
-      procedure TIM14_Any is
-      begin
-         Serve (TIM14);
-      end TIM14_Any;
-
-   end Handlers;
+   end Ports;
 
    procedure Configure (C : Adaflight.Config_Groups.Configuration; Feature_On : Boolean) is
    begin
@@ -368,18 +293,18 @@ package body Adaflight.STM32.Soft_Serial is
      (N : Port_Number; Baud : Positive; Half_Duplex : Boolean; Inverted : Boolean;
       Resistor : Adaflight.STM32.GPIO.Pull; Opened : out Boolean) is
    begin
-      Handlers.Open (N, Baud, Half_Duplex, Inverted, Resistor, Opened);
+      Ports.Open (N, Baud, Half_Duplex, Inverted, Resistor, Opened);
    end Open;
 
-   function Is_Open (N : Port_Number) return Boolean is (Handlers.Is_Open (N));
+   function Is_Open (N : Port_Number) return Boolean is (Ports.Is_Open (N));
 
    procedure Set_Baud (N : Port_Number; Baud : Positive; Changed : out Boolean) is
    begin
-      Handlers.Set_Baud (N, Baud, Changed);
+      Ports.Set_Baud (N, Baud, Changed);
    end Set_Baud;
 
-   --  The task-side calls go to the handlers' object a few bytes at a time,
-   --  so the ticks are held off for a short time only.
+   --  The task-side calls take the ports' object a few bytes at a time, so
+   --  the ticks are held off for a short time only.
    Chunk : constant := 16;
 
    procedure Queue (N : Port_Number; Data : Byte_Array; Taken : out Natural) is
@@ -387,16 +312,16 @@ package body Adaflight.STM32.Soft_Serial is
    begin
       Taken := 0;
       while Taken < Data'Length loop
-         Handlers.Queue
+         Ports.Queue
            (N, Data (Data'First + Taken .. Natural'Min (Data'Last, Data'First + Taken + Chunk - 1)), Part);
          Taken := Taken + Part;
          exit when Part = 0;
       end loop;
    end Queue;
 
-   function Free (N : Port_Number) return Natural is (Handlers.Free (N));
+   function Free (N : Port_Number) return Natural is (Ports.Free (N));
 
-   function Transmit_Empty (N : Port_Number) return Boolean is (Handlers.Empty (N));
+   function Transmit_Empty (N : Port_Number) return Boolean is (Ports.Empty (N));
 
    procedure Take (N : Port_Number; Into : out Byte_Array; Count : out Natural) is
       Part : Natural;
@@ -404,7 +329,7 @@ package body Adaflight.STM32.Soft_Serial is
       Into := (others => 0);
       Count := 0;
       while Count < Into'Length loop
-         Handlers.Take
+         Ports.Take
            (N, Into (Into'First + Count .. Natural'Min (Into'Last, Into'First + Count + Chunk - 1)), Part);
          Count := Count + Part;
          exit when Part = 0;
