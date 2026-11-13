@@ -43,7 +43,8 @@ TICK_ENTRY = ("__gnat_sys_tick_trap", "system__bb__board_support__timer_interrup
 # A registration call in the sources, and the prefix of the functions that call what it registered.
 REGISTRATIONS = (("EXTI_Dispatch.Register", "adaflight__stm32__exti_dispatch__"),
                  ("ELRS_Timer.Init", "adaflight__stm32__elrs_timer__"),
-                 ("RX_SPI_Device.Set_Edge_Handler", "adaflight__stm32__rx_spi_device__"))
+                 ("RX_SPI_Device.Set_Edge_Handler", "adaflight__stm32__rx_spi_device__"),
+                 ("Timer_Dispatch.Register", "adaflight__stm32__timer_dispatch__"))
 PROTECTED = re.compile(r"^[ \t]*protected (?:type )?(\w+)\s+with\s+Interrupt_Priority\s*=>\s*([^,\n]+?)\s*"
                        r"(?:,[^\n]*)?\s+is\n"
                        r"(.*?)^[ \t]*end \1;", re.M | re.S)
