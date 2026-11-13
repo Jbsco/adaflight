@@ -56,7 +56,8 @@ package body Adaflight.STM32.ESC_Serial_Port is
    --  One pin or timer operation on the registers. A timer's setup resets
    --  it first, which ends a motor output's compare events and its drive of
    --  the pin, then starts it at the setup's time base with its interrupts
-   --  served. The bit tick is the timer's update.
+   --  served. The bit tick is the timer's update. A counter set starts a new
+   --  bit clock, so it drops an update left pending from the old one.
    procedure Apply (O : Engine.Op) is
    begin
       if O.Who not in Pin_Target or else not Taken (O.Who) then
@@ -97,6 +98,7 @@ package body Adaflight.STM32.ESC_Serial_Port is
                Regs.CR1 := Regs.CR1 or CEN;
             when Engine.Set_Counter =>
                Regs.CNT := O.A;
+               Regs.SR := not Update_Flag;
             when Engine.Polarity =>
                Capture_Polarity (E, Rising => O.A = 1);
             when Engine.Clear_Flag =>
@@ -130,13 +132,25 @@ package body Adaflight.STM32.ESC_Serial_Port is
    end Apply;
 
    --  A timer's pending interrupts, each flag cleared whether or not it has
-   --  a handler: its channel's capture as an edge with the captured count,
-   --  then its update as the port's bit tick.
+   --  a handler: its update as the port's bit tick, then its channel's
+   --  capture as an edge with the captured count. A tick that waits beside a
+   --  start edge fell before the edge's bit clock, so it runs first, while
+   --  the port still searches.
    procedure Serve (T : Timer_Name) is
       Regs   : Timer_Registers with Import, Address => Timer_Base (T);
       Status : constant Unsigned_32 := Regs.SR and Regs.DIER and Flags;
    begin
       Regs.SR := not Status;
+      if Tick_On and then Tick_Timer = T and then (Status and Update_Flag) /= 0 then
+         declare
+            Ops : Engine.Op_List (Engine.Tick_Ops);
+         begin
+            Engine.Tick (P, Ops);
+            for I in 1 .. Ops.Count loop
+               Apply (Ops.Items (I));
+            end loop;
+         end;
+      end if;
       if Edge_On and then Edge_Entry.Timer = T and then (Status and Capture_Flag (Edge_Entry)) /= 0 then
          declare
             Captured : Unsigned_32
@@ -145,16 +159,6 @@ package body Adaflight.STM32.ESC_Serial_Port is
             Ops      : Engine.Op_List (Engine.Edge_Ops);
          begin
             Engine.Edge (P, Unsigned_16 (Count and 16#FFFF#), Ops);
-            for I in 1 .. Ops.Count loop
-               Apply (Ops.Items (I));
-            end loop;
-         end;
-      end if;
-      if Tick_On and then Tick_Timer = T and then (Status and Update_Flag) /= 0 then
-         declare
-            Ops : Engine.Op_List (Engine.Tick_Ops);
-         begin
-            Engine.Tick (P, Ops);
             for I in 1 .. Ops.Count loop
                Apply (Ops.Items (I));
             end loop;
