@@ -64,6 +64,15 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end if;
    end Add;
 
+   --  An action list emptied, each action at its defaults.
+   procedure Clear (A : out Actions) is
+   begin
+      A.Count := 0;
+      for I in A.List'Range loop
+         A.List (I) := (others => <>);
+      end loop;
+   end Clear;
+
    procedure Open (D : in out Device; A : in out Actions; Address : Unsigned_8; Max : Packet_Limit;
                    Kind : Endpoint_Kind)
      with Pre => Valid (Address)
@@ -619,7 +628,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    procedure Reset (D : in out Device; A : out Actions) is
    begin
-      A := (others => <>);
+      Clear (A);
       Open (D, A, 16#00#, Packet_Size, Control);
       Open (D, A, 16#80#, Packet_Size, Control);
       D.Status := Default;
@@ -632,7 +641,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
         (Request_Type => Packet (0), Code => Packet (1), Value => Word (Packet (2), Packet (3)),
          Index => Word (Packet (4), Packet (5)), Length => Word (Packet (6), Packet (7)));
    begin
-      A := (others => <>);
+      Clear (A);
       D.Control_Length := Natural (R.Length);
       D.Stage := Stage_Setup;
       D.In_EP (0).Halted := False;
@@ -655,7 +664,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
          then D.Out_EP (EP).Prepared - D.Out_EP (EP).Received else 0);
       Taken : Natural := Natural'Min (Packet'Length, Room);
    begin
-      A := (others => <>);
+      Clear (A);
       if EP = 0 then
          if D.Receiving then
             Taken := Natural'Min (Taken, Command_Size - D.Command_Next);
@@ -692,7 +701,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    procedure Data_In (D : in out Device; EP : Endpoint_Number; A : out Actions) is
    begin
-      A := (others => <>);
+      Clear (A);
       if EP = 0 then
          if D.Stage = Stage_Data_In then
             if D.In_EP (0).Remaining > D.In_EP (0).Max_Packet then
@@ -721,7 +730,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    procedure Start_Of_Frame (D : in out Device; A : out Actions) is
    begin
-      A := (others => <>);
+      Clear (A);
       if D.Frame_Count = Frame_Interval then
          D.Frame_Count := 0;
          Start_Transmit (D, A);
