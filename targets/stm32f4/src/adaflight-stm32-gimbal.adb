@@ -15,7 +15,8 @@ package body Adaflight.STM32.Gimbal is
    package Core renames Adaflight.Gimbal_Control;
 
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
+      USART.Soft1 => 30, USART.Soft2 => 31);
    Baud     : constant := 115_200;
 
    Open  : Boolean := False;

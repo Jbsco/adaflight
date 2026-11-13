@@ -42,6 +42,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.SPI") use "adaflight-host-spi.adb";
       for Body ("Adaflight.STM32.Time") use "adaflight-host-time.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-host-usart.adb";
+      for Body ("Adaflight.STM32.Soft_Serial") use "adaflight-host-soft_serial.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
       for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;

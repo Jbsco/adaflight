@@ -13,7 +13,8 @@ package body Adaflight.STM32.Telemetry_Port is
    package SFM renames Adaflight.Serial_Feature_Map;
 
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
+      USART.Soft1 => 30, USART.Soft2 => 31);
 
    type Sharing is (Unused, Not_Shared, Shared);
 

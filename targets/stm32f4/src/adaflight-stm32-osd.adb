@@ -257,7 +257,8 @@ package body Adaflight.STM32.OSD is
    Display_Line    : Boolean := True;
    Display_UART    : USART.Port := (Which => USART.UART1);
    Board_UARTs    : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
+      USART.Soft1 => 30, USART.Soft2 => 31);
 
    function Device_Pos (D : Adaflight.OSD_Task.Device_Kind) return Byte is
      (Byte (Adaflight.OSD_Task.Device_Kind'Pos (D)));

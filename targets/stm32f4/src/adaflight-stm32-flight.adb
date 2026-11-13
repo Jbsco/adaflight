@@ -164,6 +164,7 @@ with Adaflight.OSD_Render;
 with Adaflight.STM32.Menu;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.OSD_Custom_Text;
+with Adaflight.STM32.Soft_Serial;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Transponder;
 with Adaflight.STM32.USART;
@@ -314,13 +315,20 @@ package body Adaflight.STM32.Flight is
    Into     : CLI.Output;
    Changes  : CLI.Effects;
    --  The board's serial ports by identifier: the USB virtual serial port,
-   --  then the UARTs the board has in order.
+   --  then the UARTs the board has in order and the two software serial
+   --  ports of a build with them, which need their feature and a pin to
+   --  be available.
    function Board_Ports return CLI.Port_List is
-      Set   : constant Adaflight.STM32.USART.Number_List := Adaflight.STM32.USART.Present_Set;
-      Ports : CLI.Port_List (1 .. Set'Length + 1) := (others => VCP_Id);
+      Set   : constant Adaflight.STM32.USART.Number_List := Adaflight.STM32.USART.UART_Set;
+      Soft  : constant Natural :=
+        (if Adaflight.Build_Features.Soft_Serial then Adaflight.STM32.Soft_Serial.Port_Count else 0);
+      Ports : CLI.Port_List (1 .. Set'Length + 1 + Soft) := (others => VCP_Id);
    begin
       for I in Set'Range loop
          Ports (I + 1) := Adaflight.STM32.USART.Identifier (Set (I));
+      end loop;
+      for N in 1 .. Soft loop
+         Ports (Set'Length + 1 + N) := Adaflight.Serial_Feature_Map.Soft_Serial_1 + N - 1;
       end loop;
       return Ports;
    end Board_Ports;
@@ -775,6 +783,17 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Indicate_Failure;
 
+   --  The software serial ports' pins, with the ports on while the build
+   --  has them and the feature runs.
+   procedure Configure_Soft_Serial is
+      On : constant Boolean :=
+        Adaflight.Build_Features.Soft_Serial
+        and then (Runtime_Features and Adaflight.Config_Fix.Feature_Soft_Serial) /= 0;
+   begin
+      Adaflight.STM32.Soft_Serial.Configure (Config, On);
+      Env.Soft_Serial := On;
+   end Configure_Soft_Serial;
+
    --  The configuration's checks over the hardware the board knows: the
    --  gyro's sample rate once it runs, no motors and no timers yet.
    procedure Fix_Configuration is
@@ -950,6 +969,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.Config_Codec.Decode (Data, Config);
       Runtime_Features := Config.Feature_Config.Enabled_Features;
       Fix_Configuration;
+      Configure_Soft_Serial;
       Adaflight.Board_Info.Init (Board, Config);
       Offered := Available_Boxes;
    end Load_Configuration;
@@ -1737,6 +1757,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Debug := Adaflight.MSP_Out.Debug_Values (Adaflight.STM32.Debug_Values.State.Data);
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
+      Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
       if Plan_Built then
          Env.Navigation := Plan_Status;
@@ -5264,7 +5285,15 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Receiver.RX_SPI := Adaflight.Build_Features.SPI_Receiver;
       Ctx.Out_Views.Receiver.ExpressLRS := Adaflight.Build_Features.SX1280_Receiver;
       for I in Ports'Range loop
-         Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
+         declare
+            Soft_1    : constant := Adaflight.Serial_Feature_Map.Soft_Serial_1;
+            Available : constant Boolean :=
+              Ports (I) not in Soft_1 .. Soft_1 + Adaflight.STM32.Soft_Serial.Port_Count - 1
+              or else Adaflight.STM32.Soft_Serial.Present (Ports (I) - Soft_1 + 1);
+         begin
+            Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => Available);
+            Env.Serial_Ports (I).Available := Available;
+         end;
       end loop;
       Ctx.Out_Views.Serial_Count := Ports'Length;
       if Tagged_Pin (Config.Beeper_Dev_Config.Io_Tag) then
@@ -5404,7 +5433,6 @@ package body Adaflight.STM32.Flight is
             Env.DMA_Owners (Adaflight.STM32.Transponder.Stream_Number) := (Kind => CLI.Transponder, Index => 0);
          end if;
       end if;
-      Env.Timer_Owners := Adaflight.STM32.Timers.Owners;
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;

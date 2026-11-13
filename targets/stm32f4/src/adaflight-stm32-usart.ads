@@ -11,8 +11,15 @@ with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Pins;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Soft_Serial;
 package Adaflight.STM32.USART is
-   type Number is (UART1, UART2, UART3, UART4, UART5, UART6);
+   --  The UARTs, then the two software serial ports, which take the same
+   --  calls: a function opens either kind.
+   type Number is (UART1, UART2, UART3, UART4, UART5, UART6, Soft1, Soft2);
+   subtype Hardware is Number range UART1 .. UART6;
+   subtype Software is Number range Soft1 .. Soft2;
+   function Soft_Port (N : Software) return Adaflight.STM32.Soft_Serial.Port_Number is
+     (if N = Soft1 then 1 else 2);
    type Port is limited record
       Which : Number := UART1;
    end record;
@@ -30,17 +37,19 @@ package Adaflight.STM32.USART is
    --  A port's transmit and receive pins on the board.
    function TX_Pin (N : Number) return Adaflight.Pins.Pin;
    function RX_Pin (N : Number) return Adaflight.Pins.Pin;
-   --  Whether the board has the port, its identifier as the configuration
-   --  names the ports, and the ports the board has in order. A port the
-   --  board lacks does not start.
+   --  Whether the board has the port, a UART's identifier as the
+   --  configuration names the ports, the ports the board has in order, and
+   --  the UARTs among them. A port the board lacks does not start.
    function Present (N : Number) return Boolean is
      (case N is
          when UART1 => Adaflight.Board.Has_UART1, when UART2 => Adaflight.Board.Has_UART2,
          when UART3 => Adaflight.Board.Has_UART3, when UART4 => Adaflight.Board.Has_UART4,
-         when UART5 => Adaflight.Board.Has_UART5, when UART6 => Adaflight.Board.Has_UART6);
-   function Identifier (N : Number) return Integer is (51 + Number'Pos (N));
+         when UART5 => Adaflight.Board.Has_UART5, when UART6 => Adaflight.Board.Has_UART6,
+         when Software => Adaflight.STM32.Soft_Serial.Present (Soft_Port (N)));
+   function Identifier (N : Hardware) return Integer is (51 + Number'Pos (N));
    type Number_List is array (Positive range <>) of Number;
    function Present_Set return Number_List;
+   function UART_Set return Number_List;
    --  The port at the rate, the stop bits and the line, with a parity bit on
    --  each word when Even_Parity asks for one, and the board's inverter on
    --  the port's lines set as Inverted asks where the board has one.
