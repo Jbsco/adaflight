@@ -14641,3 +14641,32 @@ interrupt its break interrupt's number and omit its capture interrupt, so this d
 No board has run a port yet. A host smoke block runs an NMEA GPS on a port's two pins, LTM on a send pin and
 SmartAudio half duplex on a send pin, with refusals for a high rate, a pin without a timer channel and MSP.
 Telemetry, transmitter and other function units still take a refused port as open and stay silent on it.
+
+## D740. ESC serial engine (2026-11-13)
+
+Betaflight's `escprog` command and MSP passthrough connect a host to an ESC's bootloader over a motor pin: a
+timer's tick is a bit clock, and its capture of that pin's edges receives. Boards run no such link yet. This entry
+adds its engine to core code, with no board driver.
+
+`ESC_Serial` keeps a port's state and two ring buffers. BLHeli, KISS and Castle bytes are frames of a start bit,
+eight bits and a stop bit. SimonK bytes are eight bits of four ticks each after a preamble, received as times
+between edges. Every call answers with a list of operations on pins, timers and motors, in Betaflight's call
+order, for a board driver to execute. A list has what room its owner gives it, and each call states its need.
+Ticks and edges need little, since a board runs them in interrupt handlers, which share one small stack.
+
+A passthrough runs in passes: bytes from an ESC go to a host, host bytes go through an exit request parser and on
+to an ESC, then a pass waits. `Forward` and `From_Host` take 16 bytes per call. A caller repeats them and so
+drains every waiting byte, as Betaflight does, without a long operation list.
+
+SPARK proves it free of run-time errors: bit and buffer indices stay in range, and no operation list overflows.
+
+An oracle includes Betaflight's driver as source, logs its pin, timer and motor calls in call order, and runs its
+passthrough loop against a scripted host port. Vectors compare every state field and each call.
+
+Three findings came from that driver, and this engine differs at each. Its exit parser stops after any other MSP
+request (F330); this one returns to idle. Without a separate send pin it sets bit timer and capture up on one
+timer channel, where capture setup replaces its bit clock (F331). Here a port with one timer keeps its bit period
+for BLHeli and Castle, as D738's port does on one timer, and refuses SimonK, which needs two time bases. KISS on
+every motor with no motor timer goes on with a null timer (F332); this engine refuses.
+
+That one-timer arrangement is adaflight's own. It has not run on hardware.
