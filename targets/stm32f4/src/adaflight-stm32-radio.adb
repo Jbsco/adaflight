@@ -345,6 +345,9 @@ package body Adaflight.STM32.Radio is
                    and SFM.Function_RX_Serial) /= 0
                then
                   Link := N;
+                  if N in USART.Hardware then
+                     USART.Keep_Times (N);
+                  end if;
                   Open := True;
                   exit;
                end if;

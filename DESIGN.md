@@ -14694,3 +14694,15 @@ knows. Callbacks of EXTI lines, of an ExpressLRS timer and of an SPI receiver's 
 registration calls.
 
 That image now needs 1,156 bytes. A build fails when fewer than 256 bytes stay free.
+
+## D742. UART arrival times on receiver port (2026-11-13)
+
+Each UART kept an arrival time for every byte in its receive ring, 256 times of four bytes per port. Only a serial
+receiver reads those times, for inter-byte gaps its protocols measure, and it reads them on one port. Other ports
+paid memory and an interrupt's clock read for times no code took.
+
+A ring now stores bytes alone. One array of arrival times belongs to whichever UART a receiver opens, named through
+`Keep_Times`. That UART's receive interrupt stamps each byte; others skip the clock read. A take from the timed UART
+returns those stamps; a take from any other returns its take time, as a software serial port does.
+
+This frees about 3 KB of an STM32F405's main RAM, for an ESC serial port's buffers.

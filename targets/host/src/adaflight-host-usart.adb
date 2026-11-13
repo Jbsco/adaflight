@@ -259,6 +259,9 @@ package body Adaflight.STM32.USART is
          when Software =>
            Adaflight.Pins.Pin_Of (Natural'Max (16, Natural (Adaflight.STM32.Soft_Serial.RX_Tag (Soft_Port (N))))));
 
+   --  The host keeps every UART's arrival times.
+   procedure Keep_Times (N : Hardware) is null;
+
    function Set_Within (Last : Number) return Number_List is
       Set   : Number_List (1 .. Number'Pos (Last) + 1);
       Count : Natural := 0;

@@ -71,11 +71,10 @@ package body Adaflight.STM32.USART is
 
    Ring_Size : constant := 256;
    subtype Ring_Index is Natural range 0 .. Ring_Size - 1;
-   --  The received bytes and their times: the interrupt appends while the
-   --  ring has room and drops the rest, the take removes from the head.
+   --  The received bytes: the interrupt appends while the ring has room and
+   --  drops the rest, the take removes from the head.
    type Ring is record
       Bytes : Byte_Array (Ring_Index) := (others => 0);
-      Times : Time_Array (Ring_Index) := (others => 0);
       Head  : Ring_Index := 0;
       Fill  : Natural range 0 .. Ring_Size := 0;
    end record;
@@ -98,6 +97,10 @@ package body Adaflight.STM32.USART is
    end record;
    type Send_Rings is array (1 .. Slots) of Send_Ring;
 
+   --  The UART that keeps arrival times, once one does.
+   Timed_On   : Boolean := False with Atomic;
+   Timed_Port : Hardware := UART1 with Atomic;
+
    protected Receivers with Interrupt_Priority => System.Interrupt_Priority'First is
       procedure Take (N : Hardware; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
       procedure Queue (N : Hardware; Data : Byte_Array; Taken : out Natural);
@@ -114,14 +117,17 @@ package body Adaflight.STM32.USART is
       procedure Handler_6 with Attach_Handler => Ada.Interrupts.Names.USART6_Interrupt;
       Queues : Rings;
       Sends  : Send_Rings;
+      --  The arrival times of the bytes in the timed UART's ring.
+      Stamps : Time_Array (Ring_Index) := (others => 0);
    end Receivers;
 
    protected body Receivers is
       procedure Receive (N : Hardware) is
          Regs : Registers with Import, Address => Base (N);
          S    : constant Natural := Slot_Of (N);
-         Now  : Interfaces.Unsigned_32;
-         Slot : Ring_Index;
+         Timed : constant Boolean := Timed_On and then N = Timed_Port;
+         Now   : Interfaces.Unsigned_32 := 0;
+         Slot  : Ring_Index;
       begin
          if S = 0 then
             return;
@@ -130,14 +136,18 @@ package body Adaflight.STM32.USART is
             Q : Ring renames Queues (S);
          begin
             while (Regs.SR and Receive_Not_Empty) /= 0 loop
-               Now := Time.Micros;
+               if Timed then
+                  Now := Time.Micros;
+               end if;
                declare
                   Value : constant Unsigned_32 := Regs.DR and 16#FF#;
                begin
                   if Q.Fill < Ring_Size then
                      Slot := (Q.Head + Q.Fill) mod Ring_Size;
                      Q.Bytes (Slot) := Byte (Value);
-                     Q.Times (Slot) := Now;
+                     if Timed then
+                        Stamps (Slot) := Now;
+                     end if;
                      Q.Fill := Q.Fill + 1;
                   end if;
                end;
@@ -239,7 +249,9 @@ package body Adaflight.STM32.USART is
       end Handler_6;
 
       procedure Take (N : Hardware; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
-         S : constant Natural := Slot_Of (N);
+         S     : constant Natural := Slot_Of (N);
+         Timed : constant Boolean := Timed_On and then N = Timed_Port;
+         Now   : constant Interfaces.Unsigned_32 := (if Timed then 0 else Time.Micros);
       begin
          if S = 0 then
             Count := 0;
@@ -255,7 +267,7 @@ package body Adaflight.STM32.USART is
             Times := (others => 0);
             for K in 0 .. Count - 1 loop
                Into (Into'First + K) := Q.Bytes ((Q.Head + K) mod Ring_Size);
-               Times (Times'First + K) := Q.Times ((Q.Head + K) mod Ring_Size);
+               Times (Times'First + K) := (if Timed then Stamps ((Q.Head + K) mod Ring_Size) else Now);
             end loop;
             Q.Head := (Q.Head + Count) mod Ring_Size;
             Q.Fill := Q.Fill - Count;
@@ -433,6 +445,12 @@ package body Adaflight.STM32.USART is
          Receivers.Take (N, Into, Times, Count);
       end if;
    end Take;
+
+   procedure Keep_Times (N : Hardware) is
+   begin
+      Timed_Port := N;
+      Timed_On := True;
+   end Keep_Times;
 
    function Set_Within (Last : Number) return Number_List is
       Set   : Number_List (1 .. Number'Pos (Last) + 1);
