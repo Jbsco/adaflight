@@ -2,9 +2,11 @@ with Adaflight.PWM_Output;
 with Adaflight.Timer_Tables;
 package body Adaflight.STM32.Timers is
 
-   RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
-   RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
-   RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+   RCC_APB1RSTR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3820#);
+   RCC_APB2RSTR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3824#);
+   RCC_AHB1ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
+   RCC_APB1ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
+   RCC_APB2ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
 
    Table : Adaflight.Timer_Allocation.Table;
 
@@ -49,6 +51,61 @@ package body Adaflight.STM32.Timers is
       end if;
    end Allocate;
 
+   function Entry_Of (K : Positive; Tag : Unsigned_8) return Timer_Entry is
+     (Timer   => Name_Of (Adaflight.Timer_Tables.Channels (K).Timer),
+      Channel => Adaflight.Timer_Tables.Channels (K).Channel,
+      N       => Adaflight.Timer_Tables.Channels (K).N,
+      Where   => Pin_Of (Tag));
+
+   --  The pin's configured channel when the owner holds it, zero otherwise.
+   function Held_By
+     (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner) return Adaflight.Timer_Allocation.Channel_Index
+   is
+      use type Adaflight.CLI_Resources.Owner;
+      K : constant Adaflight.Timer_Allocation.Channel_Index :=
+        (if Tagged_Pin (Tag) then Adaflight.Timer_Allocation.Configured_Channel (Table, Tag) else 0);
+   begin
+      if K /= 0 then
+         declare
+            O : constant Adaflight.CLI_Resources.Timer_Owner := Adaflight.Timer_Allocation.Channel_Owner (Table, K);
+         begin
+            if O.Held and then O.Owner = Who then
+               return K;
+            end if;
+         end;
+      end if;
+      return 0;
+   end Held_By;
+
+   function Can_Take (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner) return Boolean is
+      K : constant Adaflight.Timer_Allocation.Channel_Index :=
+        (if Tagged_Pin (Tag) then Adaflight.Timer_Allocation.Configured_Channel (Table, Tag) else 0);
+   begin
+      return K /= 0
+        and then (not Adaflight.Timer_Allocation.Channel_Owner (Table, K).Held or else Held_By (Tag, Who) /= 0);
+   end Can_Take;
+
+   procedure Take (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner; E : out Timer_Entry; Found : out Boolean)
+   is
+      Slot : Natural;
+      K    : constant Adaflight.Timer_Allocation.Channel_Index := Held_By (Tag, Who);
+   begin
+      if K /= 0 then
+         E := Entry_Of (K, Tag);
+         Found := True;
+      else
+         Allocate (Tag, Who, E, Slot, Found);
+      end if;
+   end Take;
+
+   procedure Peek (Tag : Unsigned_8; E : out Timer_Entry; Found : out Boolean) is
+      K : constant Adaflight.Timer_Allocation.Channel_Index :=
+        (if Tagged_Pin (Tag) then Adaflight.Timer_Allocation.Configured_Channel (Table, Tag) else 0);
+   begin
+      Found := K /= 0;
+      E := (if Found then Entry_Of (K, Tag) else (TIM1, 1, False, (Port_A, 0)));
+   end Peek;
+
    --  The stream's interrupt flag clear register and its six-bit group in it.
    procedure Clear_Flags (S : DMA_Stream) is
       Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
@@ -71,6 +128,17 @@ package body Adaflight.STM32.Timers is
          RCC_APB1ENR := RCC_APB1ENR or Shift_Left (1, Enable_Bit (T));
       end if;
    end Enable_Clock;
+
+   procedure Reset (T : Timer_Name) is
+   begin
+      if On_APB2 (T) then
+         RCC_APB2RSTR := RCC_APB2RSTR or Shift_Left (1, Enable_Bit (T));
+         RCC_APB2RSTR := RCC_APB2RSTR and not Shift_Left (1, Enable_Bit (T));
+      else
+         RCC_APB1RSTR := RCC_APB1RSTR or Shift_Left (1, Enable_Bit (T));
+         RCC_APB1RSTR := RCC_APB1RSTR and not Shift_Left (1, Enable_Bit (T));
+      end if;
+   end Reset;
 
    procedure Set_Time_Base (T : Timer_Name; Reload : Unsigned_32; Prescale : Unsigned_32) is
       Regs : Timer_Registers with Import, Address => Timer_Base (T);

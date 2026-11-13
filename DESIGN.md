@@ -14723,3 +14723,57 @@ and relies on equal priority.
 
 D741's stack check follows a registered procedure from its `Register` call. Its worst case for an STM32F405 image
 is unchanged.
+
+## D744. ESC serial link on boards (2026-11-13)
+
+D740 added an ESC serial engine with no board driver. This entry adds that driver. `escprog` and MSP passthrough
+modes 0 to 4 now run on STM32F4 and STM32F7 boards and in a host image.
+
+`ESC_Serial` runs a passthrough on its request's port. It reads what an engine asks of a board from motor outputs
+and a timer pin map, then executes each operation list in order. `ESC_Serial_Port` keeps one engine port. Its
+board body writes pin and timer registers, and `Timer_Dispatch` (D743) calls its `Serve` procedure for each timer
+a link sets up. Task-side calls go through a protected object at top ceiling, so no tick or edge meets one half
+done. A start list's 50 ms wait and its motor stop run outside that ceiling, between runs of register writes.
+
+Betaflight clocks bits from a compare match on a send channel. This driver takes a timer's update interrupt at
+that same period, which needs no channel. `Serve` clears each enabled pending flag, with or without a handler, and
+serves a capture before an update, as Betaflight's timer handler does. A timer reset is an RCC reset.
+
+A motor output owns its pin's timer channel on a build with PWM or timer DShot. Betaflight's allocation refuses
+any owned channel, so its passthrough starts only where no motor output took one, once per pin (F333). Here a link
+takes a channel that motor outputs own, or a free one in their name. `Timers.Can_Take` and `Take` apply that
+rule. A link stops all motors first. They stay stopped until a restart, as in Betaflight.
+
+Taking a motor output's channel brings a state Betaflight never meets. That timer still runs its motor
+protocol, and its compare flag sets every period: one per 1.67 microseconds for DShot600. A start list turns a
+capture interrupt on 50 ms before it resets that timer. By calculation, not measurement, compare events at that
+rate would leave a task no time.
+
+A timer's setup here resets it first, then counts at Betaflight's setup time base. A reset ends that timer's
+drive of each motor pin on it, so a link first puts every motor pin on an input with a pull up, as D700's 4-way
+interface does.
+
+A pin on TIM5 gets no link: TIM5's vector belongs to an ExpressLRS timer (D743). Board configurations with a
+motor pin on TIM5 lose passthrough on that motor.
+
+MSP passthrough mode 3 asks for KISS on every motor. Betaflight picks 38400 baud for KISS's own mode number alone,
+so mode 3 opens at 19200 (F334). This driver opens mode 3 at 38400.
+
+A board's LED goes off when a link starts and is on while an ESC's bytes go to a host. Betaflight's second LED,
+lit for bytes going to an ESC, has no pin on these boards.
+
+On a host image an ESC's line is TCP port 5769. Its line model turns pin levels back into bytes for a client and
+turns a client's bytes into edges and ticks, in each protocol's framing. KISS on every motor passes a level only
+when every motor's pin has it. `ADAFLIGHT_ESC_SERIAL_LOG` names a file for each timer reset, time base and handler
+change.
+
+Host smoke opens links by command line and by MSP in each protocol, with and without a send pin, checks
+bytes each way, bit periods from that log, each refusal, and that motors stay stopped after an exit.
+
+A port's two 1024 byte buffers put 2204 bytes in main RAM, which leaves an STM32F405 image 2120 bytes there. That
+image's code grew from 704888 to 711216 bytes, and its interrupt stack use from 1156 to 1348 of 2048 bytes: `Serve`
+runs an engine tick with its operation list. Of STM32F722 images for 512 KB of flash, ALIENFLIGHTNGF7_RX is
+tightest at 490844 of 491520 bytes.
+
+No board has run a link. Host runs cover this loop, its engine and its channel takes. Register writes in that
+board body have had review alone.

@@ -16,7 +16,8 @@ project Adaflight_Host is
       "adaflight-stm32-flash.adb", "adaflight-stm32-gpio.adb", "adaflight-stm32-gyro.adb",
       "adaflight-stm32-led_strip.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-motors.adb",
       "adaflight-stm32-servos.adb", "adaflight-stm32-camera_control.adb", "adaflight-stm32-elrs_timer.adb",
-      "adaflight-stm32-stack_check.adb",
+      "adaflight-stm32-stack_check.adb", "adaflight-stm32-esc_serial_port.adb",
+      "adaflight-stm32-timer_dispatch.adb",
       "adaflight-stm32-sound.adb", "adaflight-stm32-spi.adb",
       "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight-stm32-usb.adb",
       "adaflight-stm32-i2c.adb", "adaflight-stm32-data_pack.ads", "adaflight-stm32-data_pack.adb",
@@ -43,6 +44,8 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.Time") use "adaflight-host-time.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-host-usart.adb";
       for Body ("Adaflight.STM32.Soft_Serial") use "adaflight-host-soft_serial.adb";
+      for Body ("Adaflight.STM32.ESC_Serial_Port") use "adaflight-host-esc_serial_port.adb";
+      for Body ("Adaflight.STM32.Timer_Dispatch") use "adaflight-host-timer_dispatch.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
       for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
