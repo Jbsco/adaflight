@@ -25,28 +25,33 @@ package body Adaflight.STM32.USART is
       CR3  at 16#14# range 0 .. 31;
       GTPR at 16#18# range 0 .. 31;
    end record;
-   Base : constant array (Number) of System.Address :=
+   Base : constant array (Hardware) of System.Address :=
      (UART1 => System'To_Address (16#4001_1000#),
       UART2 => System'To_Address (16#4000_4400#),
       UART3 => System'To_Address (16#4000_4800#),
       UART4 => System'To_Address (16#4000_4C00#),
       UART5 => System'To_Address (16#4000_5000#),
       UART6 => System'To_Address (16#4001_1400#));
-   Bus_Hz : constant array (Number) of Positive :=
+   Bus_Hz : constant array (Hardware) of Positive :=
      (UART1 | UART6 => Adaflight.STM32.Platform.APB2_Hz, UART2 | UART3 | UART4 | UART5 => Adaflight.STM32.Platform.APB1_Hz);
-   Func : constant array (Number) of GPIO.Alternate_Function :=
+   Func : constant array (Hardware) of GPIO.Alternate_Function :=
      (UART1 | UART2 | UART3 => 7, UART4 | UART5 | UART6 => 8);
-   TX : constant array (Number) of Pin :=
+   TX : constant array (Hardware) of Pin :=
      (UART1 => Adaflight.Board.UART1_TX_Pin, UART2 => Adaflight.Board.UART2_TX_Pin,
       UART3 => Adaflight.Board.UART3_TX_Pin, UART4 => Adaflight.Board.UART4_TX_Pin,
       UART5 => Adaflight.Board.UART5_TX_Pin, UART6 => Adaflight.Board.UART6_TX_Pin);
-   RX : constant array (Number) of Pin :=
+   RX : constant array (Hardware) of Pin :=
      (UART1 => Adaflight.Board.UART1_RX_Pin, UART2 => Adaflight.Board.UART2_RX_Pin,
       UART3 => Adaflight.Board.UART3_RX_Pin, UART4 => Adaflight.Board.UART4_RX_Pin,
       UART5 => Adaflight.Board.UART5_RX_Pin, UART6 => Adaflight.Board.UART6_RX_Pin);
 
-   function TX_Pin (N : Number) return Pin is (TX (N));
-   function RX_Pin (N : Number) return Pin is (RX (N));
+   --  A software serial port's pin by its tag, port A's first pin for none.
+   function Soft_Pin (Tag : Interfaces.Unsigned_8) return Pin is (Pin_Of (Natural'Max (16, Natural (Tag))));
+
+   function TX_Pin (N : Number) return Pin is
+     (if N in Software then Soft_Pin (Soft_Serial.TX_Tag (Soft_Port (N))) else TX (N));
+   function RX_Pin (N : Number) return Pin is
+     (if N in Software then Soft_Pin (Soft_Serial.RX_Tag (Soft_Port (N))) else RX (N));
    RCC_APB1ENR : Unsigned_32
      with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32
@@ -78,7 +83,7 @@ package body Adaflight.STM32.USART is
    Slots : constant := Boolean'Pos (Adaflight.Board.Has_UART1) + Boolean'Pos (Adaflight.Board.Has_UART2)
      + Boolean'Pos (Adaflight.Board.Has_UART3) + Boolean'Pos (Adaflight.Board.Has_UART4)
      + Boolean'Pos (Adaflight.Board.Has_UART5) + Boolean'Pos (Adaflight.Board.Has_UART6);
-   function Slot_Of (N : Number) return Natural is
+   function Slot_Of (N : Hardware) return Natural is
      (if not Present (N) then 0
       else 1 + Boolean'Pos (N > UART1 and then Present (UART1)) + Boolean'Pos (N > UART2 and then Present (UART2))
         + Boolean'Pos (N > UART3 and then Present (UART3)) + Boolean'Pos (N > UART4 and then Present (UART4))
@@ -94,13 +99,13 @@ package body Adaflight.STM32.USART is
    type Send_Rings is array (1 .. Slots) of Send_Ring;
 
    protected Receivers with Interrupt_Priority => System.Interrupt_Priority'First is
-      procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
-      procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural);
-      function Free (N : Number) return Natural;
-      function Empty (N : Number) return Boolean;
+      procedure Take (N : Hardware; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
+      procedure Queue (N : Hardware; Data : Byte_Array; Taken : out Natural);
+      function Free (N : Hardware) return Natural;
+      function Empty (N : Hardware) return Boolean;
    private
-      procedure Receive (N : Number);
-      procedure Send (N : Number);
+      procedure Receive (N : Hardware);
+      procedure Send (N : Hardware);
       procedure Handler_1 with Attach_Handler => Ada.Interrupts.Names.USART1_Interrupt;
       procedure Handler_2 with Attach_Handler => Ada.Interrupts.Names.USART2_Interrupt;
       procedure Handler_3 with Attach_Handler => Ada.Interrupts.Names.USART3_Interrupt;
@@ -112,7 +117,7 @@ package body Adaflight.STM32.USART is
    end Receivers;
 
    protected body Receivers is
-      procedure Receive (N : Number) is
+      procedure Receive (N : Hardware) is
          Regs : Registers with Import, Address => Base (N);
          S    : constant Natural := Slot_Of (N);
          Now  : Interfaces.Unsigned_32;
@@ -142,7 +147,7 @@ package body Adaflight.STM32.USART is
 
       --  The transmit register filled from the ring while the interrupt is
       --  on; an empty ring turns the interrupt off.
-      procedure Send (N : Number) is
+      procedure Send (N : Hardware) is
          Regs : Registers with Import, Address => Base (N);
          S    : constant Natural := Slot_Of (N);
       begin
@@ -168,7 +173,7 @@ package body Adaflight.STM32.USART is
          end;
       end Send;
 
-      procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
+      procedure Queue (N : Hardware; Data : Byte_Array; Taken : out Natural) is
          Regs : Registers with Import, Address => Base (N);
          S    : constant Natural := Slot_Of (N);
       begin
@@ -190,10 +195,10 @@ package body Adaflight.STM32.USART is
          end;
       end Queue;
 
-      function Free (N : Number) return Natural is
+      function Free (N : Hardware) return Natural is
         (if Slot_Of (N) = 0 then 0 else Ring_Size - Sends (Slot_Of (N)).Fill);
 
-      function Empty (N : Number) return Boolean is
+      function Empty (N : Hardware) return Boolean is
          Regs : Registers with Import, Address => Base (N);
       begin
          return Slot_Of (N) = 0 or else (Sends (Slot_Of (N)).Fill = 0 and then (Regs.SR and Register_Empty) /= 0);
@@ -233,7 +238,7 @@ package body Adaflight.STM32.USART is
          Send (UART6);
       end Handler_6;
 
-      procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
+      procedure Take (N : Hardware; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
          S : constant Natural := Slot_Of (N);
       begin
          if S = 0 then
@@ -261,12 +266,12 @@ package body Adaflight.STM32.USART is
    --  A half duplex line configures the transmit pin alone at low speed, as
    --  the reference does on the F4, and sets the half duplex selection.
    --  The inverter pins by UART, zero where the board has none.
-   Inverter_Tags : constant array (Number) of Natural :=
+   Inverter_Tags : constant array (Hardware) of Natural :=
      (UART1 => Adaflight.Board.Inverter_UART1_Tag, UART2 => Adaflight.Board.Inverter_UART2_Tag,
       UART3 => Adaflight.Board.Inverter_UART3_Tag, UART4 => Adaflight.Board.Inverter_UART4_Tag,
       UART5 => Adaflight.Board.Inverter_UART5_Tag, UART6 => Adaflight.Board.Inverter_UART6_Tag);
 
-   procedure Set_Inverter (N : Number; On : Boolean) is
+   procedure Set_Inverter (N : Hardware; On : Boolean) is
       Tag : constant Natural := Inverter_Tags (N);
    begin
       if Tag /= 0 then
@@ -286,7 +291,7 @@ package body Adaflight.STM32.USART is
 
    procedure Init_Inverters is
    begin
-      for N in Number loop
+      for N in Hardware loop
          Set_Inverter (N, False);
       end loop;
    end Init_Inverters;
@@ -295,17 +300,14 @@ package body Adaflight.STM32.USART is
 
    function Current (N : Number) return Settings is (Started_With (N));
 
-   procedure Init
-     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
-      Even_Parity : Boolean := False; Inverted : Boolean := False)
+   procedure Start
+     (N : Hardware; Baud : Positive; Two_Stop_Bits : Boolean; Line : Half_Duplex; Even_Parity : Boolean;
+      Inverted : Boolean)
    is
       Regs : Registers with Import, Address => Base (N);
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
    begin
-      if not Present (N) then
-         return;
-      end if;
       Started_With (N) :=
         (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
          Inverted => Inverted);
@@ -335,6 +337,32 @@ package body Adaflight.STM32.USART is
       Regs.CR3 := (if Line.On then Half_Duplex_Select else 0);
       Regs.CR1 := (if Even_Parity then Word_9_Bits or Parity_Control else 0)
         or Enable or Transmitter or Receiver_Enable or Receive_Interrupt;
+   end Start;
+
+   procedure Init
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
+      Even_Parity : Boolean := False; Inverted : Boolean := False)
+   is
+      Opened : Boolean;
+   begin
+      if not Present (N) then
+         return;
+      end if;
+      if N in Software then
+         if Soft_Serial.Is_Open (Soft_Port (N)) then
+            Soft_Serial.Set_Baud (Soft_Port (N), Baud, Opened);
+            if Opened then
+               Started_With (N).Baud := Baud;
+            end if;
+         else
+            Soft_Serial.Open (Soft_Port (N), Baud, Line.On, Inverted, Line.Resistor, Opened);
+            Started_With (N) :=
+              (Started => Opened, Baud => Baud, Two_Stop_Bits => False, Line => Line, Even_Parity => False,
+               Inverted => Inverted);
+         end if;
+      else
+         Start (N, Baud, Two_Stop_Bits, Line, Even_Parity, Inverted);
+      end if;
    end Init;
 
    procedure Put (Into : in out Port; Text : String) is
@@ -346,11 +374,24 @@ package body Adaflight.STM32.USART is
       Put (Into, Data);
    end Put;
 
-   --  Every byte queued, waiting for room while the interrupt drains the ring.
+   --  Every byte queued, waiting for room while the interrupt drains the
+   --  ring. A software serial port that cannot send takes none.
    procedure Put (Into : in out Port; Data : Byte_Array) is
       Next  : Natural := Data'First;
       Taken : Natural;
    begin
+      if Into.Which in Software then
+         declare
+            P : constant Soft_Serial.Port_Number := Soft_Port (Into.Which);
+         begin
+            while Next <= Data'Last loop
+               Soft_Serial.Queue (P, Data (Next .. Data'Last), Taken);
+               exit when Taken = 0 and then Soft_Serial.Free (P) = 0 and then Soft_Serial.Transmit_Empty (P);
+               Next := Next + Taken;
+            end loop;
+         end;
+         return;
+      end if;
       while Next <= Data'Last loop
          Receivers.Queue (Into.Which, Data (Next .. Data'Last), Taken);
          Next := Next + Taken;
@@ -359,34 +400,54 @@ package body Adaflight.STM32.USART is
 
    procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
    begin
-      Receivers.Queue (N, Data, Taken);
+      if N in Software then
+         Soft_Serial.Queue (Soft_Port (N), Data, Taken);
+      else
+         Receivers.Queue (N, Data, Taken);
+      end if;
    end Queue;
 
-   function Free (N : Number) return Natural is (Receivers.Free (N));
+   function Free (N : Number) return Natural is
+     (if N in Software then Soft_Serial.Free (Soft_Port (N)) else Receivers.Free (N));
 
-   function Transmit_Empty (N : Number) return Boolean is (Receivers.Empty (N));
+   function Transmit_Empty (N : Number) return Boolean is
+     (if N in Software then Soft_Serial.Transmit_Empty (Soft_Port (N)) else Receivers.Empty (N));
 
    procedure Take (N : Number; Into : out Byte_Array; Count : out Natural) is
       Times : Time_Array (0 .. Into'Length - 1);
    begin
-      Receivers.Take (N, Into, Times, Count);
+      if N in Software then
+         Soft_Serial.Take (Soft_Port (N), Into, Count);
+      else
+         Receivers.Take (N, Into, Times, Count);
+      end if;
    end Take;
 
+   --  A software serial port's bytes take the time of the take.
    procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
    begin
-      Receivers.Take (N, Into, Times, Count);
+      if N in Software then
+         Soft_Serial.Take (Soft_Port (N), Into, Count);
+         Times := (others => Time.Micros);
+      else
+         Receivers.Take (N, Into, Times, Count);
+      end if;
    end Take;
 
-   function Present_Set return Number_List is
-      Set   : Number_List (1 .. Number'Pos (Number'Last) + 1);
+   function Set_Within (Last : Number) return Number_List is
+      Set   : Number_List (1 .. Number'Pos (Last) + 1);
       Count : Natural := 0;
    begin
-      for N in Number loop
+      for N in Number'First .. Last loop
          if Present (N) then
             Count := Count + 1;
             Set (Count) := N;
          end if;
       end loop;
       return Set (1 .. Count);
-   end Present_Set;
+   end Set_Within;
+
+   function Present_Set return Number_List is (Set_Within (Number'Last));
+
+   function UART_Set return Number_List is (Set_Within (Hardware'Last));
 end Adaflight.STM32.USART;

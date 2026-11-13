@@ -1,6 +1,6 @@
 # Building and flashing
 
-The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
+The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers, and the board crate's run-time checks.
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board with an SPI receiver also leaves out debug values.
 
@@ -36,7 +36,7 @@ dfu-util flashes one file per run. A bootloader leaves through the address of it
 
 The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
-The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
+The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number and its software serial ports on 5767 and 5768. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
 
     cd targets/host && alr build
     while ./bin/adaflight_host; do :; done

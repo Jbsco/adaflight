@@ -24,7 +24,8 @@ package body Adaflight.STM32.VTX is
 
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
+      USART.Soft1 => 30, USART.Soft2 => 31);
 
    SmartAudio_Code : constant := 3;
    Tramp_Code      : constant := 4;

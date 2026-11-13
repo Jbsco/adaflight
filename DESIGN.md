@@ -14602,3 +14602,42 @@ Two findings came from that driver. With two timers it clocks reception from its
 bit aligns (F326). On an oracle time model a sender 2 percent slow loses nearly every byte when that timer's tick
 falls just after a start edge. This engine has separate receiving and sending clocks, so a board can clock
 reception from its main timer. A rate change sets a main timer only (F327). Vectors set both.
+
+## D739. Software serial ports on boards (2026-11-12)
+
+Boards now run D738's engine on two ports, SOFT1 and SOFT2. A build has them with its `Soft_Serial` feature, which
+boards of 1024 KB or more get, and a board runs them with its SOFTSERIAL feature on. `resource SOFTSERIAL_TX` and
+`SOFTSERIAL_RX` assign each port's pins. Any serial function but MSP and a serial receiver may name a port, at
+19200 baud or less.
+
+`USART.Number` gained both ports after its six UARTs, so each function unit opens either kind with one set of
+calls. `Soft_Serial_Logic` is a generic package without hardware: it owns both engines and each port's pins, takes ticks
+and edges, and asks for pin and timer work through three formal procedures. A board fills those with timer registers. A host
+image fills them with a line model on TCP ports 5767 and 5768.
+
+On a board one protected object serves interrupts of TIM1 to TIM4 and TIM8 to TIM14. A timer's update is a bit
+tick, and a capture on a port's main channel is an edge. That object runs at top interrupt priority, so a UART's
+or USB port's protected action cannot delay a tick. Task calls move 16 bytes per protected action for that reason.
+A send pin is a GPIO output. TIM5's interrupt belongs to ExpressLRS timing, so a port on TIM5 does not open.
+
+An open checks its rate first, then each pin takes its timer channel, then D738's plan decides. A port sends
+when it has a send pin and receives when it has a receive pin or runs half duplex, since a UART start names no
+direction. A second start of an open port changes its rate, which GPS and SmartAudio
+rate steps use. A GPS whose port did not open starts its link closed, and `status` reports it not connected.
+
+Four differences from Betaflight follow from findings. A two-timer port clocks reception from its main timer
+(F326). A rate change sets both timers (F327). A rate change above 19200 leaves a port at its rate, where
+Betaflight's applies no limit and a GPS search asks for 230400 (F328). Opening a half duplex port writes its
+send pin's idle level, which Betaflight leaves at its reset level until a first bit (F329).
+
+Bytes from a software port get their take's time as arrival time. Serial receivers alone need arrival times, and
+no software port runs one. `timer show` now reads its owners at each command, so it lists channels of ports
+opened after start.
+
+No unit here is SPARK: registers and interrupt handlers stay outside it, and D738 proved its state machine. On an
+STM32F405 both engines take 1128 bytes of main RAM, which leaves 1492. STM32F7 run time names give TIM1's update
+interrupt its break interrupt's number and omit its capture interrupt, so this driver attaches both by number.
+
+No board has run a port yet. A host smoke block runs an NMEA GPS on a port's two pins, LTM on a send pin and
+SmartAudio half duplex on a send pin, with refusals for a high rate, a pin without a timer channel and MSP.
+Telemetry, transmitter and other function units still take a refused port as open and stay silent on it.

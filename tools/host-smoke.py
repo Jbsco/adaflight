@@ -127,13 +127,14 @@ def nmea(body):
 
 
 class GPS(threading.Thread):
-    """Sends a fix on UART4's port at 5 Hz: ten satellites at 48.1173 north, 11.5167 east, 545.4 m or the
-    altitude the check sets."""
+    """Sends a fix on UART4's port, or the port it is given, at 5 Hz: ten satellites at 48.1173 north,
+    11.5167 east, 545.4 m or the altitude the check sets."""
 
-    def __init__(self):
+    def __init__(self, port=GPS_PORT):
         super().__init__(daemon=True)
         self.stop = threading.Event()
         self.altitude = 545.4
+        self.port = port
 
     def frames(self, tick):
         """The fix at a time that advances a fifth of a second per frame, so each solution is new."""
@@ -146,7 +147,7 @@ class GPS(threading.Thread):
         deadline = time.time() + 10
         while sock is None and time.time() < deadline and not self.stop.is_set():
             try:
-                sock = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                sock = socket.create_connection(("127.0.0.1", self.port), timeout=1)
             except OSError:
                 time.sleep(0.1)
         tick = 0
@@ -764,15 +765,16 @@ def sa_crc(data):
 
 
 class SmartAudio(threading.Thread):
-    """A SmartAudio V2 transmitter on UART6's port: it answers the settings request with channel A1 at the
-    first power level, the pit mode frequency request with 5584 MHz, and every other command with its
-    value, and records each command with its value."""
+    """A SmartAudio V2 transmitter on UART6's port, or the port it is given: it answers the settings request
+    with channel A1 at the first power level, the pit mode frequency request with 5584 MHz, and every other
+    command with its value, and records each command with its value."""
 
-    def __init__(self):
+    def __init__(self, port=LOG_PORT):
         super().__init__(daemon=True)
         self.stop = threading.Event()
         self.commands = []
         self.pending = b""
+        self.port = port
 
     def take(self, sock):
         while True:
@@ -801,7 +803,7 @@ class SmartAudio(threading.Thread):
         deadline = time.time() + 10
         while sock is None and time.time() < deadline and not self.stop.is_set():
             try:
-                sock = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+                sock = socket.create_connection(("127.0.0.1", self.port), timeout=1)
             except OSError:
                 time.sleep(0.1)
         if sock is not None:
@@ -3353,6 +3355,181 @@ def main():
                 sock.close()
         if built("Transponder"):
             transponder_checks()
+
+        # Software serial: two ports on the timer channels of the pins the configuration assigns them, their
+        # lines on the host's TCP ports 5767 and 5768. With the feature on, an NMEA GPS runs on the first port's
+        # two pins at 9600 baud and LTM telemetry leaves on the second port's send pin. A SmartAudio transmitter
+        # then answers half duplex on the second port's send pin. A rate above 19200 and a receive pin without
+        # a timer channel open no port, and MSP on a software port resets the serial assignments.
+        def soft_serial_checks():
+            store = os.path.join(work, "softserial.bin")
+            first, second = 5767, 5768
+
+            def line_open(port):
+                try:
+                    socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                    return True
+                except OSError:
+                    return False
+
+            def configure(lines, port=PORT):
+                """The lines entered on the command line and saved, with the replies."""
+                proc, sock = start(image, store, port=port)
+                text = ""
+                try:
+                    time.sleep(2.5)
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    for line in lines:
+                        text += cli(sock, line)
+                    cli(sock, "save", wait=2.0)
+                    proc.wait(timeout=10)
+                finally:
+                    stop(proc)
+                    sock.close()
+                return text
+            text = configure(("resource MOTOR 4 NONE", "resource LED_STRIP 1 NONE", "resource MOTOR 5 NONE",
+                              "resource BEEPER 1 NONE", "resource SOFTSERIAL_TX 1 A02",
+                              "resource SOFTSERIAL_RX 1 B08", "resource SOFTSERIAL_TX 2 B04", "feature GPS",
+                              "set gps_provider = NMEA", "set gps_baud = 9600", "set gps_uart = SOFT1",
+                              "feature TELEMETRY", "set telemetry_1_protocol = LTM", "set telemetry_1_baud = 9600",
+                              "set telemetry_1_uart = SOFT2"))
+            check("software serial pins assigned",
+                  all(f"Resource is set to {pin}" in text for pin in ("A02", "B08", "B04")), text[-300:])
+            check("functions assigned to the software serial ports",
+                  "gps_uart set to SOFT1" in text and "telemetry_1_uart set to SOFT2" in text, text[-300:])
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                check("software serial ports with their feature off open no line",
+                      not line_open(first) and not line_open(second))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "peripherals", 1.5)
+                check("peripheral list names the feature a software serial port waits for",
+                      "serial SOFT1 (feature SOFTSERIAL off): gps" in text, text[-300:])
+                text = cli(sock, "timer show", 1.5)
+                check("software serial ports with their feature off take no timer channel",
+                      "CH" in text and "SOFTSERIAL" not in text, text[-300:])
+                text = cli(sock, "feature SOFTSERIAL")
+                check("software serial feature on", "Enabled SOFTSERIAL" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            gps = GPS(port=first)
+            proc, sock = start(image, store)
+            gps.start()
+            try:
+                found, raw = until(lambda: msp(sock, 106),
+                                   lambda r: r is not None and len(r) >= 2 and r[0] == 2 and r[1] == 10, wait=12.0)
+                check("NMEA GPS on a software serial port's two pins gives a fix with ten satellites", found,
+                      repr(raw))
+                kinds = set()
+                size = 0
+                try:
+                    ltm = socket.create_connection(("127.0.0.1", second), timeout=2)
+                    ltm.settimeout(0.5)
+                    data = read_all(ltm, 2.5)
+                    ltm.close()
+                    size = len(data)
+                    kinds = {kind for kind, _ in ltm_frames(data)}
+                except OSError:
+                    pass
+                check("LTM frames leave on a software serial port's send pin", kinds >= {"G", "S", "A", "O"},
+                      f"{size} {sorted(kinds)}")
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "status", 1.5)
+                check("status names the GPS's software serial port at its rate",
+                      "GPS: connected, SOFT1 9600 (set to 9600)" in text, text[-400:])
+                text = cli(sock, "timer show", 1.5)
+                placed = {}
+                timer = ""
+                for row in text.splitlines():
+                    if row.startswith("TIM"):
+                        timer = row.split(":")[0]
+                    elif "SOFTSERIAL" in row:
+                        placed[row.split(":", 1)[1].strip()] = f"{timer} {row.split(':')[0].strip()}"
+                check("timer list puts each software serial pin on its pin's channel after the ports open",
+                      placed == {"SOFTSERIAL_TX 1": "TIM2 CH3", "SOFTSERIAL_RX 1": "TIM4 CH3",
+                                 "SOFTSERIAL_TX 2": "TIM3 CH1"}, repr(placed))
+                text = cli(sock, "peripherals", 1.5)
+                check("peripheral list names the software serial ports' functions",
+                      "serial SOFT1: gps" in text and "serial SOFT2: telemetry_1" in text, text[-300:])
+                for line in ("set gps_baud = 57600", "set telemetry_1_uart = NONE", "set vtx_uart = SOFT2",
+                             "set vtx_type = SMARTAUDIO"):
+                    cli(sock, line)
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                gps.stop.set()
+                stop(proc)
+                sock.close()
+            vtx = SmartAudio(port=second)
+            proc, sock = start(image, store)
+            vtx.start()
+            try:
+                time.sleep(4.0)
+                check("software serial port asked for a rate above 19200 opens no line", not line_open(first))
+                config = msp(sock, 88)
+                check("SmartAudio transmitter answers half duplex on a software serial port's send pin",
+                      config is not None and len(config) >= 8 and config[0] == 3 and config[7] == 1
+                      and any(c == 1 for c, _ in vtx.commands), f"{config!r} {vtx.commands[:6]!r}")
+                ack = msp(sock, 89, (5800).to_bytes(2, "little") + bytes([1, 0]))
+                found, _ = until(lambda: vtx.commands, lambda c: (4, 5800) in c, wait=5.0)
+                check("SmartAudio frequency command leaves on the software serial port", ack == b"" and found,
+                      f"{ack!r} {vtx.commands[-8:]!r}")
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "status", 1.5)
+                check("status reports the GPS not connected on a software serial port that did not open",
+                      "GPS: NOT CONNECTED, SOFT1" in text, text[-400:])
+                text = cli(sock, "timer show", 1.5)
+                check("software serial port refused for its rate takes no timer channel",
+                      "SOFTSERIAL_TX 2" in text and "SOFTSERIAL_TX 1" not in text
+                      and "SOFTSERIAL_RX 1" not in text, text[-400:])
+                for line in ("set gps_baud = 9600", "resource SOFTSERIAL_RX 1 C00", "resource SOFTSERIAL_TX 2 NONE"):
+                    cli(sock, line)
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                vtx.stop.set()
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                check("software serial port whose receive pin has no timer channel opens no line",
+                      not line_open(first))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "peripherals", 1.5)
+                check("peripheral list names a software serial port without pins while the feature is on",
+                      "serial SOFT2 (no pins): vtx" in text, text[-300:])
+                text = cli(sock, "set msp_3_uart = SOFT1")
+                check("MSP slot takes a software serial port's name", "msp_3_uart set to SOFT1" in text,
+                      text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, vcp = start(image, store, port=VCP_PORT)
+            try:
+                time.sleep(2.5)
+                vcp.sendall(b"#")
+                read_all(vcp, 0.8)
+                text = cli(vcp, "get msp_3_uart") + cli(vcp, "get gps_uart") + cli(vcp, "get vtx_uart")
+                check("MSP saved on a software serial port resets the serial assignments",
+                      all(f"{name} = NONE" in text for name in ("msp_3_uart", "gps_uart", "vtx_uart")),
+                      text[-300:])
+            finally:
+                stop(proc)
+                vcp.close()
+        if built("Soft_Serial"):
+            soft_serial_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

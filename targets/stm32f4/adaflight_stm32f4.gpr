@@ -19,6 +19,7 @@ project Adaflight_Stm32f4 is
       for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
       for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
       for Body ("Adaflight.STM32.Dashboard") use Adaflight_Feature_Units.Dashboard_Body;
+      for Body ("Adaflight.STM32.Soft_Serial") use Adaflight_Feature_Units.Soft_Serial_Body;
       for Body ("Adaflight.STM32.Optical_Flow") use Adaflight_Feature_Units.Optical_Flow_Body;
       for Body ("Adaflight.STM32.RX_SPI") use Adaflight_Feature_Units.RX_SPI_Body;
       for Body ("Adaflight.STM32.RX_SPI_CC2500") use Adaflight_Feature_Units.RX_SPI_CC2500_Body;

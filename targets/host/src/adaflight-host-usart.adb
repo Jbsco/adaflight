@@ -8,7 +8,7 @@ package body Adaflight.STM32.USART is
 
    --  Each UART is a TCP server on port 5760 plus its number, one client at
    --  a time.
-   Port_Of : constant array (Number) of GNAT.Sockets.Port_Type :=
+   Port_Of : constant array (Hardware) of GNAT.Sockets.Port_Type :=
      (UART1 => 5_761, UART2 => 5_762, UART3 => 5_763, UART4 => 5_764, UART5 => 5_765, UART6 => 5_766);
 
    Ring_Size : constant := 4_096;
@@ -73,22 +73,22 @@ package body Adaflight.STM32.USART is
       function Connected return Boolean is (Present);
    end Line;
 
-   Lines : array (Number) of Line;
+   Lines : array (Hardware) of Line;
 
    task type Listener is
-      entry Start (N : Number);
+      entry Start (N : Hardware);
    end Listener;
 
    task body Listener is
       use GNAT.Sockets;
-      Which   : Number;
+      Which   : Hardware;
       Server  : Socket_Type;
       Client  : Socket_Type;
       Address : Sock_Addr_Type;
       Buffer  : Ada.Streams.Stream_Element_Array (1 .. 256);
       Last    : Ada.Streams.Stream_Element_Offset;
    begin
-      accept Start (N : Number) do
+      accept Start (N : Hardware) do
          Which := N;
       end Start;
       Create_Socket (Server);
@@ -121,8 +121,8 @@ package body Adaflight.STM32.USART is
       end loop;
    end Listener;
 
-   Listeners : array (Number) of Listener;
-   Started   : array (Number) of Boolean := (others => False);
+   Listeners : array (Hardware) of Listener;
+   Started   : array (Hardware) of Boolean := (others => False);
 
    procedure Init_Inverters is null;
 
@@ -138,6 +138,24 @@ package body Adaflight.STM32.USART is
       if not Present (N) then
          return;
       end if;
+      if N in Software then
+         declare
+            Opened : Boolean;
+         begin
+            if Adaflight.STM32.Soft_Serial.Is_Open (Soft_Port (N)) then
+               Adaflight.STM32.Soft_Serial.Set_Baud (Soft_Port (N), Baud, Opened);
+               if Opened then
+                  Started_With (N).Baud := Baud;
+               end if;
+            else
+               Adaflight.STM32.Soft_Serial.Open (Soft_Port (N), Baud, Line.On, Inverted, Line.Resistor, Opened);
+               Started_With (N) :=
+                 (Started => Opened, Baud => Baud, Two_Stop_Bits => False, Line => Line, Even_Parity => False,
+                  Inverted => Inverted);
+            end if;
+         end;
+         return;
+      end if;
       Started_With (N) :=
         (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
          Inverted => Inverted);
@@ -147,7 +165,7 @@ package body Adaflight.STM32.USART is
       end if;
    end Init;
 
-   procedure Send (N : Number; Data : Byte_Array) is
+   procedure Send (N : Hardware; Data : Byte_Array) is
       use Ada.Streams;
       Buffer : Stream_Element_Array (1 .. Stream_Element_Offset (Data'Length));
       Last   : Stream_Element_Offset;
@@ -170,32 +188,59 @@ package body Adaflight.STM32.USART is
       for I in Data'Range loop
          Data (I) := Byte (Character'Pos (Text (Text'First + I)));
       end loop;
-      Send (Into.Which, Data);
+      Put (Into, Data);
    end Put;
 
+   --  Every byte toward a UART's client, or queued on a software serial
+   --  port as its buffer takes them.
    procedure Put (Into : in out Port; Data : Byte_Array) is
+      Next  : Natural := Data'First;
+      Taken : Natural;
    begin
+      if Into.Which in Software then
+         for Attempt in 1 .. 64 loop
+            exit when Next > Data'Last;
+            Adaflight.STM32.Soft_Serial.Queue (Soft_Port (Into.Which), Data (Next .. Data'Last), Taken);
+            Next := Next + Taken;
+         end loop;
+         return;
+      end if;
       Send (Into.Which, Data);
    end Put;
 
    procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
    begin
+      if N in Software then
+         Adaflight.STM32.Soft_Serial.Queue (Soft_Port (N), Data, Taken);
+         return;
+      end if;
       Send (N, Data);
       Taken := Data'Length;
    end Queue;
 
-   function Free (N : Number) return Natural is (256);
+   function Free (N : Number) return Natural is
+     (if N in Software then Adaflight.STM32.Soft_Serial.Free (Soft_Port (N)) else 256);
 
-   function Transmit_Empty (N : Number) return Boolean is (True);
+   function Transmit_Empty (N : Number) return Boolean is
+     (N not in Software or else Adaflight.STM32.Soft_Serial.Transmit_Empty (Soft_Port (N)));
 
    procedure Take (N : Number; Into : out Byte_Array; Count : out Natural) is
       Times : Time_Array (0 .. Into'Length - 1);
    begin
+      if N in Software then
+         Adaflight.STM32.Soft_Serial.Take (Soft_Port (N), Into, Count);
+         return;
+      end if;
       Lines (N).Take (Into, Times, Count);
    end Take;
 
    procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
    begin
+      if N in Software then
+         Adaflight.STM32.Soft_Serial.Take (Soft_Port (N), Into, Count);
+         Times := (others => Adaflight.STM32.Time.Micros);
+         return;
+      end if;
       Lines (N).Take (Into, Times, Count);
    end Take;
 
@@ -203,23 +248,31 @@ package body Adaflight.STM32.USART is
      (case N is
          when UART1 => Adaflight.Board.UART1_TX_Pin, when UART2 => Adaflight.Board.UART2_TX_Pin,
          when UART3 => Adaflight.Board.UART3_TX_Pin, when UART4 => Adaflight.Board.UART4_TX_Pin,
-         when UART5 => Adaflight.Board.UART5_TX_Pin, when UART6 => Adaflight.Board.UART6_TX_Pin);
+         when UART5 => Adaflight.Board.UART5_TX_Pin, when UART6 => Adaflight.Board.UART6_TX_Pin,
+         when Software =>
+           Adaflight.Pins.Pin_Of (Natural'Max (16, Natural (Adaflight.STM32.Soft_Serial.TX_Tag (Soft_Port (N))))));
    function RX_Pin (N : Number) return Adaflight.Pins.Pin is
      (case N is
          when UART1 => Adaflight.Board.UART1_RX_Pin, when UART2 => Adaflight.Board.UART2_RX_Pin,
          when UART3 => Adaflight.Board.UART3_RX_Pin, when UART4 => Adaflight.Board.UART4_RX_Pin,
-         when UART5 => Adaflight.Board.UART5_RX_Pin, when UART6 => Adaflight.Board.UART6_RX_Pin);
+         when UART5 => Adaflight.Board.UART5_RX_Pin, when UART6 => Adaflight.Board.UART6_RX_Pin,
+         when Software =>
+           Adaflight.Pins.Pin_Of (Natural'Max (16, Natural (Adaflight.STM32.Soft_Serial.RX_Tag (Soft_Port (N))))));
 
-   function Present_Set return Number_List is
-      Set   : Number_List (1 .. Number'Pos (Number'Last) + 1);
+   function Set_Within (Last : Number) return Number_List is
+      Set   : Number_List (1 .. Number'Pos (Last) + 1);
       Count : Natural := 0;
    begin
-      for N in Number loop
+      for N in Number'First .. Last loop
          if Present (N) then
             Count := Count + 1;
             Set (Count) := N;
          end if;
       end loop;
       return Set (1 .. Count);
-   end Present_Set;
+   end Set_Within;
+
+   function Present_Set return Number_List is (Set_Within (Number'Last));
+
+   function UART_Set return Number_List is (Set_Within (Hardware'Last));
 end Adaflight.STM32.USART;

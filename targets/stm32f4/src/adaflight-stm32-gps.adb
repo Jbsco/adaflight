@@ -13,7 +13,8 @@ package body Adaflight.STM32.GPS is
    package USART renames Adaflight.STM32.USART;
 
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
+      USART.Soft1 => 30, USART.Soft2 => 31);
 
    Open     : Boolean := False;
    Feature_On : Boolean := False;
@@ -59,6 +60,9 @@ package body Adaflight.STM32.GPS is
       if Open then
          Port.Which := Which;
          USART.Init (Which, Positive (Adaflight.GPS_Link.Rate_Of (Link.Port_Baud)));
+         if not USART.Current (Which).Started then
+            Adaflight.GPS_Link.Init (Link, Rx, Settings, Now_Ms, Port_Opened => False);
+         end if;
       end if;
    end Init;
 
