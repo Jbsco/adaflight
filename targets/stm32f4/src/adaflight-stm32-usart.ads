@@ -4,8 +4,8 @@
 --  pins, or half duplex over its transmit pin alone, inverted through the
 --  board's inverter where it has one: a transmitter whose interrupt sends
 --  the bytes queued in a ring of 256, and a receiver whose interrupt keeps
---  the bytes with their arrival times in a ring of 256 until a task takes
---  them.
+--  the bytes in a ring of 256 until a task takes them, with their arrival
+--  times on the one UART that keeps them.
 with Interfaces;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -78,7 +78,11 @@ package Adaflight.STM32.USART is
    --  The bytes received since the last take, up to Into's length, and
    --  their count; the rest of Into is zero.
    procedure Take (N : Number; Into : out Byte_Array; Count : out Natural);
-   --  The same with each byte's arrival time in microseconds.
+   --  The UART whose received bytes keep their arrival times from then on,
+   --  one UART at a time: the serial receiver's.
+   procedure Keep_Times (N : Hardware);
+   --  The same with each byte's arrival time in microseconds, or the time of
+   --  the take on a port that keeps no arrival times.
    procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural)
      with Pre => Times'Length >= Into'Length;
 end Adaflight.STM32.USART;
