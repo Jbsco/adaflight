@@ -14918,3 +14918,25 @@ behaviour sanitizers. A checker replays each event and compares storage calls, e
 residue, sense list and receive.
 
 No image changes: no board unit uses this engine yet.
+
+## D751. Sector runs of a virtual disk (2026-11-14)
+
+D750's engine asks its storage for runs of blocks. For a flash chip's flight logs, that storage is D748's volume
+with D749's files: most sectors come from that volume, and a file's sectors come from flash. This entry adds
+that step between them.
+
+`Virtual_FAT.Disk` is generic over a reader of one sector of a file at an offset. `Read` takes a run of sectors
+from a volume and calls that reader where a sector lies in a file. A reader also gets its file's entry, so a
+caller with files of its own can tell them from logs. SPARK proves an instance over files that read as zeros
+free of run-time errors.
+
+Its oracle is D749's, extended: after each build it reads sector runs from Betaflight's volume over a flash that
+gives a pattern. Runs cover fixed sectors, seams between regions, drawn files' first and last sectors, a
+volume's end, a sector number past 32 bits and drawn places. Vectors compare each run's bytes as a hash and its
+count of flash reads. No run touches Betaflight's autorun file or icon, since their bytes are Betaflight's own.
+
+An address sanitizer on that oracle found a fault in Betaflight's list (F347). Its entry table has no slot for
+an end entry once 100 logs fill it, and its scan for that entry reads past its table. A volume here has a count
+and no end entry. Oracle builds give Betaflight's table one more slot, and earlier vectors are unchanged.
+
+No image changes: no board unit uses this unit yet.
