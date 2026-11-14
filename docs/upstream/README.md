@@ -143,3 +143,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A mass storage write of no blocks waits for a data packet](msc-write-no-blocks-waits.md)
 - [Mass storage reports a protected storage under sense key NOT READY](msc-write-protect-sense-key.md)
 - [A mass storage file list of 100 logs has no end entry](msc-file-list-full-no-end.md)
+- [Mass storage class reopens whatever endpoint a clear feature request names](msc-clear-feature-any-endpoint.md)

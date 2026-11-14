@@ -163,6 +163,8 @@ with Adaflight.GPS_Rescue;
 with Adaflight.Altitude_Control;
 with Adaflight.Mass_Storage;
 with Adaflight.Mass_Storage.Engine;
+with Adaflight.USB_Device;
+with Adaflight.USB_MSC;
 with Adaflight.Virtual_FAT;
 with Adaflight.Virtual_FAT.Disk;
 with Adaflight.Virtual_FAT.Logs;
@@ -9658,6 +9660,420 @@ procedure Vector_Check is
          MS_Run_8.Run_Event;
       end if;
    end Check_Mass_Storage_Line;
+
+   --  The USB mass storage device against the reference's device library and
+   --  class with the design entry's fixes. The vectors have whole transfers
+   --  on the bulk endpoints, and the device works in 64 byte packets, so
+   --  this check stands in for a controller: a transfer from the host goes
+   --  in as packets, with an empty one after a last full packet that does
+   --  not end it, and a transfer toward the host is taken packet by packet
+   --  and put together. Each event's endpoint operations and storage calls
+   --  are compared, then the device's and the transport's state. A receive
+   --  must be armed for one packet at a time, up to the length asked for.
+   --  The vectors cannot show a transfer cut short, so a few scripted checks
+   --  of the device's own packet rules run at each session's start: a
+   --  transfer in either direction that a transport reset, a class start
+   --  or a bus reset interrupts must leave nothing behind.
+   generic
+      with package M is new Adaflight.USB_MSC (<>);
+   package UM_Runner is
+      D : M.Device;
+      procedure Run_Event;
+   end UM_Runner;
+
+   package body UM_Runner is
+      package U renames Adaflight.USB_Device;
+      use type U.Action_Kind;
+      use type Interfaces.Unsigned_8;
+
+      Lower : constant String := "0123456789abcdef";
+
+      function Hex (Data : Byte_Array) return String is
+         Text : String (1 .. 2 * Data'Length);
+      begin
+         if Data'Length = 0 then
+            return "-";
+         end if;
+         for I in 0 .. Data'Length - 1 loop
+            Text (2 * I + 1) := Lower (Natural (Data (Data'First + I)) / 16 + 1);
+            Text (2 * I + 2) := Lower (Natural (Data (Data'First + I)) mod 16 + 1);
+         end loop;
+         return Text;
+      end Hex;
+
+      --  An event's operations against the vector's from a field on. A
+      --  transfer toward the host on the class endpoint is completed here.
+      procedure Compare (A : U.Actions; Count_Field : Positive) is
+         P : Positive := Count_Field + 1;
+      begin
+         Record_Int ("umsc.actions", Int (Count_Field), Integer_64 (A.Count));
+         for K in 1 .. Natural (Int (Count_Field)) loop
+            if K <= A.Count then
+               declare
+                  X : U.Action renames A.List (K);
+               begin
+                  Record_Int ("umsc.action.kind", Int (P), U.Action_Kind'Pos (X.Kind));
+                  Record_Int ("umsc.action.address", Int (P + 1), Integer_64 (X.Address));
+                  Record_Int ("umsc.action.ep_kind", Int (P + 3), U.Endpoint_Kind'Pos (X.EP_Kind));
+                  if X.Kind = U.Transmit and then X.Address = M.In_Address then
+                     declare
+                        Total : constant Natural := X.Length;
+                        Whole : Byte_Array (0 .. Natural'Max (Total, X.Count) + 63) := (others => 0);
+                        Have  : Natural := X.Count;
+                        More  : U.Actions;
+                        Sound : Boolean := True;
+                     begin
+                        Whole (0 .. X.Count - 1) := X.Data (0 .. X.Count - 1);
+                        while Sound and then Have < Total loop
+                           M.Data_In (D, 1, More);
+                           Sound :=
+                             More.Count = 1 and then More.List (1).Kind = U.Transmit
+                             and then More.List (1).Address = M.In_Address and then More.List (1).Count > 0
+                             and then More.List (1).Length = Total - Have;
+                           if Sound then
+                              Whole (Have .. Have + More.List (1).Count - 1) :=
+                                More.List (1).Data (0 .. More.List (1).Count - 1);
+                              Have := Have + More.List (1).Count;
+                           end if;
+                        end loop;
+                        Record_Int ("umsc.transfer.packets", 1, Boolean'Pos (Sound and then Have = Total));
+                        Record_Int ("umsc.action.length", Int (P + 2), Integer_64 (Total));
+                        if Total > 64 then
+                           Record_Text ("umsc.action.data", Str (P + 4), "#" & MS_Hash (Whole (0 .. Have - 1)));
+                        else
+                           Record_Text ("umsc.action.data", Str (P + 4), Hex (Whole (0 .. Have - 1)));
+                        end if;
+                     end;
+                  elsif X.Kind = U.Prepare_Receive and then X.Address = M.Out_Address then
+                     Record_Int ("umsc.action.length", Int (P + 2), Integer_64 (D.Disk.Session.Receive_Length));
+                     Record_Int
+                       ("umsc.arm.length", Integer_64 (Natural'Min (64, Natural (Int (P + 2)))), Integer_64 (X.Length));
+                     Record_Text ("umsc.action.data", Str (P + 4), "-");
+                  else
+                     Record_Int ("umsc.action.length", Int (P + 2), Integer_64 (X.Length));
+                     Record_Text ("umsc.action.data", Str (P + 4), Hex (X.Data (0 .. X.Count - 1)));
+                  end if;
+               end;
+            end if;
+            P := P + 5;
+         end loop;
+      end Compare;
+
+      --  A transfer from the host on a class endpoint, packet by packet.
+      procedure Transfer_Out (EP : Natural; Data : Byte_Array; A : out U.Actions) is
+         Asked  : constant Natural := D.Disk.Session.Receive_Length;
+         Offset : Natural := 0;
+         Chunk  : Natural;
+         Empty  : constant Byte_Array (1 .. 0) := (others => 0);
+         Rearms : Boolean := True;
+      begin
+         A := (others => <>);
+         loop
+            Chunk := Natural'Min (64, Data'Length - Offset);
+            M.Data_Out (D, EP, Data (Data'First + Offset .. Data'First + Offset + Chunk - 1), A);
+            Offset := Offset + Chunk;
+            exit when Chunk < 64;
+            if Offset = Data'Length then
+               if Offset < Asked then
+                  Rearms :=
+                    Rearms and then A.Count = 1 and then A.List (1).Kind = U.Prepare_Receive
+                    and then A.List (1).Address = M.Out_Address
+                    and then A.List (1).Length = Natural'Min (64, Asked - Offset);
+                  M.Data_Out (D, EP, Empty, A);
+               end if;
+               exit;
+            end if;
+            Rearms :=
+              Rearms and then A.Count = 1 and then A.List (1).Kind = U.Prepare_Receive
+              and then A.List (1).Address = M.Out_Address
+              and then A.List (1).Length = Natural'Min (64, (if Asked > Offset then Asked - Offset else 0));
+         end loop;
+         Record_Int ("umsc.transfer.rearms", 1, Boolean'Pos (Rearms));
+      end Transfer_Out;
+
+      --  The device's own packet rules, on a device of this check's own over
+      --  a storage of 5000 blocks that takes writes.
+      procedure Packet_Rules is
+         use type Adaflight.Mass_Storage.Send_Kind;
+         X     : M.Device;
+         A     : U.Actions;
+         Tag   : Interfaces.Unsigned_8 := 0;
+         Saved : constant Interfaces.Unsigned_32 := MS_Blocks;
+         Ready : constant Boolean := MS_Is_Ready;
+         Guard : constant Boolean := MS_Protected;
+         Fails : constant Boolean := MS_Read_Fails;
+         Wrong : constant Boolean := MS_Write_Fails;
+         Empty : constant Byte_Array (1 .. 0) := (others => 0);
+
+         --  A command wrapper for a command of ten bytes on one block.
+         function Wrapper (Op : Interfaces.Unsigned_8; Length : Natural; To_Host : Boolean) return Byte_Array is
+            W : Byte_Array (0 .. 30) := (others => 0);
+         begin
+            W (0 .. 3) := (16#55#, 16#53#, 16#42#, 16#43#);
+            W (4) := Tag;
+            W (8) := Interfaces.Unsigned_8 (Length mod 256);
+            W (9) := Interfaces.Unsigned_8 (Length / 256);
+            W (12) := (if To_Host then 16#80# else 0);
+            W (14) := 10;
+            W (15) := Op;
+            W (23) := (if Length > 0 then 1 else 0);
+            return W;
+         end Wrapper;
+
+         procedure Control (Packet : U.Setup_Packet) is
+         begin
+            M.Setup (X, Packet, A);
+            M.Data_In (X, 0, A);
+         end Control;
+
+         procedure Start is
+         begin
+            M.Init (X, "Rules", (1, 2, 3));
+            M.Reset (X, A);
+            Control ((16#00#, 16#05#, 16#01#, 0, 0, 0, 0, 0));
+            Control ((16#00#, 16#09#, 16#01#, 0, 0, 0, 0, 0));
+            Tag := Tag + 1;
+            M.Data_Out (X, 1, Wrapper (16#25#, 8, True), A);
+            M.Data_In (X, 1, A);
+            M.Data_In (X, 1, A);
+         end Start;
+
+         --  Whether a unit ready command now passes with its own tag.
+         function Passes return Boolean is
+            W : U.Action;
+         begin
+            Tag := Tag + 1;
+            M.Data_Out (X, 1, Wrapper (16#00#, 0, False), A);
+            if A.Count = 0 then
+               return False;
+            end if;
+            W := A.List (1);
+            return W.Kind = U.Transmit and then W.Address = M.In_Address and then W.Count = 13
+              and then W.Data (4) = Tag and then W.Data (12) = 0;
+         end Passes;
+
+         Filler : constant Byte_Array (0 .. 63) := (others => 16#5A#);
+      begin
+         MS_Blocks := 5_000;
+         MS_Is_Ready := True;
+         MS_Protected := False;
+         MS_Read_Fails := False;
+         MS_Write_Fails := False;
+         --  A transfer from the host cut short by a transport reset.
+         Start;
+         M.Data_Out (X, 1, Wrapper (16#2A#, 512, False), A);
+         M.Data_Out (X, 1, Filler, A);
+         Record_Int ("umsc.rule.out_in_progress", 64, Integer_64 (X.Disk.Out_Count));
+         Control ((16#21#, 16#FF#, 0, 0, 0, 0, 0, 0));
+         Record_Int ("umsc.rule.reset_drops_out", 1, Boolean'Pos (Passes));
+         --  A transfer toward the host cut short by a transport reset.
+         M.Data_In (X, 1, A);
+         Tag := Tag + 1;
+         M.Data_Out (X, 1, Wrapper (16#28#, 512, True), A);
+         M.Data_In (X, 1, A);
+         Record_Int
+           ("umsc.rule.in_in_progress", 1,
+            Boolean'Pos (A.Count = 1 and then A.List (1).Kind = U.Transmit and then A.List (1).Length = 448));
+         Control ((16#21#, 16#FF#, 0, 0, 0, 0, 0, 0));
+         M.Data_In (X, 1, A);
+         Record_Int ("umsc.rule.reset_drops_in", 0, Integer_64 (A.Count));
+         Record_Int ("umsc.rule.passes_after_reset", 1, Boolean'Pos (Passes));
+         --  A transfer toward the host cut short by a new class start.
+         M.Data_In (X, 1, A);
+         Tag := Tag + 1;
+         M.Data_Out (X, 1, Wrapper (16#28#, 512, True), A);
+         Control ((16#00#, 16#09#, 16#00#, 0, 0, 0, 0, 0));
+         Control ((16#00#, 16#09#, 16#01#, 0, 0, 0, 0, 0));
+         M.Data_In (X, 1, A);
+         Record_Int ("umsc.rule.start_drops_in", 0, Integer_64 (A.Count));
+         Record_Int ("umsc.rule.passes_after_start", 1, Boolean'Pos (Passes));
+         --  Transfers in both directions cut short by a bus reset.
+         M.Data_In (X, 1, A);
+         Tag := Tag + 1;
+         M.Data_Out (X, 1, Wrapper (16#28#, 512, True), A);
+         M.Reset (X, A);
+         Record_Int ("umsc.rule.bus_reset_drops_in", 1, Boolean'Pos (X.Disk.Sending = Adaflight.Mass_Storage.Nothing));
+         Start;
+         M.Data_Out (X, 1, Wrapper (16#2A#, 512, False), A);
+         M.Data_Out (X, 1, Filler, A);
+         M.Reset (X, A);
+         Record_Int ("umsc.rule.bus_reset_drops_out", 0, Integer_64 (X.Disk.Out_Count));
+         --  A transfer from the host that ends on a full packet short of the
+         --  length asked for goes on until an empty packet.
+         Start;
+         M.Data_Out (X, 1, Wrapper (16#2A#, 512, False), A);
+         M.Data_Out (X, 1, Filler, A);
+         Record_Int ("umsc.rule.full_packet_goes_on", 64, Integer_64 (X.Disk.Out_Count));
+         M.Data_Out (X, 1, Empty, A);
+         Record_Int ("umsc.rule.empty_packet_ends", 0, Integer_64 (X.Disk.Out_Count));
+         MS_Blocks := Saved;
+         MS_Is_Ready := Ready;
+         MS_Protected := Guard;
+         MS_Read_Fails := Fails;
+         MS_Write_Fails := Wrong;
+         MS_Length := 0;
+      end Packet_Rules;
+
+      procedure Run_Event is
+         Event : constant String := Str (4);
+         Arg   : constant Natural := Natural (Int (5));
+         A     : U.Actions;
+         Count : constant Natural := Natural (Int (7));
+         P     : constant Positive := 8 + 5 * Count;
+      begin
+         MS_Length := 0;
+         if Event = "init" then
+            Packet_Rules;
+            declare
+               Text  : constant String := Str (6);
+               First : constant Natural := Ada.Strings.Fixed.Index (Text, ";");
+               Next  : constant Natural := Ada.Strings.Fixed.Index (Text, ";", First + 1);
+               Last  : constant Natural := Ada.Strings.Fixed.Index (Text, ";", Next + 1);
+            begin
+               M.Init
+                 (D, Text (Text'First .. First - 1),
+                  (Interfaces.Unsigned_32'Value (Text (First + 1 .. Next - 1)),
+                   Interfaces.Unsigned_32'Value (Text (Next + 1 .. Last - 1)),
+                   Interfaces.Unsigned_32'Value (Text (Last + 1 .. Text'Last))));
+            end;
+         elsif Event = "reset" then
+            M.Reset (D, A);
+         elsif Event = "setup" then
+            declare
+               B : constant Byte_Array := Hex_Bytes (6);
+            begin
+               M.Setup (D, B (0 .. 7), A);
+            end;
+         elsif Event = "out" then
+            declare
+               Text : constant String := Str (6);
+            begin
+               if Text (Text'First) = '~' then
+                  declare
+                     Colon : constant Natural := Ada.Strings.Fixed.Index (Text, ":");
+                     Seed  : constant Interfaces.Unsigned_32 :=
+                       Interfaces.Unsigned_32'Value (Text (Text'First + 1 .. Colon - 1));
+                     Data  : Byte_Array (0 .. Natural'Value (Text (Colon + 1 .. Text'Last)) - 1);
+                  begin
+                     for I in Data'Range loop
+                        Data (I) :=
+                          Interfaces.Unsigned_8
+                            (Interfaces.Shift_Right ((Seed + Interfaces.Unsigned_32 (I)) * 2_654_435_761, 24));
+                     end loop;
+                     Transfer_Out (Arg, Data, A);
+                  end;
+               elsif Arg = 0 then
+                  if Text = "-" then
+                     declare
+                        Empty : constant Byte_Array (1 .. 0) := (others => 0);
+                     begin
+                        M.Data_Out (D, 0, Empty, A);
+                     end;
+                  else
+                     M.Data_Out (D, 0, Hex_Bytes (6), A);
+                  end if;
+               elsif Text = "-" then
+                  declare
+                     Empty : constant Byte_Array (1 .. 0) := (others => 0);
+                  begin
+                     Transfer_Out (Arg, Empty, A);
+                  end;
+               else
+                  Transfer_Out (Arg, Hex_Bytes (6), A);
+               end if;
+            end;
+         elsif Event = "in" then
+            M.Data_In (D, Arg, A);
+         elsif Event = "suspend" then
+            M.Suspend (D);
+         elsif Event = "resume" then
+            M.Resume (D);
+         else
+            Record_Int ("umsc.event", 0, 1);
+         end if;
+         Compare (A, 7);
+         Record_Text ("umsc.storage", Str (P), (if MS_Length = 0 then "-" else MS_Text (1 .. MS_Length)));
+         Record_Int ("umsc.fields", Integer_64 (NF), Integer_64 (P + 23));
+         Record_Int ("umsc.status", Int (P + 1), U.Device_Status'Pos (D.Core.Status) + 1);
+         Record_Int ("umsc.stage", Int (P + 2), U.Control_Stage'Pos (D.Core.Stage));
+         Record_Int ("umsc.device_address", Int (P + 3), Integer_64 (D.Core.Address));
+         Record_Int ("umsc.config", Int (P + 4), Integer_64 (D.Core.Config));
+         Record_Int ("umsc.remote_wakeup", Int (P + 5), Boolean'Pos (D.Core.Remote_Wakeup));
+         Record_Int ("umsc.alt_setting", Int (P + 6), Integer_64 (D.Disk.Alt_Setting));
+         Record_Int ("umsc.transport.state", Int (P + 7), M.Engine.Transport_State'Pos (D.Disk.Session.State));
+         Record_Int ("umsc.transport.status", Int (P + 8), M.Engine.Transport_Status'Pos (D.Disk.Session.Status));
+         Record_Int ("umsc.residue", Int (P + 9), Integer_64 (D.Disk.Session.Residue));
+         Record_Int ("umsc.sense_head", Int (P + 10), Integer_64 (D.Disk.Session.Head));
+         Record_Int ("umsc.sense_tail", Int (P + 11), Integer_64 (D.Disk.Session.Tail));
+         for E in U.Endpoint_Number loop
+            Record_Int ("umsc.in_halted", Int (P + 12 + E), Boolean'Pos (D.Core.In_EP (E).Halted));
+            Record_Int ("umsc.out_halted", Int (P + 16 + E), Boolean'Pos (D.Core.Out_EP (E).Halted));
+         end loop;
+         Record_Int ("umsc.control_length", Int (P + 20), Integer_64 (D.Core.Control_Length));
+         Record_Int ("umsc.in_remaining", Int (P + 21), Integer_64 (D.Core.In_EP (0).Remaining));
+         Record_Int ("umsc.out_remaining", Int (P + 22), Integer_64 (D.Core.Out_EP (0).Remaining));
+         Record_Int ("umsc.test_pending", Int (P + 23), Boolean'Pos (D.Core.Test_Pending));
+      end Run_Event;
+   end UM_Runner;
+
+   package UM_Device_8 is new Adaflight.USB_MSC
+     (Buffer_Blocks   => 8,
+      Inquiry         => MS_Inquiry,
+      Start_Storage   => MS_Start_Storage,
+      Capacity        => MS_Capacity,
+      Ready           => MS_Ready,
+      Write_Protected => MS_Write_Protected,
+      Read_Blocks     => MS_Read_Blocks,
+      Write_Blocks    => MS_Write_Blocks);
+   package UM_Device_1 is new Adaflight.USB_MSC
+     (Buffer_Blocks   => 1,
+      Inquiry         => MS_Inquiry,
+      Start_Storage   => MS_Start_Storage,
+      Capacity        => MS_Capacity,
+      Ready           => MS_Ready,
+      Write_Protected => MS_Write_Protected,
+      Read_Blocks     => MS_Read_Blocks,
+      Write_Blocks    => MS_Write_Blocks);
+   package UM_Run_8 is new UM_Runner (UM_Device_8);
+   package UM_Run_1 is new UM_Runner (UM_Device_1);
+   UM_Small : Boolean := False;
+
+   procedure Check_USB_MSC_Line is
+      Event : constant String := Str (4);
+
+      function Part (Field : String; K : Positive) return String is
+         First : Positive := Field'First;
+         Seen  : Natural := 1;
+      begin
+         for I in Field'Range loop
+            if Field (I) = ':' then
+               if Seen = K then
+                  return Field (First .. I - 1);
+               end if;
+               Seen := Seen + 1;
+               First := I + 1;
+            end if;
+         end loop;
+         return Field (First .. Field'Last);
+      end Part;
+   begin
+      if Event = "set" then
+         MS_Blocks := Interfaces.Unsigned_32'Value (Part (Str (6), 1));
+         MS_Is_Ready := Part (Str (6), 2) = "1";
+         MS_Protected := Part (Str (6), 3) = "1";
+         MS_Read_Fails := Part (Str (6), 4) = "1";
+         MS_Write_Fails := Part (Str (6), 5) = "1";
+         return;
+      end if;
+      if Event = "init" then
+         UM_Small := Str (5) = "512";
+      end if;
+      if UM_Small then
+         UM_Run_1.Run_Event;
+      else
+         UM_Run_8.Run_Event;
+      end if;
+   end Check_USB_MSC_Line;
 
    --  The ESC serial engine against the reference's driver: each call's
    --  operations are written as the reference's pin, timer and motor calls
@@ -42616,6 +43032,8 @@ procedure Vector_Check is
                   Check_Virtual_FAT_Files_Line;
                elsif Kind = "msc" then
                   Check_Mass_Storage_Line;
+               elsif Kind = "usbmsc" then
+                  Check_USB_MSC_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -43126,6 +43544,7 @@ begin
    Run (Dir & "/vfat.csv", "vfat");
    Run (Dir & "/vfatfiles.csv", "vfatfiles");
    Run (Dir & "/msc.csv", "msc");
+   Run (Dir & "/usbmsc.csv", "usbmsc");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");

@@ -9,6 +9,8 @@ if ! command -v alr >/dev/null 2>&1; then
 fi
 cd tests || exit 1
 alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
+# The checker's tables fill most of a default 8 MB stack, so it runs with a larger one where a host allows it.
+ulimit -s 65536 2>/dev/null || :
 ./bin/vector_check vectors || exit 1
 cd ../tools/dfu/tests || exit 1
 alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
