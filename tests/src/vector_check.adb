@@ -161,6 +161,7 @@ with Adaflight.Position_Control;
 with Adaflight.Position_Hold;
 with Adaflight.GPS_Rescue;
 with Adaflight.Altitude_Control;
+with Adaflight.Virtual_FAT;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
@@ -9014,6 +9015,156 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Soft_Serial_Line;
+
+   --  The virtual FAT volume against the reference's: a start from a drawn
+   --  entry table with every field the start sets, sector reads byte for
+   --  byte or as the reader call they hand over, and packed times. Each
+   --  start begins from stale links and a stale last entry, and an empty
+   --  table keeps a directory in its first slot, so only what the start
+   --  does gives the reference's values.
+   VF_Volume : Adaflight.Virtual_FAT.Volume;
+
+   procedure Check_Virtual_FAT_Line is
+      use Adaflight.Virtual_FAT;
+      Name : constant String := Str (1);
+
+      function Image (N : Integer_64) return String is
+         I : constant String := Integer_64'Image (N);
+      begin
+         return (if N < 0 then I else I (I'First + 1 .. I'Last));
+      end Image;
+
+      function Nibble (C : Character) return Natural is
+        (if C in '0' .. '9' then Character'Pos (C) - Character'Pos ('0')
+         else Character'Pos (C) - Character'Pos ('A') + 10);
+
+      function Text_Of (Hex : String) return String is
+         Text : String (1 .. Hex'Length / 2);
+      begin
+         for I in Text'Range loop
+            Text (I) :=
+              Character'Val (16 * Nibble (Hex (Hex'First + 2 * (I - 1))) + Nibble (Hex (Hex'First + 2 * I - 1)));
+         end loop;
+         return Text;
+      end Text_Of;
+
+      --  The part of a field between its colons, counted from 1.
+      function Part (Field : String; K : Positive) return String is
+         First : Positive := Field'First;
+         Seen  : Natural := 1;
+      begin
+         for I in Field'Range loop
+            if Field (I) = ':' then
+               if Seen = K then
+                  return Field (First .. I - 1);
+               end if;
+               Seen := Seen + 1;
+               First := I + 1;
+            end if;
+         end loop;
+         return Field (First .. Field'Last);
+      end Part;
+
+      function Number (Field : String; K : Positive) return Integer_64 is (Integer_64'Value (Part (Field, K)));
+   begin
+      if Name = "vinit" then
+         declare
+            N     : constant Natural := Natural (Int (4));
+            Label : constant String := Text_Of (Str (3));
+            After : constant Positive := 5 + N;
+            OK    : Boolean;
+         begin
+            VF_Volume := (Entries => (others => <>), others => <>);
+            VF_Volume.Entries (1).Dir := True;
+            VF_Volume.Last := Max_Entries;
+            VF_Volume.Count := N;
+            VF_Volume.Label (1 .. Label'Length) := Label;
+            VF_Volume.Label_Length := Label'Length;
+            for I in 1 .. N loop
+               declare
+                  Field : constant String := Str (4 + I);
+                  Text  : constant String := Text_Of (Part (Field, 1));
+                  E     : File_Entry;
+               begin
+                  E.Name (1 .. Text'Length) := Text;
+                  E.Length := Text'Length;
+                  E.Dir := Number (Field, 2) = 1;
+                  E.Attr := Interfaces.Unsigned_8 (Number (Field, 3));
+                  E.Level := Integer (Number (Field, 4));
+                  E.Offset := Interfaces.Unsigned_32 (Number (Field, 5));
+                  E.Current_Size := Interfaces.Unsigned_32 (Number (Field, 6));
+                  E.Maximum_Size := Interfaces.Unsigned_32 (Number (Field, 7));
+                  E.Readable := Number (Field, 8) = 1;
+                  for K in 0 .. 2 loop
+                     E.CMA (K) := Interfaces.Unsigned_32 (Number (Field, 9 + K));
+                  end loop;
+                  E.First_Cluster := 77;
+                  E.Last_Cluster := 78;
+                  E.Last_Reserved := 79;
+                  E.Subentries := 99;
+                  E.Top := 5;
+                  E.Sub := 7;
+                  E.Next := 3;
+                  VF_Volume.Entries (I) := E;
+               end;
+            end loop;
+            Start (VF_Volume, OK);
+            Record_Int ("vinit.ok", Int (After), Boolean'Pos (OK));
+            if OK and then Int (After) = 1 then
+               Record_Int ("vinit.boot", Int (After + 1), Integer_64 (VF_Volume.Boot_LBA));
+               Record_Int ("vinit.fsinfo", Int (After + 2), Integer_64 (VF_Volume.FSInfo_LBA));
+               Record_Int ("vinit.fat1", Int (After + 3), Integer_64 (VF_Volume.FAT1_LBA));
+               Record_Int ("vinit.fat2", Int (After + 4), Integer_64 (VF_Volume.FAT2_LBA));
+               Record_Int ("vinit.root", Int (After + 5), Integer_64 (VF_Volume.Root_LBA));
+               Record_Int ("vinit.clusters", Int (After + 6), Integer_64 (VF_Volume.Clusters));
+               Record_Int ("vinit.free", Int (After + 7), Integer_64 (VF_Volume.Free_Clusters));
+               Record_Int ("vinit.sectors", Int (After + 8), Integer_64 (VF_Volume.Disk_Sectors));
+               Record_Int ("vinit.size", Int (After + 9), Integer_64 (VF_Volume.Size));
+               for I in 1 .. N loop
+                  declare
+                     Field : constant String := Str (After + 9 + I);
+                     E     : constant File_Entry := VF_Volume.Entries (I);
+                  begin
+                     Record_Int ("vinit.first", Number (Field, 1), Integer_64 (E.First_Cluster));
+                     Record_Int ("vinit.last", Number (Field, 2), Integer_64 (E.Last_Cluster));
+                     Record_Int ("vinit.reserved", Number (Field, 3), Integer_64 (E.Last_Reserved));
+                     Record_Int ("vinit.subentries", Number (Field, 4), Integer_64 (E.Subentries));
+                     Record_Int ("vinit.top", Number (Field, 5), Integer_64 (E.Top));
+                     Record_Int ("vinit.sub", Number (Field, 6), Integer_64 (E.Sub));
+                     Record_Int ("vinit.next", Number (Field, 7), Integer_64 (E.Next));
+                     Record_Int ("vinit.current", Number (Field, 8), Integer_64 (E.Current_Size));
+                     Record_Int ("vinit.maximum", Number (Field, 9), Integer_64 (E.Maximum_Size));
+                  end;
+               end loop;
+            end if;
+         end;
+      elsif Name = "vread" then
+         declare
+            Digit : constant String := "0123456789ABCDEF";
+            Data  : Sector;
+            From  : Source;
+            Hex   : String (1 .. 2 * Sector_Size);
+         begin
+            Read (VF_Volume, Interfaces.Unsigned_32 (Int (4)), Data, From);
+            if Str (5) = "c" then
+               Record_Int ("vread.kind", 1, Source_Kind'Pos (From.Kind));
+               Record_Text
+                 ("vread.reader", Str (6),
+                  Image (Integer_64 (From.File)) & ":" & Image (Integer_64 (From.Offset)) & ":512");
+            else
+               for I in Data'Range loop
+                  Hex (2 * I + 1) := Digit (Natural (Data (I)) / 16 + 1);
+                  Hex (2 * I + 2) := Digit (Natural (Data (I)) mod 16 + 1);
+               end loop;
+               Record_Int ("vread.kind", 0, Source_Kind'Pos (From.Kind));
+               Record_Text ("vread.data", Str (6), Hex);
+            end if;
+            Record_Int ("vread.last", Int (7), Integer_64 (VF_Volume.Last));
+         end;
+      elsif Name = "vtime" then
+         Record_Int ("vtime", Int (3), Integer_64 (Packed_Time (Interfaces.Unsigned_32 (Int (2)))));
+      end if;
+   end Check_Virtual_FAT_Line;
 
    --  The ESC serial engine against the reference's driver: each call's
    --  operations are written as the reference's pin, timer and motor calls
@@ -41966,6 +42117,8 @@ procedure Vector_Check is
                   Check_Soft_Serial_Line;
                elsif Kind = "escserial" then
                   Check_ESC_Serial_Line;
+               elsif Kind = "vfat" then
+                  Check_Virtual_FAT_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -42473,6 +42626,7 @@ begin
    Run (Dir & "/escserial.csv", "escserial");
    Run (Dir & "/escexit.csv", "escserial");
    Run (Dir & "/escpass.csv", "escserial");
+   Run (Dir & "/vfat.csv", "vfat");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");

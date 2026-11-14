@@ -14824,3 +14824,32 @@ A host image's virtual gyro has no registers. Its read answers a register's own 
 registers a dump asked for.
 
 An STM32F405 image grows by 168 bytes, and ALIENFLIGHTNGF7_RX has 4756 bytes of flash left.
+
+## D748. Virtual FAT volume (2026-11-13)
+
+Betaflight's USB mass storage mode shows flight logs from a flash chip as files on a FAT32 disk. That disk exists
+only as answers to sector reads. No part of mass storage was in core code. This entry adds that volume, first of
+several steps toward a mass storage mode on boards.
+
+`Virtual_FAT` takes a table of directories and files. `Start` checks their levels, links each entry to its
+neighbours and gives each its clusters. `Read` answers one sector: a partition table, a boot sector, a file
+system information sector, either allocation table, or a directory sector, each made when read. A read inside a
+file names that file and an offset, and its caller brings those bytes, where Betaflight calls a reader through a
+pointer. `Packed_Time` packs a Unix time as a FAT date and time.
+
+Betaflight follows pointers up a tree to find an entry's parent. `Start` keeps one entry per level on its way down
+from a root, which gives equal links and needs no invariant over a chain. Sizes and cluster numbers wrap at 32
+bits as Betaflight's unsigned arithmetic does. A partition table's cylinder, head and sector come from a signed
+sector number, as its `int` does. A time before 1980 packs in two's complement, as a host build of Betaflight
+evaluates a shift that C leaves undefined.
+
+SPARK proves it free of run-time errors: sector offsets, directory slots, entry links and a level path all stay
+in range.
+
+An oracle includes Betaflight's source and draws flat, nested, faulty and full tables with sizes up to 32 bits.
+Vectors compare every field a start sets, sectors byte for byte in drawn order, each reader call and packed
+times.
+
+Two latent faults came from reading that source (F335). A directory's cluster count leaves out its first entry
+and its label, and a directory's second cluster would repeat its first. Neither shows below 127 entries in one
+directory, and both tables stop at 106.
