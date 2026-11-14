@@ -14810,3 +14810,17 @@ That board's ITCM code packs to 9157 bytes, and its image has 4947 bytes of flas
 memory added to its platform, ITCM and a packed range both equal their image sections when `main` starts, and
 start-up reaches `Flight.Init`. Start-up to `main` takes 4.17 million more instructions, about 19 ms at 216 MHz.
 No board has run this layout.
+
+## D747. Gyro register dump on boards (2026-11-13)
+
+`gyroregisters` prints identity and configuration registers of each enabled gyro. Its board step was a core unit
+that answers zero. `Gyro.Dump_Register` now reads one register of a board's gyro over its SPI bus, as that gyro's
+start and sample reads do. A position without a gyro that start found answers zero.
+
+A dump runs in that same task as sample reads, and a data ready interrupt only counts and times a sample, so
+nothing else is on that bus during a read. With this step every command line step has its board driver.
+
+A host image's virtual gyro has no registers. Its read answers a register's own address, so host smoke sees which
+registers a dump asked for.
+
+An STM32F405 image grows by 168 bytes, and ALIENFLIGHTNGF7_RX has 4756 bytes of flash left.

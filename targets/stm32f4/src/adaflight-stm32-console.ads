@@ -1,14 +1,13 @@
 --  The command line over the board's serial ports and its terminal, with the
 --  DShot commands through the motors' DShot output, the ESC information
---  reads on the ESC sensor, the ESC serial link on the motor pins, the flash
---  tools on the flash chip and the waits on the board's clock. The board's
---  gyro register reads are the core's unit that does nothing until its
---  driver lands.
-with Adaflight.CLI_Board_Steps;
+--  reads on the ESC sensor, the ESC serial link on the motor pins, the gyro
+--  register reads on the gyro's bus, the flash tools on the flash chip and
+--  the waits on the board's clock.
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.ESC_Serial;
 with Adaflight.STM32.Flash_Chip;
+with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Passthrough;
 with Adaflight.Command_Line;
 with Adaflight.Command_Line.Terminal;
@@ -28,7 +27,7 @@ package Adaflight.STM32.Console is
       Delay_Ms               => Adaflight.STM32.Time.Delay_Ms,
       ESC_Passthrough        => Adaflight.STM32.ESC_Serial.Run_On_Command_Line,
       GPS_Passthrough        => Adaflight.STM32.Passthrough.GPS_Passthrough,
-      Gyro_Read_Register     => Adaflight.CLI_Board_Steps.Gyro_Read_Register,
+      Gyro_Read_Register     => Adaflight.STM32.Gyro.Dump_Register,
       Flash_Supported        => Adaflight.STM32.Flash_Chip.Supported,
       Flash_Erase_Completely => Adaflight.STM32.Flash_Chip.Erase_Completely,
       Flash_Ready            => Adaflight.STM32.Flash_Chip.Is_Ready,

@@ -41,4 +41,7 @@ package Adaflight.STM32.Gyro is
    --  burst read in whole degrees, the least value without a gyro.
    procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us);
    function Temperature return Interfaces.Integer_16;
+   --  A register of the gyro at a position, for the command line's register
+   --  dump: zero for a position without a gyro the start found.
+   procedure Dump_Register (Position : Natural; Register : Byte; Value : out Byte);
 end Adaflight.STM32.Gyro;

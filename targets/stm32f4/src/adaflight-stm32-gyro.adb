@@ -342,4 +342,12 @@ package body Adaflight.STM32.Gyro is
 
    function Temperature return Interfaces.Integer_16 is (Polled_Temperature);
 
+   procedure Dump_Register (Position : Natural; Register : Byte; Value : out Byte) is
+   begin
+      Value := 0;
+      if Position = 0 and then Gyro_Found then
+         Read_Register (Bus, Register, Value);
+      end if;
+   end Dump_Register;
+
 end Adaflight.STM32.Gyro;

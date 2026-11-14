@@ -5601,6 +5601,10 @@ def main():
                   text[-160:])
             text = cli(sock, "timer")
             check("timer lists the board's map", "timer A02 AF1" in text and "# pin A02: TIM2 CH3 (AF1)" in text, text[-160:])
+            text = cli(sock, "gyroregisters")
+            check("gyroregisters reads the identity and configuration registers of the one gyro",
+                  "# Gyro 1\r\n# WHO_AM_I    0x75\r\n# CONFIG      0x1A\r\n# GYRO_CONFIG 0x1B\r\n" in text
+                  and "# Gyro 2" not in text, repr(text[-160:]))
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
