@@ -1,6 +1,7 @@
 --  An image's start: on an STM32F7 the code that runs from the
---  instruction tightly coupled memory copied there, then in a packed image
---  the initialized data and elaboration code, with an STM32F7's cold
+--  instruction tightly coupled memory put there, copied in a plain image
+--  and unpacked from a stream of its own in a packed one, then in a packed
+--  image the initialized data and elaboration code, with an STM32F7's cold
 --  tables, unpacked into RAM from their compressed stream after .rodata,
 --  before elaboration.
 --  The run-time library calls it through its .init_array entry once the

@@ -52,6 +52,7 @@ REGION_ALIAS("sram_tx", sram12)
 REGION_ALIAS("sram_ro", sram12)
 REGION_ALIAS("sram_bs", sram12)
 REGION_ALIAS("sram_da", sram12)
+INCLUDE itcm_load.ld
 
 __flash_end = ORIGIN (flash) + LENGTH (flash);
 
@@ -83,15 +84,16 @@ SECTIONS
     *(.gnu.warning)
   } > flash
 
-  /* The flight loop's hottest procedures, run from the instruction tightly coupled memory; the data pack's start
-     copies them there from their load address in flash. */
+  /* The flight loop's hottest procedures, run from the instruction tightly coupled memory. A plain build loads
+     them from flash, where the data pack's start copies them from. A packed build loads them from the staging
+     region (gen/itcm_load.ld), and tools/datapack.py stores them as a stream of their own. */
   .itcm_text :
   {
     __itcm_start = .;
     *(.itcm_text .itcm_text.*)
     . = ALIGN(0x4);
     __itcm_end = .;
-  } > itcm AT > flash
+  } > itcm AT > itcm_load
   __itcm_load = LOADADDR(.itcm_text);
 
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } > flash

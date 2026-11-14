@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Pack a packed image's initialized data and elaboration code, with an STM32F7's tables, after the link.
+"""Pack a packed image's initialized data and elaboration code, with an STM32F7's tables and ITCM code, after
+the link.
 
 usage: datapack.py <elf>
 
@@ -11,7 +12,9 @@ their bytes, compresses the range from __packed_start to __packed_end as an LZMA
 checks the stream decodes back,
 checks that it fits between __rom_end and the end of the flash region, and writes the flash files beside the
 image: sector0.bin with the vector table and the code of sector 0, and code.bin with the code from sector 2
-followed by the stream at __rom_end.
+followed by the stream at __rom_end. An STM32F7 image's ITCM code, which the linker also loads from the staging
+region, is a stream of its own ahead of that one: at __rom_end come its length in four bytes from the low one,
+that stream, then the packed range's.
 """
 import re
 import subprocess
@@ -46,7 +49,8 @@ def symbols(elf: Path) -> dict:
 
 
 # The code that runs before the packed range exists: the unpacking, its decoder and the cache start-up.
-EARLY_CODE = ("adaflight_data_pack_unpack", "adaflight__lzma__", "adaflight__stm32__cache__")
+EARLY_CODE = ("adaflight_data_pack_unpack", "adaflight__stm32__data_pack__", "adaflight__lzma__",
+              "adaflight__stm32__cache__")
 
 
 def early_references(elf: Path, start: int, end: int, boot: int) -> list:
@@ -71,6 +75,9 @@ def early_references(elf: Path, start: int, end: int, boot: int) -> list:
                     found.append((name, value))
     return found
 
+
+# The staging region, which is never flashed: a section that loads from it is stored packed.
+STAGING = 0xC0000000
 
 # The linker's long branch from main in flash to adainit in RAM.
 BOOT_VENEER = "__adainit_veneer"
@@ -156,15 +163,30 @@ def main() -> None:
         raise SystemExit("datapack: the stream does not decode back to the packed range")
     rom_end, flash_end = syms["__rom_end"], syms["__flash_end"]
     room = flash_end - rom_end
+    # An STM32F7 image's script names its ITCM code's range, and its start reads the length word.
+    staged = "__itcm_load" in syms
+    if staged:
+        itcm_size, _, itcm_lma = secs.get(".itcm_text", (0, 0, 0))
+        if itcm_size != syms["__itcm_end"] - syms["__itcm_start"]:
+            raise SystemExit("datapack: the ITCM code section and its symbols differ in size")
+        if itcm_size and itcm_lma < STAGING:
+            raise SystemExit("datapack: a packed image's ITCM code must load from the staging region")
+        code = section_bytes(elf, ".itcm_text", scratch) if itcm_size else b""
+        first = lzma_ref.compress(code) if itcm_size else b""
+        back, status = lzma_ref.decompress(first, len(code)) if itcm_size else (b"", "done")
+        if status != "done" or back != code:
+            raise SystemExit("datapack: the ITCM code's stream does not decode back")
+        print(f"datapack: ITCM code {itcm_size} -> stream {len(first)} bytes")
+        stream = len(first).to_bytes(4, "little") + first + stream
     print(f"datapack: tables {secs['.packed_tables'][0]}, data {secs['.data'][0]} and boot code "
           f"{secs['.boot_code'][0]} bytes, "
-          f"range {len(raw)} -> stream {len(stream)} bytes; {room - len(stream)} bytes of flash left")
+          f"range {len(raw)} -> {len(stream)} bytes after the code; {room - len(stream)} bytes of flash left")
     if len(stream) > room:
-        raise SystemExit(f"datapack: the stream overflows the flash region by {len(stream) - room} bytes")
+        raise SystemExit(f"datapack: the streams overflow the flash region by {len(stream) - room} bytes")
     run("arm-eabi-objcopy", "-O", "binary", "--only-section=.vectors", "--only-section=.text0", str(elf),
         str(elf.parent / "sector0.bin"))
     remove = [f"--remove-section={n}" for n in (".vectors", ".text0", ".packed_tables", ".data", ".ccmdata",
-                                                 ".boot_code")]
+                                                 ".boot_code") + ((".itcm_text",) if staged else ())]
     run("arm-eabi-objcopy", "-O", "binary", *remove, str(elf), str(scratch))
     code = scratch.read_bytes()
     code_start = min(lma for name, (size, _, lma) in secs.items()
