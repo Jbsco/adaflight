@@ -14853,3 +14853,32 @@ times.
 Two latent faults came from reading that source (F335). A directory's cluster count leaves out its first entry
 and its label, and a directory's second cluster would repeat its first. Neither shows below 127 entries in one
 directory, and both tables stop at 106.
+
+## D749. Log file list for mass storage (2026-11-13)
+
+D748 added a virtual FAT volume with no files in it. Betaflight fills its volume from a flash chip's flight logs:
+one file per log, one file of all used space, and a hidden padding file up to 256 MB. This entry adds that list.
+
+`Virtual_FAT.Logs` is generic over a reader of 32 bytes at a flash offset. `Build` keeps a caller's first entries,
+a root and any fixed files, and gives them a mount time. It then steps through used space in 2048 byte blocks. A
+block that begins with a flight log's product line starts a log, and its file ends where a next one starts. A
+start time line in that log's header dates its file, unless its year is zero. At most 100 logs become files.
+
+A caller gives a name prefix and a label, where Betaflight builds its firmware identifier into both. Betaflight's
+1 MB builds also start from an autorun file and an icon. Those are a caller's fixed files here, so adaflight's own
+list can leave Betaflight's icon out.
+
+Betaflight parses a start time from a 32 byte read with no terminator after it, and its count of matched
+characters can index past its text after a full match. Here a read's end ends a number, and nothing matches
+past that text. Numbers saturate and wrap at 32 bits, as on a board.
+
+SPARK proves an instance over a flash that reads as zeros free of run-time errors.
+
+An oracle includes Betaflight's source over a drawn flash, with its number parse built for a 32 bit long. It
+records each read that brings a nonzero byte and a count of every read. Vectors replay those reads to this
+unit's reader in order, so its read sequence is compared, then its read count, every entry, their count and a
+started volume's size.
+
+Draws cover logs with and without start times, blocks that are no log, 98 to 140 logs, used space at both sides
+of half that padded size, and both sets of fixed files. Built flashes add a match that runs from one log into a
+next one, a time line past used space, a block one character off a product line, and numbers at 32 bit bounds.
