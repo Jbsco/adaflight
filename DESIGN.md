@@ -14882,3 +14882,39 @@ started volume's size.
 Draws cover logs with and without start times, blocks that are no log, 98 to 140 logs, used space at both sides
 of half that padded size, and both sets of fixed files. Built flashes add a match that runs from one log into a
 next one, a time line past used space, a block one character off a product line, and numbers at 32 bit bounds.
+
+## D750. Mass storage engine (2026-11-14)
+
+D748 and D749 added a virtual disk and its files. A host reads a disk over USB through a mass storage class:
+command wrappers, data in one direction, a status wrapper, and a short list of SCSI commands. This entry adds
+that class as a state machine with no endpoint and no storage of its own.
+
+`Mass_Storage.Engine` is generic over a data buffer's size in blocks, inquiry data and six storage subprograms.
+Its caller reports three events: a packet arrived, a transmission ended, a host cleared a halt. Each event
+returns endpoint work: flush, halts, one send from that data buffer or of a status wrapper, one receive. A
+packet is taken only when a receive was asked for, and only up to that receive's length.
+
+Betaflight builds two copies of ST's class code, one for F4 boards and one for F7 and later boards. They
+differ. F7's copy drops each command's result, stores every sense code as 0 and wraps a residue (F336 to
+F338). This engine follows F4's copy, where a refused command halts its endpoints and ends with a failed status.
+
+F4's copy has faults of its own, and F7's copy shares most of them. This engine fixes each. A byte address
+in 32 bits wraps past 4 GB (F339), and a range check wraps (F340). Write protect has a wrong sense key (F341).
+A write of no blocks waits (F342). A full sense list reads as empty (F343). A read before a capacity request
+divides by a block size of 0 (F344). Status stays in recovery after a reset (F345). Unit 1 passes on a storage
+of one unit (F346). `DIVERGENCES.md` lists each one.
+
+An inquiry reply is 36 bytes here, where Betaflight takes that length from its inquiry data. Sense key and
+code, block address and block count are separate fields, so no shift or byte address can lose them.
+
+SPARK proves an instance over a blank storage free of run-time errors for any event order. Each command's
+procedure has a postcondition, a transport status it never changes, so it proves as its own unit.
+
+Oracles include both copies' sources over stand-in endpoint and storage calls and run one event script. It has
+a host's usual first commands, each command's lengths and refusals, wrappers that are not valid, resets, a
+storage past 4 GB, drawn commands and drawn events. A third build patches F4's copy with one macro per fix.
+Vectors come from it for buffers of 4096 and 512 bytes, and its output is equal under address and undefined
+behaviour sanitizers. A checker replays each event and compares storage calls, endpoint work, state, status,
+residue, sense list and receive.
+
+No image changes: no board unit uses this engine yet.
