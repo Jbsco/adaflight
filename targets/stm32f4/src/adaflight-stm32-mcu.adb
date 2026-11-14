@@ -4,6 +4,7 @@ with Adaflight.STM32.Memory;
 with Adaflight.STM32.USB;
 package body Adaflight.STM32.MCU is
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_64;
    subtype Word is Interfaces.Unsigned_32;
 
    Unique : Identifier with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.UID_Address);
@@ -33,13 +34,16 @@ package body Adaflight.STM32.MCU is
    Boot_Stack : Word with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.Bootloader_Address);
    Boot_Entry : Word with Import, Volatile, Address => System'To_Address (Adaflight.STM32.Memory.Bootloader_Address + 4);
 
-   --  The persistent words: the magic word, then the reset reason at three,
-   --  seven words in all.
+   --  The persistent words: the magic word, the reset reason at three, then
+   --  the two halves of a mass storage request's time, seven words in all.
    Object_Magic        : constant := 0;
    Object_Reset_Reason : constant := 3;
+   Object_Time_High    : constant := 4;
+   Object_Time_Low     : constant := 5;
    Object_Count        : constant := 7;
    Magic               : constant Word := 16#4265_6631#;
    Bootloader_ROM      : constant Word := 1;
+   Mass_Storage        : constant Word := 3;
 
    PWREN         : constant Word := 2 ** 28;
    DBP           : constant Word := 2 ** 8;
@@ -91,6 +95,28 @@ package body Adaflight.STM32.MCU is
       Backup (Object_Reset_Reason) := Bootloader_ROM;
       Reset;
    end Reset_To_Bootloader;
+
+   procedure Reset_To_Mass_Storage (Time_Ms : Interfaces.Unsigned_64) is
+   begin
+      Backup (Object_Reset_Reason) := Mass_Storage;
+      Backup (Object_Time_High) := Word (Interfaces.Shift_Right (Time_Ms, 32));
+      Backup (Object_Time_Low) := Word (Time_Ms and 16#FFFF_FFFF#);
+      Reset;
+   end Reset_To_Mass_Storage;
+
+   procedure Take_Mass_Storage_Request (Asked : out Boolean; Time_Ms : out Interfaces.Unsigned_64) is
+   begin
+      Asked := Backup (Object_Reset_Reason) = Mass_Storage;
+      Time_Ms := 0;
+      if Asked then
+         Backup (Object_Reset_Reason) := 0;
+         Time_Ms :=
+           Interfaces.Shift_Left (Interfaces.Unsigned_64 (Backup (Object_Time_High)), 32)
+           or Interfaces.Unsigned_64 (Backup (Object_Time_Low));
+      end if;
+      Backup (Object_Time_High) := 0;
+      Backup (Object_Time_Low) := 0;
+   end Take_Mass_Storage_Request;
 
    procedure Check_Bootloader_Exit is
    begin

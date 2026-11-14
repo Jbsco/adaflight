@@ -6,6 +6,8 @@ A board builds its compass and barometer only when its configuration names them,
 
 No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its settings, its mode boxes, its OSD map and its MAVLink mission protocol. Without it the GPS rescue is a flight mode of its own.
 
+No board builds mass storage mode unless `FEATURES` names `Mass_Storage`. That mode shows a flash chip's flight logs to a USB host as a read-only disk after `msc` or an MSP reboot asks for it. Its USB disk exists on the host image only so far, so a board build with it still reports no storage.
+
 `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region. `tools/featuresize.py BOARD` measures each feature's flash cost on a board, a build per feature, for a configurator's fit bar:
 
     FEATURES="-Menus" bash target.do          # every default feature but the menu system

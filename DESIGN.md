@@ -14940,3 +14940,39 @@ an end entry once 100 logs fill it, and its scan for that entry reads past its t
 and no end entry. Oracle builds give Betaflight's table one more slot, and earlier vectors are unchanged.
 
 No image changes: no board unit uses this unit yet.
+
+## D752. Mass storage mode on the host image (2026-11-14)
+
+D748 to D751 built a disk of flight logs in core, and nothing ran it. Betaflight runs its disk as a mode in
+place of flight. A command line `msc` or an MSP reboot in mode 2 or 3 restarts a board, and that start shows
+its flash chip to a USB host until a next reset. This entry adds that mode and runs it on the host image.
+
+A request lasts over a reset in backup registers, with the clock's time moved by an offset in minutes: a
+command's argument, a stored timezone for mode 2, none for mode 3. A start takes that request before its USB
+serial port starts, as Betaflight's does. A held button starts that mode too, and a press ends it in a reset.
+
+`Mass_Storage_Mode` builds D749's file list from the flash chip, then gives D750's engine its events, with
+D751's sector runs as storage. Files without a start time get that request's time. A status LED blinks while
+a host reads. A flash chip that is absent shows as a disk without logs, as Betaflight's start does by its
+source, while `msc` and MSP refuse a request then.
+
+`USB_Storage` is that mode's view of a USB device: events in, endpoint work out. Its host image body is a TCP
+server on port 5781 that passes transfers, halts and resets as short messages. Its board body reports no
+device, so no board enters that mode yet. Bulk endpoints on F4 and F7 controllers come in a later step, and an
+SD card as storage after that.
+
+Build feature `Mass_Storage` selects that mode, off by default, and the host gate builds with it. We measured
+an STM32F405 build with a flash chip: that mode adds 3268 bytes of flash before any USB code for it.
+
+Its disk state is on its own stack. An STM32F405 build has both main RAM and CCM nearly full, and a build with
+that state in either did not link. That mode never returns and flight never starts beside it, so about
+11 KB of stack is free for it. A stack check confirms it: that start path needs 33528 of 40960 bytes. A data buffer of
+one block keeps it small, where Betaflight's F4 code uses eight blocks and its F7 code one.
+
+A disk here has label `ADAFLT` and files named `ADFL_001.BBL` on, and no autorun file or icon.
+
+Host smoke acts as a USB host on that port. It asks for that mode by MSP and by `msc`, with and without a chip
+and a clock, and reads a request's time. In that mode it reads capacity, partition, boot sector and root
+directory, compares a log file's bytes with its chip image, and checks dates. A write must fail with write
+protection in its sense data. A wrapper that is not valid must halt, and commands after a transport reset
+must get their status. Started without a chip, it must show a disk with its padding file alone.
