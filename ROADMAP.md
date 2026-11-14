@@ -32,7 +32,8 @@ Silver with no assume, and pass the gates on `main`.
   unpacks into RAM, and STM32F7 boards their cold tables and ITCM code with them. Cold code unpacked on demand is under study. Then H7 and other families
   Betaflight runs on, plus a physics simulator link for host target. Drivers for SPI, I2C, DMA, timers,
   USB, flash, SD card, ADC on DMA, DShot on timers and bit-banged on GPIO ports. USB mass storage mode runs on
-  host target over a flash chip's flight logs. Board USB endpoints for it and SD card storage follow.
+  host target over a flash chip's flight logs. F4 and F7 boards have a polled USB controller for it that no board
+  has run yet. SD card storage follows.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU, `tools/dfu`, checks read protection, erases, writes, verifies and starts images,
