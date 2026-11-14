@@ -72,4 +72,11 @@ package body Adaflight.STM32.Gyro is
 
    function Temperature return Interfaces.Integer_16 is (0);
 
+   --  The host's virtual gyro has no registers: a read of its one position
+   --  answers the register's own address, so a dump shows what it asked for.
+   procedure Dump_Register (Position : Natural; Register : Byte; Value : out Byte) is
+   begin
+      Value := (if Position = 0 then Register else 0);
+   end Dump_Register;
+
 end Adaflight.STM32.Gyro;
