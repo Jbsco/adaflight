@@ -14777,3 +14777,18 @@ tightest at 490844 of 491520 bytes.
 
 No board has run a link. Host runs cover this loop, its engine and its channel takes. Register writes in that
 board body have had review alone.
+
+## D745. ESC serial bit tick at a start edge (2026-11-13)
+
+D744's `Serve` took a capture before an update, Betaflight's flag order. On one timer that order can miscount a
+byte's first bit. An idle port's bit clock runs free, so an update can fall in those microseconds between a start
+edge and its handler. Both flags then wait together. An edge served first resets its bit clock to mid-bit and ends
+a search for a start bit. That old tick, served next, counts one bit time half a period early, and its byte fails
+a stop bit check.
+
+`Serve` now runs a pending tick first, while a port still searches and a tick changes nothing. A counter set, which
+starts a new bit clock at a start edge, also clears that timer's update flag. A tick that fell during an edge's own
+handling is dropped that way, and with two timers so is one pending on a send pin's timer.
+
+Both changes come from reasoning over this engine's states and Betaflight's handler source. No board has run them,
+and how often such overlaps occur on hardware is not measured.
