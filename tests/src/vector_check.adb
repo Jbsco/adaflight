@@ -164,6 +164,7 @@ with Adaflight.Altitude_Control;
 with Adaflight.Mass_Storage;
 with Adaflight.Mass_Storage.Engine;
 with Adaflight.Virtual_FAT;
+with Adaflight.Virtual_FAT.Disk;
 with Adaflight.Virtual_FAT.Logs;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
@@ -9174,7 +9175,11 @@ procedure Vector_Check is
    --  the list's reader, which gives zeros for any other read, and the
    --  built entries, their count, the started volume's size and the count
    --  of every read are compared. The prefix, the label and the entries a
-   --  build starts from come from the vector.
+   --  build starts from come from the vector. Sector runs are then read
+   --  from the built volume over a flash that gives a pattern, and each
+   --  run's bytes, as a hash, and its count of flash reads are compared,
+   --  and each flash read must lie in the clusters of the file it names. No
+   --  run touches a file whose bytes the reference keeps in a table.
    VL_Max     : constant := 4096;
    VL_Case    : Integer_64 := -1;
    VL_Offsets : array (1 .. VL_Max) of Interfaces.Unsigned_32;
@@ -9195,6 +9200,31 @@ procedure Vector_Check is
    end VL_Read;
 
    package VL_Logs is new Adaflight.Virtual_FAT.Logs (Read => VL_Read);
+
+   VL_Volume : Adaflight.Virtual_FAT.Volume;
+   VD_Calls  : Natural := 0;
+   VD_In_File : Boolean := True;
+
+   procedure VD_Read
+     (File   : Adaflight.Virtual_FAT.Entry_Index;
+      Offset : Interfaces.Unsigned_32;
+      Data   : out Adaflight.Virtual_FAT.Sector)
+   is
+      E       : constant Adaflight.Virtual_FAT.File_Entry := VL_Volume.Entries (File);
+      At_Byte : Interfaces.Unsigned_32;
+   begin
+      VD_Calls := VD_Calls + 1;
+      VD_In_File :=
+        VD_In_File and then E.Readable and then Offset >= E.Offset
+        and then Offset - E.Offset < (E.Last_Cluster - E.First_Cluster + 1) * Adaflight.Virtual_FAT.Cluster_Size;
+      for I in Data'Range loop
+         At_Byte := Offset + Interfaces.Unsigned_32 (I);
+         Data (I) :=
+           Interfaces.Unsigned_8 ((Interfaces.Shift_Right (At_Byte * 2_654_435_761, 24) + At_Byte) and 16#FF#);
+      end loop;
+   end VD_Read;
+
+   package VD_Disk is new Adaflight.Virtual_FAT.Disk (Read_File => VD_Read);
 
    procedure Check_Virtual_FAT_Files_Line is
       use Adaflight.Virtual_FAT;
@@ -9313,6 +9343,30 @@ procedure Vector_Check is
             end loop;
             Record_Int ("vfiles.sectors", Int (9 + Count), Integer_64 (V.Disk_Sectors));
             Record_Int ("vfiles.calls", Int (10 + Count), Integer_64 (VL_Calls));
+            VL_Volume := V;
+         end;
+      elsif Name = "vdisk" then
+         declare
+            Count : constant Natural := Natural (Int (4));
+            Data  : Byte_Array (0 .. 8 * Sector_Size - 1) := (others => 16#A5#);
+            H     : Interfaces.Unsigned_32 := 2_166_136_261;
+            Digit : constant String := "0123456789ABCDEF";
+            Text  : String (1 .. 8);
+         begin
+            VD_Calls := 0;
+            VD_In_File := True;
+            if Ready (VL_Volume) then
+               VD_Disk.Read (VL_Volume, Interfaces.Unsigned_32 (Int (3)), Count, Data);
+            end if;
+            for I in 0 .. Count * Sector_Size - 1 loop
+               H := (H xor Interfaces.Unsigned_32 (Data (I))) * 16_777_619;
+            end loop;
+            for I in 0 .. 7 loop
+               Text (8 - I) := Digit (Natural (Interfaces.Shift_Right (H, 4 * I) and 16#F#) + 1);
+            end loop;
+            Record_Text ("vdisk.hash", Str (5), Text);
+            Record_Int ("vdisk.reads", Int (6), Integer_64 (VD_Calls));
+            Record_Int ("vdisk.in_file", 1, Boolean'Pos (VD_In_File));
          end;
       end if;
    end Check_Virtual_FAT_Files_Line;
