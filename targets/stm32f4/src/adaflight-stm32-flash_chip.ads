@@ -49,4 +49,8 @@ package Adaflight.STM32.Flash_Chip is
    procedure Partition
      (Index : Natural; Found : out Boolean; Kind : out Natural; First, Last : out Interfaces.Unsigned_16);
    function Offset return Interfaces.Unsigned_32;
+
+   --  Mass storage mode's read: the chip's bytes from an address, zeros
+   --  where it gives none.
+   procedure Read (Address : Interfaces.Unsigned_32; Data : out Byte_Array);
 end Adaflight.STM32.Flash_Chip;

@@ -8,7 +8,7 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
     echo "host: the board configuration submodule is not checked out (git submodule update --init)"
     exit 1
 fi
-FEATURES=+flash_chip alr -n build
+FEATURES=+flash_chip,+mass_storage alr -n build
 (cd ../../tools/msp && alr -n build)
 python3 -u ../../tools/host-smoke.py bin/adaflight_host
 echo "host: ok"

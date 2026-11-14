@@ -1,6 +1,7 @@
 --  The microcontroller itself: its unique identifier, the system reset, and
---  the reset into the ROM bootloader through a request kept in the RTC
---  backup registers, which a system reset leaves alone.
+--  the resets into the ROM bootloader and into mass storage mode through a
+--  request kept in the RTC backup registers, which a system reset leaves
+--  alone.
 with Interfaces;
 with Adaflight.Attitude;
 package Adaflight.STM32.MCU is
@@ -29,6 +30,14 @@ package Adaflight.STM32.MCU is
    --  mapped at address zero, restarts through a system reset, so the bootloader's USB and other peripherals start
    --  as a reset leaves them.
    procedure Check_Bootloader_Exit;
+   --  A reset that the next start turns into mass storage mode. Time_Ms is
+   --  the clock's milliseconds since 1970 for that mode's file dates, zero
+   --  without a clock.
+   procedure Reset_To_Mass_Storage (Time_Ms : Interfaces.Unsigned_64)
+     with No_Return;
+   --  At the start: whether a reset asked for mass storage mode, taken
+   --  once, with the time kept beside that request.
+   procedure Take_Mass_Storage_Request (Asked : out Boolean; Time_Ms : out Interfaces.Unsigned_64);
    --  The host image's simulator link: whether the image runs against a
    --  simulator, its packets read once a pass, and the attitude quaternion
    --  of the latest packet, once. Board images have no link.

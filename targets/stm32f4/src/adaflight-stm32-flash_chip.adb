@@ -635,4 +635,17 @@ package body Adaflight.STM32.Flash_Chip is
    end Partition;
 
    function Offset return Unsigned_32 is (FS.Offset (State));
+
+   procedure Read (Address : Unsigned_32; Data : out Byte_Array) is
+      O     : FS.Output;
+      Taken : Natural := 0;
+      Asked : Natural;
+   begin
+      Data := (others => 0);
+      if Data'Length = 0 or else not FS.Is_Supported (State) then
+         return;
+      end if;
+      FS.Read_Abs (State, Address, Data'Length, O, Asked);
+      Execute (O, Data, Taken);
+   end Read;
 end Adaflight.STM32.Flash_Chip;

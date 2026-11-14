@@ -125,6 +125,7 @@ with Adaflight.GPS_Frames;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
 with Adaflight.GPS_Rescue;
+with Adaflight.STM32.Mass_Storage_Mode;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.Memory;
 with Adaflight.STM32.Motors;
@@ -1357,10 +1358,28 @@ package body Adaflight.STM32.Flight is
       end if;
    end Send_DShot_Commands;
 
-   --  The MSP reboot modes the board serves: the firmware and the ROM
-   --  bootloader; the others leave the board running.
-   Firmware_Reboot       : constant := 0;
-   ROM_Bootloader_Reboot : constant := 1;
+   --  The MSP reboot modes the board serves: the firmware, the ROM
+   --  bootloader, and mass storage mode with file dates in local time or
+   --  in UTC; the others leave the board running.
+   Firmware_Reboot         : constant := 0;
+   ROM_Bootloader_Reboot   : constant := 1;
+   Mass_Storage_Reboot     : constant := 2;
+   Mass_Storage_UTC_Reboot : constant := 3;
+
+   --  A reset into mass storage mode. The clock's time, moved by an offset
+   --  in minutes, goes with it for that mode's file dates, zero without a
+   --  clock.
+   procedure Reset_To_Mass_Storage (Offset_Minutes : Integer_16)
+     with No_Return;
+
+   procedure Reset_To_Mass_Storage (Offset_Minutes : Integer_16) is
+      Time_Ms : Integer_64 := 0;
+   begin
+      if Adaflight.STM32.RTC.Has_Time then
+         Time_Ms := Adaflight.STM32.RTC.Now_Ms + Integer_64 (Offset_Minutes) * 60_000;
+      end if;
+      Adaflight.STM32.MCU.Reset_To_Mass_Storage ((if Time_Ms > 0 then Unsigned_64 (Time_Ms) else 0));
+   end Reset_To_Mass_Storage;
 
    --  One command through the processor with its request, the effects it
    --  asks for, and a requested write of the configuration with its read
@@ -1449,6 +1468,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Control.From_Telemetry := From_Telemetry;
       Ctx.Control.RX_SPI_Active := (Runtime_Features and Adaflight.Config_Fix.Feature_RX_SPI) /= 0;
       Ctx.Control.Source := Source;
+      Ctx.Control.MSC_Ready := Adaflight.STM32.Mass_Storage_Mode.Ready (Config);
       Ctx.Three_D := (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0;
       MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
@@ -1567,6 +1587,12 @@ package body Adaflight.STM32.Flight is
          when ROM_Bootloader_Reboot =>
             Adaflight.STM32.Motors.Shutdown;
             Adaflight.STM32.MCU.Reset_To_Bootloader;
+         when Mass_Storage_Reboot =>
+            Adaflight.STM32.Motors.Shutdown;
+            Reset_To_Mass_Storage (Config.Time_Config.Tz_Offset_Minutes);
+         when Mass_Storage_UTC_Reboot =>
+            Adaflight.STM32.Motors.Shutdown;
+            Reset_To_Mass_Storage (0);
          when others =>
             null;
       end case;
@@ -1819,6 +1845,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Hardware.Flash := Adaflight.STM32.Flash_Chip.Summary;
       Ctx.Out_Views.Hardware.Motor_Count := Unsigned_8 (Adaflight.STM32.Control.Motor_Count);
       Env.Flash := Flash_Status;
+      Env.MSC_Ready := Adaflight.STM32.Mass_Storage_Mode.Ready (Config);
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Ctx.Out_Views.State.Clock := Adaflight.STM32.RTC.Clock_Values;
       Env.Status.OSD_Device := Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.STM32.OSD.Device);
@@ -1933,6 +1960,9 @@ package body Adaflight.STM32.Flight is
                if CLI."=" (Changes.Restart, CLI.ROM_Bootloader) then
                   Adaflight.STM32.Motors.Shutdown;
                   Adaflight.STM32.MCU.Reset_To_Bootloader;
+               elsif CLI."=" (Changes.Restart, CLI.Mass_Storage) then
+                  Adaflight.STM32.Motors.Shutdown;
+                  Reset_To_Mass_Storage (Changes.Timezone_Offset);
                elsif Changes.Reboot then
                   Adaflight.STM32.Motors.Shutdown;
                   Reset;
@@ -5274,6 +5304,20 @@ package body Adaflight.STM32.Flight is
          end if;
       end;
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
+      --  Mass storage mode in place of flight, after a reset that asked for
+      --  it or with its button held: the buses and the flash chip start,
+      --  and the mode runs until a reset.
+      declare
+         Asked   : Boolean;
+         Time_Ms : Unsigned_64;
+      begin
+         Adaflight.STM32.MCU.Take_Mass_Storage_Request (Asked, Time_Ms);
+         Adaflight.STM32.Mass_Storage_Mode.Init_Button (Config);
+         if Asked or else Adaflight.STM32.Mass_Storage_Mode.Button_Pressed (Config) then
+            Start_Buses;
+            Adaflight.STM32.Mass_Storage_Mode.Run (Config, Time_Ms);
+         end if;
+      end;
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);

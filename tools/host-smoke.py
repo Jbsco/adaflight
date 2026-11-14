@@ -26,6 +26,7 @@ import time
 
 PORT = 5761
 VCP_PORT = 5780
+DISK_PORT = 5781
 RX_PORT = 5763
 GPS_PORT = 5764
 LOG_PORT = 5766
@@ -1211,6 +1212,321 @@ def fat16_log(path):
         return None, "log file without a cluster"
     at = clusters + (first - 2) * cluster_bytes
     return data[at:at + cluster_bytes], ""
+
+
+class Disk:
+    """A USB host's side of the bulk-only transport over the image's disk port. A message is a letter, a length in
+    two bytes with the high one first, then that many bytes: O with a transfer for the out endpoint, C with an
+    endpoint number for a cleared halt and R for a transport reset go to the image; D with a transfer from the in
+    endpoint, H with an endpoint number for a halt, A when the out endpoint is ready and F for a flush come back."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.sock.settimeout(5)
+        self.tag = 0
+        self.halts = []
+
+    def exact(self, count):
+        data = b""
+        while len(data) < count:
+            chunk = self.sock.recv(count - len(data))
+            if not chunk:
+                raise OSError("the disk port closed")
+            data += chunk
+        return data
+
+    def message(self):
+        head = self.exact(3)
+        return chr(head[0]), self.exact(head[1] * 256 + head[2])
+
+    def send(self, kind, payload=b""):
+        self.sock.sendall(kind.encode() + struct.pack(">H", len(payload)) + payload)
+
+    def wrapper(self, block, length, to_host=True, signature=0x43425355):
+        self.tag += 1
+        self.send("O", struct.pack("<IIIBBB", signature, self.tag, length, 0x80 if to_host else 0, 0, len(block))
+                  + block.ljust(16, b"\0"))
+
+    def command(self, block, length, to_host=True):
+        """One command: its wrapper, its data toward the host, each halt cleared, and its status wrapper. Returns
+        the data, the status and the residue."""
+        self.wrapper(block, length, to_host)
+        data = b""
+        while True:
+            kind, payload = self.message()
+            if kind == "D":
+                if (len(payload) == 13 and payload[:4] == b"USBS"
+                        and struct.unpack("<I", payload[4:8])[0] == self.tag):
+                    _, residue, status = struct.unpack("<IIB", payload[4:])
+                    return data, status, residue
+                data += payload
+            elif kind == "H":
+                self.halts.append(payload[0])
+                self.send("C", payload)
+
+    def halt(self):
+        """The next halt's endpoint, past any other message."""
+        while True:
+            kind, payload = self.message()
+            if kind == "H":
+                return payload[0]
+
+    def read(self, sector, count):
+        block = bytes([0x28, 0]) + struct.pack(">I", sector) + b"\0" + struct.pack(">H", count) + b"\0"
+        data, status, _ = self.command(block, count * 512)
+        return data if status == 0 else None
+
+    def directory(self):
+        """The first sector of the disk's data area, its label and its root directory's files."""
+        start_lba = struct.unpack("<I", self.read(0, 1)[454:458])[0]
+        boot = self.read(start_lba, 1)
+        reserved, fats = struct.unpack("<HB", boot[14:17])
+        fat_size, root_cluster = struct.unpack("<I", boot[36:40])[0], struct.unpack("<I", boot[44:48])[0]
+        data_lba = start_lba + reserved + fats * fat_size
+        root = self.read(data_lba + (root_cluster - 2) * 8, 8)
+        files = {}
+        label = None
+        for i in range(0, len(root), 32):
+            entry = root[i:i + 32]
+            if entry[0] == 0:
+                break
+            if entry[11] & 0x08:
+                label = entry[:11]
+                continue
+            name = entry[:8].decode().rstrip() + "." + entry[8:11].decode().rstrip()
+            files[name] = {"attr": entry[11],
+                           "cluster": struct.unpack("<H", entry[20:22])[0] << 16 | struct.unpack("<H", entry[26:28])[0],
+                           "size": struct.unpack("<I", entry[28:32])[0],
+                           "created": struct.unpack("<HH", entry[14:18])[::-1],
+                           "written": struct.unpack("<HH", entry[22:26])[::-1]}
+        return data_lba, label, files
+
+
+def fat_stamp(seconds):
+    """A time in seconds since 1970 as a FAT directory entry's date and time words."""
+    t = time.gmtime(seconds)
+    return ((t.tm_year - 1980) << 9 | t.tm_mon << 5 | t.tm_mday, t.tm_hour << 11 | t.tm_min << 5 | t.tm_sec // 2)
+
+
+def mass_storage_checks(image, store, chip, work):
+    """Mass storage mode over a flash chip that has a flight log: the requests for it, then a USB host's part."""
+    request = os.path.join(work, "msc-request.txt")
+    extra = {"ADAFLIGHT_FLASH_IMAGE": chip, "ADAFLIGHT_MASS_STORAGE_REQUEST": request}
+    # Without a chip the storage is not ready: the command line says so and the MSP reboot answers 0 and stays.
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.5)
+        ack = msp(sock, 68, bytes([2]))
+        check("MSP reboot into mass storage mode without a chip answers not ready", ack == bytes([2, 0]), repr(ack))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        text = cli(sock, "msc", 1.5)
+        check("msc without a chip reports no storage", "# Storage not present or failed to initialize!" in text,
+              text[-120:])
+        check("an image without a chip stays out of mass storage mode", proc.poll() is None, repr(proc.poll()))
+    finally:
+        stop(proc)
+        sock.close()
+    def asked_time(proc):
+        """The image's exit status and the time of the request it left."""
+        try:
+            code = proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            code = None
+        try:
+            with open(request) as f:
+                return code, int(f.read().strip())
+        except (OSError, ValueError):
+            return code, None
+
+    def save_timezone(minutes):
+        proc, sock = start(image, store, extra)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            cli(sock, f"set timezone_offset_minutes = {minutes}")
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+
+    # The MSP reboot in its UTC mode, without a clock: accepted, and the request has no time.
+    proc, sock = start(image, store, extra)
+    try:
+        time.sleep(2.5)
+        ack = msp(sock, 68, bytes([3]))
+        check("MSP reboot into mass storage mode accepted", ack == bytes([3, 1]), repr(ack))
+        code, asked = asked_time(proc)
+        check("MSP reboot restarts into mass storage mode", code == 3, repr(code))
+        check("a mass storage request without a clock has no time", asked == 0, repr(asked))
+    finally:
+        stop(proc)
+        sock.close()
+    # With a clock and a stored timezone of two hours: the UTC mode asks with the clock's time, the local mode with
+    # that time moved by the timezone.
+    clock = 1794600000
+    save_timezone(120)
+    for mode, moved, name in ((3, 0, "UTC"), (2, 120 * 60, "local")):
+        proc, sock = start(image, store, extra)
+        try:
+            time.sleep(2.5)
+            set_at = time.time()
+            msp(sock, 246, clock.to_bytes(4, "little") + (0).to_bytes(2, "little"))
+            ack = msp(sock, 68, bytes([mode]))
+            code, asked = asked_time(proc)
+            elapsed = time.time() - set_at
+            expected = (clock + moved) * 1000
+            check(f"MSP reboot into mass storage mode in its {name} mode asks with that mode's time",
+                  ack == bytes([mode, 1]) and code == 3 and asked is not None
+                  and expected <= asked <= expected + int(elapsed * 1000) + 1500, f"{ack} {code} {asked} {expected}")
+        finally:
+            stop(proc)
+            sock.close()
+    # The command line: an offset out of range is refused, and one in range moves the request's time in place of
+    # the stored timezone.
+    proc, sock = start(image, store, extra)
+    try:
+        time.sleep(2.5)
+        set_at = time.time()
+        msp(sock, 246, clock.to_bytes(4, "little") + (0).to_bytes(2, "little"))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        text = cli(sock, "msc 781", 1.5)
+        check("msc refuses a timezone offset out of range",
+              "INVALID TIMEZONE OFFSET" in text and proc.poll() is None, text[-120:])
+        text = cli(sock, "msc -90", 1.5)
+        check("msc announces the restart", "# Restarting in mass storage mode" in text and "Rebooting" in text,
+              text[-120:])
+        code, asked = asked_time(proc)
+        elapsed = time.time() - set_at
+        check("msc restarts into mass storage mode", code == 3, repr(code))
+        expected = (clock - 90 * 60) * 1000
+        check("a mass storage request has the clock's time moved by the offset",
+              asked is not None and expected <= asked <= expected + int(elapsed * 1000) + 1500,
+              f"{asked} {expected} {elapsed:.1f}")
+    finally:
+        stop(proc)
+        sock.close()
+    save_timezone(0)
+    asked = asked or 0
+    # The mode itself, started with that request: a host reads the disk. Each flight start above may have added a
+    # log to the chip, and the mode writes none, so the chip's image is read here.
+    with open(chip, "rb") as f:
+        flash = f.read()
+    proc, sock = start(image, store, dict(extra, ADAFLIGHT_MASS_STORAGE=str(asked)), port=DISK_PORT)
+    disk = Disk(sock)
+    try:
+        data, status, residue = disk.command(bytes([0x12, 0, 0, 0, 36]), 36)
+        check("mass storage inquiry names the disk",
+              status == 0 and residue == 0 and data[8:32] == b"ADAFLT  Onboard Flash   " and data[1] == 0x80,
+              repr(data))
+        _, status, _ = disk.command(bytes([0x00]), 0, to_host=False)
+        check("mass storage unit is ready", status == 0, repr(status))
+        data, status, _ = disk.command(bytes([0x25]), 8)
+        blocks = struct.unpack(">I", data[:4])[0] + 1 if len(data) == 8 else 0
+        check("mass storage capacity is a disk past 256 MB in 512 byte blocks",
+              status == 0 and data[4:] == struct.pack(">I", 512) and blocks > 256 * 1024 * 2, repr(data))
+        data, status, residue = disk.command(bytes([0x1A, 0, 0x3F, 0, 192]), 192)
+        check("mass storage mode sense reports write protection",
+              status == 0 and residue == 184 and data == bytes([0, 0, 0x80, 0, 0, 0, 0, 0]), repr(data))
+        first = disk.read(0, 1)
+        start_lba = struct.unpack("<I", first[454:458])[0]
+        check("disk has one FAT32 partition", first[510:] == b"\x55\xaa" and first[450] == 0x0C and start_lba > 0,
+              first[446:462].hex())
+        boot = disk.read(start_lba, 1)
+        check("partition starts with a FAT32 boot sector",
+              boot[82:90] == b"FAT32   " and boot[11:14] == bytes([0, 2, 8]) and boot[510:] == b"\x55\xaa",
+              boot[:96].hex())
+        data_lba, label, files = disk.directory()
+        used = files.get("ADFL_ALL.BBL", {}).get("size", 0)
+        check("disk is labelled for adaflight", label == b"ADAFLT     ", repr(label))
+        logs = sorted(name for name in files if re.fullmatch(r"ADFL_\d{3}\.BBL", name))
+        check("disk lists each log from 001, the file of all logs and the padding",
+              len(logs) >= 1 and logs == [f"ADFL_{k + 1:03}.BBL" for k in range(len(logs))]
+              and sorted(files) == logs + ["ADFL_ALL.BBL", "PADDING.TXT"], repr(sorted(files)))
+        check("file of all logs is the chip's used space", 2048 <= used < 16 * 1024 * 1024 and used % 2048 == 0
+              and flash[used:used + 2048] == b"\xff" * 2048, repr(used))
+        log = files.get("ADFL_001.BBL", {"attr": 0, "cluster": 2, "size": 0, "created": None, "written": None})
+        sizes = [files[name]["size"] for name in logs]
+        check("log files are read-only, each whole blocks long, and together the used space",
+              all(files[name]["attr"] == 0x21 for name in logs) and all(size % 2048 == 0 for size in sizes)
+              and sum(sizes) == used, f"{sizes} {used}")
+        check("each log file starts with a log's header",
+              all(flash[sum(sizes[:k]):].startswith(b"H Product:Blackbox") for k in range(len(sizes))), repr(sizes))
+        padding = files.get("PADDING.TXT", {"attr": 0, "size": 0})
+        check("padding file is hidden and fills the disk to 256 MB",
+              padding["attr"] == 0x23 and padding["size"] == 256 * 1024 * 1024 - 2 * used, repr(padding))
+        stamp = fat_stamp(asked // 1000)
+        check("files are dated from the request's time",
+              log["created"] == stamp and log["written"] == stamp
+              and files.get("ADFL_ALL.BBL", {}).get("created") == stamp, f"{log} {stamp}")
+        sectors = (log["size"] + 511) // 512
+        got = b""
+        for k in range(0, sectors, 8):
+            part = disk.read(data_lba + (log["cluster"] - 2) * 8 + k, min(8, sectors - k))
+            if part is None:
+                break
+            got += part
+        size = log["size"]
+        check("first log file reads as the chip's bytes", len(got) >= size > 0 and got[:size] == flash[:size],
+              f"{len(got)} {size}")
+        last = files.get(logs[-1] if logs else "", {"cluster": 2, "size": 512})
+        part = disk.read(data_lba + (last["cluster"] - 2) * 8 + last["size"] // 512 - 4, 4)
+        check("last log file's end reads as the chip's bytes", part == flash[used - 2048:used],
+              repr(part[:32] if part else part))
+        whole = files.get("ADFL_ALL.BBL", {"cluster": 2})
+        part = disk.read(data_lba + (whole["cluster"] - 2) * 8 + 1, 3)
+        check("file of all logs reads as the chip's bytes", part == flash[512:2048], repr(part[:32] if part else part))
+        disk.halts.clear()
+        block = bytes([0x2A, 0]) + struct.pack(">I", 0) + b"\0" + struct.pack(">H", 1) + b"\0"
+        _, status, residue = disk.command(block, 512, to_host=False)
+        check("a write to the disk fails with both endpoints halted",
+              status == 1 and residue == 512 and disk.halts == [0x01, 0x81], f"{status} {residue} {disk.halts}")
+        data, status, _ = disk.command(bytes([0x03, 0, 0, 0, 18]), 18)
+        check("sense after a write names write protection",
+              status == 0 and len(data) == 18 and data[2] == 0x07 and data[12] == 0x27, data.hex())
+        _, status, _ = disk.command(bytes([0x28, 0]) + struct.pack(">I", blocks) + b"\0\0\1\0", 512)
+        data, _, _ = disk.command(bytes([0x03, 0, 0, 0, 18]), 18)
+        check("a read past the disk's end fails as out of range",
+              status == 1 and data[2] == 0x05 and data[12] == 0x21, f"{status} {data.hex()}")
+        # A wrapper that is not valid halts the in endpoint until a transport reset; a refused command after that
+        # reset still gets its status.
+        disk.wrapper(bytes([0x00]), 0, to_host=False, signature=0x43425356)
+        halt = disk.halt()
+        disk.send("C", bytes([0x81]))
+        again = disk.halt()
+        check("a wrapper that is not valid keeps the in endpoint halted", halt == 0x81 and again == 0x81,
+              f"{halt} {again}")
+        disk.send("R")
+        disk.send("C", bytes([0x81]))
+        disk.send("C", bytes([0x01]))
+        stale, status, _ = disk.command(bytes([0xA8]), 0, to_host=False)
+        _, passed, _ = disk.command(bytes([0x00]), 0, to_host=False)
+        check("a transport reset leaves no status behind, and commands after it get theirs",
+              stale == b"" and status == 1 and passed == 0, f"{stale} {status} {passed}")
+        check("mass storage mode runs until a reset", proc.poll() is None, repr(proc.poll()))
+    except (OSError, struct.error, IndexError, TypeError) as error:
+        check("mass storage mode answers a host", False, repr(error))
+    finally:
+        stop(proc)
+        sock.close()
+    # The mode started without a chip and without a time: a disk with its padding alone, dated 2018-01-01 13:00.
+    proc, sock = start(image, store, {"ADAFLIGHT_MASS_STORAGE": "0"}, port=DISK_PORT)
+    disk = Disk(sock)
+    try:
+        disk.command(bytes([0x25]), 8)
+        _, label, files = disk.directory()
+        padding = files.get("PADDING.TXT", {"size": 0, "created": None})
+        check("mass storage mode without a chip shows a disk without logs",
+              label == b"ADAFLT     " and list(files) == ["PADDING.TXT"] and padding["size"] == 256 * 1024 * 1024
+              and padding["created"] == (38 << 9 | 1 << 5 | 1, 13 << 11), f"{label} {files}")
+    except (OSError, struct.error, IndexError, TypeError) as error:
+        check("mass storage mode without a chip answers a host", False, repr(error))
+    finally:
+        stop(proc)
+        sock.close()
 
 
 def stop(proc):
@@ -3962,6 +4278,8 @@ def main():
         check("flash image starts with the log header",
               head.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"), repr(head[:60]))
         check("flash image names the firmware", b"H Firmware type:Adaflight\n" in head, repr(head[:200]))
+        if built("Mass_Storage"):
+            mass_storage_checks(image, store, chip, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

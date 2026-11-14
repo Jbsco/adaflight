@@ -46,6 +46,7 @@ FEATURES = [
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "
                        "an SD card."),
+    ("Mass_Storage", None, "The USB mass storage mode, which shows the flash chip's flight logs as a disk."),
     ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
     ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build leaves "
                "out."),
@@ -327,6 +328,7 @@ STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd"),
          ("Flash_Chip", "Adaflight.STM32.Flash_Chip", "adaflight-stm32-flash_chip"),
          ("Blackbox", "Adaflight.STM32.Blackbox", "adaflight-stm32-blackbox"),
+         ("Mass_Storage", "Adaflight.STM32.Mass_Storage_Mode", "adaflight-stm32-mass_storage_mode"),
          ("Servos", "Adaflight.STM32.Servos", "adaflight-stm32-servos"),
          ("GPS", "Adaflight.STM32.GPS", "adaflight-stm32-gps"),
          ("Compass", "Adaflight.STM32.Compass", "adaflight-stm32-compass"),

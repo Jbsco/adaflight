@@ -65,4 +65,10 @@ package body Adaflight.STM32.Flash_Chip is
 
    function Offset return Interfaces.Unsigned_32 is (0);
 
+   procedure Read (Address : Interfaces.Unsigned_32; Data : out Byte_Array) is
+      pragma Unreferenced (Address);
+   begin
+      Data := (others => 0);
+   end Read;
+
 end Adaflight.STM32.Flash_Chip;

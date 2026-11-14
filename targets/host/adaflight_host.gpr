@@ -47,10 +47,12 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.ESC_Serial_Port") use "adaflight-host-esc_serial_port.adb";
       for Body ("Adaflight.STM32.Timer_Dispatch") use "adaflight-host-timer_dispatch.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
+      for Body ("Adaflight.STM32.USB_Storage") use "adaflight-host-usb_storage.adb";
       for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
       for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
       for Body ("Adaflight.STM32.Flash_Chip") use Adaflight_Feature_Units.Flash_Chip_Body;
       for Body ("Adaflight.STM32.Blackbox") use Adaflight_Feature_Units.Blackbox_Body;
+      for Body ("Adaflight.STM32.Mass_Storage_Mode") use Adaflight_Feature_Units.Mass_Storage_Mode_Body;
       for Body ("Adaflight.STM32.GPS") use Adaflight_Feature_Units.GPS_Body;
       for Body ("Adaflight.STM32.Compass") use Adaflight_Feature_Units.Compass_Body;
       for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
