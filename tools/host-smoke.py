@@ -1668,6 +1668,156 @@ def mass_storage_checks(image, store, chip, work):
     finally:
         stop(proc)
         sock.close()
+    if built("SD_Card"):
+        card_storage_checks(image, store, chip, work)
+
+
+def card_storage_checks(image, store, chip, work):
+    """Mass storage mode with an SD card as the flight log's device: a USB host reads and writes the card's own
+    blocks. The stored device is put back to the flash chip at the end."""
+    card = os.path.join(work, "msc-card.img")
+    sectors = 40960
+    fat16_image(card, sectors)
+
+    def store_settings(*lines):
+        proc, sock = start(image, store)
+        try:
+            time.sleep(1.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in lines:
+                cli(sock, f"set {line}")
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+
+    def write(disk, sector, data):
+        block = bytes([0x2A, 0]) + struct.pack(">I", sector) + b"\0" + struct.pack(">H", len(data) // 512) + b"\0"
+        _, status, residue = disk.command(block, len(data), to_host=False, data=data)
+        return status, residue
+
+    store_settings("blackbox_device = SDCARD")
+    try:
+        # The MSP reboot is accepted with a card that answers, and answers 0 and stays without one.
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            time.sleep(2.5)
+            ack = msp(sock, 68, bytes([3]))
+            try:
+                code = proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                code = None
+            check("MSP reboot into mass storage mode is accepted with a card", ack == bytes([3, 1]) and code == 3,
+                  f"{ack} {code}")
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+        try:
+            time.sleep(2.5)
+            ack = msp(sock, 68, bytes([3]))
+            check("MSP reboot into mass storage mode without a card answers not ready beside a flash chip",
+                  ack == bytes([3, 0]) and proc.poll() is None, f"{ack} {proc.poll()}")
+        finally:
+            stop(proc)
+            sock.close()
+        first = bytes((7 * k + 3) % 256 for k in range(512))
+        pair = bytes((5 * k + 11) % 256 for k in range(1024))
+        # The flight start above may have put a log on the card, and the mode writes only what a host sends, so the
+        # card's image is read here.
+        with open(card, "rb") as f:
+            before = f.read()
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card, "ADAFLIGHT_MASS_STORAGE": "0"}, port=DISK_PORT)
+        disk = Disk(sock)
+        try:
+            disk.enumerate(5)
+            data, status, _ = disk.command(bytes([0x12, 0, 0, 0, 36]), 36)
+            check("mass storage inquiry names the card",
+                  status == 0 and data[8:36] == b"ADAFLT  SD Card         0.01" and data[1] == 0x80, repr(data))
+            _, status, _ = disk.command(bytes([0x00]), 0, to_host=False)
+            check("mass storage unit over a card is ready", status == 0, repr(status))
+            data, status, _ = disk.command(bytes([0x25]), 8)
+            check("mass storage capacity is the card's blocks",
+                  status == 0 and data == struct.pack(">II", sectors - 1, 512), repr(data))
+            data, status, _ = disk.command(bytes([0x1A, 0, 0x3F, 0, 192]), 192)
+            check("mass storage mode sense reports a card without write protection",
+                  status == 0 and data == bytes(8), repr(data))
+            got = disk.read(0, 4)
+            check("a card's first blocks read as its image", got == before[:2048] and any(before[:512]),
+                  repr(got[:32] if got else got))
+            got = disk.read(sectors - 1, 1)
+            check("a card's last block reads as its image", got == before[-512:], repr(got[:32] if got else got))
+            disk.halts.clear()
+            status, residue = write(disk, 30000, first)
+            check("a write of one block to a card passes", status == 0 and residue == 0 and disk.halts == [],
+                  f"{status} {residue} {disk.halts}")
+            status, residue = write(disk, 30001, pair)
+            check("a write of two blocks to a card passes", status == 0 and residue == 0 and disk.halts == [],
+                  f"{status} {residue} {disk.halts}")
+            got = disk.read(30000, 3)
+            check("a card's written blocks read back", got == first + pair, repr(got[:32] if got else got))
+            _, status, _ = disk.command(bytes([0x28, 0]) + struct.pack(">I", sectors) + b"\0\0\1\0", 512)
+            data, _, _ = disk.command(bytes([0x03, 0, 0, 0, 18]), 18)
+            check("a read past a card's end fails as out of range",
+                  status == 1 and data[2] == 0x05 and data[12] == 0x21, f"{status} {data.hex()}")
+            deadline = time.time() + 10
+            after = b""
+            while time.time() < deadline:
+                with open(card, "rb") as f:
+                    after = f.read()
+                if after[30000 * 512:30003 * 512] == first + pair:
+                    break
+                time.sleep(0.5)
+            check("a card's image has the written blocks and no other change",
+                  after[:30000 * 512] == before[:30000 * 512] and after[30000 * 512:30003 * 512] == first + pair
+                  and after[30003 * 512:] == before[30003 * 512:], f"{len(after)} {len(before)}")
+            check("mass storage mode over a card runs until a reset", proc.poll() is None, repr(proc.poll()))
+        except (OSError, struct.error, IndexError, TypeError) as error:
+            check("mass storage mode over a card answers a host", False, repr(error))
+        finally:
+            stop(proc)
+            sock.close()
+        # The mode started with its card absent: a disk without a medium, and no wait without end.
+        proc, sock = start(image, store, {"ADAFLIGHT_MASS_STORAGE": "0"}, port=DISK_PORT)
+        disk = Disk(sock)
+        try:
+            disk.enumerate(5)
+            _, status, _ = disk.command(bytes([0x00]), 0, to_host=False)
+            sense, _, _ = disk.command(bytes([0x03, 0, 0, 0, 18]), 18)
+            check("mass storage mode with its card absent reports no medium",
+                  status == 1 and len(sense) == 18 and sense[2] == 0x02 and sense[12] == 0x3A,
+                  f"{status} {sense.hex()}")
+            _, status, _ = disk.command(bytes([0x25]), 8)
+            check("an absent card has no capacity", status == 1, repr(status))
+            _, status, _ = disk.command(bytes([0x28, 0, 0, 0, 0, 0, 0, 0, 1, 0]), 512)
+            check("a read of an absent card fails", status == 1, repr(status))
+            status, _ = write(disk, 0, first)
+            check("a write to an absent card fails", status == 1, repr(status))
+            check("mass storage mode with its card absent runs until a reset", proc.poll() is None,
+                  repr(proc.poll()))
+        except (OSError, struct.error, IndexError, TypeError) as error:
+            check("mass storage mode with its card absent answers a host", False, repr(error))
+        finally:
+            stop(proc)
+            sock.close()
+        # A card that the stored configuration turns off leaves no flight log device, which a save stores, and a
+        # card on SDIO is one this image does not serve: the mode ends in a reset for each.
+        for lines, name in ((("sdcard_mode = OFF",), "its card turned off"),
+                            (("sdcard_mode = SDIO", "blackbox_device = SDCARD"), "a card on SDIO")):
+            store_settings(*lines)
+            proc, _ = start(image, store, {"ADAFLIGHT_SD_IMAGE": card, "ADAFLIGHT_MASS_STORAGE": "0"}, port=None)
+            try:
+                try:
+                    code = proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    code = None
+                check(f"mass storage mode with {name} ends in a reset", code == 0, repr(code))
+            finally:
+                stop(proc)
+    finally:
+        store_settings("sdcard_mode = SPI", "blackbox_device = SPIFLASH")
 
 
 def stop(proc):
@@ -1685,6 +1835,8 @@ def start(image, store, extra=None, port=PORT):
                ADAFLIGHT_ARMING_LOG=store + ".arming.txt",
                **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if port is None:
+        return proc, None
     deadline = time.time() + 15
     while time.time() < deadline:
         try:

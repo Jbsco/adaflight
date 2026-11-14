@@ -5,6 +5,7 @@ with Adaflight.Pins;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.SD;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USB_Storage;
 with Adaflight.USB_Device;
@@ -25,6 +26,7 @@ package body Adaflight.STM32.Mass_Storage_Mode is
    subtype Unsigned_32 is Interfaces.Unsigned_32;
 
    Flash_Device  : constant := 1;
+   Card_Device   : constant := 2;
    Buffer_Blocks : constant := 1;
    --  A file's date without a clock: 2018-01-01 13:00:00 as a FAT entry
    --  packs it.
@@ -35,6 +37,8 @@ package body Adaflight.STM32.Mass_Storage_Mode is
 
    Last_Active : Unsigned_32 := 0;
    Next_Toggle : Unsigned_32 := 0;
+   --  Whether the storage is the SD card, a flash chip's logs otherwise.
+   Use_Card    : Boolean := False;
 
    --  A signed distance between two millisecond counts, as the counter wraps.
    function Since (Now, Before : Unsigned_32) return Interfaces.Integer_32 is
@@ -60,26 +64,58 @@ package body Adaflight.STM32.Mass_Storage_Mode is
 
    Prefix : constant Logs.Prefix_Text := "ADFL";
 
+   --  A card starts here, at a host's configuration, and is polled until
+   --  it is ready, absent or failed.
    procedure Start_Storage is
    begin
       Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      if Use_Card then
+         Adaflight.STM32.SD.Raw_Start;
+         Last_Active := Adaflight.STM32.Time.Millis;
+      end if;
    end Start_Storage;
 
    procedure Storage_Ready (OK : out Boolean) is
    begin
-      OK := True;
+      if Use_Card then
+         Adaflight.STM32.SD.Raw_Ready (OK);
+      else
+         OK := True;
+      end if;
    end Storage_Ready;
 
+   --  A flash chip's logs are read-only, and a card takes writes.
    procedure Write_Protected (Yes : out Boolean) is
    begin
-      Yes := True;
+      Yes := not Use_Card;
    end Write_Protected;
 
    procedure Write_Blocks (First : Unsigned_32; Count : Natural; Data : Byte_Array; OK : out Boolean) is
-      pragma Unreferenced (First, Count, Data);
+      Size : constant := Adaflight.STM32.SD.Block_Size;
    begin
-      OK := False;
+      OK := Use_Card and then Data'Length >= Count * Size;
+      if OK then
+         for K in 0 .. Count - 1 loop
+            Adaflight.STM32.SD.Raw_Write
+              (First + Unsigned_32 (K), Data (Data'First + K * Size .. Data'First + K * Size + Size - 1), OK);
+            exit when not OK;
+         end loop;
+         Last_Active := Adaflight.STM32.Time.Millis;
+      end if;
    end Write_Blocks;
+
+   function Text (S : String) return Byte_Array is
+      Result : Byte_Array (0 .. S'Length - 1);
+   begin
+      for K in Result'Range loop
+         Result (K) := Character'Pos (S (S'First + K));
+      end loop;
+      return Result;
+   end Text;
+
+   Card_Inquiry : constant Adaflight.Mass_Storage.Inquiry_Bytes :=
+     Byte_Array'(16#00#, 16#80#, 16#02#, 16#02#, Adaflight.Mass_Storage.Inquiry_Length - 5, 0, 0, 0)
+     & Text ("ADAFLT  ") & Text ("SD Card         ") & Text ("0.01");
 
    Inquiry : constant Adaflight.Mass_Storage.Inquiry_Bytes :=
      (16#00#, 16#80#, 16#02#, 16#02#, Adaflight.Mass_Storage.Inquiry_Length - 5, 0, 0, 0,
@@ -91,8 +127,9 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       32, 32, 32, 32);
 
    function Ready (C : Adaflight.Config_Groups.Configuration) return Boolean is
-     (Storage.Available and then C.Blackbox_Config.Device = Flash_Device
-      and then Adaflight.STM32.Flash_Chip.Supported);
+     (Storage.Available
+      and then ((C.Blackbox_Config.Device = Flash_Device and then Adaflight.STM32.Flash_Chip.Supported)
+                or else (C.Blackbox_Config.Device = Card_Device and then Adaflight.STM32.SD.Functional)));
 
    function Has_Button (C : Adaflight.Config_Groups.Configuration) return Boolean is
      (C.Usb_Dev_Config.Msc_Button_Pin / 16 in 1 .. Adaflight.Pins.Port_Name'Pos (Adaflight.Pins.Port_Name'Last) + 1);
@@ -136,15 +173,33 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       --  returns, so it is on this procedure's stack.
       Volume : FAT.Volume;
 
+      --  A card that is absent or failed has no capacity.
       procedure Capacity (Blocks : out Unsigned_32; OK : out Boolean) is
       begin
-         Blocks := Volume.Disk_Sectors;
-         OK := True;
+         if Use_Card then
+            Adaflight.STM32.SD.Raw_Ready (OK);
+            Blocks := (if OK then Adaflight.STM32.SD.Block_Count else 0);
+         else
+            Blocks := Volume.Disk_Sectors;
+            OK := True;
+         end if;
       end Capacity;
 
       procedure Read_Blocks (First : Unsigned_32; Count : Natural; Data : in out Byte_Array; OK : out Boolean) is
+         Size : constant := Adaflight.STM32.SD.Block_Size;
       begin
          Last_Active := Adaflight.STM32.Time.Millis;
+         if Use_Card then
+            OK := Data'Length >= Count * Size;
+            if OK then
+               for K in 0 .. Count - 1 loop
+                  Adaflight.STM32.SD.Raw_Read
+                    (First + Unsigned_32 (K), Data (Data'First + K * Size .. Data'First + K * Size + Size - 1), OK);
+                  exit when not OK;
+               end loop;
+            end if;
+            return;
+         end if;
          OK :=
            FAT.Ready (Volume) and then Count <= Disk.Max_Run and then Data'First = 0
            and then Data'Length >= Count * FAT.Sector_Size;
@@ -155,7 +210,7 @@ package body Adaflight.STM32.Mass_Storage_Mode is
 
       package MSC is new Adaflight.USB_MSC
         (Buffer_Blocks   => Buffer_Blocks,
-         Inquiry         => Inquiry,
+         Inquiry         => (if C.Blackbox_Config.Device = Card_Device then Card_Inquiry else Inquiry),
          Start_Storage   => Start_Storage,
          Capacity        => Capacity,
          Ready           => Storage_Ready,
@@ -180,8 +235,14 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       Volume.Entries (1).Dir := True;
       Volume.Label (1 .. Label'Length) := Label;
       Volume.Label_Length := Label'Length;
-      Logs.Build (Volume, Predefined => 1, Used => Used, Prefix => Prefix, Mounted => Mounted, OK => OK);
-      if not OK or else not Storage.Available or else C.Blackbox_Config.Device /= Flash_Device then
+      Use_Card := C.Blackbox_Config.Device = Card_Device;
+      if Use_Card then
+         OK := Adaflight.STM32.SD.Configured;
+      else
+         Logs.Build (Volume, Predefined => 1, Used => Used, Prefix => Prefix, Mounted => Mounted, OK => OK);
+         OK := OK and then C.Blackbox_Config.Device = Flash_Device;
+      end if;
+      if not OK or else not Storage.Available then
          Adaflight.STM32.MCU.Reset;
       end if;
       MSC.Init (Device, "Adaflight (" & Adaflight.Board.Board_Name & ") MSC", (Id (1), Id (2), Id (3)));

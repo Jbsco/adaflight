@@ -50,4 +50,28 @@ package body Adaflight.STM32.SD is
 
    function Log_Number return Interfaces.Integer_32 is (0);
 
+   function Functional return Boolean is (False);
+
+   procedure Raw_Start is null;
+
+   procedure Raw_Ready (OK : out Boolean) is
+   begin
+      OK := False;
+   end Raw_Ready;
+
+   function Block_Count return Interfaces.Unsigned_32 is (0);
+
+   procedure Raw_Read (Index : Interfaces.Unsigned_32; Data : out Byte_Array; OK : out Boolean) is
+      pragma Unreferenced (Index);
+   begin
+      Data := (others => 0);
+      OK := False;
+   end Raw_Read;
+
+   procedure Raw_Write (Index : Interfaces.Unsigned_32; Data : Byte_Array; OK : out Boolean) is
+      pragma Unreferenced (Index, Data);
+   begin
+      OK := False;
+   end Raw_Write;
+
 end Adaflight.STM32.SD;
