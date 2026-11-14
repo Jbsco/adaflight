@@ -162,6 +162,7 @@ with Adaflight.Position_Hold;
 with Adaflight.GPS_Rescue;
 with Adaflight.Altitude_Control;
 with Adaflight.Virtual_FAT;
+with Adaflight.Virtual_FAT.Logs;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
@@ -9165,6 +9166,154 @@ procedure Vector_Check is
          Record_Int ("vtime", Int (3), Integer_64 (Packed_Time (Interfaces.Unsigned_32 (Int (2)))));
       end if;
    end Check_Virtual_FAT_Line;
+
+   --  The log file list against the reference's: each flash read the
+   --  reference made that brought a nonzero byte is replayed in order to
+   --  the list's reader, which gives zeros for any other read, and the
+   --  built entries, their count, the started volume's size and the count
+   --  of every read are compared. The prefix, the label and the entries a
+   --  build starts from come from the vector.
+   VL_Max     : constant := 4096;
+   VL_Case    : Integer_64 := -1;
+   VL_Offsets : array (1 .. VL_Max) of Interfaces.Unsigned_32;
+   VL_Bytes   : array (1 .. VL_Max) of Adaflight.Virtual_FAT.Flash_Read;
+   VL_Count   : Natural := 0;
+   VL_Next    : Positive := 1;
+   VL_Calls   : Natural := 0;
+
+   procedure VL_Read (Offset : Interfaces.Unsigned_32; Data : out Adaflight.Virtual_FAT.Flash_Read) is
+   begin
+      VL_Calls := VL_Calls + 1;
+      if VL_Next <= VL_Count and then VL_Offsets (VL_Next) = Offset then
+         Data := VL_Bytes (VL_Next);
+         VL_Next := VL_Next + 1;
+      else
+         Data := (others => 0);
+      end if;
+   end VL_Read;
+
+   package VL_Logs is new Adaflight.Virtual_FAT.Logs (Read => VL_Read);
+
+   procedure Check_Virtual_FAT_Files_Line is
+      use Adaflight.Virtual_FAT;
+      Name : constant String := Str (1);
+
+      function Nibble (C : Character) return Natural is
+        (if C in '0' .. '9' then Character'Pos (C) - Character'Pos ('0')
+         else Character'Pos (C) - Character'Pos ('A') + 10);
+
+      function Text_Of (Hex : String) return String is
+         Text : String (1 .. Hex'Length / 2);
+      begin
+         for I in Text'Range loop
+            Text (I) :=
+              Character'Val (16 * Nibble (Hex (Hex'First + 2 * (I - 1))) + Nibble (Hex (Hex'First + 2 * I - 1)));
+         end loop;
+         return Text;
+      end Text_Of;
+
+      function Part (Field : String; K : Positive) return String is
+         First : Positive := Field'First;
+         Seen  : Natural := 1;
+      begin
+         for I in Field'Range loop
+            if Field (I) = ':' then
+               if Seen = K then
+                  return Field (First .. I - 1);
+               end if;
+               Seen := Seen + 1;
+               First := I + 1;
+            end if;
+         end loop;
+         return Field (First .. Field'Last);
+      end Part;
+
+      function Number (Field : String; K : Positive) return Integer_64 is (Integer_64'Value (Part (Field, K)));
+   begin
+      if Int (2) /= VL_Case then
+         VL_Case := Int (2);
+         VL_Count := 0;
+         VL_Next := 1;
+      end if;
+      if Name = "vfread" then
+         declare
+            Hex : constant String := Str (4);
+         begin
+            VL_Count := VL_Count + 1;
+            VL_Offsets (VL_Count) := Interfaces.Unsigned_32 (Int (3));
+            for I in 0 .. Read_Size - 1 loop
+               VL_Bytes (VL_Count) (I) :=
+                 Interfaces.Unsigned_8 (16 * Nibble (Hex (Hex'First + 2 * I)) + Nibble (Hex (Hex'First + 2 * I + 1)));
+            end loop;
+         end;
+      elsif Name = "vfiles" then
+         declare
+            Prefix     : constant String := Text_Of (Str (3));
+            Label      : constant String := Text_Of (Str (4));
+            Predefined : constant Natural := Natural (Int (5));
+            Count      : constant Natural := Natural (Int (8));
+            V          : Volume;
+            OK         : Boolean;
+         begin
+            V.Label (1 .. Label'Length) := Label;
+            V.Label_Length := Label'Length;
+            for I in 1 .. Predefined loop
+               declare
+                  Field : constant String := Str (8 + I);
+                  Text  : constant String := Text_Of (Part (Field, 1));
+                  E     : File_Entry;
+               begin
+                  E.Name (1 .. Text'Length) := Text;
+                  E.Length := Text'Length;
+                  E.Dir := Number (Field, 2) = 1;
+                  E.Attr := Interfaces.Unsigned_8 (Number (Field, 3));
+                  E.Level := Integer (Number (Field, 4));
+                  E.Offset := Interfaces.Unsigned_32 (Number (Field, 5));
+                  E.Current_Size := Interfaces.Unsigned_32 (Number (Field, 6));
+                  E.Maximum_Size := Interfaces.Unsigned_32 (Number (Field, 7));
+                  E.Readable := Number (Field, 8) /= 0;
+                  E.CMA := (others => 12345);
+                  V.Entries (I) := E;
+               end;
+            end loop;
+            for I in Predefined + 1 .. Max_Entries loop
+               V.Entries (I).Name := (others => 'x');
+               V.Entries (I).Length := 5;
+               V.Entries (I).Dir := True;
+               V.Entries (I).Attr := 255;
+               V.Entries (I).CMA := (others => 54321);
+               V.Entries (I).Readable := True;
+            end loop;
+            VL_Calls := 0;
+            VL_Logs.Build
+              (V, Predefined, Interfaces.Unsigned_32 (Int (6)), Prefix, Interfaces.Unsigned_32 (Int (7)), OK);
+            Record_Int ("vfiles.ok", 1, Boolean'Pos (OK));
+            Record_Int ("vfiles.reads", Integer_64 (VL_Count), Integer_64 (VL_Next - 1));
+            Record_Int ("vfiles.count", Integer_64 (Count), Integer_64 (V.Count));
+            for I in 1 .. Natural'Min (Count, V.Count) loop
+               declare
+                  Field : constant String := Str (8 + I);
+                  E     : constant File_Entry := V.Entries (I);
+               begin
+                  Record_Text ("vfiles.name", Text_Of (Part (Field, 1)), E.Name (1 .. E.Length));
+                  Record_Int ("vfiles.dir", Number (Field, 2), Boolean'Pos (E.Dir));
+                  Record_Int ("vfiles.attr", Number (Field, 3), Integer_64 (E.Attr));
+                  Record_Int ("vfiles.level", Number (Field, 4), Integer_64 (E.Level));
+                  Record_Int ("vfiles.offset", Number (Field, 5), Integer_64 (E.Offset));
+                  Record_Int ("vfiles.current", Number (Field, 6), Integer_64 (E.Current_Size));
+                  Record_Int ("vfiles.maximum", Number (Field, 7), Integer_64 (E.Maximum_Size));
+                  Record_Int
+                    ("vfiles.reader", (if Number (Field, 8) /= 0 then 1 else 0), Boolean'Pos (E.Readable));
+                  Record_Int ("vfiles.created", Number (Field, 9), Integer_64 (E.CMA (0)));
+                  Record_Int ("vfiles.modified", Number (Field, 10), Integer_64 (E.CMA (1)));
+                  Record_Int ("vfiles.accessed", Number (Field, 11), Integer_64 (E.CMA (2)));
+               end;
+            end loop;
+            Record_Int ("vfiles.sectors", Int (9 + Count), Integer_64 (V.Disk_Sectors));
+            Record_Int ("vfiles.calls", Int (10 + Count), Integer_64 (VL_Calls));
+         end;
+      end if;
+   end Check_Virtual_FAT_Files_Line;
 
    --  The ESC serial engine against the reference's driver: each call's
    --  operations are written as the reference's pin, timer and motor calls
@@ -42119,6 +42268,8 @@ procedure Vector_Check is
                   Check_ESC_Serial_Line;
                elsif Kind = "vfat" then
                   Check_Virtual_FAT_Line;
+               elsif Kind = "vfatfiles" then
+                  Check_Virtual_FAT_Files_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -42627,6 +42778,7 @@ begin
    Run (Dir & "/escexit.csv", "escserial");
    Run (Dir & "/escpass.csv", "escserial");
    Run (Dir & "/vfat.csv", "vfat");
+   Run (Dir & "/vfatfiles.csv", "vfatfiles");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");

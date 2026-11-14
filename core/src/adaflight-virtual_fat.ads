@@ -20,6 +20,11 @@ package Adaflight.Virtual_FAT with SPARK_Mode is
    Sectors_Per_Cluster : constant := Cluster_Size / Sector_Size;
    subtype Sector is Adaflight.Bytes.Byte_Array (0 .. Sector_Size - 1);
 
+   --  What one read of a flash's flight logs brings, for the search for
+   --  each log's start.
+   Read_Size : constant := 32;
+   subtype Flash_Read is Adaflight.Bytes.Byte_Array (0 .. Read_Size - 1);
+
    Max_Entries : constant := 106;
    subtype Entry_Count is Natural range 0 .. Max_Entries;
    subtype Entry_Index is Positive range 1 .. Max_Entries;
