@@ -1,12 +1,14 @@
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
-with Adaflight.Mass_Storage.Engine;
+with Adaflight.Mass_Storage;
 with Adaflight.Pins;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USB_Storage;
+with Adaflight.USB_Device;
+with Adaflight.USB_MSC;
 with Adaflight.Virtual_FAT.Disk;
 with Adaflight.Virtual_FAT.Logs;
 package body Adaflight.STM32.Mass_Storage_Mode is
@@ -14,10 +16,11 @@ package body Adaflight.STM32.Mass_Storage_Mode is
    use type Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_64;
    use type Interfaces.Integer_32;
-   use type Adaflight.Mass_Storage.Receive_Kind;
 
    package FAT renames Adaflight.Virtual_FAT;
    package Storage renames Adaflight.STM32.USB_Storage;
+   package USB renames Adaflight.USB_Device;
+   use type Storage.Event;
 
    subtype Unsigned_32 is Interfaces.Unsigned_32;
 
@@ -150,7 +153,7 @@ package body Adaflight.STM32.Mass_Storage_Mode is
          end if;
       end Read_Blocks;
 
-      package Engine is new Adaflight.Mass_Storage.Engine
+      package MSC is new Adaflight.USB_MSC
         (Buffer_Blocks   => Buffer_Blocks,
          Inquiry         => Inquiry,
          Start_Storage   => Start_Storage,
@@ -160,41 +163,18 @@ package body Adaflight.STM32.Mass_Storage_Mode is
          Read_Blocks     => Read_Blocks,
          Write_Blocks    => Write_Blocks);
 
-      Session : Engine.Session;
-      Packet  : Byte_Array (0 .. Engine.Buffer_Size - 1) := (others => 0);
-
-      --  The endpoint work an event left, in the engine's order.
-      procedure Apply (Work : Adaflight.Mass_Storage.Actions) is
-      begin
-         if Work.Flush then
-            Storage.Flush;
-         end if;
-         if Work.Halt_Out then
-            Storage.Halt_Out;
-         end if;
-         if Work.Halt_In then
-            Storage.Halt_In;
-         end if;
-         case Work.Send is
-            when Adaflight.Mass_Storage.Nothing =>
-               null;
-            when Adaflight.Mass_Storage.Data =>
-               Storage.Send (Session.Data (0 .. Work.Send_Length - 1));
-            when Adaflight.Mass_Storage.Status =>
-               Storage.Send (Engine.Status_Wrapper (Session));
-         end case;
-         if Work.Receive /= Adaflight.Mass_Storage.Nothing then
-            Storage.Receive (Work.Receive_Length);
-         end if;
-      end Apply;
+      Device : MSC.Device;
+      Packet : Byte_Array (0 .. USB.Packet_Size - 1) := (others => 0);
 
       Used    : constant Unsigned_32 := Unsigned_32'Min (Adaflight.STM32.Flash_Chip.Offset, Logs.Max_Used);
       Mounted : constant Unsigned_32 :=
         (if Time_Ms = 0 then Default_Time else FAT.Packed_Time (Unsigned_32 (Time_Ms / 1_000 mod 2 ** 32)));
+      Id      : constant Adaflight.STM32.MCU.Identifier := Adaflight.STM32.MCU.UID;
       OK      : Boolean;
       What    : Storage.Event;
+      EP      : USB.Endpoint_Number;
       Count   : Natural;
-      Work    : Adaflight.Mass_Storage.Actions;
+      Work    : USB.Actions;
    begin
       Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
       Volume.Entries (1).Dir := True;
@@ -204,35 +184,34 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       if not OK or else not Storage.Available or else C.Blackbox_Config.Device /= Flash_Device then
          Adaflight.STM32.MCU.Reset;
       end if;
-      Storage.Start ("Adaflight (" & Adaflight.Board.Board_Name & ")");
+      MSC.Init (Device, "Adaflight (" & Adaflight.Board.Board_Name & ") MSC", (Id (1), Id (2), Id (3)));
+      Storage.Start;
       while Button_Pressed (C) loop
          null;
       end loop;
       Adaflight.STM32.Time.Delay_Ms (Debounce_Ms);
       loop
-         Work := (others => <>);
-         Storage.Next (What, Packet, Count);
+         USB.Clear (Work);
+         Storage.Next (What, EP, Packet, Count);
          case What is
             when Storage.Nothing =>
                null;
-            when Storage.Started =>
-               Engine.Start (Session, Work);
-            when Storage.Transport_Reset =>
-               Engine.Reset (Session, Work);
-            when Storage.Stopped =>
-               Engine.Stop (Session);
+            when Storage.Bus_Reset =>
+               MSC.Reset (Device, Work);
+            when Storage.Setup =>
+               MSC.Setup (Device, Packet (0 .. 7), Work);
             when Storage.Packet_Out =>
-               if Session.Receiving /= Adaflight.Mass_Storage.Nothing then
-                  Engine.Packet_Out (Session, Packet (0 .. Natural'Min (Count, Packet'Length) - 1), Work);
-               end if;
+               MSC.Data_Out (Device, EP, Packet (0 .. Natural'Min (Count, Packet'Length) - 1), Work);
             when Storage.Packet_In =>
-               Engine.Packet_In (Session, Work);
-            when Storage.Cleared_In =>
-               Engine.Halt_Cleared (Session, In_Endpoint => True, Next => Work);
-            when Storage.Cleared_Out =>
-               Engine.Halt_Cleared (Session, In_Endpoint => False, Next => Work);
+               MSC.Data_In (Device, EP, Work);
+            when Storage.Suspend =>
+               MSC.Suspend (Device);
+            when Storage.Resume =>
+               MSC.Resume (Device);
          end case;
-         Apply (Work);
+         if What /= Storage.Nothing then
+            Storage.Execute (Work);
+         end if;
          if Button_Pressed (C) then
             Adaflight.STM32.MCU.Reset;
          end if;

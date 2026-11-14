@@ -15014,3 +15014,27 @@ Before this entry that checker's tables left about 240 KB of a default 8 MB stac
 it. Its gate now runs it with a larger stack where a host allows that.
 
 No image changes: no board unit uses this device yet.
+
+## D754. USB controller interface under mass storage mode (2026-11-14)
+
+D752's `USB_Storage` passed whole transfers, halts and resets, so its host image body did a USB device's work
+and D753's device ran nowhere. This entry makes `USB_Storage` a controller interface and puts D753's device
+over it.
+
+`USB_Storage` now reports bus events: a bus reset, a setup packet, a packet from a host, a transmission's
+end, a suspend and a resume. It executes a list of `USB_Device` endpoint operations after each one.
+`Mass_Storage_Mode` instantiates `USB_MSC` over D751's sector runs, gives it each event and passes its
+operations back. Its product name is a board's USB name with MSC after it.
+
+Its host image body passes packets over TCP port 5781: one message per event in, one per endpoint operation
+out, then an end mark. Host smoke acts as a USB host and its bus at that level. It tracks open endpoints,
+stalls, armed receives and packets that wait for a host.
+
+That host enumerates first: descriptors, an address, texts, a configuration. D752's disk checks then run
+through bulk packets, with each halt cleared by a standard request and a transport reset sent as a class
+request. A suspend and a resume must leave that disk in service, and a second host must find it after a
+first one leaves.
+
+Board body still reports no controller, so no board enters that mode yet. We measured an STM32F405 build with
+that body changed to report one. Its start path needs 37336 of 40960 bytes of stack, and it has 1244 bytes
+more flash than D752's build. An F4 controller body is next.

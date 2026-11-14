@@ -1,28 +1,23 @@
---  The USB device as a mass storage disk: two bulk endpoints for the
---  bulk-only transport. The mass storage engine decides what the endpoints
---  do; this package reports what happened on them and does that work.
+--  The USB controller in mass storage mode: bus events in, endpoint
+--  operations out. The mass storage device unit decides what the endpoints
+--  do; this package reports what the bus brought and does that work.
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.USB_Device;
 package Adaflight.STM32.USB_Storage is
-   --  Whether this image has the device.
+   --  Whether this image has the controller for it.
    function Available return Boolean;
-   --  The device on the bus with the product name a host reads.
-   procedure Start (Product : String);
+   --  The controller on the bus as a device.
+   procedure Start;
 
-   --  A host configured the device, a transfer arrived on the out endpoint,
-   --  a transfer on the in endpoint ended, a host cleared an endpoint's
-   --  halt, a host asked for the transport's reset, or the device left its
-   --  configuration.
-   type Event is (Nothing, Started, Packet_Out, Packet_In, Cleared_In, Cleared_Out, Transport_Reset, Stopped);
-   --  The next event. A transfer that arrived is in Data from its start,
-   --  Count bytes of it.
-   procedure Next (What : out Event; Data : in out Byte_Array; Count : out Natural);
+   --  A bus reset, a setup packet, a packet from the host on an endpoint, a
+   --  transmission that ended on one, a suspend and a resume.
+   type Event is (Nothing, Bus_Reset, Setup, Packet_Out, Packet_In, Suspend, Resume);
+   --  The next event with its endpoint. A setup packet's eight bytes or a
+   --  packet's bytes are in Data from its start, Count of them.
+   procedure Next
+     (What : out Event; EP : out Adaflight.USB_Device.Endpoint_Number; Data : in out Byte_Array; Count : out Natural)
+     with Pre => Data'Length >= Adaflight.USB_Device.Packet_Size;
 
-   --  Both endpoints flushed.
-   procedure Flush;
-   procedure Halt_In;
-   procedure Halt_Out;
-   --  Bytes toward a host as one transfer.
-   procedure Send (Data : Byte_Array);
-   --  The out endpoint takes one transfer of up to Length bytes.
-   procedure Receive (Length : Natural);
+   --  The endpoint operations an event asked for, in their order.
+   procedure Execute (A : Adaflight.USB_Device.Actions);
 end Adaflight.STM32.USB_Storage;
