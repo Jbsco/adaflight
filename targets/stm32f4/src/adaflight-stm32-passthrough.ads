@@ -10,6 +10,7 @@ package Adaflight.STM32.Passthrough is
 
    --  The port the command line runs on, the other end of a GPS passthrough.
    procedure Set_Command_Line_Port (Which : Adaflight.STM32.Serial.Line);
+   function Command_Line return Adaflight.STM32.Serial.Line;
 
    --  Whether a port is open with its baud rate, mode, options and whether
    --  a function takes its bytes as they arrive.

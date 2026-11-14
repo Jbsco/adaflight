@@ -3530,6 +3530,346 @@ def main():
                 vcp.close()
         if built("Soft_Serial"):
             soft_serial_checks()
+        # The ESC serial link: escprog and the MSP passthrough modes 0 to 4 join the request's port to an ESC's
+        # line on a motor pin, the host's TCP port 5769, until the exit request. The host image writes each timer
+        # setup, reset, time base, start and handler change of a link to a log. The default board has motors 1
+        # and 2 on complementary channels and motors 3 and 4 on TIM2.
+        def esc_serial_checks():
+            line_port = 5769
+            leave = b"$M<\x00\xf4\xf4"
+            left = b"$M>\x00\xf4\xf4"
+            refusal = "escprog: Error starting ESC connection"
+            half = 84000000
+
+            def esc_line():
+                deadline = time.time() + 5
+                while time.time() < deadline:
+                    try:
+                        esc = socket.create_connection(("127.0.0.1", line_port), timeout=1)
+                        esc.settimeout(0.3)
+                        return esc
+                    except OSError:
+                        time.sleep(0.2)
+                return None
+
+            def session(name, setup, steps):
+                """An image with the setup lines saved, the steps run on its first UART and the link's log."""
+                store = os.path.join(work, name + ".bin")
+                log = store + ".escserial.txt"
+                extra = {"ADAFLIGHT_ESC_SERIAL_LOG": log}
+                if setup:
+                    proc, sock = start(image, store, extra)
+                    try:
+                        time.sleep(2.5)
+                        sock.sendall(b"#")
+                        read_all(sock, 0.8)
+                        for line in setup:
+                            cli(sock, line)
+                        cli(sock, "save", wait=2.0)
+                        proc.wait(timeout=10)
+                    finally:
+                        stop(proc)
+                        sock.close()
+
+                def setups():
+                    """The log's lines since the last read: operation, target and two values."""
+                    try:
+                        with open(log) as f:
+                            rows = [tuple(int(v) if v.isdigit() else v for v in row.split(","))
+                                    for row in f.read().split()]
+                    except OSError:
+                        rows = []
+                    try:
+                        os.remove(log)
+                    except OSError:
+                        pass
+                    return rows
+                proc, sock = start(image, store, extra)
+                try:
+                    time.sleep(2.5)
+                    steps(sock, setups)
+                finally:
+                    stop(proc)
+                    sock.close()
+
+            def exchange(sock, esc, out, back):
+                """Bytes sent each way on a link: what the ESC got, what came back to the host, and what the host
+                got of the ESC's bytes."""
+                sock.sendall(out)
+                got = collect(esc, out, 3.0)
+                echo = read_all(sock, 0.5)
+                esc.sendall(back)
+                return got, echo, collect(sock, back, 1.5)
+
+            def end(sock):
+                sock.sendall(leave)
+                return collect(sock, left, 3.0)
+
+            def placed(sock):
+                """The timer list's channels by owner."""
+                found = {}
+                timer = ""
+                for row in cli(sock, "timer show", 1.5).splitlines():
+                    if row.startswith("TIM"):
+                        timer = row.split(":")[0]
+                    elif "CH" in row and ":" in row:
+                        found[f"{timer} {row.split(':')[0].strip()}"] = row.split(":", 1)[1].strip()
+                return found
+
+            def by_command_line(sock, setups):
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "escprog bl 0", 1.5)
+                check("ESC serial link on a complementary timer channel is refused",
+                      "Using output 0." in text and refusal in text, text[-120:])
+                text = cli(sock, "escprog sk 2", 1.5)
+                check("SimonK link without a second timer is refused", refusal in text, text[-120:])
+                try:
+                    socket.create_connection(("127.0.0.1", line_port), timeout=1).close()
+                    listening = True
+                except OSError:
+                    listening = False
+                check("refused links open no ESC line", not listening)
+                setups()
+                text = cli(sock, "escprog bl 2", 1.5)
+                esc = esc_line()
+                check("BLHeli link opens on a motor pin whose channel the motor output holds",
+                      "Using output 2." in text and refusal not in text and esc is not None, text[-120:])
+                if esc is None:
+                    return
+                try:
+                    out, back = b"to the ESC \x00\xff\x55", b"from it \x00\xff\xaa"
+                    got, echo, heard = exchange(sock, esc, out, back)
+                    check("BLHeli link sends the host's bytes to the ESC and back to the host",
+                          got == out and echo == out, repr((got, echo)))
+                    check("BLHeli link gives the ESC's bytes to the host", heard == back, repr(heard))
+                    sock.sendall(b"$M<\x00\x01\x01")
+                    got = collect(esc, b"$M<\x00\x01\x01", 3.0)
+                    echo = read_all(sock, 0.5)
+                    check("MSP request on a running link goes to the ESC and gets no answer",
+                          got == b"$M<\x00\x01\x01" and echo == b"$M<\x00\x01\x01", repr((got, echo)))
+                    reply = end(sock)
+                    text = cli(sock, "escprog", 1.0)
+                    check("exit request ends a link after another MSP request",
+                          left in reply and "INVALID ARGUMENT COUNT" in text, repr((reply, text[-80:])))
+                    rows = setups()
+                    check("BLHeli link on one timer clocks bits at 19200 baud and captures on that time base",
+                          rows == [("setup", 2, 65535, 1), ("reset", 2, 0, 0), ("base", 2, half // 19200, half),
+                                   ("tick", 2, 1, 0), ("start", 2, 0, 0), ("edge", 2, 1, 0), ("start", 2, 0, 0),
+                                   ("edge", 2, 0, 0), ("reset", 2, 0, 0), ("tick", 2, 0, 0), ("reset", 2, 0, 0)],
+                          repr(rows))
+                    text = cli(sock, "escprog cc 3", 1.5)
+                    got, echo, heard = exchange(sock, esc, b"castle", b"creations")
+                    reply = end(sock)
+                    rows = setups()
+                    check("Castle link passes bytes both ways without an echo at 18880 baud",
+                          "Using output 3." in text and got == b"castle" and echo == b"" and heard == b"creations"
+                          and left in reply and ("base", 3, half // 18880, half) in rows,
+                          repr((text[-60:], got, echo, heard, reply, rows)))
+                    text = cli(sock, "escprog ki 3", 1.5)
+                    got, echo, heard = exchange(sock, esc, b"kiss", b"unheard")
+                    reply = end(sock)
+                    rows = setups()
+                    check("KISS link sends with an echo at 38400 baud and has no receiver",
+                          got == b"kiss" and echo == b"kiss" and heard == b"" and left in reply
+                          and ("base", 3, half // 38400, half) in rows
+                          and not any(r[0] == "edge" and r[2] == 1 for r in rows),
+                          repr((text[-60:], got, echo, heard, reply, rows)))
+                    text = cli(sock, "escprog ki 255", 1.5)
+                    got, echo, heard = exchange(sock, esc, b"every motor", b"unheard")
+                    reply = end(sock)
+                    check("KISS link on every motor puts each byte on every motor's pin",
+                          "Using all outputs." in text and got == b"every motor" and echo == b"every motor"
+                          and left in reply, repr((text[-60:], got, echo, reply)))
+                    owners = placed(sock)
+                    check("links on channels the motor outputs hold leave the timer list as it was",
+                          owners.get("TIM2 CH4") == "MOTOR 3" and owners.get("TIM2 CH3") == "MOTOR 4"
+                          and "MOTOR" not in owners.values(), repr(owners))
+                finally:
+                    esc.close()
+
+            def with_send_pin(sock, setups):
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                setups()
+                text = cli(sock, "escprog sk 2", 1.5)
+                esc = esc_line()
+                check("SimonK link opens with a send pin on a second timer",
+                      "Using output 2." in text and refusal not in text and esc is not None, text[-120:])
+                if esc is None:
+                    return
+                try:
+                    out, back = b"to the ESC \x00\xff\x55", b"from it \x00\xff\xaa"
+                    got, echo, heard = exchange(sock, esc, out, back)
+                    reply = end(sock)
+                    rows = setups()
+                    check("SimonK link passes bytes both ways in its own framing without an echo",
+                          got == out and echo == b"" and heard == back and left in reply,
+                          repr((got, echo, heard, reply)))
+                    check("SimonK link ticks every 34 microseconds on the send pin's timer and times edges on the "
+                          "motor pin's",
+                          rows[:10] == [("setup", 2, 65535, 1), ("setup", 8, 65535, 1), ("reset", 8, 0, 0),
+                                        ("base", 8, 34, 1000000), ("tick", 8, 1, 0), ("start", 8, 0, 0),
+                                        ("reset", 2, 0, 0), ("base", 2, 65535, 1000000), ("edge", 2, 1, 0),
+                                        ("start", 2, 0, 0)], repr(rows))
+                    owners = placed(sock)
+                    check("timer list puts the send pin's channel under the motors without a number",
+                          owners.get("TIM3 CH1") == "MOTOR", repr(owners))
+                    cli(sock, "escprog bl 2", 1.5)
+                    got, echo, heard = exchange(sock, esc, out, back)
+                    reply = end(sock)
+                    rows = setups()
+                    check("BLHeli link with a send pin clocks bits on its timer and captures on the motor pin's",
+                          got == out and echo == out and heard == back and left in reply
+                          and rows[:10] == [("setup", 2, 65535, 1), ("setup", 8, 65535, 1), ("reset", 8, 0, 0),
+                                            ("base", 8, half // 19200, half), ("tick", 8, 1, 0), ("start", 8, 0, 0),
+                                            ("reset", 2, 0, 0), ("base", 2, 65535, half), ("edge", 2, 1, 0),
+                                            ("start", 2, 0, 0)],
+                          repr((got, echo, heard, reply, rows)))
+                finally:
+                    esc.close()
+
+            def send_pin_on_motor_timer(sock, setups):
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "escprog sk 2", 1.5)
+                check("SimonK link with a send pin on the motor pin's timer is refused", refusal in text, text[-120:])
+                setups()
+                text = cli(sock, "escprog bl 2", 1.5)
+                esc = esc_line()
+                if esc is None:
+                    check("BLHeli link opens with a send pin on the motor pin's timer", False, text[-120:])
+                    return
+                try:
+                    got, echo, heard = exchange(sock, esc, b"one timer", b"shared")
+                    reply = end(sock)
+                    rows = setups()
+                    check("BLHeli link with a send pin on the motor pin's timer keeps one time base",
+                          got == b"one timer" and echo == b"one timer" and heard == b"shared" and left in reply
+                          and [r for r in rows if r[0] == "base"] == [("base", 8, half // 19200, half)]
+                          and ("edge", 2, 1, 0) in rows, repr((got, echo, heard, reply, rows)))
+                finally:
+                    esc.close()
+
+            def unserved_timer(sock, setups):
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                owners = placed(sock)
+                text = cli(sock, "escprog bl 2", 1.5)
+                check("ESC serial link on a motor pin whose timer runs no bit clock is refused",
+                      owners.get("TIM5 CH4") == "MOTOR 3" and refusal in text, repr((owners, text[-120:])))
+                text = cli(sock, "escprog ki 255", 1.5)
+                check("KISS link on every motor is refused when no motor output runs",
+                      "Using all outputs." in text and refusal in text, text[-120:])
+                text = cli(sock, "escprog bl 3", 1.5)
+                esc = esc_line()
+                if esc is None:
+                    check("BLHeli link opens on a motor pin with a free channel", False, text[-120:])
+                    return
+                try:
+                    got, echo, heard = exchange(sock, esc, b"free", b"channel")
+                    reply = end(sock)
+                    after = placed(sock)
+                    check("BLHeli link on a motor pin with a free channel takes it under the motors",
+                          "TIM2 CH3" not in owners and after.get("TIM2 CH3") == "MOTOR" and got == b"free"
+                          and heard == b"channel" and left in reply, repr((owners, after, got, heard, reply)))
+                    cli(sock, "escprog bl 3", 1.5)
+                    got, echo, heard = exchange(sock, esc, b"again", b"open")
+                    reply = end(sock)
+                    check("second link on that pin opens before a restart",
+                          got == b"again" and heard == b"open" and left in reply, repr((got, heard, reply)))
+                finally:
+                    esc.close()
+
+            def by_msp(sock, setups):
+                pulses = b"".join(v.to_bytes(2, "little") for v in [1100, 1200, 1300, 1400] + [1000] * 4)
+
+                def outputs():
+                    msp(sock, 214, pulses)
+                    time.sleep(0.3)
+                    raw = msp(sock, 104)
+                    return [int.from_bytes(raw[i:i + 2], "little") for i in range(0, 8, 2)] if raw else []
+                before = outputs()
+                refused = msp(sock, 245, bytes([1, 4]))
+                api = msp(sock, 1)
+                check("MSP passthrough request for a motor past the last one is answered 0 and starts no link",
+                      refused == b"\x00" and api is not None and len(api) == 3, repr((refused, api)))
+                setups()
+                started = msp(sock, 245, bytes([1, 2]))
+                esc = esc_line()
+                if esc is None:
+                    check("MSP passthrough mode 1 opens a BLHeli link", False, repr(started))
+                    return
+                try:
+                    got, echo, heard = exchange(sock, esc, b"by MSP", b"answer")
+                    reply = end(sock)
+                    api = msp(sock, 1)
+                    rows = setups()
+                    check("MSP passthrough mode 1 opens a BLHeli link on the request's motor and port until the exit "
+                          "request",
+                          started == b"\x01" and got == b"by MSP" and echo == b"by MSP" and heard == b"answer"
+                          and left in reply and api is not None and len(api) == 3 and ("tick", 2, 1, 0) in rows,
+                          repr((started, got, echo, heard, reply, api, rows)))
+                    after = outputs()
+                    check("motors stay stopped after a link's exit",
+                          before == [1100, 1200, 1300, 1400] and after == [0, 0, 0, 0], repr((before, after)))
+                    started = msp(sock, 245, bytes([0, 2]))
+                    api = msp(sock, 1)
+                    check("MSP passthrough request whose link does not open leaves MSP running",
+                          started == b"\x01" and api is not None and len(api) == 3, repr((started, api)))
+                finally:
+                    esc.close()
+
+            def every_motor_by_msp(sock, setups):
+                pulses = b"".join(v.to_bytes(2, "little") for v in [1100, 1200, 1300, 1400] + [1000] * 4)
+
+                def outputs():
+                    msp(sock, 214, pulses)
+                    time.sleep(0.3)
+                    raw = msp(sock, 104)
+                    return [int.from_bytes(raw[i:i + 2], "little") for i in range(0, 8, 2)] if raw else []
+                before = outputs()
+                setups()
+                started = msp(sock, 245, bytes([3, 0]))
+                esc = esc_line()
+                if esc is None:
+                    check("MSP passthrough mode 3 opens KISS on every motor", False, repr(started))
+                    return
+                try:
+                    sock.sendall(b"every motor")
+                    got = collect(esc, b"every motor", 3.0)
+                    reply = end(sock)
+                    rows = setups()
+                    check("MSP passthrough mode 3 opens KISS on every motor at 38400 baud",
+                          started == b"\x01" and got == b"every motor" and left in reply
+                          and [r for r in rows if r[0] == "base"] == [("base", 3, half // 38400, half)]
+                          and [r[1] for r in rows if r[0] == "setup"] == [0, 1, 2, 3],
+                          repr((started, got, reply, rows)))
+                    after = outputs()
+                    check("motors stay stopped after a KISS link on every motor",
+                          before == [1100, 1200, 1300, 1400] and after == [0, 0, 0, 0], repr((before, after)))
+                finally:
+                    esc.close()
+
+            def send_pin_refused(name):
+                def steps(sock, setups):
+                    sock.sendall(b"#")
+                    read_all(sock, 0.8)
+                    text = cli(sock, "escprog bl 2", 1.5)
+                    check(name, "Using output 2." in text and refusal in text, text[-120:])
+                return steps
+
+            session("escserial", (), by_command_line)
+            session("escsendpin", ("resource BEEPER 1 NONE", "resource ESCSERIAL 1 B04"), with_send_pin)
+            session("escsametimer", ("resource MOTOR 4 NONE", "resource ESCSERIAL 1 A02"), send_pin_on_motor_timer)
+            session("esctim5", ("timer A03 AF2",), unserved_timer)
+            session("escsendtim5", ("resource MOTOR 4 NONE", "resource ESCSERIAL 1 A02", "timer A02 AF2"),
+                    send_pin_refused("ESC serial link with a send pin whose timer runs no bit clock is refused"))
+            session("escsendheld", ("resource ESCSERIAL 1 B08",),
+                    send_pin_refused("ESC serial link with a send pin whose channel another function holds is refused"))
+            session("escmsp", (), by_msp)
+            session("escmspall", (), every_motor_by_msp)
+        esc_serial_checks()
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)

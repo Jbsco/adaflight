@@ -33,6 +33,8 @@ package body Adaflight.STM32.Passthrough is
       Command_Line_Port := Which;
    end Set_Command_Line_Port;
 
+   function Command_Line return Serial.Line is (Command_Line_Port);
+
    --  The board's line for a port identifier, and whether the board has one.
    procedure Line_Of (Id : Interfaces.Integer_32; Which : out Serial.Line; Found : out Boolean) is
    begin

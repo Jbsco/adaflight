@@ -58,7 +58,6 @@ OPEN = {
     "Effects.Board.Reply": "the processor writes the reply byte itself",
     "Effects.Board.Reply_Value": "the processor writes the reply byte itself",
     "Effects.Font.Size": "the boards write whole characters",
-    "Effects.Passthrough_Mode": "not served: an ESC's serial link",
     "Ctx.Control.MSC_Ready": "not served: no board has a mass storage mode",
     "Inputs.DroneCAN_Initialised": "no board build has DroneCAN",
 }

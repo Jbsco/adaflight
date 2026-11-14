@@ -109,6 +109,7 @@ with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.ESC_Sensor;
+with Adaflight.STM32.ESC_Serial;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
@@ -970,6 +971,7 @@ package body Adaflight.STM32.Flight is
       Runtime_Features := Config.Feature_Config.Enabled_Features;
       Fix_Configuration;
       Configure_Soft_Serial;
+      Adaflight.STM32.ESC_Serial.Configure (Config);
       Adaflight.Board_Info.Init (Board, Config);
       Offered := Available_Boxes;
    end Load_Configuration;
@@ -1612,6 +1614,13 @@ package body Adaflight.STM32.Flight is
             Right => Interfaces.Integer_32 (Line_Id (Line_Serial (L))));
       elsif Effects.Passthrough = MSP.Four_Way then
          Adaflight.STM32.Four_Way.Run (Line_Serial (L), Silence_Beeper'Access);
+      elsif Effects.Passthrough = MSP.ESC_Serial then
+         declare
+            Unused_Started : Boolean;
+         begin
+            Adaflight.STM32.ESC_Serial.Run
+              (Line_Serial (L), Effects.Passthrough_Mode, Natural (Effects.Passthrough_Argument), Unused_Started);
+         end;
       end if;
       Reboot_If_Asked;
    end Answer;

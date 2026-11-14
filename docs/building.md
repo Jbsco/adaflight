@@ -38,7 +38,7 @@ dfu-util flashes one file per run. A bootloader leaves through the address of it
 
 The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
-The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number and its software serial ports on 5767 and 5768. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
+The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number and its software serial ports on 5767 and 5768. An ESC serial link's ESC line is port 5769. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
 
     cd targets/host && alr build
     while ./bin/adaflight_host; do :; done

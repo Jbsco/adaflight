@@ -172,6 +172,14 @@ package Adaflight.STM32.Timers is
      (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner; E : out Timer_Entry; Slot : out Natural;
       Found : out Boolean; Ordinal : Natural := 0);
 
+   --  The timer channel of a pin for an owner that holds it already or
+   --  takes it now, without an ordinal, and whether such a take would find
+   --  one. A channel another owner holds gives none.
+   function Can_Take (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner) return Boolean;
+   procedure Take (Tag : Unsigned_8; Who : Adaflight.CLI_Resources.Owner; E : out Timer_Entry; Found : out Boolean);
+   --  A pin's configured timer channel, whoever holds it.
+   procedure Peek (Tag : Unsigned_8; E : out Timer_Entry; Found : out Boolean);
+
    --  The map entries' owners with their ordinals, and an entry's DMA
    --  option, minus one for none.
    function Owners return Adaflight.CLI_Resources.Timer_Owner_List;
@@ -180,6 +188,8 @@ package Adaflight.STM32.Timers is
 
    --  A timer's clock on.
    procedure Enable_Clock (T : Timer_Name);
+   --  A timer's registers back at their reset values.
+   procedure Reset (T : Timer_Name);
    --  A timer counting up without clock division at a prescaler over an
    --  auto-reload value, the repetition counter cleared and the update
    --  generated.
