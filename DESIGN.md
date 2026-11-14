@@ -15038,3 +15038,30 @@ first one leaves.
 Board body still reports no controller, so no board enters that mode yet. We measured an STM32F405 build with
 that body changed to report one. Its start path needs 37336 of 40960 bytes of stack, and it has 1244 bytes
 more flash than D752's build. An F4 controller body is next.
+
+## D755. Polled USB controller for mass storage mode on boards (2026-11-14)
+
+D754 left boards without a controller under `USB_Storage`. This entry adds one body for F4 and F7 boards over
+their full-speed OTG controller.
+
+Its register sequences are those of each family's USB serial driver: start, FIFO sizes, endpoint operations,
+receive queue and bus reset. Start differs by family in VBUS sensing alone, so one body serves both and reads
+`Platform.F4` for that step. We left both serial drivers untouched.
+
+A serial driver's handler owns that controller's interrupt in every image. A start in mass storage mode never
+starts its serial port, so that interrupt stays off, and this body polls. Each `Next` reads controller status,
+does its own part of what it finds and reports one event. Betaflight services its controller in an interrupt
+and runs SCSI commands there, so a storage read delays later events in both designs.
+
+A setup packet's flag is cleared after its event's operations, as a serial driver's handler does. A flush
+operation, which D753's class adds, flushes an IN endpoint's FIFO or its receive FIFO.
+
+Packet buffers take 640 bytes of main RAM, in builds with that mode alone. We measured builds with a flash
+chip and that mode. An STM32F405 image has 733360 bytes of code, a start path of 38120 of 40960 bytes of stack
+and 1152 bytes of main RAM free. `Flash_Chip.Read` takes 17856 bytes of that path for its operation list. A
+KAKUTEF7 image has a start path of 37840 bytes.
+
+A CLRACINGF7 image with that mode overflows its packed 512 KB flash by 4973 bytes, so an STM32F722 board
+cannot have that mode yet.
+
+No board has run this body. Build feature `Mass_Storage` stays off by default, so no default image changes.
