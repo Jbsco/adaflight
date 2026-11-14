@@ -14976,3 +14976,41 @@ and a clock, and reads a request's time. In that mode it reads capacity, partiti
 directory, compares a log file's bytes with its chip image, and checks dates. A write must fail with write
 protection in its sense data. A wrapper that is not valid must halt, and commands after a transport reset
 must get their status. Started without a chip, it must show a disk with its padding file alone.
+
+## D753. USB mass storage device (2026-11-14)
+
+D752's mode needs a USB device that a host sees as a disk: descriptors, standard requests, two class requests
+and two bulk endpoints for D750's transport. This entry adds that device in core, with no controller under it.
+
+`USB_Device` is a device without its class: control endpoint stages, endpoint state, and a list of endpoint
+operations per event, as `USB_VCP` has them. Its child `Requests` is generic over a class's state, descriptors
+and five procedures, and answers standard requests. `USB_VCP` has its own copy of that logic from before this
+entry. We left it untouched here, so a serial link that boards depend on does not change in this step. It can
+move onto `USB_Device` later with its vectors as guard.
+
+`USB_MSC` is that class, generic over a storage. It has one interface with SCSI commands over a bulk-only
+transport, and it refuses a request for its count of units, as a storage of one unit may. A transport reset
+and a cleared halt go to D750's engine.
+
+A controller here moves one 64 byte packet per operation, so this unit splits each transfer. It sends a next
+packet when one ends. It arms a receive per packet until a short packet or a full length ends a transfer. A
+transfer that a transport reset, a class start or a bus reset cuts short leaves nothing behind.
+
+Betaflight's class reopens whatever endpoint a clear feature request names, endpoint 0 among them, and can
+send a status wrapper out of turn (F348). This class takes that request only for its two endpoints.
+
+Its serial number comes from a microcontroller's identifier as in Betaflight, and its product name ends in
+MSC. Vendor and product numbers are ST's for a mass storage device, as in Betaflight.
+
+SPARK proves an instance over a blank storage free of run-time errors for any event order.
+
+An oracle includes Betaflight's device library, class, transport and descriptors over a stand-in controller
+and storage, with D750's fixes and this one. Sessions enumerate, mount, send each class and standard request
+in several shapes, and draw commands and events. Vectors have whole transfers, so a checker stands in for a
+controller: it feeds packets and puts transfers together, then compares operations, storage calls and state.
+Scripted checks cover transfers cut short, which whole transfers cannot show.
+
+Before this entry that checker's tables left about 240 KB of a default 8 MB stack, and this family passed
+it. Its gate now runs it with a larger stack where a host allows that.
+
+No image changes: no board unit uses this device yet.
