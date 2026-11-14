@@ -14792,3 +14792,21 @@ handling is dropped that way, and with two timers so is one pending on a send pi
 
 Both changes come from reasoning over this engine's states and Betaflight's handler source. No board has run them,
 and how often such overlaps occur on hardware is not measured.
+
+## D746. Packed ITCM code (2026-11-13)
+
+A 512 KB STM32F7 image for ALIENFLIGHTNGF7_RX had 648 bytes of flash left after D745. Its flight loop's hottest
+procedures run from ITCM, and flash kept a plain copy of them, 13488 bytes, for start-up to move there.
+
+A packed build now stores that code as an LZMA stream of its own. `gen/itcm_load.ld`, written by
+`tools/featuregen.py`, names where an image loads its ITCM code from: flash in a plain build, a staging region in
+a packed one. `tools/datapack.py` then writes, after `.rodata`, that stream's length in four bytes, that stream,
+and its packed range's stream. Start-up decodes one into ITCM and one into RAM. A plain build copies as before.
+
+ITCM is not contiguous with a packed range in RAM, and this decoder writes one range per stream, hence two
+streams. A length word keeps that proved decoder unchanged, where a count of bytes consumed would have changed it.
+
+That board's ITCM code packs to 9157 bytes, and its image has 4947 bytes of flash left. Under Renode, with ITCM
+memory added to its platform, ITCM and a packed range both equal their image sections when `main` starts, and
+start-up reaches `Flight.Init`. Start-up to `main` takes 4.17 million more instructions, about 19 ms at 216 MHz.
+No board has run this layout.
