@@ -161,6 +161,8 @@ with Adaflight.Position_Control;
 with Adaflight.Position_Hold;
 with Adaflight.GPS_Rescue;
 with Adaflight.Altitude_Control;
+with Adaflight.Mass_Storage;
+with Adaflight.Mass_Storage.Engine;
 with Adaflight.Virtual_FAT;
 with Adaflight.Virtual_FAT.Logs;
 with Adaflight.VTX_Table;
@@ -9314,6 +9316,294 @@ procedure Vector_Check is
          end;
       end if;
    end Check_Virtual_FAT_Files_Line;
+
+   --  The mass storage engine against the reference's class code with the
+   --  design entry's fixes: every event of a case goes to an engine whose
+   --  data buffer has the case's size, over a storage the vector sets. The
+   --  storage calls and endpoint work of each event are compared, then the
+   --  transport's state and status, the residue, the sense list's ends and
+   --  what the out endpoint was last asked to take.
+   MS_Blocks      : Interfaces.Unsigned_32 := 0;
+   MS_Is_Ready    : Boolean := True;
+   MS_Protected   : Boolean := False;
+   MS_Read_Fails  : Boolean := False;
+   MS_Write_Fails : Boolean := False;
+   MS_Text        : String (1 .. 4000);
+   MS_Length      : Natural := 0;
+   MS_Case        : Integer_64 := -1;
+   MS_Small       : Boolean := False;
+   MS_Asked       : Natural := 0;
+   MS_Digit       : constant String := "0123456789ABCDEF";
+
+   function MS_Image (N : Integer_64) return String is
+      Text : constant String := Integer_64'Image (N);
+   begin
+      return Text (Text'First + 1 .. Text'Last);
+   end MS_Image;
+
+   procedure MS_Act (Text : String) is
+   begin
+      if MS_Length > 0 then
+         MS_Length := MS_Length + 1;
+         MS_Text (MS_Length) := ' ';
+      end if;
+      MS_Text (MS_Length + 1 .. MS_Length + Text'Length) := Text;
+      MS_Length := MS_Length + Text'Length;
+   end MS_Act;
+
+   function MS_Hex (Data : Byte_Array) return String is
+      Text : String (1 .. 2 * Data'Length);
+   begin
+      for I in 0 .. Data'Length - 1 loop
+         Text (2 * I + 1) := MS_Digit (Natural (Data (Data'First + I)) / 16 + 1);
+         Text (2 * I + 2) := MS_Digit (Natural (Data (Data'First + I)) mod 16 + 1);
+      end loop;
+      return Text;
+   end MS_Hex;
+
+   function MS_Hash (Data : Byte_Array) return String is
+      H    : Interfaces.Unsigned_32 := 2_166_136_261;
+      Text : String (1 .. 8);
+   begin
+      for B of Data loop
+         H := (H xor Interfaces.Unsigned_32 (B)) * 16_777_619;
+      end loop;
+      for I in 0 .. 7 loop
+         Text (8 - I) := MS_Digit (Natural (Interfaces.Shift_Right (H, 4 * I) and 16#F#) + 1);
+      end loop;
+      return Text;
+   end MS_Hash;
+
+   procedure MS_Start_Storage is
+   begin
+      MS_Act ("I");
+   end MS_Start_Storage;
+
+   procedure MS_Capacity (Blocks : out Interfaces.Unsigned_32; OK : out Boolean) is
+   begin
+      MS_Act ("C");
+      Blocks := MS_Blocks;
+      OK := MS_Is_Ready;
+   end MS_Capacity;
+
+   procedure MS_Ready (OK : out Boolean) is
+   begin
+      MS_Act ("Y");
+      OK := MS_Is_Ready;
+   end MS_Ready;
+
+   procedure MS_Write_Protected (Yes : out Boolean) is
+   begin
+      MS_Act ("P");
+      Yes := MS_Protected;
+   end MS_Write_Protected;
+
+   procedure MS_Read_Blocks
+     (First : Interfaces.Unsigned_32; Count : Natural; Data : in out Byte_Array; OK : out Boolean)
+   is
+   begin
+      MS_Act ("r:" & MS_Image (Integer_64 (First)) & ":" & MS_Image (Integer_64 (Count)));
+      OK := not MS_Read_Fails;
+      if OK then
+         for B in 0 .. Count - 1 loop
+            for I in 0 .. 511 loop
+               Data (Data'First + B * 512 + I) :=
+                 Interfaces.Unsigned_8
+                   ((Interfaces.Shift_Right ((First + Interfaces.Unsigned_32 (B)) * 16#9E37_79B1#, 24)
+                     + Interfaces.Unsigned_32 (I) * 7 + Interfaces.Unsigned_32 (I / 256))
+                    and 16#FF#);
+            end loop;
+         end loop;
+      end if;
+   end MS_Read_Blocks;
+
+   procedure MS_Write_Blocks
+     (First : Interfaces.Unsigned_32; Count : Natural; Data : Byte_Array; OK : out Boolean) is
+   begin
+      MS_Act
+        ("w:" & MS_Image (Integer_64 (First)) & ":" & MS_Image (Integer_64 (Count)) & ":"
+         & MS_Hash (Data (Data'First .. Data'First + Count * 512 - 1)));
+      OK := not MS_Write_Fails;
+   end MS_Write_Blocks;
+
+   MS_Inquiry : constant Adaflight.Mass_Storage.Inquiry_Bytes :=
+     (16#00#, 16#80#, 16#02#, 16#02#, 31, 0, 0, 0, Character'Pos ('M'), Character'Pos ('A'), Character'Pos ('K'),
+      Character'Pos ('E'), Character'Pos ('R'), 32, 32, 32, Character'Pos ('O'), Character'Pos ('n'),
+      Character'Pos ('b'), Character'Pos ('o'), Character'Pos ('a'), Character'Pos ('r'), Character'Pos ('d'), 32,
+      Character'Pos ('F'), Character'Pos ('l'), Character'Pos ('a'), Character'Pos ('s'), Character'Pos ('h'), 32, 32,
+      32, Character'Pos ('1'), Character'Pos ('.'), Character'Pos ('0'), 32);
+
+   generic
+      with package Engine is new Adaflight.Mass_Storage.Engine (<>);
+   package MS_Runner is
+      S : Engine.Session;
+      procedure Run_Event;
+   end MS_Runner;
+
+   package body MS_Runner is
+      procedure Run_Event is
+         use Adaflight.Mass_Storage;
+         Event    : constant String := Str (4);
+         Argument : constant String := Str (5);
+         Next     : Actions;
+         Called   : Boolean := True;
+      begin
+         if Event = "start" then
+            Engine.Start (S, Next);
+         elsif Event = "reset" then
+            Engine.Reset (S, Next);
+         elsif Event = "stop" then
+            Engine.Stop (S);
+         elsif Event = "in" then
+            Engine.Packet_In (S, Next);
+         elsif Event = "clear" then
+            Engine.Halt_Cleared (S, Argument = "81", Next);
+         elsif Event = "out" then
+            Record_Int ("msc.asked", 1, Boolean'Pos (S.Receiving /= Nothing));
+            if S.Receiving = Nothing then
+               Called := False;
+            elsif Argument (Argument'First) = '~' then
+               declare
+                              Colon : constant Natural := Ada.Strings.Fixed.Index (Argument, ":");
+                  Seed  : constant Interfaces.Unsigned_32 :=
+                    Interfaces.Unsigned_32'Value (Argument (Argument'First + 1 .. Colon - 1));
+                  Count : constant Natural := Natural'Value (Argument (Colon + 1 .. Argument'Last));
+                  Data  : Byte_Array (0 .. Count - 1);
+               begin
+                  for I in Data'Range loop
+                     Data (I) :=
+                       Interfaces.Unsigned_8
+                         (Interfaces.Shift_Right ((Seed + Interfaces.Unsigned_32 (I)) * 2_654_435_761, 24));
+                  end loop;
+                  Engine.Packet_Out (S, Data, Next);
+               end;
+            elsif Argument = "-" then
+               declare
+                  Empty : constant Byte_Array (1 .. 0) := (others => 0);
+               begin
+                  Engine.Packet_Out (S, Empty, Next);
+               end;
+            else
+               Engine.Packet_Out (S, Hex_Bytes (5), Next);
+            end if;
+         end if;
+         if Called then
+            if Next.Flush then
+               MS_Act ("F01 F81");
+            end if;
+            if Next.Halt_Out then
+               MS_Act ("S01");
+            end if;
+            if Next.Halt_In then
+               MS_Act ("S81");
+            end if;
+            case Next.Send is
+               when Nothing =>
+                  null;
+               when Status =>
+                  MS_Act ("T:13:" & MS_Hex (Engine.Status_Wrapper (S)));
+               when Data =>
+                  if Next.Send_Length <= 64 then
+                     MS_Act
+                       ("T:" & MS_Image (Integer_64 (Next.Send_Length)) & ":"
+                        & MS_Hex (S.Data (0 .. Next.Send_Length - 1)));
+                  else
+                     MS_Act
+                       ("T:" & MS_Image (Integer_64 (Next.Send_Length)) & ":#"
+                        & MS_Hash (S.Data (0 .. Next.Send_Length - 1)));
+                  end if;
+            end case;
+            case Next.Receive is
+               when Nothing =>
+                  null;
+               when Command =>
+                  MS_Act ("R:C:" & MS_Image (Integer_64 (Next.Receive_Length)));
+               when Data =>
+                  MS_Act ("R:D:" & MS_Image (Integer_64 (Next.Receive_Length)));
+            end case;
+            Record_Text ("msc.actions", Str (6), (if MS_Length = 0 then "-" else MS_Text (1 .. MS_Length)));
+            Record_Int ("msc.state", Int (7), Engine.Transport_State'Pos (S.State));
+            Record_Int ("msc.status", Int (8), Engine.Transport_Status'Pos (S.Status));
+            Record_Int ("msc.residue", Int (9), Integer_64 (S.Residue));
+            Record_Int ("msc.head", Int (11), Integer_64 (S.Head));
+            Record_Int ("msc.tail", Int (12), Integer_64 (S.Tail));
+            if Event = "out" then
+               MS_Asked := 0;
+            end if;
+            if Ada.Strings.Fixed.Index (Str (6), "R:C") > 0 then
+               MS_Asked := 1;
+            elsif Ada.Strings.Fixed.Index (Str (6), "R:D") > 0 then
+               MS_Asked := 2;
+            end if;
+            Record_Int ("msc.receiving", Integer_64 (MS_Asked), Receive_Kind'Pos (S.Receiving));
+         end if;
+      end Run_Event;
+   end MS_Runner;
+
+   package MS_Engine_8 is new Adaflight.Mass_Storage.Engine
+     (Buffer_Blocks   => 8,
+      Inquiry         => MS_Inquiry,
+      Start_Storage   => MS_Start_Storage,
+      Capacity        => MS_Capacity,
+      Ready           => MS_Ready,
+      Write_Protected => MS_Write_Protected,
+      Read_Blocks     => MS_Read_Blocks,
+      Write_Blocks    => MS_Write_Blocks);
+   package MS_Engine_1 is new Adaflight.Mass_Storage.Engine
+     (Buffer_Blocks   => 1,
+      Inquiry         => MS_Inquiry,
+      Start_Storage   => MS_Start_Storage,
+      Capacity        => MS_Capacity,
+      Ready           => MS_Ready,
+      Write_Protected => MS_Write_Protected,
+      Read_Blocks     => MS_Read_Blocks,
+      Write_Blocks    => MS_Write_Blocks);
+   package MS_Run_8 is new MS_Runner (MS_Engine_8);
+   package MS_Run_1 is new MS_Runner (MS_Engine_1);
+
+   procedure Check_Mass_Storage_Line is
+      Event : constant String := Str (4);
+
+      function Part (Field : String; K : Positive) return String is
+         First : Positive := Field'First;
+         Seen  : Natural := 1;
+      begin
+         for I in Field'Range loop
+            if Field (I) = ':' then
+               if Seen = K then
+                  return Field (First .. I - 1);
+               end if;
+               Seen := Seen + 1;
+               First := I + 1;
+            end if;
+         end loop;
+         return Field (First .. Field'Last);
+      end Part;
+   begin
+      if Int (2) /= MS_Case then
+         MS_Case := Int (2);
+         MS_Run_8.S := (others => <>);
+         MS_Run_1.S := (others => <>);
+         MS_Asked := 0;
+      end if;
+      MS_Length := 0;
+      if Event = "set" then
+         MS_Blocks := Interfaces.Unsigned_32'Value (Part (Str (5), 1));
+         MS_Is_Ready := Part (Str (5), 2) = "1";
+         MS_Protected := Part (Str (5), 3) = "1";
+         MS_Read_Fails := Part (Str (5), 4) = "1";
+         MS_Write_Fails := Part (Str (5), 5) = "1";
+         return;
+      end if;
+      if Event = "start" then
+         MS_Small := Str (5) = "512";
+      end if;
+      if MS_Small then
+         MS_Run_1.Run_Event;
+      else
+         MS_Run_8.Run_Event;
+      end if;
+   end Check_Mass_Storage_Line;
 
    --  The ESC serial engine against the reference's driver: each call's
    --  operations are written as the reference's pin, timer and motor calls
@@ -42270,6 +42560,8 @@ procedure Vector_Check is
                   Check_Virtual_FAT_Line;
                elsif Kind = "vfatfiles" then
                   Check_Virtual_FAT_Files_Line;
+               elsif Kind = "msc" then
+                  Check_Mass_Storage_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "navmap" then
@@ -42779,6 +43071,7 @@ begin
    Run (Dir & "/escpass.csv", "escserial");
    Run (Dir & "/vfat.csv", "vfat");
    Run (Dir & "/vfatfiles.csv", "vfatfiles");
+   Run (Dir & "/msc.csv", "msc");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");
