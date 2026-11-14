@@ -4,35 +4,27 @@ package body Adaflight.STM32.USB_Storage is
    use type Ada.Streams.Stream_Element_Offset;
    use type GNAT.Sockets.Selector_Status;
    use type GNAT.Sockets.Socket_Type;
-   use type Byte;
 
-   --  The disk is a TCP server on port 5781, one client at a time. A message
-   --  is a letter, a length in two bytes with the high one first, then that
-   --  many bytes. A client sends O with a transfer for the out endpoint, C
-   --  with an endpoint number for a cleared halt and R for a transport
-   --  reset. The image sends D with a transfer from the in endpoint, H with
-   --  an endpoint number for a halt, A with a length in two bytes when the
-   --  out endpoint is ready for a transfer, and F for a flush. A client's
-   --  connection configures the device and its end takes that away. A
-   --  transfer for the out endpoint waits until the endpoint is ready.
+   package U renames Adaflight.USB_Device;
+
+   --  The controller is a TCP server on port 5781, one client at a time,
+   --  which plays a host and the bus. A message is a letter, a length in two
+   --  bytes with the high one first, then that many bytes. A client sends B
+   --  for a bus reset, S with a setup packet, O with an endpoint number and
+   --  a packet for it, I with an endpoint number whose transmission ended, U
+   --  for a suspend and W for a resume. The image answers each of these with
+   --  X once per endpoint operation, with its kind, its address, its length
+   --  in two bytes, its endpoint type, its count and that many bytes, and
+   --  then E. A client's end is a suspend.
    Disk_Port : constant GNAT.Sockets.Port_Type := 5_781;
 
    Server    : GNAT.Sockets.Socket_Type := GNAT.Sockets.No_Socket;
    Client    : GNAT.Sockets.Socket_Type := GNAT.Sockets.No_Socket;
    Listening : Boolean := False;
-   Sent      : Boolean := False;
-   Ready     : Boolean := False;
-
-   --  A message held until its event can be given.
-   Held        : Boolean := False;
-   Held_Kind   : Character := ' ';
-   Held_Bytes  : Byte_Array (0 .. 65_535) := (others => 0);
-   Held_Length : Natural := 0;
 
    function Available return Boolean is (True);
 
-   procedure Start (Product : String) is
-      pragma Unreferenced (Product);
+   procedure Start is
       Address : GNAT.Sockets.Sock_Addr_Type;
    begin
       Address.Addr := GNAT.Sockets.Inet_Addr ("127.0.0.1");
@@ -65,9 +57,6 @@ package body Adaflight.STM32.USB_Storage is
    begin
       GNAT.Sockets.Close_Socket (Client);
       Client := GNAT.Sockets.No_Socket;
-      Held := False;
-      Sent := False;
-      Ready := False;
    exception
       when others =>
          Client := GNAT.Sockets.No_Socket;
@@ -116,11 +105,16 @@ package body Adaflight.STM32.USB_Storage is
          null;
    end Put;
 
-   procedure Next (What : out Event; Data : in out Byte_Array; Count : out Natural) is
-      Head : Byte_Array (0 .. 2);
-      OK   : Boolean;
+   procedure Next
+     (What : out Event; EP : out U.Endpoint_Number; Data : in out Byte_Array; Count : out Natural)
+   is
+      Head    : Byte_Array (0 .. 2);
+      Payload : Byte_Array (0 .. 255);
+      Length  : Natural;
+      OK      : Boolean;
    begin
       What := Nothing;
+      EP := 0;
       Count := 0;
       if not Listening then
          delay 0.01;
@@ -132,83 +126,82 @@ package body Adaflight.STM32.USB_Storage is
                From : GNAT.Sockets.Sock_Addr_Type;
             begin
                GNAT.Sockets.Accept_Socket (Server, Client, From);
-               What := Started;
+               GNAT.Sockets.Set_Socket_Option
+                 (Client, GNAT.Sockets.IP_Protocol_For_TCP_Level, (GNAT.Sockets.No_Delay, True));
             end;
          end if;
          return;
       end if;
-      if Sent then
-         Sent := False;
-         What := Packet_In;
+      if not Readable (Client, 0.001) then
          return;
       end if;
-      if not Held then
-         if not Readable (Client, 0.001) then
-            return;
-         end if;
-         Get (Head, OK);
-         if OK then
-            Held_Kind := Character'Val (Head (0));
-            Held_Length := Natural (Head (1)) * 256 + Natural (Head (2));
-            Get (Held_Bytes (0 .. Held_Length - 1), OK);
-         end if;
-         if not OK then
-            Drop;
-            What := Stopped;
-            return;
-         end if;
-         Held := True;
+      Get (Head, OK);
+      Length := Natural (Head (1)) * 256 + Natural (Head (2));
+      if OK and then Length <= Payload'Length then
+         Get (Payload (0 .. Length - 1), OK);
+      else
+         OK := False;
       end if;
-      case Held_Kind is
-         when 'O' =>
-            if Ready then
-               Ready := False;
-               Held := False;
-               Count := Natural'Min (Held_Length, Data'Length);
-               Data (Data'First .. Data'First + Count - 1) := Held_Bytes (0 .. Count - 1);
-               Count := Held_Length;
-               What := Packet_Out;
+      if not OK then
+         Drop;
+         What := Suspend;
+         return;
+      end if;
+      case Character'Val (Head (0)) is
+         when 'B' =>
+            What := Bus_Reset;
+         when 'S' =>
+            if Length = 8 then
+               What := Setup;
+               Count := 8;
+               Data (Data'First .. Data'First + 7) := Payload (0 .. 7);
             end if;
-         when 'C' =>
-            Held := False;
-            What := (if Held_Length = 1 and then Held_Bytes (0) >= 16#80# then Cleared_In else Cleared_Out);
-         when 'R' =>
-            Held := False;
-            What := Transport_Reset;
+         when 'O' =>
+            if Length in 1 .. U.Packet_Size + 1 and then Natural (Payload (0)) < U.Endpoint_Count then
+               What := Packet_Out;
+               EP := Natural (Payload (0));
+               Count := Length - 1;
+               Data (Data'First .. Data'First + Count - 1) := Payload (1 .. Count);
+            end if;
+         when 'I' =>
+            if Length = 1 and then Natural (Payload (0)) < U.Endpoint_Count then
+               What := Packet_In;
+               EP := Natural (Payload (0));
+            end if;
+         when 'U' =>
+            What := Suspend;
+         when 'W' =>
+            What := Resume;
          when others =>
-            Held := False;
+            null;
       end case;
+      if What = Nothing then
+         Put ('E', Payload (1 .. 0));
+      end if;
    exception
       when others =>
          Drop;
-         What := Stopped;
+         What := Suspend;
    end Next;
 
-   procedure Flush is
+   procedure Execute (A : U.Actions) is
       None : constant Byte_Array (1 .. 0) := (others => 0);
    begin
-      Put ('F', None);
-   end Flush;
-
-   procedure Halt_In is
-   begin
-      Put ('H', (0 => 16#81#));
-   end Halt_In;
-
-   procedure Halt_Out is
-   begin
-      Put ('H', (0 => 16#01#));
-   end Halt_Out;
-
-   procedure Send (Data : Byte_Array) is
-   begin
-      Put ('D', Data);
-      Sent := True;
-   end Send;
-
-   procedure Receive (Length : Natural) is
-   begin
-      Ready := True;
-      Put ('A', (0 => Byte (Length / 256 mod 256), 1 => Byte (Length mod 256)));
-   end Receive;
+      for K in 1 .. A.Count loop
+         declare
+            X       : U.Action renames A.List (K);
+            Message : Byte_Array (0 .. 5 + X.Count);
+         begin
+            Message (0) := Byte (U.Action_Kind'Pos (X.Kind));
+            Message (1) := X.Address;
+            Message (2) := Byte (X.Length / 256);
+            Message (3) := Byte (X.Length mod 256);
+            Message (4) := Byte (U.Endpoint_Kind'Pos (X.EP_Kind));
+            Message (5) := Byte (X.Count);
+            Message (6 .. 5 + X.Count) := X.Data (0 .. X.Count - 1);
+            Put ('X', Message (0 .. 5 + X.Count));
+         end;
+      end loop;
+      Put ('E', None);
+   end Execute;
 end Adaflight.STM32.USB_Storage;

@@ -1215,16 +1215,24 @@ def fat16_log(path):
 
 
 class Disk:
-    """A USB host's side of the bulk-only transport over the image's disk port. A message is a letter, a length in
-    two bytes with the high one first, then that many bytes: O with a transfer for the out endpoint, C with an
-    endpoint number for a cleared halt and R for a transport reset go to the image; D with a transfer from the in
-    endpoint, H with an endpoint number for a halt, A when the out endpoint is ready and F for a flush come back."""
+    """A USB host and its bus over the image's disk port. A message is a letter, a length in two bytes with the high
+    one first, then that many bytes. To the image go B for a bus reset, S with a setup packet, O with an endpoint
+    number and a packet for it, I with an endpoint number whose transmission ended, U for a suspend and W for a
+    resume. The image answers each with X once per endpoint operation (its kind, its address, its length in two
+    bytes, its endpoint type, its count and that many bytes) and then E."""
+
+    OPEN, CLOSE, PREPARE, TRANSMIT, STALL, CLEAR, ADDRESS, ARM, TEST, FLUSH = range(10)
 
     def __init__(self, sock):
         self.sock = sock
         self.sock.settimeout(5)
         self.tag = 0
         self.halts = []
+        self.address = None
+        self.opened = {}
+        self.stalled = set()
+        self.armed = {}
+        self.waiting = {}
 
     def exact(self, count):
         data = b""
@@ -1239,37 +1247,134 @@ class Disk:
         head = self.exact(3)
         return chr(head[0]), self.exact(head[1] * 256 + head[2])
 
-    def send(self, kind, payload=b""):
+    def event(self, kind, payload=b""):
+        """One bus event and the endpoint operations it leaves, each applied to this host's view of the bus: the
+        open endpoints with packet size and type, the stalled ones, each out endpoint's armed receive and each in
+        endpoint's packet that waits for the host. A receive that is armed lasts over a close of its endpoint."""
         self.sock.sendall(kind.encode() + struct.pack(">H", len(payload)) + payload)
+        done = []
+        while True:
+            letter, body = self.message()
+            if letter == "E":
+                return done
+            what, address, length, count = body[0], body[1], body[2] * 256 + body[3], body[5]
+            number = address & 0x7F
+            done.append((what, address, length, body[6:6 + count]))
+            if what == self.OPEN:
+                self.opened[address] = (length, body[4])
+            elif what == self.CLOSE:
+                self.opened.pop(address, None)
+                if address & 0x80:
+                    self.waiting.pop(number, None)
+            elif what == self.PREPARE:
+                self.armed[number] = length
+            elif what == self.TRANSMIT:
+                self.waiting[number] = body[6:6 + count]
+            elif what == self.STALL:
+                self.stalled.add(address)
+            elif what == self.CLEAR:
+                self.stalled.discard(address)
+            elif what == self.ADDRESS:
+                self.address = address
+            elif what == self.FLUSH and address & 0x80:
+                self.waiting.pop(number, None)
+
+    def reset(self):
+        """A bus reset, which leaves the endpoints as the image sets them after it."""
+        self.opened.clear()
+        self.stalled.clear()
+        self.armed.clear()
+        self.waiting.clear()
+        return self.event("B")
+
+    def take(self, number):
+        """The packet that waits on an in endpoint, with the end of its transmission reported."""
+        if number not in self.waiting:
+            raise OSError(f"in endpoint {number} has no packet")
+        packet = self.waiting.pop(number)
+        self.event("I", bytes([number]))
+        return packet
+
+    def give(self, number, packet):
+        """A packet to an out endpoint that is armed for its length."""
+        if self.armed.get(number, -1) < len(packet):
+            raise OSError(f"out endpoint {number} takes no packet of {len(packet)} bytes")
+        del self.armed[number]
+        self.event("O", bytes([number]) + packet)
+
+    def control(self, kind, request, value=0, index=0, length=0):
+        """One control transfer without data from the host: its setup packet, its data stage and its status stage.
+        Returns the bytes of the data stage, or None when the image stalls the request."""
+        self.stalled -= {0x00, 0x80}
+        self.waiting.pop(0, None)
+        self.armed.pop(0, None)
+        self.event("S", struct.pack("<BBHHH", kind, request, value, index, length))
+        got = b""
+        if 0x80 in self.stalled:
+            return None
+        if kind & 0x80 and length:
+            while True:
+                packet = self.take(0)
+                got += packet
+                if len(packet) < 64 or len(got) >= length:
+                    break
+            self.give(0, b"")
+        elif self.take(0) != b"":
+            raise OSError("a status stage with data")
+        return got
+
+    def clear_halt(self, address):
+        """An endpoint's halt as a host meets it: noted, then cleared with the standard request."""
+        self.halts.append(address)
+        self.control(0x02, 1, 0, address)
+
+    def enumerate(self, address):
+        """A host's first requests after a bus reset: the device descriptor, an address, the configuration, the
+        texts, the configuration set and the request for the count of logical units."""
+        self.reset()
+        found = {"device": self.control(0x80, 6, 0x0100, 0, 18)}
+        self.control(0x00, 5, address)
+        found["config"] = self.control(0x80, 6, 0x0200, 0, 255)
+        found["texts"] = []
+        for index in (1, 2, 3):
+            raw = self.control(0x80, 6, 0x0300 | index, 0x0409, 255)
+            text = raw and raw[1:2] == b"\x03"
+            found["texts"].append(raw[2:raw[0]].decode("utf-16-le", "replace") if text else None)
+        found["early"] = dict(self.opened), dict(self.armed)
+        self.control(0x00, 9, 1)
+        found["units"] = self.control(0xA1, 0xFE, 0, 0, 1)
+        return found
 
     def wrapper(self, block, length, to_host=True, signature=0x43425355):
         self.tag += 1
-        self.send("O", struct.pack("<IIIBBB", signature, self.tag, length, 0x80 if to_host else 0, 0, len(block))
+        self.give(1, struct.pack("<IIIBBB", signature, self.tag, length, 0x80 if to_host else 0, 0, len(block))
                   + block.ljust(16, b"\0"))
 
-    def command(self, block, length, to_host=True):
-        """One command: its wrapper, its data toward the host, each halt cleared, and its status wrapper. Returns
-        the data, the status and the residue."""
+    def command(self, block, length, to_host=True, data=b""):
+        """One command: its wrapper, its data stage until a short packet, a halt or its length, each halt cleared,
+        and its status wrapper. Returns the data toward the host, the status and the residue."""
         self.wrapper(block, length, to_host)
-        data = b""
-        while True:
-            kind, payload = self.message()
-            if kind == "D":
-                if (len(payload) == 13 and payload[:4] == b"USBS"
-                        and struct.unpack("<I", payload[4:8])[0] == self.tag):
-                    _, residue, status = struct.unpack("<IIB", payload[4:])
-                    return data, status, residue
-                data += payload
-            elif kind == "H":
-                self.halts.append(payload[0])
-                self.send("C", payload)
-
-    def halt(self):
-        """The next halt's endpoint, past any other message."""
-        while True:
-            kind, payload = self.message()
-            if kind == "H":
-                return payload[0]
+        got = b""
+        if to_host:
+            while len(got) < length and 1 in self.waiting:
+                packet = self.take(1)
+                got += packet
+                if len(packet) < 64:
+                    break
+        elif data:
+            for k in range(0, len(data), 64):
+                if 0x01 in self.stalled or 1 not in self.armed:
+                    break
+                self.give(1, data[k:k + 64])
+            if 0x01 in self.stalled:
+                self.clear_halt(0x01)
+        if 1 not in self.waiting and 0x81 in self.stalled:
+            self.clear_halt(0x81)
+        packet = self.take(1)
+        if len(packet) != 13 or packet[:4] != b"USBS" or struct.unpack("<I", packet[4:8])[0] != self.tag:
+            raise OSError(f"a status wrapper that is not valid: {packet.hex()}")
+        _, residue, status = struct.unpack("<IIB", packet[4:])
+        return got, status, residue
 
     def read(self, sector, count):
         block = bytes([0x28, 0]) + struct.pack(">I", sector) + b"\0" + struct.pack(">H", count) + b"\0"
@@ -1418,6 +1523,28 @@ def mass_storage_checks(image, store, chip, work):
     proc, sock = start(image, store, dict(extra, ADAFLIGHT_MASS_STORAGE=str(asked)), port=DISK_PORT)
     disk = Disk(sock)
     try:
+        found = disk.enumerate(5)
+        device, config = found["device"] or b"", found["config"] or b""
+        check("mass storage device describes itself with one configuration and packets of 64 bytes",
+              len(device) == 18 and device[:2] == bytes([18, 1]) and device[7] == 64 and device[17] == 1,
+              device.hex())
+        check("mass storage device takes the address a host gives it", disk.address == 5, repr(disk.address))
+        ends = {config[k + 2]: (config[k + 3], config[k + 4] | config[k + 5] << 8) for k in (18, 25)
+                if len(config) == 32 and config[k:k + 2] == bytes([7, 5])}
+        check("its configuration is one interface of the bulk-only transport with two bulk endpoints",
+              len(config) == 32 and config[:6] == bytes([9, 2, 32, 0, 1, 1]) and config[9:11] == bytes([9, 4])
+              and config[13:17] == bytes([2, 8, 6, 0x50]) and ends == {0x81: (2, 64), 0x01: (2, 64)}, config.hex())
+        check("its texts name the maker, the board and a serial number from the identifier",
+              found["texts"] == ["Adaflight", "Adaflight (CLRACINGF4) MSC", "00ADA0014F57"], repr(found["texts"]))
+        check("no bulk endpoint is open before a configuration is set",
+              set(found["early"][0]) == {0x00, 0x80} and 1 not in found["early"][1], repr(found["early"]))
+        check("a set configuration opens both bulk endpoints and arms the out endpoint for a command",
+              disk.opened.get(0x81) == (64, 2) and disk.opened.get(0x01) == (64, 2) and disk.armed.get(1) == 31,
+              f"{disk.opened} {disk.armed}")
+        check("a device of one logical unit stalls the request for their count", found["units"] is None,
+              repr(found["units"]))
+        setting = disk.control(0x81, 0x0A, 0, 0, 1)
+        check("mass storage interface reports alternate setting 0", setting == b"\0", repr(setting))
         data, status, residue = disk.command(bytes([0x12, 0, 0, 0, 36]), 36)
         check("mass storage inquiry names the disk",
               status == 0 and residue == 0 and data[8:32] == b"ADAFLT  Onboard Flash   " and data[1] == 0x80,
@@ -1481,7 +1608,7 @@ def mass_storage_checks(image, store, chip, work):
         check("file of all logs reads as the chip's bytes", part == flash[512:2048], repr(part[:32] if part else part))
         disk.halts.clear()
         block = bytes([0x2A, 0]) + struct.pack(">I", 0) + b"\0" + struct.pack(">H", 1) + b"\0"
-        _, status, residue = disk.command(block, 512, to_host=False)
+        _, status, residue = disk.command(block, 512, to_host=False, data=bytes(512))
         check("a write to the disk fails with both endpoints halted",
               status == 1 and residue == 512 and disk.halts == [0x01, 0x81], f"{status} {residue} {disk.halts}")
         data, status, _ = disk.command(bytes([0x03, 0, 0, 0, 18]), 18)
@@ -1494,18 +1621,31 @@ def mass_storage_checks(image, store, chip, work):
         # A wrapper that is not valid halts the in endpoint until a transport reset; a refused command after that
         # reset still gets its status.
         disk.wrapper(bytes([0x00]), 0, to_host=False, signature=0x43425356)
-        halt = disk.halt()
-        disk.send("C", bytes([0x81]))
-        again = disk.halt()
-        check("a wrapper that is not valid keeps the in endpoint halted", halt == 0x81 and again == 0x81,
-              f"{halt} {again}")
-        disk.send("R")
-        disk.send("C", bytes([0x81]))
-        disk.send("C", bytes([0x01]))
+        halt = 0x81 in disk.stalled
+        disk.clear_halt(0x81)
+        check("a wrapper that is not valid keeps the in endpoint halted",
+              halt and 0x81 in disk.stalled and 1 not in disk.waiting, f"{halt} {disk.stalled} {disk.waiting}")
+        disk.control(0x21, 0xFF)
+        disk.clear_halt(0x81)
+        disk.clear_halt(0x01)
         stale, status, _ = disk.command(bytes([0xA8]), 0, to_host=False)
         _, passed, _ = disk.command(bytes([0x00]), 0, to_host=False)
         check("a transport reset leaves no status behind, and commands after it get theirs",
               stale == b"" and status == 1 and passed == 0, f"{stale} {status} {passed}")
+        disk.event("U")
+        asleep = disk.control(0x81, 0x0A, 0, 0, 1)
+        disk.event("W")
+        awake = disk.control(0x81, 0x0A, 0, 0, 1)
+        _, status, _ = disk.command(bytes([0x00]), 0, to_host=False)
+        check("a suspended device refuses an interface request, and a resume puts its disk back in service",
+              asleep is None and awake == b"\0" and status == 0, f"{asleep} {awake} {status}")
+        sock.close()
+        sock = socket.create_connection(("127.0.0.1", DISK_PORT), timeout=5)
+        disk = Disk(sock)
+        disk.enumerate(9)
+        data, status, _ = disk.command(bytes([0x25]), 8)
+        check("a second host finds the disk after the first one leaves",
+              disk.address == 9 and status == 0 and data == struct.pack(">II", blocks - 1, 512), f"{status} {data}")
         check("mass storage mode runs until a reset", proc.poll() is None, repr(proc.poll()))
     except (OSError, struct.error, IndexError, TypeError) as error:
         check("mass storage mode answers a host", False, repr(error))
@@ -1516,6 +1656,7 @@ def mass_storage_checks(image, store, chip, work):
     proc, sock = start(image, store, {"ADAFLIGHT_MASS_STORAGE": "0"}, port=DISK_PORT)
     disk = Disk(sock)
     try:
+        disk.enumerate(5)
         disk.command(bytes([0x25]), 8)
         _, label, files = disk.directory()
         padding = files.get("PADDING.TXT", {"size": 0, "created": None})
