@@ -2059,9 +2059,30 @@ package body Adaflight.STM32.Flight is
       Last_Disarm_Us      => Adaflight.STM32.Pilot.Last_Disarm_Us,
       Trying_To_Arm       => Adaflight.STM32.Pilot.Trying_To_Arm);
 
+   --  The first status LED after a beeper call that refreshed the warning
+   --  LED: on or off as the beeper left it, its next refresh half a second on.
+   Beeper_Refreshes : Interfaces.Unsigned_8 := 0;
+
+   procedure Follow_Beeper_LED is
+      use type Interfaces.Unsigned_8;
+      Call : Adaflight.Warning_LED.LED_Call;
+   begin
+      if Beep.Warning_Refreshes /= Beeper_Refreshes then
+         Beeper_Refreshes := Beep.Warning_Refreshes;
+         if Beep.Warning_Led then
+            Adaflight.Warning_LED.Enable (Warning);
+         else
+            Adaflight.Warning_LED.Disable (Warning);
+         end if;
+         Adaflight.Warning_LED.Refresh (Warning, Adaflight.STM32.Time.Micros, Call);
+         Adaflight.STM32.Status_LED.Warn (Call);
+      end if;
+   end Follow_Beeper_LED;
+
    procedure Request_Beep (M : Adaflight.Beeper.Mode) is
    begin
       Adaflight.Beeper.Request (Beep, Beep_Settings, Beep_Conditions, M);
+      Follow_Beeper_LED;
    end Request_Beep;
 
    --  After a pitot init or task run: the sensor flag and the status entry
@@ -2114,11 +2135,13 @@ package body Adaflight.STM32.Flight is
    procedure Confirmation_Beeps (Count : Adaflight.Beeper.Beep_Count) is
    begin
       Adaflight.Beeper.Confirmation_Beeps (Beep, Beep_Settings, Beep_Conditions, Count);
+      Follow_Beeper_LED;
    end Confirmation_Beeps;
 
    procedure Silence_Beeper is
    begin
       Adaflight.Beeper.Silence_Beeper (Beep);
+      Follow_Beeper_LED;
       Adaflight.STM32.Sound.Set (False);
    end Silence_Beeper;
 
@@ -2128,6 +2151,7 @@ package body Adaflight.STM32.Flight is
       Result : Adaflight.Beeper.Update_Outputs;
    begin
       Adaflight.Beeper.Update (Beep, Beep_Settings, Beep_Conditions, Before, Result);
+      Follow_Beeper_LED;
       if Result.Visual_Beep then
          Adaflight.STM32.OSD.Set_Visual_Beeper;
       end if;
@@ -2853,6 +2877,7 @@ package body Adaflight.STM32.Flight is
             when Adaflight.Arming.Rx_Set_Tone => Request_Beep (Adaflight.Beeper.Rx_Set);
             when Adaflight.Arming.Warning_Tones =>
                Adaflight.Beeper.Warning_Beeps (Beep, Beep_Settings, Beep_Conditions, Step.Beeper.Count);
+               Follow_Beeper_LED;
             when Adaflight.Arming.Confirmation_Tones => Confirmation_Beeps (Step.Beeper.Count);
             when Adaflight.Arming.Crash_Flip_Tone => Request_Beep (Adaflight.Beeper.Crash_Flip);
             when Adaflight.Arming.GPS_Fix_Arm_Tone => Request_Beep (Adaflight.Beeper.Arming_GPS_Fix);

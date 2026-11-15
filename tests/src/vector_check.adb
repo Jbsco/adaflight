@@ -3558,6 +3558,7 @@ procedure Vector_Check is
             Result : Update_Outputs;
             Now_Us : constant Unsigned_32 := Unsigned_32 (Int (4));
             Events : constant Natural := Integer (Int (19));
+            Refreshes : Interfaces.Unsigned_8;
          begin
             Cond.Battery_Present := Int (5) /= 0;
             Cond.USB_Active := Int (6) /= 0;
@@ -3574,6 +3575,7 @@ procedure Vector_Check is
             Cond.Last_Disarm_Us := Unsigned_32 (Int (17));
             Cond.Trying_To_Arm := Int (18) /= 0;
             K := 20;
+            Refreshes := Beep_State.Warning_Refreshes;
             for E in 1 .. Events loop
                declare
                   Kind : constant String := Str (K);
@@ -3607,6 +3609,7 @@ procedure Vector_Check is
             for I in Step_Index loop
                Expect_Next ("multi", Integer_64 (Beep_State.Multi (I)));
             end loop;
+            Expect_Next ("led_refreshes", Integer_64 (Interfaces."-" (Beep_State.Warning_Refreshes, Refreshes)));
             if K /= NF + 1 then
                Put_Line ("beepstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;

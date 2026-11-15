@@ -15251,3 +15251,21 @@ off after a disarm. Angle mode lights its second LED without a further change.
 
 Some LED calls are not driven yet: warning LED refreshes that Betaflight's beeper makes at each beep, and
 calls from GPS, compass calibration, serial passthrough and its VTX button. No board has run this.
+
+## D764. Warning LED refreshes from beeps (2026-11-15)
+
+Betaflight's beeper sets its warning LED and refreshes it at each beep's start, at each beep's end and at
+each silence. `Adaflight.Beeper` kept that LED's enable as state, nothing reported a refresh, and D763
+left those refreshes out.
+
+That unit's state now counts those refreshes, in a count that wraps. A board compares that count after
+each call into that unit. On a change it sets D132's warning LED on or off as that unit left it and
+refreshes it, which writes its first status LED and moves its next refresh half a second on.
+
+A beeper oracle run counts refresh calls over each step's requests and update. Every count replays
+exactly, and every earlier field of those vectors is byte for byte as before. SPARK proves that unit free
+of run-time errors with this count.
+
+Host smoke turns a beeper switch on while arming is allowed. Its first LED goes on and off with each short
+beep and stays off once that switch is off. A start's beeps light that LED too, so its flash check reads
+gaps after those beeps.
