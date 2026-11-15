@@ -287,6 +287,7 @@ with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
 with Adaflight.PINIO_Box;
 with Adaflight.Warning_LED;
+with Adaflight.MSP_Flash_Read;
 with Adaflight.Status_LEDs;
 with Adaflight.V202;
 with Adaflight.SYMA;
@@ -31291,6 +31292,45 @@ procedure Vector_Check is
       end if;
    end Check_Warning_LED_Line;
 
+   procedure Check_MSP_Flash_Read_Line is
+      use Adaflight.MSP_Flash_Read;
+      Flash_Size : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+      Room       : constant Natural := Natural (Int (5));
+      Empty      : constant Byte_Array (1 .. 0) := (others => 0);
+      Payload    : constant Byte_Array := (if Str (6) = "-" then Empty else Hex_Bytes (6));
+      Reads      : constant Natural := Natural (Int (7));
+      Expected   : constant Byte_Array := (if Str (9) = "-" then Empty else Hex_Bytes (9));
+      Reply      : Byte_Array (0 .. Max_Room - 1) := (others => 16#A5#);
+      S          : State;
+      Done       : Natural := 0;
+      Length     : Natural;
+   begin
+      Start (S, Parse (Payload), Room, Flash_Size, Reply);
+      while Next_Count (S) > 0 loop
+         declare
+            Count : constant Natural := Next_Count (S);
+            Field : constant Positive := 10 + 3 * Done;
+            Data  : Byte_Array (0 .. Count - 1) := (others => 0);
+         begin
+            if Done < Reads then
+               Record_Int ("frstep.read_address", Int (Field), Integer_64 (Next_Address (S)));
+               Record_Int ("frstep.read_count", Int (Field + 1), Integer_64 (Count));
+               if Natural (Int (Field + 1)) = Count then
+                  Data := Hex_Bytes (Field + 2);
+               end if;
+            end if;
+            Feed (S, Data, Reply);
+            Done := Done + 1;
+         end;
+      end loop;
+      Record_Int ("frstep.reads", Integer_64 (Reads), Integer_64 (Done));
+      Finish (S, Reply, Length);
+      Record_Int ("frstep.length", Int (8), Integer_64 (Length));
+      if Length = Expected'Length then
+         Record_Bytes ("frstep.reply", Expected, Reply (0 .. Length - 1));
+      end if;
+   end Check_MSP_Flash_Read_Line;
+
    Status_LED_Seq   : Integer_64 := -1;
    Status_LED_State : Adaflight.Status_LEDs.State;
    Status_LED_Ops   : Adaflight.Status_LEDs.Ops;
@@ -43372,6 +43412,8 @@ procedure Vector_Check is
                   Check_Warning_LED_Line;
                elsif Kind = "statusled" then
                   Check_Status_LED_Line;
+               elsif Kind = "mspflashread" then
+                  Check_MSP_Flash_Read_Line;
                elsif Kind = "v202" then
                   Check_V202_Line;
                elsif Kind = "syma" then
@@ -43761,6 +43803,7 @@ begin
    Run (Dir & "/piniobox.csv", "piniobox");
    Run (Dir & "/warnled.csv", "warnled");
    Run (Dir & "/statusled.csv", "statusled");
+   Run (Dir & "/mspflashread.csv", "mspflashread");
    Run (Dir & "/v202.csv", "v202");
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");

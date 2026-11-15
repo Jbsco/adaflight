@@ -15298,3 +15298,42 @@ Host smoke reads a host image's pin log. With solutions over MSP, a fix of twelv
 second LED each 150 ms and a fix of five does not. A simulator link's virtual compass lights that LED once
 before boot flashes. Passthrough to a GPS port leaves its first LED still without bytes and lights it for
 bytes each way. A calibration's LED is not covered there, since it needs a moving craft.
+
+## D767. MSP flash read reply (2026-11-15)
+
+A configurator downloads a flight log from a flash chip with MSP's flash read command. Nothing answered
+it: its code had a name in `MSP_Processor` and no handler. `Adaflight.MSP_Flash_Read` builds that reply.
+
+A request names an address and, in its newer form, a size and whether its reply may be compressed. A
+payload under six bytes is the legacy form of 128 bytes. A read is cut to its reply's room less 16 bytes,
+then to its volume's end.
+
+Each reply starts with that address. The newer form follows with a byte count,
+a method byte and those bytes. With compression allowed it follows with a count of bytes coded and
+`Huffman`'s code of 256-byte reads, taken until that code fills the read's length or its volume ends. The
+legacy form follows with 128 bytes, zeros past its volume's end.
+
+We kept flash access out of this unit. A caller asks it for each read's address and count, feeds those
+bytes and finishes the reply. A board can pass those reads to its flash chip, and SPARK proves this unit
+free of run-time errors without a model of that chip. A reply's room is 144 bytes at least, enough for the
+legacy form: Betaflight's reply buffers have 512 or more.
+
+An oracle build calls Betaflight's command over a stand-in volume, with drawn content, sizes, addresses,
+payload lengths and rooms. Every read's address and count and every reply byte replays exactly. That build
+gives equal output under address and undefined behaviour sanitizers with their shift check off, which
+stops at a signed shift in Betaflight's 32-bit stream read (F353). No board answers this command yet.
+
+## D768. MSP flash read on boards (2026-11-15)
+
+A board with a flash chip now answers MSP's flash read with D767's reply. It takes that command ahead of
+its MSP processor, builds the reply in its reply buffer and passes each read to its flash chip unit. A
+build without a flash chip leaves that command to its processor, which answers an error.
+
+A board's reply buffer has 512 bytes where Betaflight's has 4112, so a read gives 496 bytes at most where
+Betaflight gives 4096. F405's memory has no room for a larger buffer. The protocol allows a shorter read,
+and a configurator asks for its next address from each reply's count. A coded reply covers whole 256-byte
+reads that fit 496 coded bytes, which is one such read for a log's text header and more for flight data.
+
+Host smoke reads a chip image that has a flight log: a plain read, a read cut to its reply's room, a legacy
+read, and reads at and past its volume's end. It also reads that log back in coded replies and decodes them
+with `Huffman_Table`'s codes. Every byte matches that image. No board has run this.
