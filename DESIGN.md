@@ -15065,3 +15065,31 @@ A CLRACINGF7 image with that mode overflows its packed 512 KB flash by 4973 byte
 cannot have that mode yet.
 
 No board has run this body. Build feature `Mass_Storage` stays off by default, so no default image changes.
+
+## D756. SD card storage in mass storage mode (2026-11-14)
+
+D752's mode showed a flash chip's logs alone. Betaflight shows an SD card too when a flight log's device is
+that card, and a host then reads and writes its blocks. This entry adds that storage.
+
+`SD` gains raw access to its card without its file system: a start, a ready poll, a block count, and one
+block read or written. `Mass_Storage_Mode` picks its storage by flight log device. A card takes writes, and it
+starts at a host's set configuration, as Betaflight's does. Its inquiry names vendor `ADAFLT` and product
+`SD Card`, where Betaflight's has ST's template text.
+
+Betaflight's card storage waits for its card without a way out, and it reports success for a block that card
+failed (F349, F350). Here each wait ends once a card is absent or failed, and a failed block fails its
+command. An absent card shows as a disk without a medium. An oracle run over a stand-in card measured both
+faults in Betaflight's code.
+
+`msc` and an MSP reboot accept a card that answers, as Betaflight's check does. A card that is not on SPI ends
+that mode in a reset: SDIO is not ported.
+
+Host smoke runs that mode over a card image: inquiry, capacity, reads of first and last blocks, writes of one
+and two blocks with a read back, and that image's bytes afterwards. With its card absent that mode must report
+no medium and fail reads and writes. With its card turned off or on SDIO it must end in a reset.
+
+No host check covers a card error, a card that leaves during that mode or a card put in after a start: that
+card model fails no block and is present or absent for a whole run.
+
+We measured an STM32F405 build with a flash chip and that mode: 735000 bytes of code, a start path of 38200 of
+40960 bytes of stack and 1064 bytes of main RAM free.

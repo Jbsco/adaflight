@@ -42,4 +42,18 @@ package Adaflight.STM32.SD is
    procedure Log_Flush_Complete (Done : out Boolean);
    procedure Log_Write (Data : Byte_Array);
    function Log_Number return Interfaces.Integer_32;
+
+   --  The card alone, without its file system, for mass storage mode. A
+   --  start polls the card until it is ready, absent or failed. A block read
+   --  or written polls it until that ends, and fails on a card error or once
+   --  the card is absent or failed.
+   Block_Size : constant := 512;
+   function Functional return Boolean;
+   procedure Raw_Start;
+   procedure Raw_Ready (OK : out Boolean);
+   function Block_Count return Interfaces.Unsigned_32;
+   procedure Raw_Read (Index : Interfaces.Unsigned_32; Data : out Byte_Array; OK : out Boolean)
+     with Pre => Data'Length = Block_Size;
+   procedure Raw_Write (Index : Interfaces.Unsigned_32; Data : Byte_Array; OK : out Boolean)
+     with Pre => Data'Length = Block_Size;
 end Adaflight.STM32.SD;

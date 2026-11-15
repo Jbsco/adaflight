@@ -13,6 +13,7 @@ package body Adaflight.STM32.SD is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use type Adaflight.FAT.Filesystem_State;
+   use type Adaflight.SD_Card_Types.Operation_Status;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    package GPIO renames Adaflight.STM32.GPIO;
@@ -438,4 +439,88 @@ package body Adaflight.STM32.SD is
    end Log_Write;
 
    function Log_Number return Interfaces.Integer_32 is (Log.Log_Number (L));
+   function Functional return Boolean is (Adaflight.Build_Features.SD_Card and then Card.Is_Functional (M.S));
+
+   --  The card polled until an operation can start, or until the card is
+   --  absent or failed.
+   procedure Settle (OK : out Boolean) is
+   begin
+      loop
+         Card.Poll (M.Dev, M.S, OK);
+         exit when OK or else not Card.Is_Functional (M.S);
+      end loop;
+   end Settle;
+
+   procedure Raw_Start is
+      OK : Boolean;
+   begin
+      if Adaflight.Build_Features.SD_Card then
+         Card.Init (M.Dev, M.S, Setup);
+         Settle (OK);
+      end if;
+   end Raw_Start;
+
+   procedure Raw_Ready (OK : out Boolean) is
+   begin
+      OK := False;
+      if Adaflight.Build_Features.SD_Card then
+         Card.Poll (M.Dev, M.S, OK);
+      end if;
+   end Raw_Ready;
+
+   function Block_Count return Interfaces.Unsigned_32 is (Card.Get_Metadata (M.S).Num_Blocks);
+
+   procedure Raw_Read (Index : Interfaces.Unsigned_32; Data : out Byte_Array; OK : out Boolean) is
+      Accepted : Boolean;
+      Ready_Now : Boolean;
+   begin
+      Data := (others => 0);
+      OK := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
+      M.Dev.Done := False;
+      loop
+         Card.Read_Block (M.Dev, M.S, Index, True, 0, Accepted);
+         exit when Accepted;
+         if not Card.Is_Functional (M.S) then
+            return;
+         end if;
+         Card.Poll (M.Dev, M.S, Ready_Now);
+      end loop;
+      Settle (Ready_Now);
+      OK := Ready_Now and then M.Dev.Done and then not M.Dev.Done_Write and then M.Dev.Done_OK;
+      M.Dev.Done := False;
+      if OK then
+         for K in 0 .. Block_Size - 1 loop
+            Data (Data'First + K) := M.S.Data (K);
+         end loop;
+      end if;
+   end Raw_Read;
+
+   procedure Raw_Write (Index : Interfaces.Unsigned_32; Data : Byte_Array; OK : out Boolean) is
+      Block     : Adaflight.SD_Card_Bus.Block;
+      Result    : Types.Operation_Status;
+      Ready_Now : Boolean;
+   begin
+      OK := False;
+      if not Adaflight.Build_Features.SD_Card then
+         return;
+      end if;
+      for K in 0 .. Block_Size - 1 loop
+         Block (K) := Data (Data'First + K);
+      end loop;
+      M.Dev.Done := False;
+      loop
+         Card.Write_Block (M.Dev, M.S, Index, Block, True, 0, Result);
+         exit when Result = Types.In_Progress;
+         if not Card.Is_Functional (M.S) then
+            return;
+         end if;
+         Card.Poll (M.Dev, M.S, Ready_Now);
+      end loop;
+      Settle (Ready_Now);
+      OK := Ready_Now and then M.Dev.Done and then M.Dev.Done_Write and then M.Dev.Done_OK;
+      M.Dev.Done := False;
+   end Raw_Write;
 end Adaflight.STM32.SD;

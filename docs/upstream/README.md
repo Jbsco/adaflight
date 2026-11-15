@@ -144,3 +144,5 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Mass storage reports a protected storage under sense key NOT READY](msc-write-protect-sense-key.md)
 - [A mass storage file list of 100 logs has no end entry](msc-file-list-full-no-end.md)
 - [Mass storage class reopens whatever endpoint a clear feature request names](msc-clear-feature-any-endpoint.md)
+- [Mass storage waits without end on an SD card that is absent or failed](msc-sd-card-waits-without-end.md)
+- [Mass storage reports success for a block its SD card failed](msc-sd-card-errors-pass.md)
