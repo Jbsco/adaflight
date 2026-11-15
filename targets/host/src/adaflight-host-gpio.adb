@@ -1,6 +1,7 @@
 --  The host's pins: every output level kept with its rising edges, so a
 --  model reads the select pin of its device, and the SD card detect pin
---  high while the environment names a card image in ADAFLIGHT_SD_IMAGE. Level
+--  high while the environment names a card image in ADAFLIGHT_SD_IMAGE. The
+--  USB detect pin reads low while ADAFLIGHT_USB_UNPLUGGED is set. Level
 --  changes of chosen pins go to the host's pin log.
 with Ada.Environment_Variables;
 with Adaflight.Board;
@@ -21,6 +22,9 @@ package body Adaflight.STM32.GPIO is
    begin
       if P = Adaflight.Board.SDCARD_Detect_Pin then
          return Ada.Environment_Variables.Exists ("ADAFLIGHT_SD_IMAGE");
+      end if;
+      if P = Adaflight.Board.USB_Detect_Pin then
+         return not Ada.Environment_Variables.Exists ("ADAFLIGHT_USB_UNPLUGGED");
       end if;
       return Levels (P.Port, P.Number);
    end Is_High;
