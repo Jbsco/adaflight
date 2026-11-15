@@ -2685,6 +2685,81 @@ def hott_menu_checks(image, work):
           repr((kind[:60], percent[:60])))
 
 
+def menu_live_config_checks(image, work):
+    """Configuration writes while a menu is open: with a menu on the OSD, a craft name set over MSP and a setting
+    changed in the command line are still there after the menu's next passes, and a save from that command line
+    stores both. Over a configuration store of its own."""
+    if not built("Menus"):
+        return
+    store = os.path.join(work, "menu-live-eeprom.bin")
+    screen_file = store + ".osd.txt"
+    for path in (store, screen_file):
+        if os.path.exists(path):
+            os.remove(path)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature RX_MSP", "feature OSD", "set osd_displayport_device = MAX7456",
+                                                "set vcd_video_system = PAL")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    rest = [1500, 1500, 1000, 1500, 1000, 1000, 1500, 1500]
+    gesture = [1500, 2000, 1500, 1000, 1000, 1000, 1500, 1500]
+
+    def stream(sock, channels, seconds):
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            sock.sendall(msp_frame(200, struct.pack("<8H", *channels)))
+            time.sleep(0.02)
+        read_all(sock, 0.3)
+
+    proc, sock = start(image, store)
+    try:
+        time.sleep(3.0)
+        stream(sock, rest, 1.0)
+        stream(sock, gesture, 0.4)
+        stream(sock, rest, 0.6)
+        try:
+            with open(screen_file) as f:
+                screen = f.read()
+        except OSError:
+            screen = ""
+        check("menu write checks have the MSP receiver, an OSD and a menu open on it",
+              "RX_MSP" in replies[0] and "osd_displayport_device set to MAX7456" in replies[2]
+              and ("-- QUICK --" in screen or "-- MAIN --" in screen), repr((replies, screen[:120])))
+        msp(sock, 11, b"LIVENAME")
+        time.sleep(0.6)
+        name = msp(sock, 10)
+        check("a craft name set over MSP stays while a menu is open", name == b"LIVENAME", repr(name))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        cli(sock, "set small_angle = 33")
+        time.sleep(0.6)
+        angle = cli(sock, "get small_angle")
+        check("a command line set stays while a menu is open", "small_angle = 33" in angle, repr(angle[:60]))
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        angle, name = cli(sock, "get small_angle"), cli(sock, "get craft_name")
+    finally:
+        stop(proc)
+        sock.close()
+    check("a save beside an open menu stores both writes",
+          "small_angle = 33" in angle and "craft_name = LIVENAME" in name, repr((angle[:60], name[:60])))
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5657,6 +5732,7 @@ def main():
         flash_read_checks(image, store, chip)
         hott_checks(image, work)
         hott_menu_checks(image, work)
+        menu_live_config_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
