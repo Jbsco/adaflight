@@ -287,6 +287,7 @@ with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
 with Adaflight.PINIO_Box;
 with Adaflight.Warning_LED;
+with Adaflight.Status_LEDs;
 with Adaflight.V202;
 with Adaflight.SYMA;
 with Adaflight.H8_3D;
@@ -31287,6 +31288,57 @@ procedure Vector_Check is
       end if;
    end Check_Warning_LED_Line;
 
+   Status_LED_Seq   : Integer_64 := -1;
+   Status_LED_State : Adaflight.Status_LEDs.State;
+   Status_LED_Ops   : Adaflight.Status_LEDs.Ops;
+
+   procedure Check_Status_LED_Line is
+      use Adaflight.Status_LEDs;
+      Name : constant String := Str (1);
+
+      function Argument (X : Op) return Integer_64 is
+        (case X.Kind is
+            when Claim       => Integer_64 (X.Index),
+            when Set_Output  => 1,
+            when Write_Level => Boolean'Pos (X.High),
+            when others      => 0);
+
+      procedure Compare (X : Op; First : Positive) is
+      begin
+         Record_Int (Name & ".kind", Int (First), Op_Kind'Pos (X.Kind));
+         Record_Int (Name & ".tag", Int (First + 1), Integer_64 (X.Tag));
+         Record_Int (Name & ".arg", Int (First + 2), Argument (X));
+      end Compare;
+   begin
+      if Name = "slinit" then
+         Status_LED_Seq := Int (2);
+         Init
+           (Status_LED_State,
+            (Interfaces.Unsigned_8 (Int (3)), Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (5))),
+            Interfaces.Unsigned_8 (Int (6)), Status_LED_Ops);
+         Record_Int (Name & ".count", Int (7), Integer_64 (Status_LED_Ops.Count));
+      elsif Int (2) /= Status_LED_Seq then
+         Put_Line ("status LED line without its start");
+         Failures := Failures + 1;
+      elsif Name = "slop" then
+         declare
+            K : constant Integer_64 := Int (3) + 1;
+         begin
+            Compare
+              ((if K <= Integer_64 (Status_LED_Ops.Count) then Status_LED_Ops.List (Positive (K)) else (others => <>)),
+               4);
+         end;
+      elsif Name = "slstep" then
+         declare
+            LED : constant Integer := Integer (Int (5));
+         begin
+            Compare
+              ((if Int (4) = 1 then Set (Status_LED_State, LED, Int (6) /= 0) else Toggle (Status_LED_State, LED)),
+               7);
+         end;
+      end if;
+   end Check_Status_LED_Line;
+
    V202_Seq   : Integer_64 := -1;
    V202_State : Adaflight.V202.State;
    V202_RC    : Adaflight.V202.RC_Channels := (others => 0);
@@ -43315,6 +43367,8 @@ procedure Vector_Check is
                   Check_PINIO_Box_Line;
                elsif Kind = "warnled" then
                   Check_Warning_LED_Line;
+               elsif Kind = "statusled" then
+                  Check_Status_LED_Line;
                elsif Kind = "v202" then
                   Check_V202_Line;
                elsif Kind = "syma" then
@@ -43703,6 +43757,7 @@ begin
    Run (Dir & "/pidaudio.csv", "pidaudio");
    Run (Dir & "/piniobox.csv", "piniobox");
    Run (Dir & "/warnled.csv", "warnled");
+   Run (Dir & "/statusled.csv", "statusled");
    Run (Dir & "/v202.csv", "v202");
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");

@@ -15208,3 +15208,17 @@ on, `tasks` showed 100 Hz.
 
 A board now sets that rate in its modes step alone. Host smoke turns angle mode on with a switch over an
 MSP receiver and reads that task's rate from `tasks`, fast with it on and slow with it off.
+
+## D762. Status LED driver (2026-11-15)
+
+`Adaflight.Status_LEDs` is Betaflight's driver for three status LEDs. Each LED has a pin tag from
+`status_led_config`, or none, and an inversion bit. A start claims each pin there is, makes it an output and
+writes its off level. A set writes a level, low for on unless that LED's bit is set, and a toggle toggles its
+pin. An LED number outside those three, or an LED without a pin, gives no pin operation.
+
+An oracle build includes that driver as source over a stand-in pin layer, which logs each call that reaches
+a pin. Sequences draw tags, shared pins and inversion bytes, then set and toggle LEDs by number, numbers
+outside those three among them. Every operation replays exactly, and that build gives equal output under
+address and undefined behaviour sanitizers.
+
+SPARK proves its operation list's bounds and its guard on an LED number.
