@@ -15136,3 +15136,35 @@ byte for byte. SPARK proves that reply free of run-time errors.
 A board's status snapshot named SmartAudio and Tramp alone, so an MSP transmitter got no reply either,
 though D157's unit had one for it. That snapshot now names every device kind. Host smoke reads a device
 status reply for an RTC6705, out of pit mode and in it, and for an MSP transmitter.
+
+## D759. Composite USB serial and joystick device (2026-11-14)
+
+D317 built a joystick report, and no USB device could send it. Betaflight's STM32 builds offer a composite
+device for that, chosen by `usb_hid_cdc`: a HID joystick interface ahead of its serial port's two. This entry
+adds that device to `USB_VCP`, with no board change yet.
+
+`Init` takes a composite flag. A composite device has its own device descriptor, with an association class and
+product number 0x3256. Its configuration has three interfaces: a HID interface with one interrupt endpoint for
+reports of 9 bytes, then D409's communication and data interfaces behind an interface association. Its
+joystick interface answers HID requests for protocol and idle rate, its report descriptor of eight axes and
+eight buttons, and its HID descriptor. `Send_Report` sends a report from a configured device.
+
+Requests go by recipient as in Betaflight's wrapper class: interface 0 and endpoint 0x83 to that joystick
+interface, any other interface or endpoint to its serial port, and none for a device recipient. A
+transmission's end on any endpoint but serial data flushes that report endpoint, so this unit's operations
+gain a flush.
+
+We kept two oddities of Betaflight's HID class so vectors replay. A request for another descriptor type gets
+an empty data stage, and any other standard request sets that interface's alternate setting. Neither has an
+effect a host can use.
+
+`USB_VCP` stays one unit with its own request logic. D753's open point on moving it onto `USB_Device` stands.
+
+An oracle build includes Betaflight's HID class and wrapper as source over D409's stand-in controller.
+Sessions enumerate with HID requests, send reports in every device state and mix requests for HID descriptor
+types among others. Every operation and state field replays exactly, and D409's vectors stay byte for byte.
+That build gives equal output under address and undefined behaviour sanitizers. SPARK proves this unit free of
+run-time errors with its composite mode. Its request helpers have `Global => null` contracts, so each proves
+once in a context of its own.
+
+No image changes its behaviour: no board passes that flag yet. Board and host USB follow.

@@ -4,7 +4,9 @@
 --  requests, its line coding and the two buffers between the host and the
 --  flight software. The controller stays with the target: each event brings
 --  what the controller reported, and the unit lists the endpoint operations
---  the event asks for, in their order.
+--  the event asks for, in their order. A composite device has a HID joystick
+--  interface ahead of the serial port's two: its descriptors, its class
+--  requests, and reports on an interrupt endpoint of its own.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
@@ -39,6 +41,9 @@ package Adaflight.USB_VCP with SPARK_Mode is
    Data_In_Address  : constant Unsigned_8 := 16#81#;
    Data_Out_Address : constant Unsigned_8 := 16#01#;
    Command_Address  : constant Unsigned_8 := 16#82#;
+   --  The composite device's joystick endpoint and its report's length.
+   Report_Address   : constant Unsigned_8 := 16#83#;
+   Report_Length    : constant := 9;
 
    type Device_Status is (Default, Addressed, Configured, Suspended);
    type Control_Stage is (Stage_Idle, Stage_Setup, Stage_Data_In, Stage_Data_Out, Stage_Status_In, Stage_Status_Out);
@@ -61,10 +66,10 @@ package Adaflight.USB_VCP with SPARK_Mode is
    --  The endpoint operations: open with the packet size and type, close,
    --  arm a receive of a length, send the bytes of one packet of a transfer,
    --  stall, clear a stall, take the device address, arm the control
-   --  endpoint for the next setup packet, and enter a test mode.
+   --  endpoint for the next setup packet, enter a test mode, and flush.
    type Action_Kind is
      (Open_Endpoint, Close_Endpoint, Prepare_Receive, Transmit, Stall_Endpoint, Clear_Stall, Set_Address,
-      Arm_Setup, Enter_Test_Mode);
+      Arm_Setup, Enter_Test_Mode, Flush_Endpoint);
    type Action is record
       Kind    : Action_Kind := Arm_Setup;
       Address : Unsigned_8 := 0;
@@ -100,7 +105,9 @@ package Adaflight.USB_VCP with SPARK_Mode is
    --  buffer, the transmit state and the frame count, the received packet,
    --  the buffer toward the host with the length of the block being sent and
    --  the buffer from the host, the line coding, the last control line state
-   --  with the count of its requests, and whether the port is configured.
+   --  with the count of its requests, and whether the port is configured;
+   --  whether the device is the composite one, and its joystick interface's
+   --  protocol, idle rate and alternate setting.
    type Device is record
       Status          : Device_Status := Default;
       Old_Status      : Device_Status := Default;
@@ -138,10 +145,15 @@ package Adaflight.USB_VCP with SPARK_Mode is
       Control_Line    : Unsigned_16 := 0;
       Control_Count   : Unsigned_32 := 0;
       Port_Configured : Boolean := False;
+      Composite       : Boolean := False;
+      HID_Protocol    : Unsigned_8 := 0;
+      HID_Idle        : Unsigned_8 := 0;
+      HID_Alt_Setting : Unsigned_8 := 0;
    end record;
 
-   --  The device at startup with its product name.
-   procedure Init (D : out Device; Product : String)
+   --  The device at startup with its product name, the serial port alone or
+   --  the composite device.
+   procedure Init (D : out Device; Product : String; Composite : Boolean := False)
      with Pre => Product'Length <= Max_Product;
 
    --  A bus reset, a setup packet, the bytes of an OUT packet, an IN
@@ -166,5 +178,10 @@ package Adaflight.USB_VCP with SPARK_Mode is
    function Send_Pending (D : Device) return Natural
      with Post => Send_Pending'Result < Buffer_Size;
    function Configured (D : Device) return Boolean is (D.Port_Configured);
+
+   --  A joystick report toward the host, which a configured device sends on
+   --  its report endpoint.
+   procedure Send_Report (D : Device; Report : Byte_Array; A : out Actions)
+     with Pre => Report'Length = Report_Length;
 
 end Adaflight.USB_VCP;

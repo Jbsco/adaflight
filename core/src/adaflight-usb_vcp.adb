@@ -20,6 +20,35 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    Language_Descriptor : constant Byte_Array (0 .. 3) := (16#04#, 16#03#, 16#09#, 16#04#);
 
+   --  The composite device: its device descriptor, its configuration with
+   --  the joystick interface and its endpoint ahead of an association of
+   --  the serial port's two interfaces, the joystick's HID descriptor, and
+   --  its report descriptor of eight axes and eight buttons.
+   Composite_Device_Descriptor : constant Descriptor_Bytes :=
+     (16#12#, 16#01#, 16#00#, 16#02#, 16#EF#, 16#02#, 16#01#, 16#40#, 16#83#, 16#04#, 16#56#, 16#32#,
+      16#00#, 16#02#, 16#01#, 16#02#, 16#03#, 16#01#);
+
+   Composite_Configuration : constant Byte_Array (0 .. 99) :=
+     (16#09#, 16#02#, 16#64#, 16#00#, 16#03#, 16#01#, 16#00#, 16#C0#, 16#32#, 16#09#, 16#04#, 16#00#,
+      16#00#, 16#01#, 16#03#, 16#00#, 16#00#, 16#00#, 16#09#, 16#21#, 16#11#, 16#01#, 16#00#, 16#01#,
+      16#22#, 16#36#, 16#00#, 16#07#, 16#05#, 16#83#, 16#03#, 16#09#, 16#00#, 16#0A#, 16#08#, 16#0B#,
+      16#01#, 16#02#, 16#02#, 16#02#, 16#01#, 16#00#, 16#09#, 16#04#, 16#01#, 16#00#, 16#01#, 16#02#,
+      16#02#, 16#01#, 16#00#, 16#05#, 16#24#, 16#00#, 16#10#, 16#01#, 16#05#, 16#24#, 16#01#, 16#00#,
+      16#02#, 16#04#, 16#24#, 16#02#, 16#02#, 16#05#, 16#24#, 16#06#, 16#01#, 16#02#, 16#07#, 16#05#,
+      16#82#, 16#03#, 16#08#, 16#00#, 16#FF#, 16#09#, 16#04#, 16#02#, 16#00#, 16#02#, 16#0A#, 16#00#,
+      16#00#, 16#00#, 16#07#, 16#05#, 16#01#, 16#02#, 16#40#, 16#00#, 16#00#, 16#07#, 16#05#, 16#81#,
+      16#02#, 16#40#, 16#00#, 16#00#);
+
+   HID_Descriptor : constant Byte_Array (0 .. 8) :=
+     (16#09#, 16#21#, 16#11#, 16#01#, 16#00#, 16#01#, 16#22#, 16#36#, 16#00#);
+
+   Report_Descriptor : constant Byte_Array (0 .. 53) :=
+     (16#05#, 16#01#, 16#09#, 16#05#, 16#A1#, 16#01#, 16#A1#, 16#00#, 16#05#, 16#01#, 16#09#, 16#30#,
+      16#09#, 16#31#, 16#09#, 16#32#, 16#09#, 16#33#, 16#09#, 16#35#, 16#09#, 16#34#, 16#09#, 16#36#,
+      16#09#, 16#37#, 16#15#, 16#81#, 16#25#, 16#7F#, 16#75#, 16#08#, 16#95#, 16#08#, 16#81#, 16#02#,
+      16#05#, 16#09#, 16#19#, 16#01#, 16#29#, 16#08#, 16#15#, 16#00#, 16#25#, 16#01#, 16#95#, 16#08#,
+      16#75#, 16#01#, 16#81#, 16#02#, 16#C0#, 16#C0#);
+
    Manufacturer_Name  : constant String := "Adaflight";
    Serial_Name        : constant String := "0x8000000";
    Configuration_Name : constant String := "VCP Config";
@@ -34,6 +63,13 @@ package body Adaflight.USB_VCP with SPARK_Mode is
    Set_Configuration_Code : constant Unsigned_8 := 16#09#;
    Get_Interface_Code     : constant Unsigned_8 := 16#0A#;
    Set_Interface_Code     : constant Unsigned_8 := 16#0B#;
+
+   Get_Idle_Code     : constant Unsigned_8 := 16#02#;
+   Get_Protocol_Code : constant Unsigned_8 := 16#03#;
+   Set_Idle_Code     : constant Unsigned_8 := 16#0A#;
+   Set_Protocol_Code : constant Unsigned_8 := 16#0B#;
+   HID_Type          : constant Unsigned_16 := 16#21#;
+   Report_Type       : constant Unsigned_16 := 16#22#;
 
    Set_Line_Coding_Code : constant Unsigned_32 := 16#20#;
    Get_Line_Coding_Code : constant Unsigned_32 := 16#21#;
@@ -56,7 +92,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
      with Pre => Valid (Address);
    function Is_In (Address : Unsigned_8) return Boolean is ((Address and 16#80#) /= 0);
 
-   procedure Add (A : in out Actions; X : Action) is
+   procedure Add (A : in out Actions; X : Action)
+     with Global => null
+   is
    begin
       if A.Count < Max_Actions then
          A.Count := A.Count + 1;
@@ -138,7 +176,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    --  One packet of a control transfer from the reply's next byte, which
    --  moves past the packet the controller sends.
-   procedure Send_Control (D : in out Device; A : in out Actions; Length : Transfer_Length) is
+   procedure Send_Control (D : in out Device; A : in out Actions; Length : Transfer_Length)
+     with Global => null
+   is
       X     : Action := (Kind => Transmit, Address => 0, Length => Length, others => <>);
       Count : constant Natural :=
         Natural'Min (Natural'Min (Length, D.In_EP (0).Max_Packet), Natural'Min (Packet_Size, Max_Reply - D.Reply_Next));
@@ -241,30 +281,41 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    --  The class's start on a configuration: the three endpoints opened, the
    --  device descriptor's class bytes, the port configured, and the data
-   --  endpoint armed for a packet.
+   --  endpoint armed for a packet. A composite device opens its report
+   --  endpoint first and keeps its own device descriptor.
    procedure Class_Init (D : in out Device; A : in out Actions) is
    begin
+      if D.Composite then
+         Open (D, A, Report_Address, Report_Length, Interrupt);
+      end if;
       Open (D, A, Data_In_Address, Packet_Size, Bulk);
       Open (D, A, Data_Out_Address, Packet_Size, Bulk);
       Open (D, A, Command_Address, Command_Size, Interrupt);
-      D.Descriptor (4) := 16#02#;
-      D.Descriptor (5) := 16#00#;
+      if not D.Composite then
+         D.Descriptor (4) := 16#02#;
+         D.Descriptor (5) := 16#00#;
+      end if;
       D.Port_Configured := True;
       Prepare (D, A, Data_Out_Address, Packet_Size);
    end Class_Init;
 
    procedure Class_Deinit (D : in out Device; A : in out Actions) is
    begin
+      if D.Composite then
+         Close (A, Report_Address);
+      end if;
       Close (A, Data_In_Address);
       Close (A, Data_Out_Address);
       Close (A, Command_Address);
       D.Port_Configured := False;
    end Class_Deinit;
 
-   --  The class's requests: a class request's data stage through the command
-   --  buffer, which it cannot pass, the alternate setting, and an error for
-   --  the rest.
-   procedure Class_Setup (D : in out Device; A : in out Actions; R : Request) is
+   --  The serial port's requests: a class request's data stage through the
+   --  command buffer, which it cannot pass, the alternate setting, and an
+   --  error for the rest.
+   procedure Serial_Setup (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
    begin
       case R.Request_Type and 16#60# is
          when 16#20# =>
@@ -305,6 +356,81 @@ package body Adaflight.USB_VCP with SPARK_Mode is
             end case;
          when others =>
             Control_Error (D, A);
+      end case;
+   end Serial_Setup;
+
+   --  The joystick interface's requests: its protocol and idle rate set and
+   --  read, its report descriptor and HID descriptor up to the length asked
+   --  for, an empty reply for another descriptor type, and its alternate
+   --  setting, which any other standard request sets too.
+   procedure Joystick_Setup (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
+      Empty : constant Byte_Array (1 .. 0) := (others => 0);
+   begin
+      case R.Request_Type and 16#60# is
+         when 16#20# =>
+            case R.Code is
+               when Set_Protocol_Code =>
+                  D.HID_Protocol := Unsigned_8 (R.Value and 16#FF#);
+               when Get_Protocol_Code =>
+                  Control_Send (D, A, (0 => D.HID_Protocol));
+               when Set_Idle_Code =>
+                  D.HID_Idle := Unsigned_8 (R.Value / 256);
+               when Get_Idle_Code =>
+                  Control_Send (D, A, (0 => D.HID_Idle));
+               when others =>
+                  Control_Error (D, A);
+            end case;
+         when 16#00# =>
+            case R.Code is
+               when Get_Descriptor_Code =>
+                  if R.Value / 256 = Report_Type then
+                     Control_Send
+                       (D, A, Report_Descriptor (0 .. Natural'Min (Report_Descriptor'Length, Natural (R.Length)) - 1));
+                  elsif R.Value / 256 = HID_Type then
+                     Control_Send
+                       (D, A, HID_Descriptor (0 .. Natural'Min (HID_Descriptor'Length, Natural (R.Length)) - 1));
+                  else
+                     Control_Send (D, A, Empty);
+                  end if;
+               when Get_Interface_Code =>
+                  Control_Send (D, A, (0 => D.HID_Alt_Setting));
+               when others =>
+                  D.HID_Alt_Setting := Unsigned_8 (R.Value and 16#FF#);
+            end case;
+         when others =>
+            Control_Send (D, A, (0 => D.HID_Alt_Setting));
+      end case;
+   end Joystick_Setup;
+
+   --  The class's requests. A composite device hands an interface request
+   --  for interface 0 and an endpoint request for the report endpoint to the
+   --  joystick interface, each other request of those two recipients to the
+   --  serial port, and takes no other.
+   procedure Class_Setup (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
+   begin
+      if not D.Composite then
+         Serial_Setup (D, A, R);
+         return;
+      end if;
+      case R.Request_Type and 16#1F# is
+         when 1 =>
+            if R.Index = 0 then
+               Joystick_Setup (D, A, R);
+            else
+               Serial_Setup (D, A, R);
+            end if;
+         when 2 =>
+            if R.Index = Unsigned_16 (Report_Address) then
+               Joystick_Setup (D, A, R);
+            else
+               Serial_Setup (D, A, R);
+            end if;
+         when others =>
+            null;
       end case;
    end Class_Setup;
 
@@ -407,7 +533,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end loop;
    end String_Descriptor;
 
-   procedure Get_Descriptor (D : in out Device; A : in out Actions; R : Request) is
+   procedure Get_Descriptor (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
       Reply  : Byte_Array (0 .. Max_Reply - 1) := (others => 0);
       Length : Natural;
    begin
@@ -416,8 +544,13 @@ package body Adaflight.USB_VCP with SPARK_Mode is
             Reply (0 .. 17) := D.Descriptor;
             Length := 18;
          when 2 =>
-            Reply (0 .. 66) := Configuration_Descriptor;
-            Length := 67;
+            if D.Composite then
+               Reply (0 .. 99) := Composite_Configuration;
+               Length := 100;
+            else
+               Reply (0 .. 66) := Configuration_Descriptor;
+               Length := 67;
+            end if;
          when 3 =>
             case R.Value and 16#FF# is
                when 0 =>
@@ -464,7 +597,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end if;
    end Set_Device_Address;
 
-   procedure Set_Configuration (D : in out Device; A : in out Actions; R : Request) is
+   procedure Set_Configuration (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
       Index : constant Unsigned_8 := Unsigned_8 (R.Value and 16#FF#);
    begin
       if Index > 1 then
@@ -495,7 +630,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end if;
    end Set_Configuration;
 
-   procedure Device_Request (D : in out Device; A : in out Actions; R : Request) is
+   procedure Device_Request (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
    begin
       case R.Code is
          when Get_Descriptor_Code =>
@@ -554,7 +691,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end case;
    end Device_Request;
 
-   procedure Interface_Request (D : in out Device; A : in out Actions; R : Request) is
+   procedure Interface_Request (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
    begin
       if D.Status = Configured and then (R.Index and 16#FF#) <= 1 then
          Class_Setup (D, A, R);
@@ -568,7 +707,9 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    --  An endpoint's requests; one that names an endpoint the controller lacks
    --  is an error.
-   procedure Endpoint_Request (D : in out Device; A : in out Actions; R : Request) is
+   procedure Endpoint_Request (D : in out Device; A : in out Actions; R : Request)
+     with Global => null
+   is
       Address : constant Unsigned_8 := Unsigned_8 (R.Index and 16#FF#);
       Halted  : Boolean;
    begin
@@ -616,10 +757,11 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       end case;
    end Endpoint_Request;
 
-   procedure Init (D : out Device; Product : String) is
+   procedure Init (D : out Device; Product : String; Composite : Boolean := False) is
    begin
       D := (others => <>);
-      D.Descriptor := Device_Descriptor;
+      D.Composite := Composite;
+      D.Descriptor := (if Composite then Composite_Device_Descriptor else Device_Descriptor);
       for K in 0 .. Product'Length - 1 loop
          D.Product (K + 1) := Product (Product'First + K);
       end loop;
@@ -724,7 +866,13 @@ package body Adaflight.USB_VCP with SPARK_Mode is
             D.Test_Pending := False;
          end if;
       elsif D.Status = Configured then
-         Class_Data_In (D, A);
+         --  A composite device's transmissions on any endpoint but the serial
+         --  data one are the joystick's, whose endpoint is flushed.
+         if D.Composite and then EP /= Number (Data_In_Address) then
+            Add (A, (Kind => Flush_Endpoint, Address => Report_Address, others => <>));
+         else
+            Class_Data_In (D, A);
+         end if;
       end if;
    end Data_In;
 
@@ -753,6 +901,19 @@ package body Adaflight.USB_VCP with SPARK_Mode is
          D.Status := D.Old_Status;
       end if;
    end Resume;
+
+   procedure Send_Report (D : Device; Report : Byte_Array; A : out Actions) is
+      X : Action := (Kind => Transmit, Address => Report_Address, Length => Report_Length, others => <>);
+   begin
+      Clear (A);
+      if D.Status = Configured then
+         X.Count := Report_Length;
+         for K in 0 .. Report_Length - 1 loop
+            X.Data (K) := Report (Report'First + K);
+         end loop;
+         Add (A, X);
+      end if;
+   end Send_Report;
 
    procedure Send (D : in out Device; Data : Byte_Array; Accepted : out Natural) is
    begin
