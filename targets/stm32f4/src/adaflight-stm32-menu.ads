@@ -94,4 +94,19 @@ package Adaflight.STM32.Menu is
    --  display answered its start, and whether the menu holds it.
    procedure Register_OLED;
    function OLED_Grabbed return Boolean;
+   --  The HoTT text mode's display, registered after the OLED's when a
+   --  telemetry provider names a HoTT port, full screen at the text mode's
+   --  size. A menu that shows on it leaves with a save once the text mode
+   --  stops after it ran with the menu there.
+   procedure Register_HoTT;
+   --  What a text mode request asks: the menu opened from the start menu on
+   --  the HoTT display over the live configuration, when it is closed; the
+   --  menu left with a save on the display it shows on, its edits given to
+   --  the live configuration; a button's key, kept for the next pass; and
+   --  the menu opened again, which moves an open menu to the next display.
+   type Button_Key is (No_Key, Up, Down, Left, Right);
+   procedure Open_On_HoTT (C : Adaflight.Config_Groups.Configuration);
+   procedure Leave_Saving (C : in out Adaflight.Config_Groups.Configuration);
+   procedure Set_Key (K : Button_Key);
+   procedure Open_Again (C : Adaflight.Config_Groups.Configuration);
 end Adaflight.STM32.Menu;
