@@ -2,12 +2,12 @@ with Ada.Real_Time;
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.BLHeli_Bootloader;
-with Adaflight.Board;
 with Adaflight.Four_Way;
 with Adaflight.Pins;
 with Adaflight.STK_Bootloader;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Four_Way is
    package FW renames Adaflight.Four_Way;
@@ -146,9 +146,9 @@ package body Adaflight.STM32.Four_Way is
                   when FW.Send_Reply =>
                      Serial.Put (To_Host, O.Reply (0 .. O.Length - 1));
                   when FW.LED_On =>
-                     GPIO.Set_Low (Adaflight.Board.LED0_Pin);
+                     Adaflight.STM32.Status_LED.Set (0, True);
                   when FW.LED_Off =>
-                     GPIO.Set_High (Adaflight.Board.LED0_Pin);
+                     Adaflight.STM32.Status_LED.Set (0, False);
                   when FW.Release_Pin =>
                      null;
                end case;

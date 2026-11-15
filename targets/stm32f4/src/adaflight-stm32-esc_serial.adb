@@ -1,4 +1,3 @@
-with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.CLI_Resources;
 with Adaflight.ESC_Serial;
@@ -7,6 +6,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Passthrough;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Timer_Dispatch;
 with Adaflight.STM32.Timers;
@@ -158,7 +158,8 @@ package body Adaflight.STM32.ESC_Serial is
       if Protocol > Engine.Protocol'Pos (Engine.Protocol'Last) then
          return;
       end if;
-      GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (0, False);
+      Adaflight.STM32.Status_LED.Set (1, False);
       if Protocol = Engine.Protocol'Pos (Engine.KISS_All) then
          --  KISS on every motor asked for by its own number.
          Stop_Motors;
@@ -172,26 +173,28 @@ package body Adaflight.STM32.ESC_Serial is
          return;
       end if;
       loop
-         --  The board's LED, which a low level lights, is on while the
-         --  ESC's bytes go to the host.
+         --  The first LED is on while the ESC's bytes go to the host, and
+         --  the second while the host's bytes go to the ESC.
          loop
             Port.Forward (Chunk_List, More);
             if Chunk_List.Count > 0 then
-               GPIO.Set_Low (Adaflight.Board.LED0_Pin);
+               Adaflight.STM32.Status_LED.Set (0, True);
             end if;
             Reply (Chunk_List);
             exit when not More;
          end loop;
-         GPIO.Set_High (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Set (0, False);
          Left := False;
          loop
             Adaflight.STM32.Serial.Take (Host, Data, Count);
             exit when Count = 0;
+            Adaflight.STM32.Status_LED.Set (1, True);
             Port.From_Host (Data (0 .. Count - 1), Host_List, Left);
             Reply (Host_List);
             exit when Left;
          end loop;
          exit when Left;
+         Adaflight.STM32.Status_LED.Set (1, False);
          if Port.Pass_Wait_Ms > 0 then
             Adaflight.STM32.Time.Delay_Ms (Port.Pass_Wait_Ms);
          end if;

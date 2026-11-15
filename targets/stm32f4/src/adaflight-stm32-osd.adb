@@ -1,4 +1,3 @@
-with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
@@ -25,6 +24,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.OSD is
    use type Interfaces.Unsigned_8;
@@ -202,7 +202,7 @@ package body Adaflight.STM32.OSD is
    procedure Toggle_LED (D : in out Chip_Bus) is
       pragma Unreferenced (D);
    begin
-      GPIO.Toggle (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Toggle (0);
    end Toggle_LED;
 
    package Chip is new Adaflight.MAX7456

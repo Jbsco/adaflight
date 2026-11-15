@@ -15222,3 +15222,32 @@ outside those three among them. Every operation replays exactly, and that build 
 address and undefined behaviour sanitizers.
 
 SPARK proves its operation list's bounds and its guard on an LED number.
+
+## D763. Status LEDs on boards (2026-11-15)
+
+Boards drove one LED on a fixed pin: a 500 ms blink from their main loop, boot flashes and a few activity
+signals. D132's warning LED and `status_led_config` had no board user. This entry drives all three status
+LEDs through D762's unit.
+
+Board files give that configuration its default pins and inversion bits, and `resource LED` moves a pin. A
+board starts its LEDs once its configuration is loaded and lights its third LED. Boot flashes light its
+second LED, turn its third off, toggle its first two ten times and leave both off. Failure flashes use
+those two LEDs in that way too.
+
+After each arming status update a board lights its first LED while armed. While disarmed, D132's warning
+LED flashes on it for as long as a reason keeps arming off, and is off otherwise. A level mode lights its
+second LED where D761 sets its attitude task's rate.
+
+Sites that drove that fixed pin now call this unit with Betaflight's LED numbers. Flash erase progress is
+on its second LED. ESC serial lights its first LED for bytes from an ESC and its second for bytes from a
+host. Spektrum bind lights its second LED for its window and pulses its first and third with its pin. OSD
+chip resets, 4-way access, flash tests and mass storage activity stay on its first LED. That 500 ms blink
+is gone, since Betaflight has none.
+
+Host smoke reads those LEDs from a host image's pin log, with pins for its second and third LED set by
+`resource`. A start lights its third LED until boot flashes toggle its first two. Its first LED then
+flashes each 500 ms, goes off once an accelerometer calibration lets arming through, is on while armed and
+off after a disarm. Angle mode lights its second LED without a further change.
+
+Some LED calls are not driven yet: warning LED refreshes that Betaflight's beeper makes at each beep, and
+calls from GPS, compass calibration, serial passthrough and its VTX button. No board has run this.

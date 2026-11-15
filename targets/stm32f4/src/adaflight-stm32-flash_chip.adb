@@ -1,10 +1,10 @@
-with Adaflight.Board;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_FS;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.SPI;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Flash_Chip is
    use type Interfaces.Unsigned_8;
@@ -331,9 +331,9 @@ package body Adaflight.STM32.Flash_Chip is
                when FS.Flush =>
                   null;
                when FS.LED_Toggle =>
-                  GPIO.Toggle (Adaflight.Board.LED0_Pin);
+                  Adaflight.STM32.Status_LED.Toggle (1);
                when FS.LED_Off =>
-                  GPIO.Set_High (Adaflight.Board.LED0_Pin);
+                  Adaflight.STM32.Status_LED.Set (1, False);
             end case;
          end;
       end loop;
@@ -577,7 +577,7 @@ package body Adaflight.STM32.Flash_Chip is
       while Address < State.Size loop
          Write_Text (Pattern (Address));
          if Address mod 16#10000# = 0 then
-            GPIO.Toggle (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.Status_LED.Toggle (0);
          end if;
          Flush_Sync;
          Address := Address + 32;
@@ -596,11 +596,11 @@ package body Adaflight.STM32.Flash_Chip is
             end if;
          end;
          if Address mod 16#10000# = 0 then
-            GPIO.Toggle (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.Status_LED.Toggle (0);
          end if;
          Address := Address + 32;
       end loop;
-      GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (0, False);
       OK := Failures = 0;
    end Verify;
 

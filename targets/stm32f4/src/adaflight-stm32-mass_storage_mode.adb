@@ -6,6 +6,7 @@ with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.SD;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USB_Storage;
 with Adaflight.USB_Device;
@@ -68,7 +69,7 @@ package body Adaflight.STM32.Mass_Storage_Mode is
    --  it is ready, absent or failed.
    procedure Start_Storage is
    begin
-      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (0, False);
       if Use_Card then
          Adaflight.STM32.SD.Raw_Start;
          Last_Active := Adaflight.STM32.Time.Millis;
@@ -160,10 +161,10 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       Now : constant Unsigned_32 := Adaflight.STM32.Time.Millis;
    begin
       if Since (Now, Last_Active) > Activity_Ms then
-         Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Set (0, False);
          Next_Toggle := 0;
       elsif Since (Now, Next_Toggle) > 0 then
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Toggle (0);
          Next_Toggle := Now + Activity_Ms;
       end if;
    end Activity_LED;
@@ -231,7 +232,7 @@ package body Adaflight.STM32.Mass_Storage_Mode is
       Count   : Natural;
       Work    : USB.Actions;
    begin
-      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (0, False);
       Volume.Entries (1).Dir := True;
       Volume.Label (1 .. Label'Length) := Label;
       Volume.Label_Length := Label'Length;
