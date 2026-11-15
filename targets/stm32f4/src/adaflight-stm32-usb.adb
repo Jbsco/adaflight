@@ -158,8 +158,9 @@ package body Adaflight.STM32.USB is
    type Sizes is array (Number) of U.Packet_Limit;
 
    protected Controller with Interrupt_Priority => System.Interrupt_Priority'First, Linker_Section => ".bss.ccm" is
-      procedure Start (Product : String);
+      procedure Start (Product : String; Composite : Boolean);
       procedure Send (Data : Byte_Array; Accepted : out Natural);
+      procedure Send_Report (Report : Byte_Array);
       procedure Take (Into : out Byte_Array; Count : out Natural);
       function Configured return Boolean;
       function Line_Rate return Interfaces.Unsigned_32;
@@ -495,10 +496,19 @@ package body Adaflight.STM32.USB is
          end if;
       end Handler;
 
-      procedure Start (Product : String) is
+      procedure Start (Product : String; Composite : Boolean) is
       begin
-         U.Init (D, Product (Product'First .. Product'First + Natural'Min (Product'Length, U.Max_Product) - 1));
+         U.Init
+           (D, Product (Product'First .. Product'First + Natural'Min (Product'Length, U.Max_Product) - 1), Composite);
       end Start;
+
+      procedure Send_Report (Report : Byte_Array) is
+      begin
+         if Report'Length = U.Report_Length then
+            U.Send_Report (D, Report, A);
+            Execute (A);
+         end if;
+      end Send_Report;
 
       procedure Send (Data : Byte_Array; Accepted : out Natural) is
       begin
@@ -532,7 +542,7 @@ package body Adaflight.STM32.USB is
    --  up: the core reset on the embedded transceiver with bus sensing off,
    --  device mode, the full-speed device with its FIFOs, every endpoint
    --  disabled, the interrupts, and the global interrupt last.
-   procedure Init (Product : String) is
+   procedure Init (Product : String; Composite : Boolean := False) is
    begin
       Disconnect;
       GPIO.Set_Alternate (DM, 10, Rate => GPIO.Very_High);
@@ -576,7 +586,7 @@ package body Adaflight.STM32.USB is
       GINTSTS := 16#BFFF_FFFF#;
       GINTMSK := WKUPINT or USBSUSP;
       GINTMSK := GINTMSK or RXFLVL or USBSUSP or USBRST or ENUMDNE or IEPINT or OEPINT or SOF or IISOIXFR or IPXFR;
-      Controller.Start (Product);
+      Controller.Start (Product, Composite);
       GAHBCFG := GAHBCFG or GINTMSK_GLOBAL;
       DCTL := DCTL and not SDIS;
    end Init;
@@ -594,6 +604,11 @@ package body Adaflight.STM32.USB is
    end Take;
 
    function Line_Rate return Interfaces.Unsigned_32 is (Controller.Line_Rate);
+
+   procedure Send_Report (Report : Byte_Array) is
+   begin
+      Controller.Send_Report (Report);
+   end Send_Report;
 
    procedure Control_Line (State : out Interfaces.Unsigned_16; Count : out Interfaces.Unsigned_32) is
    begin

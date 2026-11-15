@@ -15168,3 +15168,30 @@ run-time errors with its composite mode. Its request helpers have `Global => nul
 once in a context of its own.
 
 No image changes its behaviour: no board passes that flag yet. Board and host USB follow.
+
+## D760. Composite USB device on boards (2026-11-14)
+
+D759 gave `USB_VCP` a composite mode that no board started. This entry starts it from `usb_hid_cdc` and sends
+D317's joystick report through it.
+
+Board and host USB take a composite flag at their start, read from that stored setting, so a change takes
+effect at a restart. While disarmed, a receiver update that D317 names builds a report from its channels and
+passes it to USB after its arming status. D317's joystick-in-use test now reads real inputs: that setting, a
+configured USB device, battery presence and voltage meter source. Its result reaches arming, which stops
+stick commands, and menu entry by sticks.
+
+Betaflight's receiver task sends that report whatever its device type. On F4 boards its HID class then
+transmits on endpoint 0x83 of a plain serial device, which has no such endpoint (F352). `Send_Report` acts
+for a configured composite device alone, and a board asks for a report only with that setting on. An oracle
+build of a plain device with Betaflight's HID class linked measured that transmit. Vectors come from that
+build with a report kept from a device that is not composite, and replay exactly.
+
+A host image writes its device kind to a file that `ADAFLIGHT_HID_LOG` names, then appends each report its
+board code passes to USB while a client is on its USB port. Host smoke reads that kind for both settings. A
+serial device logs no report, and a composite device logs none without a client. With a client, logged
+reports match channels sent to an MSP receiver, a stick command starts no gyro calibration and a stick
+gesture opens no menu. Both work again once that client leaves or with a serial device.
+
+Smoke leaves out two inputs of this wiring: a present battery with a voltage meter, since a host image has
+no battery input, and an armed board. No board has run a composite device. SPARK proves `USB_VCP` free of
+run-time errors with this change.

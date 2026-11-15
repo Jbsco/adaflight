@@ -179,8 +179,9 @@ package Adaflight.USB_VCP with SPARK_Mode is
      with Post => Send_Pending'Result < Buffer_Size;
    function Configured (D : Device) return Boolean is (D.Port_Configured);
 
-   --  A joystick report toward the host, which a configured device sends on
-   --  its report endpoint.
+   --  A joystick report toward the host, which a configured composite device
+   --  sends on its report endpoint. A serial port alone has no such endpoint
+   --  and sends nothing.
    procedure Send_Report (D : Device; Report : Byte_Array; A : out Actions)
      with Pre => Report'Length = Report_Length;
 

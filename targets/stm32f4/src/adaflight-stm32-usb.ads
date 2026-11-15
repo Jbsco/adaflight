@@ -7,8 +7,9 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 package Adaflight.STM32.USB is
    --  The pins, the clock and the controller in device mode, with the product
-   --  name the host reads.
-   procedure Init (Product : String);
+   --  name the host reads, as the serial port alone or as the composite
+   --  device with a joystick interface.
+   procedure Init (Product : String; Composite : Boolean := False);
    --  D+ held low for 200 milliseconds and then released, so a host still
    --  holding the connection sees the device leave.
    procedure Disconnect;
@@ -24,4 +25,8 @@ package Adaflight.STM32.USB is
    --  The control line state the host last set, DTR in its lowest bit, with
    --  the count of the requests that set it.
    procedure Control_Line (State : out Interfaces.Unsigned_16; Count : out Interfaces.Unsigned_32);
+   --  A joystick report of nine bytes toward the host, which a configured
+   --  composite device sends.
+   procedure Send_Report (Report : Byte_Array)
+     with Pre => Report'Length = 9;
 end Adaflight.STM32.USB;

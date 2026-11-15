@@ -16,6 +16,7 @@ package Adaflight.STM32.Menu is
       Armed                     : Boolean := False;
       Paralyzed                 : Boolean := False;
       Stick_Commands_Disabled   : Boolean := False;
+      Joystick_Active           : Boolean := False;
       Acc_Present               : Boolean := False;
       Acc_Calibration_Complete  : Boolean := True;
       Acc_Calibrated            : Boolean := False;

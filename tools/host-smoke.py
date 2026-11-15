@@ -1820,6 +1820,135 @@ def card_storage_checks(image, store, chip, work):
         store_settings("sdcard_mode = SPI", "blackbox_device = SPIFLASH")
 
 
+def joystick_checks(image, work):
+    """The composite USB device: with usb_hid_cdc on and a client on the image's USB port, the image logs a joystick
+    report at each receiver update while disarmed, and a board in use as a joystick takes no stick command and
+    opens no menu by sticks. The receiver is the MSP one, over a configuration store of its own."""
+    store = os.path.join(work, "joystick-eeprom.bin")
+    log = os.path.join(work, "joystick-reports.txt")
+    channels = [1600, 1400, 1300, 1700, 1100, 1200, 1800, 1900, 2000, 1000, 1504, 1503, 1900, 1100, 1505, 1500]
+    for stale in (store, log):
+        if os.path.exists(stale):
+            os.remove(stale)
+
+    def configure(*lines):
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            replies = [cli(sock, line) for line in lines]
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+            return replies
+        finally:
+            stop(proc)
+            sock.close()
+
+    def logged():
+        """The image's joystick log: the device kind it started as, then its reports."""
+        try:
+            with open(log) as f:
+                return f.read().split()
+        except OSError:
+            return []
+
+    def reports():
+        return logged()[1:]
+
+    def axis(value):
+        """A channel as an axis from -127 to 127, cut to a whole number toward zero."""
+        return 254 * (min(max(value, 1000), 2000) - 1000) // 1000 - 127
+
+    def stick_command(sock):
+        """Throttle low with yaw left and pitch down for two seconds, which starts a gyro calibration when stick
+        commands run. Returns whether the calibrating reason showed among the arming disable flags."""
+        payload = struct.pack("<8H", 1500, 1000, 1000, 1000, 1500, 1500, 1500, 1500)
+        for k in range(100):
+            sock.sendall(msp_frame(200, payload))
+            if k % 10 == 9:
+                sock.sendall(msp_frame(150))
+            time.sleep(0.02)
+        data = read_all(sock, 0.3)
+        started = False
+        i = data.find(b"$M>")
+        while 0 <= i and i + 6 <= len(data):
+            size, cmd = data[i + 3], data[i + 4]
+            body = data[i + 5:i + 5 + size]
+            if cmd == 150 and len(body) >= 21 and len(body) >= 21 + body[15]:
+                at = 16 + body[15]
+                started = started or bool(int.from_bytes(body[at + 1:at + 5], "little") & 0x1000)
+            i = data.find(b"$M>", i + 5 + size)
+        return started
+
+    def menu_by_sticks(sock):
+        """Throttle centred with yaw left and pitch up, then the sticks let go. Returns whether the OSD drew a
+        screen and whether it shows a menu after it."""
+        rc_stream(sock, [1500, 2000, 1500, 1000, 1500, 1500, 1500, 1500], 25)
+        rc_stream(sock, [1500, 1500, 1000, 1500, 1500, 1500, 1500, 1500], 60)
+        try:
+            with open(store + ".osd.txt") as f:
+                screen = f.read()
+        except OSError:
+            screen = ""
+        return screen != "", "-- QUICK --" in screen or "-- MAIN --" in screen
+
+    roll, pitch, throttle, yaw = channels[:4]
+    aux = channels[4:]
+    expected = bytes([axis(v) & 0xFF for v in (roll,)] + [-axis(pitch) & 0xFF]
+                     + [axis(v) & 0xFF for v in (aux[2], yaw, aux[0], throttle, aux[3], aux[1])]
+                     + [sum(1 << k for k in range(8) if axis(aux[4 + k]) > 0)]).hex()
+    replies = configure("feature RX_MSP", "set battery_meter = NONE", "set osd_displayport_device = MAX7456",
+                        "set vcd_video_system = PAL")
+    check("joystick checks have the MSP receiver, no voltage meter and an OSD",
+          "Enabled RX_MSP" in replies[0] and "battery_meter set to NONE" in replies[1]
+          and "osd_displayport_device set to MAX7456" in replies[2] and "vcd_video_system set to PAL" in replies[3],
+          repr(replies))
+    # The serial port alone: no report, and stick commands run with a client on the port.
+    proc, sock = start(image, store, {"ADAFLIGHT_HID_LOG": log})
+    try:
+        time.sleep(5.0)
+        usb = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+        rc_stream(sock, channels, 60)
+        started = stick_command(sock)
+        usb.close()
+        check("usb_hid_cdc off starts the serial USB device", logged()[:1] == ["serial"], repr(logged()[:1]))
+        check("a serial USB device sends no joystick report", reports() == [], repr(reports()[:2]))
+        check("a serial USB device with a host leaves stick commands on", started)
+    finally:
+        stop(proc)
+        sock.close()
+    replies = configure("set usb_hid_cdc = ON")
+    check("composite USB device set", "usb_hid_cdc set to ON" in replies[0], repr(replies))
+    proc, sock = start(image, store, {"ADAFLIGHT_HID_LOG": log})
+    try:
+        time.sleep(5.0)
+        rc_stream(sock, channels, 30)
+        check("usb_hid_cdc on starts the composite USB device", logged()[:1] == ["composite"], repr(logged()[:1]))
+        check("a composite USB device sends no report without a host on its port", reports() == [],
+              repr(reports()[:2]))
+        check("a composite USB device without a host leaves stick commands on", stick_command(sock))
+        time.sleep(3.0)
+        usb = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+        seen = rc_stream(sock, channels, 60)
+        sent = reports()
+        check("a composite USB device with a host sends a report at each receiver update",
+              len(seen) >= 3 and len(sent) >= 10, f"{len(seen)} {len(sent)}")
+        check("its joystick report has the receiver's channels as eight axes, pitch inverted, and eight buttons",
+              sent.count(expected) >= 10, f"{sorted(set(sent))[:4]} {expected}")
+        check("a board in use as a joystick takes no stick command", not stick_command(sock))
+        if built("Menus"):
+            check("a board in use as a joystick opens no menu by sticks", menu_by_sticks(sock) == (True, False))
+            usb.close()
+            time.sleep(1.0)
+            check("the stick gesture opens the menu once the USB host left", menu_by_sticks(sock) == (True, True))
+        else:
+            usb.close()
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -4784,6 +4913,7 @@ def main():
         if built("Mass_Storage"):
             mass_storage_checks(image, store, chip, work)
         rtc6705_checks(image, work)
+        joystick_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

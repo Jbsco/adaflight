@@ -93,6 +93,7 @@ with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.RunCam_Device;
 with Adaflight.RX_Task;
+with Adaflight.USB_Joystick;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Servo_Mixer;
@@ -2007,6 +2008,18 @@ package body Adaflight.STM32.Flight is
    function USB_Active return Boolean is
      ((USB_Detect and then Adaflight.STM32.GPIO.Is_High (USB_Detect_Pin)) or else Adaflight.STM32.USB.Configured);
 
+   --  The composite USB device as the stored configuration asks for it, and
+   --  whether the board may be in use as a joystick: that device with a host
+   --  on it, and no battery present or no voltage meter.
+   Composite_Type : constant := 1;
+
+   function Joystick_In_Use return Boolean is
+     (Adaflight.USB_Joystick.May_Be_Active
+        (Composite        => Config.Usb_Dev_Config.Type_Value = Composite_Type,
+         Connected        => Adaflight.STM32.USB.Configured,
+         Battery_Absent   => Adaflight.Battery."=" (Bat.Overall, Adaflight.Battery.Not_Present),
+         No_Voltage_Meter => Config.Battery_Config.Voltage_Meter_Source = 0));
+
    --  Whether a configurator talks MSP: a byte on the USB port's or UART1's
    --  MSP within the activity timeout.
    function Configurator_Active return Boolean is
@@ -2617,6 +2630,7 @@ package body Adaflight.STM32.Flight is
       Sensed.Deflection_Abs := Adaflight.STM32.Pilot.Deflections;
       Sensed.CMS_In_Menu := Adaflight.STM32.Menu.Open;
       Sensed.CLI_Mode := Session.Open;
+      Sensed.Joystick_Active := Joystick_In_Use;
       if Adaflight.STM32.Pilot.Disabled (Adaflight.Arming.Boot_Grace)
         and then Adaflight.STM32.Time.Millis >= Unsigned_32 (Config.System_Config.Power_On_Arming_Grace_Time) * 1_000
         and then Adaflight.STM32.DShot_Output.Protocol_Is_DShot
@@ -3366,6 +3380,20 @@ package body Adaflight.STM32.Flight is
       end case;
       Apply (Asked);
       Report_Pilot;
+      --  A composite device's joystick report from the receiver's channels,
+      --  after the arming status and while disarmed.
+      if Config.Usb_Dev_Config.Type_Value = Composite_Type
+        and then Adaflight.RX_Task.Sends_Joystick_Report (Step, Adaflight.STM32.Pilot.Armed)
+      then
+         declare
+            Data : Adaflight.USB_Joystick.Channel_Data;
+         begin
+            for I in Data'Range loop
+               Data (I) := Adaflight.STM32.Radio.Channel (I);
+            end loop;
+            Adaflight.STM32.USB.Send_Report (Adaflight.Bytes.Byte_Array (Adaflight.USB_Joystick.Report_Of (Data)));
+         end;
+      end if;
       declare
          Left_Step : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       begin
@@ -3584,6 +3612,7 @@ package body Adaflight.STM32.Flight is
       F.Armed := Adaflight.STM32.Pilot.Armed;
       F.Paralyzed := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Paralyze);
       F.Stick_Commands_Disabled := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Stick_Command_Disable);
+      F.Joystick_Active := Joystick_In_Use;
       F.Acc_Present := Gyro_Report.Acc_Found;
       F.Acc_Calibration_Complete := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       F.Acc_Calibrated := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
@@ -5323,7 +5352,9 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Mass_Storage_Mode.Run (Config, Time_Ms);
          end if;
       end;
-      Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
+      Adaflight.STM32.USB.Init
+        ("Adaflight (" & Adaflight.Board.Board_Name & ")",
+         Composite => Config.Usb_Dev_Config.Type_Value = Composite_Type);
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
       Ctx.Out_Views.Hardware.Built :=

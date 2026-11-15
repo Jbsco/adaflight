@@ -1,4 +1,6 @@
+with Ada.Environment_Variables;
 with Ada.Streams;
+with Ada.Text_IO;
 with GNAT.Sockets;
 package body Adaflight.STM32.USB is
    use type Ada.Streams.Stream_Element_Offset;
@@ -113,11 +115,47 @@ package body Adaflight.STM32.USB is
       end loop;
    end Listener;
 
-   procedure Init (Product : String) is
+   --  The file ADAFLIGHT_HID_LOG names gets the device kind at the start,
+   --  then each joystick report handed over while a client is connected.
+   procedure Log_Line (Text : String; Fresh : Boolean) is
+      Path : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_HID_LOG", "");
+      File : Ada.Text_IO.File_Type;
+   begin
+      if Path'Length = 0 then
+         return;
+      end if;
+      if Fresh then
+         Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Path);
+      else
+         Ada.Text_IO.Open (File, Ada.Text_IO.Append_File, Path);
+      end if;
+      Ada.Text_IO.Put_Line (File, Text);
+      Ada.Text_IO.Close (File);
+   exception
+      when others =>
+         null;
+   end Log_Line;
+
+   procedure Init (Product : String; Composite : Boolean := False) is
       pragma Unreferenced (Product);
    begin
+      Log_Line ((if Composite then "composite" else "serial"), Fresh => True);
       Listener.Start;
    end Init;
+
+   procedure Send_Report (Report : Byte_Array) is
+      Hex  : constant String := "0123456789abcdef";
+      Text : String (1 .. 2 * Report'Length);
+   begin
+      if not Line.Connected then
+         return;
+      end if;
+      for K in 0 .. Report'Length - 1 loop
+         Text (2 * K + 1) := Hex (Natural (Report (Report'First + K)) / 16 + 1);
+         Text (2 * K + 2) := Hex (Natural (Report (Report'First + K)) mod 16 + 1);
+      end loop;
+      Log_Line (Text, Fresh => False);
+   end Send_Report;
 
    --  The host's port has no D+ line, and its client stays connected.
    procedure Disconnect is null;
