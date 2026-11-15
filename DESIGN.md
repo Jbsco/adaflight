@@ -15093,3 +15093,29 @@ card model fails no block and is present or absent for a whole run.
 
 We measured an STM32F405 build with a flash chip and that mode: 735000 bytes of code, a start path of 38200 of
 40960 bytes of stack and 1064 bytes of main RAM free.
+
+## D757. RTC6705 video transmitter on boards (2026-11-14)
+
+D261 ported an RTC6705's control as lists of register writes, power changes and waits. No board unit ran
+those lists, so no board could drive one. This entry adds its pins.
+
+`STM32.RTC6705` starts a select pin, a power pin where a board has one, and either an SPI bus or a clock and a
+data pin for a software SPI. It follows Betaflight's order: power pin high first, select pin high before it is
+an output. A register write is 25 bits, lowest first. On a bus it goes as four bytes with their bits reversed.
+
+Betaflight's software SPI waits a millisecond after each clock edge, 51 ms a register write, and its power-up
+waits 350 ms, all inside its VTX task (F351). An oracle run measured those write times. Here a level lasts 10
+microseconds, and operations go through a queue. Each VTX task call runs those that are due, up to a wait
+that has not passed. A full queue runs its head at once, so no operation is lost.
+
+`STM32.VTX` picks an RTC6705 when its pins are there and no serial transmitter's port opened, as Betaflight
+does. Board files' RTC6705 pins and bus now reach a reset configuration through `Board_Info`, and `resource`
+and `vtx_spi_bus` change them.
+
+Host image has no RTC6705 model. Its GPIO and SPI bodies gain a log of chosen pins and one bus, and host smoke
+decodes register writes from it. It checks a start's power, wait and writes on pins and on a bus, an MSP
+write, pit mode on and off, a serial transmitter's precedence, and missing pins. A start writes its power
+register once before power, as D261's control passes leave it.
+
+We measured this unit's cost: 1092 bytes of code on an STM32F405, and ALIENFLIGHTNGF7_RX now has 3449 bytes of
+flash left. No board has run this unit.

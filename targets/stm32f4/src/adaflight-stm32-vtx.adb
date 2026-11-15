@@ -7,6 +7,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.RTC6705;
 with Adaflight.Tramp;
 with Adaflight.VTX_Debug;
 with Adaflight.STM32.Debug_Values;
@@ -27,6 +28,7 @@ package body Adaflight.STM32.VTX is
      (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56,
       USART.Soft1 => 30, USART.Soft2 => 31);
 
+   RTC6705_Code    : constant := 1;
    SmartAudio_Code : constant := 3;
    Tramp_Code      : constant := 4;
    MSP_Code        : constant := 5;
@@ -75,13 +77,16 @@ package body Adaflight.STM32.VTX is
             then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
    end Reload_Table;
 
-   --  The table, then SmartAudio's start and Tramp's on the configured port,
-   --  each opening the port for its kind, then the common start with the
-   --  device registered when its port opened.
+   --  The RTC6705's pins, the table, then SmartAudio's start and Tramp's on
+   --  the configured port, each opening the port for its kind, then the
+   --  common start with the device registered when its port opened. An
+   --  RTC6705 is the device when its pins are there and no port opened.
    procedure Init (C : in out Adaflight.Config_Groups.Configuration; Save : out Boolean) is
       Kind : Core.Device_Kind := Kind_Of (C.Vtx_Settings_Config.Vtx_Type);
       S    : Core.Settings := Adaflight.Config_Runtime.VTX_Settings_Of (C.Vtx_Settings_Config);
+      Pins : Boolean;
    begin
+      Adaflight.STM32.RTC6705.Init (C, Pins);
       Reload_Table (C);
       Open := False;
       MSP_CRSF := False;
@@ -139,9 +144,10 @@ package body Adaflight.STM32.VTX is
                null;
          end case;
       else
-         Kind := Core.No_Device;
+         Kind := (if Pins then Core.RTC6705_Device else Core.No_Device);
       end if;
-      Core.Init (V, S, T, Kind, Port_Opened => Open, Softserial => False, Save => Save);
+      Core.Init (V, S, T, Kind, Port_Opened => Open or else Kind = Core.RTC6705_Device, Softserial => False,
+                 Save => Save);
       if Save then
          Store (C, S);
       end if;
@@ -211,6 +217,12 @@ package body Adaflight.STM32.VTX is
       if V.Kind = Core.MSP_Device and then E.MSP_Send then
          MSP_Out := E.MSP_Frame;
          MSP_Due := True;
+      end if;
+      --  An RTC6705's operations, those a call outside this task left among
+      --  them, go to its pins here.
+      if V.Kind = Core.RTC6705_Device then
+         Adaflight.STM32.RTC6705.Submit (E.RTC_Ops);
+         Adaflight.STM32.RTC6705.Run (Now_Ms);
       end if;
       if S /= Before then
          Store (C, S);
@@ -332,14 +344,16 @@ package body Adaflight.STM32.VTX is
                      when Core.SmartAudio_Device => Adaflight.SmartAudio.Ready (V.SA),
                      when Core.Tramp_Device      => Adaflight.Tramp.Ready (V.TR),
                      when Core.MSP_Device        => Adaflight.VTX_MSP.Is_Ready (V.MD),
-                     when others                 => False);
+                     when Core.RTC6705_Device    => True,
+                     when Core.No_Device         => False);
       Type_Code :=
         (if not Present then Unknown_Code
          else (case V.Kind is
                   when Core.SmartAudio_Device => SmartAudio_Code,
                   when Core.Tramp_Device      => Tramp_Code,
                   when Core.MSP_Device        => MSP_Code,
-                  when others                 => Unknown_Code));
+                  when Core.RTC6705_Device    => RTC6705_Code,
+                  when Core.No_Device         => Unknown_Code));
    end Peripheral;
 
    procedure Power_Levels (Count : out Natural; Levels, Powers : out Adaflight.SmartAudio.Level_Values) is

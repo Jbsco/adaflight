@@ -255,6 +255,11 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
+      VTX_CS_Tag       => Adaflight.Board.VTX_CS_Tag,
+      VTX_Power_Tag    => Adaflight.Board.VTX_Power_Tag,
+      VTX_Clock_Tag    => Adaflight.Board.VTX_Clock_Tag,
+      VTX_Data_Tag     => Adaflight.Board.VTX_Data_Tag,
+      VTX_SPI_Device   => Adaflight.Board.VTX_SPI_Device,
       Baro_Bus_Type    => (if Adaflight.Board.Baro_SPI_Device /= 0 then 2
                            elsif Adaflight.Board.Baro_I2C_Device /= 0 then 1 else 0),
       Baro_I2C_Device  => (if Adaflight.Board.Baro_SPI_Device /= 0 then 0 else Adaflight.Board.Baro_I2C_Device),

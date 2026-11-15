@@ -21,6 +21,7 @@
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
 with Adaflight.Board;
+with Adaflight.Host_Pin_Log;
 with Adaflight.Host_Pins;
 with Adaflight.Host_Screen;
 with Adaflight.STM32.GPIO;
@@ -494,6 +495,7 @@ package body Adaflight.STM32.SPI is
 
    procedure Transfer (B : Bus; Tx : Byte_Array; Rx : out Byte_Array) is
    begin
+      Adaflight.Host_Pin_Log.Transfer (Bus'Pos (B) + 1, Tx);
       if B = SPI3 and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Flash_CS_Pin) then
          Flash_Transfer (Tx, Rx);
       elsif B = SPI3 then

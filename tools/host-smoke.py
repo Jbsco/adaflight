@@ -1820,6 +1820,205 @@ def card_storage_checks(image, store, chip, work):
         store_settings("sdcard_mode = SPI", "blackbox_device = SPIFLASH")
 
 
+def rtc6705_checks(image, work):
+    """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
+    of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
+    out of that log."""
+    store = os.path.join(work, "rtc6705-eeprom.bin")
+    log = os.path.join(work, "rtc6705-pins.txt")
+    select, clock, data, power = "C13", "C14", "C15", "B11"
+    logging = {"ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": ",".join((select, clock, data, power))}
+    low_power, full_power = 0x407D, 0x4FBD
+    order, selects = [], []
+    if os.path.exists(store):
+        os.remove(store)
+
+    def configure(*lines):
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            replies = [cli(sock, line) for line in lines]
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+            return replies
+        finally:
+            stop(proc)
+            sock.close()
+
+    def frequency(mhz):
+        """The two register writes of a frequency: the reference divider, then the steps of 40 kHz split by 64."""
+        steps = mhz * 1000 // 40
+        return [(0, 400), (1, (steps // 64) << 7 | steps % 64)]
+
+    def activity():
+        """The log so far as power changes (ms, on) and register writes (ms, address, value, bits). A software SPI
+        write is the data pin's level at each rise of the clock while the select pin is low, lowest bit first. A
+        bus write is four bytes, each sent highest bit first."""
+        try:
+            with open(log) as f:
+                lines = [line.split() for line in f.read().splitlines()]
+        except OSError:
+            lines = []
+        level = {select: 1, clock: 1, data: 1, power: 1}
+        powers, writes, bits, began, idle = [], [], [], 0, False
+        order.clear()
+        selects.clear()
+        for line in lines:
+            if len(line) == 4 and line[1] == "pin":
+                at, pin, value = int(line[0]), line[2], int(line[3])
+                level[pin] = value
+                if pin == power:
+                    powers.append((at, value == 0))
+                    order.append("on" if value == 0 else "off")
+                elif pin == select and value == 0:
+                    bits, began, idle = [], at, level[clock] == 0
+                elif pin == select and bits:
+                    word = sum(bit << k for k, bit in enumerate(bits))
+                    writes.append((began, word & 0xF, word >> 5, len(bits), word >> 4 & 1))
+                    order.append("write")
+                    selects.append(at - began < 50 and idle and level[clock] == 0)
+                    bits = []
+                elif pin == clock and value == 1 and level[select] == 0:
+                    bits.append(level[data])
+            elif len(line) == 4 and line[1] == "spi" and len(line[3]) == 8:
+                sent = bytes.fromhex(line[3])
+                word = sum(int(f"{b:08b}"[::-1], 2) << 8 * k for k, b in enumerate(sent))
+                writes.append((int(line[0]), word & 0xF, word >> 5 & 0xFFFFF, 32 if word >> 25 == 0 else 0,
+                               word >> 4 & 1))
+                order.append("write")
+                selects.append(level[select] == 0)
+        return powers, writes
+
+    def registers(writes):
+        return [(address, value) for _, address, value, _, _ in writes]
+
+    def started(name):
+        """A start's activity: the power register written once before the transmitter has power, as the control
+        layer's first pass leaves it, then power, a wait of 350 ms or more, and the stored power and frequency."""
+        powers, writes = activity()
+        waited = writes[1][0] - powers[0][0] if len(writes) > 1 and powers else -1
+        check(f"{name} gets power once after a start, between two writes of its power register",
+              order[:3] == ["write", "on", "write"] and order.count("on") == 1 and "off" not in order, repr(order))
+        check(f"{name}'s writes after its power come 350 ms or more later", 350 <= waited < 1500,
+              f"{waited} {powers} {writes[:2]}")
+        check(f"{name}'s writes at a start are its power register twice, then its frequency registers",
+              registers(writes) == [(7, low_power)] * 2 + frequency(5658), repr(registers(writes)))
+        check(f"{name}'s select pin is low at each write and for no longer, with a clock that rests low",
+              len(selects) == len(writes) and all(selects), repr(selects))
+        return writes
+
+    # Bands that are not from a factory reach a transmitter as frequencies, the one thing an RTC6705 takes.
+    table = ("vtxtable bands 5", "vtxtable channels 8",
+             "vtxtable band 1 BOSCAM_A A CUSTOM 5865 5845 5825 5805 5785 5765 5745 5725",
+             "vtxtable band 2 BOSCAM_B B CUSTOM 5733 5752 5771 5790 5809 5828 5847 5866",
+             "vtxtable band 3 BOSCAM_E E CUSTOM 5705 5685 5665 5645 5885 5905 5925 5945",
+             "vtxtable band 4 FATSHARK F CUSTOM 5740 5760 5780 5800 5820 5840 5860 5880",
+             "vtxtable band 5 RACEBAND R CUSTOM 5658 5695 5732 5769 5806 5843 5880 5917",
+             "vtxtable powerlevels 3", "vtxtable powervalues 1 2 3", "vtxtable powerlabels 25 200 500")
+    replies = configure(f"resource VTX_CS 1 {select}", f"resource VTX_CLK 1 {clock}", f"resource VTX_DATA 1 {data}",
+                        f"resource VTX_POWER 1 {power}", *table)
+    check("RTC6705 pins are set as resources", all(f"Resource is set to {pin}" in text for pin, text
+                                                    in zip((select, clock, data, power), replies)), repr(replies[:4]))
+    configure("set vtx_band = 5", "set vtx_channel = 1", "set vtx_power = 1")
+    # A start: power on, the boot wait without a stop of the task loop, then the stored power and frequency.
+    proc, sock = start(image, store, logging)
+    try:
+        time.sleep(4.0)
+        writes = started("RTC6705")
+        check("each RTC6705 write has 25 bits with its write bit set",
+              bool(writes) and all(count == 25 and flag == 1 for _, _, _, count, flag in writes), repr(writes))
+        config = msp(sock, 88)
+        check("MSP VTX config names a ready RTC6705 on its stored channel",
+              config is not None and len(config) >= 8 and config[0] == 1 and config[1:3] == bytes([5, 1])
+              and config[5:7] == (5658).to_bytes(2, "little") and config[7] == 1, repr(config))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        text = cli(sock, "tasks", 1.5)
+        row = [line.split(")")[-1].split() for line in text.splitlines() if "VTXCTRL" in line]
+        longest = int(row[0][1]) if row and len(row[0]) > 1 and row[0][1].isdigit() else -1
+        check("VTX task takes no boot wait's time", 0 <= longest < 100_000, f"{longest} {row}")
+        cli(sock, "exit", 1.0)
+    finally:
+        stop(proc)
+        sock.close()
+    # A channel and a power from an MSP write while the image runs, then pit mode on and off.
+    if os.path.exists(log):
+        os.remove(log)
+    proc, sock = start(image, store, logging)
+    try:
+        time.sleep(4.0)
+        _, start_writes = activity()
+        ack = msp(sock, 89, (1).to_bytes(2, "little") + bytes([3, 0]))
+        found, seen = until(lambda: registers(activity()[1])[len(start_writes):],
+                            lambda new: len(new) >= 3, wait=5.0)
+        check("an MSP write moves an RTC6705 to its channel and power",
+              ack == b"" and sorted(seen) == sorted([(7, full_power)] + frequency(5845)), f"{ack!r} {seen}")
+        count = len(activity()[1])
+        msp(sock, 89, (1).to_bytes(2, "little") + bytes([3, 1]))
+        found, seen = until(lambda: activity()[0], lambda p: [on for _, on in p] == [True, False], wait=5.0)
+        check("pit mode takes an RTC6705's power", found and len(activity()[1]) == count, f"{seen} {count}")
+        msp(sock, 89, (1).to_bytes(2, "little") + bytes([3, 0]))
+        found, seen = until(lambda: activity(), lambda a: len(a[1]) >= count + 3, wait=5.0)
+        powers, writes = activity()
+        waited = writes[count][0] - powers[-1][0] if found and powers else -1
+        check("leaving pit mode powers an RTC6705, waits and writes its power and frequency",
+              found and [on for _, on in powers] == [True, False, True] and 350 <= waited < 1500
+              and registers(writes[count:]) == [(7, full_power)] + frequency(5845),
+              f"{powers} {waited} {registers(writes[count:])}")
+    finally:
+        stop(proc)
+        sock.close()
+    # A serial transmitter that is configured takes the RTC6705's place, and its power stays off.
+    configure("set vtx_uart = UART6", "set vtx_type = SMARTAUDIO")
+    if os.path.exists(log):
+        os.remove(log)
+    proc, sock = start(image, store, logging)
+    try:
+        time.sleep(4.0)
+        config = msp(sock, 88)
+        powers, writes = activity()
+        check("a configured serial transmitter takes an RTC6705's place",
+              config is not None and len(config) >= 1 and config[0] != 1 and powers == [] and writes == [],
+              f"{config!r} {powers} {writes}")
+    finally:
+        stop(proc)
+        sock.close()
+    # The same transmitter on an SPI bus in place of its clock and data pins.
+    configure("set vtx_type = NONE", "set vtx_uart = NONE", "set vtx_spi_bus = 1", "set vtx_band = 5",
+              "set vtx_channel = 1", "set vtx_power = 1")
+    if os.path.exists(log):
+        os.remove(log)
+    proc, sock = start(image, store, dict(logging, ADAFLIGHT_PIN_LOG_SPI="1"))
+    try:
+        time.sleep(4.0)
+        writes = started("an RTC6705 on an SPI bus")
+        check("each bus write has its 25 bits in four bytes with its write bit set",
+              bool(writes) and all(count == 32 and flag == 1 for _, _, _, count, flag in writes), repr(writes))
+    finally:
+        stop(proc)
+        sock.close()
+    # Without a select pin, or with neither a bus nor both software SPI pins, there is no transmitter.
+    for lines, name in ((("resource VTX_CS 1 NONE",), "a select pin"),
+                        ((f"resource VTX_CS 1 {select}", "set vtx_spi_bus = 0", "resource VTX_CLK 1 NONE"),
+                         "a bus or a clock pin")):
+        configure(*lines)
+        if os.path.exists(log):
+            os.remove(log)
+        proc, sock = start(image, store, logging)
+        try:
+            time.sleep(3.0)
+            config = msp(sock, 88)
+            powers, writes = activity()
+            check(f"an RTC6705 without {name} is no transmitter",
+                  config is not None and len(config) >= 1 and config[0] == 0xFF and writes == []
+                  and all(not on for _, on in powers), f"{config!r} {powers} {writes}")
+        finally:
+            stop(proc)
+            sock.close()
+
+
 def stop(proc):
     """The image killed, and its exit waited for, so the next start cannot reach its ports."""
     if proc.poll() is None:
@@ -4573,6 +4772,7 @@ def main():
         check("flash image names the firmware", b"H Firmware type:Adaflight\n" in head, repr(head[:200]))
         if built("Mass_Storage"):
             mass_storage_checks(image, store, chip, work)
+        rtc6705_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

@@ -115,6 +115,9 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Camera_Control_Config.Io_Tag := H.Camera_Control_Tag;
       C.Adc_Config.Dmaopt := H.ADC_DMA_Options;
       C.Esc_Serial_Config.Io_Tag := H.ESC_Serial_Tag;
+      C.Vtx_Io_Config :=
+        (Cs_Tag => H.VTX_CS_Tag, Power_Tag => H.VTX_Power_Tag, Data_Tag => H.VTX_Data_Tag,
+         Clock_Tag => H.VTX_Clock_Tag, Spi_Device => H.VTX_SPI_Device);
       C.Rx_Spi_Config.Rx_Spi_Protocol := H.RX_SPI_Protocol;
       C.Rx_Spi_Config.Csn_Tag := H.RX_SPI_CS_Tag;
       C.Rx_Spi_Config.Spibus := H.RX_SPI_Bus;
