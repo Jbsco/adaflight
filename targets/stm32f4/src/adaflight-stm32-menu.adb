@@ -242,7 +242,7 @@ package body Adaflight.STM32.Menu is
                  Paralyzed               => F.Paralyzed,
                  Stick_Commands_Disabled => F.Stick_Commands_Disabled,
                  Device_In_Menu          => False,
-                 Joystick_Active         => False);
+                 Joystick_Active         => F.Joystick_Active);
       Nav.Update
         (State, T, Keys, Sliders (C), Sticks, Reboot_Flag, Now_Us, Now_Ms,
          (if State.Port in Adaflight.Menu.Display_Index and then Device_Of (State.Port) /= OSD

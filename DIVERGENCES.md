@@ -230,3 +230,4 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 - **[Mass storage card waits](docs/upstream/msc-sd-card-waits-without-end.md)**: A mass storage wait on an SD card ends once that card is absent or failed, and its command fails (D756). The reference waits without end, in its USB interrupt on F4 boards (F349).
 - **[Mass storage card errors](docs/upstream/msc-sd-card-errors-pass.md)**: A block that an SD card fails to read or write fails its mass storage command (D756). The reference reports success (F350).
 - **Mass storage card names**: An SD card's inquiry names vendor ADAFLT and product SD Card (D756). The reference's inquiry has ST's template text.
+- **[Joystick reports](docs/upstream/usb-joystick-report-plain-device.md)**: A joystick report goes out from a composite USB device alone (D760). The reference also transmits one on endpoint 0x83 of a plain serial device on F4 boards (F352).

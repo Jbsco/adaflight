@@ -906,7 +906,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       X : Action := (Kind => Transmit, Address => Report_Address, Length => Report_Length, others => <>);
    begin
       Clear (A);
-      if D.Status = Configured then
+      if D.Composite and then D.Status = Configured then
          X.Count := Report_Length;
          for K in 0 .. Report_Length - 1 loop
             X.Data (K) := Report (Report'First + K);

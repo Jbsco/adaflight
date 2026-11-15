@@ -43602,6 +43602,7 @@ begin
    Run (Dir & "/bbinfo.csv", "bbinfo");
    Run (Dir & "/usbvcp.csv", "usbvcp");
    Run (Dir & "/usbcomp.csv", "usbvcp");
+   Run (Dir & "/usbplain.csv", "usbvcp");
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
