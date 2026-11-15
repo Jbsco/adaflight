@@ -15195,3 +15195,16 @@ gesture opens no menu. Both work again once that client leaves or with a serial 
 Smoke leaves out two inputs of this wiring: a present battery with a voltage meter, since a host image has
 no battery input, and an armed board. No board has run a composite device. SPARK proves `USB_VCP` free of
 run-time errors with this change.
+
+## D761. Attitude task rate in level modes (2026-11-15)
+
+The attitude task runs fast while angle, horizon, altitude hold or position hold is on, and at 100 Hz
+otherwise. D279's modes pass reports that as one flag among its outputs.
+
+A board applied that flag after every step of its receiver task. Steps other than its modes step leave
+that flag off, so each update step set that task back to 100 Hz a moment after its modes step had set it
+fast. A level mode ran its attitude estimate at 100 Hz as a result. Read on a host image with angle mode
+on, `tasks` showed 100 Hz.
+
+A board now sets that rate in its modes step alone. Host smoke turns angle mode on with a switch over an
+MSP receiver and reads that task's rate from `tasks`, fast with it on and slow with it off.

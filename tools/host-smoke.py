@@ -1949,6 +1949,45 @@ def joystick_checks(image, work):
         sock.close()
 
 
+def attitude_rate_checks(image, work):
+    """The attitude task's rate: fast while the angle switch has the level mode on, slow with it off. The receiver
+    is the MSP one, over a configuration store of its own."""
+    store = os.path.join(work, "attitude-rate-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature RX_MSP", "aux 0 1 1 1700 2100 0 0")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("attitude rate checks have the MSP receiver and angle mode on AUX2",
+          "Enabled RX_MSP" in replies[0] and "aux 0 1 1 1700 2100 0 0" in replies[1], repr(replies))
+    for switch, name, low, high in ((1800, "attitude task runs fast with angle mode on", 400, 600),
+                                    (1000, "attitude task runs slow with angle mode off", 80, 120)):
+        proc, sock = start(image, store)
+        try:
+            time.sleep(5.0)
+            for k in range(4):
+                rc_stream(sock, [1500, 1500, 1000, 1500, 1000, switch, 1500, 1500], 50)
+            status = msp(sock, 150)
+            angle = status is not None and len(status) >= 10 and bool(status[6] & 2)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "tasks", wait=1.5)
+            rate = re.search(r"ATTITUDE\)\s+(\d+)", text)
+            check(name, rate is not None and low <= int(rate.group(1)) <= high and angle == (switch == 1800),
+                  repr((rate and rate.group(0), angle)))
+        finally:
+            stop(proc)
+            sock.close()
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -4914,6 +4953,7 @@ def main():
             mass_storage_checks(image, store, chip, work)
         rtc6705_checks(image, work)
         joystick_checks(image, work)
+        attitude_rate_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
