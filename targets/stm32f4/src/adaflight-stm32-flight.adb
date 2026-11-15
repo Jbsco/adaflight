@@ -2861,11 +2861,6 @@ package body Adaflight.STM32.Flight is
       if Step.Start_Failsafe_Monitoring then
          Adaflight.STM32.Radio.Start_Failsafe_Monitoring;
       end if;
-      if Step.Attitude_Fast then
-         Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
-      else
-         Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
-      end if;
       if Adaflight.Arming."/=" (Step.Telemetry_Ports, Adaflight.Arming.No_Port_Change) then
          Check_Telemetry;
       end if;
@@ -3364,6 +3359,11 @@ package body Adaflight.STM32.Flight is
                Run_Plan_Modes (Channels, Aux, Before, Delta_Us, Asked);
             else
                Adaflight.STM32.Pilot.Modes_Pass (Sense (Channels), Channels, Aux, Before, Delta_Us, Asked);
+            end if;
+            if Asked.Attitude_Fast then
+               Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
+            else
+               Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
             end if;
             if Asked.Run_Adjustments then
                Run_Adjustments (Aux);
