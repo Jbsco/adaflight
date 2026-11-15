@@ -15322,3 +15322,18 @@ An oracle build calls Betaflight's command over a stand-in volume, with drawn co
 payload lengths and rooms. Every read's address and count and every reply byte replays exactly. That build
 gives equal output under address and undefined behaviour sanitizers with their shift check off, which
 stops at a signed shift in Betaflight's 32-bit stream read (F353). No board answers this command yet.
+
+## D768. MSP flash read on boards (2026-11-15)
+
+A board with a flash chip now answers MSP's flash read with D767's reply. It takes that command ahead of
+its MSP processor, builds the reply in its reply buffer and passes each read to its flash chip unit. A
+build without a flash chip leaves that command to its processor, which answers an error.
+
+A board's reply buffer has 512 bytes where Betaflight's has 4112, so a read gives 496 bytes at most where
+Betaflight gives 4096. F405's memory has no room for a larger buffer. The protocol allows a shorter read,
+and a configurator asks for its next address from each reply's count. A coded reply covers whole 256-byte
+reads that fit 496 coded bytes, which is one such read for a log's text header and more for flight data.
+
+Host smoke reads a chip image that has a flight log: a plain read, a read cut to its reply's room, a legacy
+read, and reads at and past its volume's end. It also reads that log back in coded replies and decodes them
+with `Huffman_Table`'s codes. Every byte matches that image. No board has run this.

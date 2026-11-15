@@ -152,6 +152,7 @@ with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
 with Adaflight.Autopilot_Debug;
+with Adaflight.MSP_Flash_Read;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.Receiver_Debug;
 with Adaflight.SRXL_Telemetry;
@@ -1489,7 +1490,31 @@ package body Adaflight.STM32.Flight is
       Ctx.Control.Source := Source;
       Ctx.Control.MSC_Ready := Adaflight.STM32.Mass_Storage_Mode.Ready (Config);
       Ctx.Three_D := (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0;
-      MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
+      if Command = MSP.Dataflash_Read_Command and then Adaflight.STM32.Flash_Chip.Summary.Built then
+         --  The flash read's reply, built in the reply buffer from reads of
+         --  the flash chip.
+         declare
+            package FR renames Adaflight.MSP_Flash_Read;
+            S      : FR.State;
+            Length : Natural;
+         begin
+            FR.Start (S, FR.Parse (Request), Reply'Length, Adaflight.STM32.Flash_Chip.Summary.Size, Reply);
+            while FR.Next_Count (S) > 0 loop
+               declare
+                  Data : Adaflight.Bytes.Byte_Array (0 .. FR.Next_Count (S) - 1);
+               begin
+                  Adaflight.STM32.Flash_Chip.Read (FR.Next_Address (S), Data);
+                  FR.Feed (S, Data, Reply);
+               end;
+            end loop;
+            FR.Finish (S, Reply, Length);
+            Adaflight.Stream_Buffers.Advance (Stream, Length);
+            Result := MSP.Ack;
+            Effects := (others => <>);
+         end;
+      else
+         MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
+      end if;
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
       end if;

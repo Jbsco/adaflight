@@ -2286,6 +2286,86 @@ def activity_led_checks(image, work):
             uart4.close()
 
 
+def huffman_decode(coded, count):
+    """The first bytes of a Huffman coded flash read, by the code table of the core's source."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core", "src", "adaflight-huffman_table.adb")
+    with open(path) as f:
+        entries = re.findall(r"(\d+) => \(Len =>\s*(\d+), Code => 16#([0-9A-F]+)#\)", f.read())
+    codes = {(int(length), int(code, 16) >> (12 - int(length))): int(symbol) for symbol, length, code in entries}
+    out, value, length = [], 0, 0
+    for byte in coded:
+        for bit in range(7, -1, -1):
+            value, length = value << 1 | byte >> bit & 1, length + 1
+            if (length, value) in codes:
+                out.append(codes[(length, value)])
+                value, length = 0, 0
+                if len(out) == count:
+                    return bytes(out)
+    return bytes(out)
+
+
+def flash_read_checks(image, store, chip):
+    """MSP flash reads of a chip that has a flight log, against the chip's image: a plain read, one cut to the
+    reply's room, a legacy read, reads at and past the volume's end, and the log read back in Huffman coded
+    replies."""
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+    replies = {}
+    pieces = []
+    try:
+        time.sleep(2.5)
+        summary = msp(sock, 70)
+        size = int.from_bytes(summary[5:9], "little") if summary and len(summary) == 13 else 0
+        used = int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else 0
+        replies["plain"] = msp(sock, 71, struct.pack("<IH", 0, 300))
+        replies["cut"] = msp(sock, 71, struct.pack("<IHB", 100, 4096, 0))
+        replies["legacy"] = msp(sock, 71, struct.pack("<I", 16))
+        replies["end"] = msp(sock, 71, struct.pack("<IH", max(size, 10) - 10, 100))
+        replies["past"] = msp(sock, 71, struct.pack("<IHB", size, 100, 1))
+        at = 0
+        while at < min(used, 6000) and len(pieces) < 60:
+            reply = msp(sock, 71, struct.pack("<IHB", at, 4096, 1))
+            if reply is None or len(reply) < 9 or int.from_bytes(reply[7:9], "little") == 0:
+                break
+            pieces.append((at, reply))
+            at += int.from_bytes(reply[7:9], "little")
+    finally:
+        stop(proc)
+        sock.close()
+    with open(chip, "rb") as f:
+        content = f.read()
+
+    def plain(reply, address):
+        """A plain reply's bytes when its address, count and method are in order."""
+        if reply is None or len(reply) < 7 or int.from_bytes(reply[:4], "little") != address or reply[6] != 0:
+            return None
+        count = int.from_bytes(reply[4:6], "little")
+        return reply[7:] if len(reply) == 7 + count else None
+
+    got = plain(replies["plain"], 0)
+    check("MSP flash read gives the chip's bytes", size == len(content) and got == content[:300],
+          repr((size, got[:20] if got else replies["plain"])))
+    got = plain(replies["cut"], 100)
+    check("MSP flash read cuts a read to its reply's room", got == content[100:596], repr(len(got) if got else got))
+    reply = replies["legacy"]
+    check("MSP flash read answers the short form with 128 bytes",
+          reply is not None and reply == struct.pack("<I", 16) + content[16:144], repr(reply[:12] if reply else reply))
+    got = plain(replies["end"], size - 10)
+    check("MSP flash read stops at the volume's end", size >= 10 and got == content[size - 10:], repr(got))
+    reply = replies["past"]
+    check("MSP flash read past the volume's end is an empty coded reply",
+          reply == struct.pack("<IHBH", size, 2, 1, 0), repr(reply))
+    whole = b""
+    in_order = True
+    for at, reply in pieces:
+        coded = int.from_bytes(reply[7:9], "little")
+        in_order = (in_order and int.from_bytes(reply[:4], "little") == at and reply[6] == 1
+                    and len(reply) == 7 + int.from_bytes(reply[4:6], "little"))
+        whole += huffman_decode(reply[9:], coded)
+    check("MSP flash reads with compression give the log back",
+          in_order and len(whole) >= min(used, 6000) > 0 and whole == content[:len(whole)],
+          repr((in_order, used, len(whole), len(pieces))))
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5255,6 +5335,7 @@ def main():
         status_led_checks(image, work)
         boot_beep_checks(image, work)
         activity_led_checks(image, work)
+        flash_read_checks(image, store, chip)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

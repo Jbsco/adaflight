@@ -231,3 +231,4 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 - **[Mass storage card errors](docs/upstream/msc-sd-card-errors-pass.md)**: A block that an SD card fails to read or write fails its mass storage command (D756). The reference reports success (F350).
 - **Mass storage card names**: An SD card's inquiry names vendor ADAFLT and product SD Card (D756). The reference's inquiry has ST's template text.
 - **[Joystick reports](docs/upstream/usb-joystick-report-plain-device.md)**: A joystick report goes out from a composite USB device alone (D760). The reference also transmits one on endpoint 0x83 of a plain serial device on F4 boards (F352).
+- **MSP flash read room**: An MSP flash read gives 496 bytes at most, since a board's reply buffer has 512 bytes (D768). The reference's buffer has 4112 and gives 4096.
