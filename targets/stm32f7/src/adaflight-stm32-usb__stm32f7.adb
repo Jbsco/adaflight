@@ -313,6 +313,12 @@ package body Adaflight.STM32.USB is
                      OUT_EP (0).TSIZ := Shift_Left (3, 29) or Shift_Left (1, 19) or 24;
                   when U.Enter_Test_Mode =>
                      DCTL := (DCTL and not TCTL) or Shift_Left (Unsigned_32 (X.Address and 7), 4);
+                  when U.Flush_Endpoint =>
+                     if In_Dir then
+                        Flush_Tx (Unsigned_32 (N));
+                     else
+                        Flush_Rx;
+                     end if;
                end case;
             end;
          end loop;

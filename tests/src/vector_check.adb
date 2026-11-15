@@ -4795,9 +4795,15 @@ procedure Vector_Check is
    USB_Dev : Adaflight.USB_VCP.Device;
 
    --  One event of a USB session: the event through the device, then its
-   --  endpoint operations and the state after it against the reference's.
+   --  endpoint operations and the state after it against the reference's. A
+   --  line tagged usbc is the composite device's: it ends with the joystick
+   --  interface's protocol, idle rate and alternate setting, and its two
+   --  descriptor class fields are those of the reference's plain descriptor,
+   --  which a composite device never sends, so they are not compared.
    procedure Check_USB_VCP_Line is
       package U renames Adaflight.USB_VCP;
+      Composite : constant Boolean := Str (1) = "usbc";
+      Extra  : constant Natural := (if Composite then 3 else 0);
       Event  : constant String := Str (4);
       Arg    : constant Integer_64 := Int (5);
       A      : U.Actions;
@@ -4824,8 +4830,10 @@ procedure Vector_Check is
             for K in T'Range loop
                T (K) := Character'Val (B (B'First + K - 1));
             end loop;
-            U.Init (USB_Dev, T);
+            U.Init (USB_Dev, T, Composite => Composite);
          end;
+      elsif Event = "report" then
+         U.Send_Report (USB_Dev, Hex_Bytes (6), A);
       elsif Event = "reset" then
          U.Reset (USB_Dev, A);
       elsif Event = "setup" then
@@ -4882,7 +4890,7 @@ procedure Vector_Check is
          end if;
          P := P + 6;
       end loop;
-      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 33));
+      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 33 + Extra));
       Record_Int ("usb.status", Int (P), U.Device_Status'Pos (USB_Dev.Status) + 1);
       Record_Int ("usb.stage", Int (P + 1), U.Control_Stage'Pos (USB_Dev.Stage));
       Record_Int ("usb.device_address", Int (P + 2), Integer_64 (USB_Dev.Address));
@@ -4900,8 +4908,10 @@ procedure Vector_Check is
       Record_Int ("usb.from_host_in", Int (P + 14), Integer_64 (USB_Dev.From_Host_In));
       Record_Int ("usb.from_host_out", Int (P + 15), Integer_64 (USB_Dev.From_Host_Out));
       Record_Int ("usb.configured", Int (P + 16), Boolean'Pos (U.Configured (USB_Dev)));
-      Record_Int ("usb.descriptor_class", Int (P + 17), Integer_64 (USB_Dev.Descriptor (4)));
-      Record_Int ("usb.descriptor_subclass", Int (P + 18), Integer_64 (USB_Dev.Descriptor (5)));
+      if not Composite then
+         Record_Int ("usb.descriptor_class", Int (P + 17), Integer_64 (USB_Dev.Descriptor (4)));
+         Record_Int ("usb.descriptor_subclass", Int (P + 18), Integer_64 (USB_Dev.Descriptor (5)));
+      end if;
       for E in U.Endpoint_Number loop
          Record_Int ("usb.in_halted", Int (P + 19 + E), Boolean'Pos (USB_Dev.In_EP (E).Halted));
          Record_Int ("usb.out_halted", Int (P + 23 + E), Boolean'Pos (USB_Dev.Out_EP (E).Halted));
@@ -4913,6 +4923,11 @@ procedure Vector_Check is
       Record_Int ("usb.command_code", Int (P + 31), Integer_64 (USB_Dev.Command_Code));
       Record_Int ("usb.control_line", Int (P + 32), Integer_64 (USB_Dev.Control_Line));
       Record_Int ("usb.control_count", Int (P + 33), Integer_64 (USB_Dev.Control_Count));
+      if Composite then
+         Record_Int ("usbc.hid_protocol", Int (P + 34), Integer_64 (USB_Dev.HID_Protocol));
+         Record_Int ("usbc.hid_idle", Int (P + 35), Integer_64 (USB_Dev.HID_Idle));
+         Record_Int ("usbc.hid_alt_setting", Int (P + 36), Integer_64 (USB_Dev.HID_Alt_Setting));
+      end if;
    end Check_USB_VCP_Line;
 
    procedure Check_Blackbox_Info_Line is
@@ -43586,6 +43601,7 @@ begin
    Run (Dir & "/bbhdr.csv", "bbhdr");
    Run (Dir & "/bbinfo.csv", "bbinfo");
    Run (Dir & "/usbvcp.csv", "usbvcp");
+   Run (Dir & "/usbcomp.csv", "usbvcp");
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
