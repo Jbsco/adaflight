@@ -1992,7 +1992,8 @@ def status_led_checks(image, work):
     """The status LEDs in the host's pin log, each lit by a low level. The first is on the board's pin and the
     other two on pins the resource command gives them. A start lights the third until the boot flashes, which
     toggle the first two. After it the first flashes while a reason keeps arming off, is off once arming is allowed and
-    on while armed, and the second is on in angle mode. The receiver is the MSP one, over a store of its own."""
+    on while armed, and the second is on in angle mode. A beep lights the first for its length. The receiver is
+    the MSP one, over a store of its own."""
     store = os.path.join(work, "status-led-eeprom.bin")
     log = os.path.join(work, "status-led-pins.txt")
     first, second, third = "B05", "C14", "C15"
@@ -2046,20 +2047,22 @@ def status_led_checks(image, work):
         sock.sendall(b"#")
         read_all(sock, 0.8)
         replies = [cli(sock, line) for line in ("feature RX_MSP", f"resource LED 2 {second}", f"resource LED 3 {third}",
-                                                "aux 0 0 0 1700 2100 0 0", "aux 1 1 1 1700 2100 0 0")]
+                                                "aux 0 0 0 1700 2100 0 0", "aux 1 1 1 1700 2100 0 0",
+                                                "aux 2 13 2 1700 2100 0 0")]
         cli(sock, "save", wait=2.0)
         proc.wait(timeout=10)
     finally:
         stop(proc)
         sock.close()
-    check("status LED checks have the MSP receiver, pins for the second and third LED, and arm and angle switches",
+    check("status LED checks have the MSP receiver, pins for the second and third LED, and arm, angle and beeper "
+          "switches",
           "Enabled RX_MSP" in replies[0] and f"Resource is set to {second}" in replies[1]
           and f"Resource is set to {third}" in replies[2] and "aux 0 0 0 1700" in replies[3]
-          and "aux 1 1 1 1700" in replies[4], repr(replies))
+          and "aux 1 1 1 1700" in replies[4] and "aux 2 13 2 1700" in replies[5], repr(replies))
     proc, sock = start(image, store,
                        {"ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": ",".join((first, second, third))})
     try:
-        time.sleep(6.0)
+        time.sleep(8.0)
         one, two, three = changes(first), changes(second), changes(third)
         check("a start lights the third LED until the boot flashes", [v for _, v in three] == [0, 1], repr(three))
         check("boot flashes toggle the second LED ten times from on and leave it off at their end",
@@ -2068,9 +2071,10 @@ def status_led_checks(image, work):
         gaps = [b[0] - a[0] for a, b in zip(one[:10], one[1:10])]
         check("boot flashes toggle the first LED ten times from off, 50 ms apart",
               [v for _, v in one[:10]] == [0, 1] * 5 and all(40 <= g <= 70 for g in gaps), repr(one[:10]))
+        # The start's beeps light that LED too, so the flashes are read once those have ended.
         flashes = [b[0] - a[0] for a, b in zip(one[10:], one[11:])]
         check("the first LED flashes each 500 ms while a reason keeps arming off",
-              len(flashes) >= 4 and all(450 <= g <= 700 for g in flashes), repr(flashes))
+              len(flashes) >= 4 and all(450 <= g <= 700 for g in flashes[-4:]), repr(flashes))
         # The accelerometer calibrated, which arming on this store waits for, then sticks at rest. A switch goes
         # on inside a stream: one that is on when the link comes back holds arming off.
         rest = [1500, 1500, 1000, 1500, 1000, 1000, 1500, 1500]
@@ -2081,6 +2085,15 @@ def status_led_checks(image, work):
         armed, angle, late, levels = stream(sock, (rest, 200))
         check("the first LED is off once arming is allowed",
               armed is False and late[0] == [] and levels[0] == 1, repr((armed, late[0], levels)))
+        # The beeper switch repeats a short beep, 100 ms on and 100 ms off.
+        beeper_on = [1500, 1500, 1000, 1500, 1000, 1000, 1800, 1500]
+        armed, angle, late, levels = stream(sock, (rest, 50), (beeper_on, 150))
+        gaps = [b[0] - a[0] for a, b in zip(late[0], late[0][1:])]
+        check("each beep lights the first LED for its length",
+              len(gaps) >= 8 and all(80 <= g <= 140 for g in gaps)
+              and all(a[1] != b[1] for a, b in zip(late[0], late[0][1:])), repr(late[0][:12]))
+        armed, angle, late, levels = stream(sock, (beeper_on, 25), (rest, 100))
+        check("the first LED is off after the beeps", late[0] == [] and levels[0] == 1, repr((late[0], levels)))
         armed, angle, late, levels = stream(sock, (rest, 50), (angle_on, 200))
         check("angle mode lights the second LED and leaves it on",
               angle is True and late[1] == [] and levels[1] == 0, repr((angle, late[1][:4], levels)))

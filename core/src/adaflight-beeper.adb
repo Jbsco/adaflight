@@ -2,6 +2,7 @@ with Adaflight.Clock;
 
 package body Adaflight.Beeper with SPARK_Mode is
    use type Interfaces.Integer_32;
+   use type Interfaces.Unsigned_8;
 
    Confirmation_On  : constant := 2;
    Confirmation_Gap : constant := 20;
@@ -77,6 +78,7 @@ package body Adaflight.Beeper with SPARK_Mode is
    begin
       S.Is_On := False;
       S.Warning_Led := False;
+      S.Warning_Refreshes := S.Warning_Refreshes + 1;
       S.Current := Silence;
       S.Pos := 0;
       S.Next_Toggle_Us := 0;
@@ -285,9 +287,11 @@ package body Adaflight.Beeper with SPARK_Mode is
                Visual := True;
             end if;
             S.Warning_Led := True;
+            S.Warning_Refreshes := S.Warning_Refreshes + 1;
          when Off =>
             S.Is_On := False;
             S.Warning_Led := False;
+            S.Warning_Refreshes := S.Warning_Refreshes + 1;
          when Done | Error =>
             Silence_Beeper (S);
       end case;

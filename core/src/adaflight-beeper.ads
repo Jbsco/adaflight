@@ -76,6 +76,9 @@ package Adaflight.Beeper with SPARK_Mode is
       Current        : Mode := Silence;
       Multi          : Sequence := (others => 0);
       Warning_Led    : Boolean := False;
+      --  A count of the warning LED's refreshes, which wraps: each beep's
+      --  start and end and each silence sets that LED and refreshes it.
+      Warning_Refreshes : Interfaces.Unsigned_8 := 0;
       Visual_Was_On  : Boolean := False;
       Last_Beacon_Us : Time_Us := 0;
    end record;
