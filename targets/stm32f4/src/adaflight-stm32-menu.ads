@@ -61,9 +61,9 @@ package Adaflight.STM32.Menu is
    function Arming_Held return Boolean;
    function Reboot_Required return Boolean;
 
-   --  One pass: the live configuration taken while the menu is closed and
-   --  given the menu's edits while it is open, the sticks read, the menu
-   --  drawn, and the requests of the pass.
+   --  One pass: the live configuration taken, the sticks read, the menu
+   --  drawn, the menu's edits given to the live configuration while a menu
+   --  is open, and the requests of the pass.
    procedure Run
      (C : in out Adaflight.Config_Groups.Configuration; F : Facts; Now_Us, Now_Ms : Interfaces.Unsigned_32;
       R : out Requests);

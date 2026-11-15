@@ -15380,3 +15380,18 @@ restart. An armed image gets no menu from a request.
 A short menu stick command after a text mode session opens a menu on that silent HoTT display. It stays, shows
 in a later text mode and leaves at its end. Held, that command moves a menu to an OSD with no write on its
 way. A store with no HoTT port keeps a held command's menu on its OSD. No board has run this.
+
+## D771. Menu passes start from live configuration (2026-11-15)
+
+A board's menu unit kept its own configuration while a menu was open and wrote it over live configuration
+after each pass. A CLI or MSP write made in between was gone one pass later, and a save then stored its old
+value. A host image showed it: `set small_angle = 33` reported that value, and `get` gave 25 again 0.6 s
+later.
+
+Betaflight's menus work on live configuration and keep copies only inside a menu. Each menu pass now starts
+from live configuration, and so does an exit with a save that a HoTT button asks for between passes. Edits
+still reach live configuration at each pass's end.
+
+Host smoke opens a menu on an OSD by sticks, sets a craft name over MSP and a setting in its command line,
+and reads both back later and after a save. That exit between passes has no check: its window is shorter
+than one menu pass. No board has run this.

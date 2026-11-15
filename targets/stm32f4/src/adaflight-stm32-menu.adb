@@ -252,9 +252,7 @@ package body Adaflight.STM32.Menu is
    begin
       R := (others => <>);
       Armed_Now := F.Armed;
-      if not Was_Open then
-         T.Config := C;
-      end if;
+      T.Config := C;
       T.Live.Acc_Present := F.Acc_Present;
       T.Live.Acc_Calibration_Needed := F.Acc_Present and then not F.Acc_Calibrated;
       T.Live.Acc_Calibration_Complete := F.Acc_Calibration_Complete;
@@ -383,6 +381,7 @@ package body Adaflight.STM32.Menu is
    procedure Leave_Saving (C : in out Adaflight.Config_Groups.Configuration) is
    begin
       if State.In_Menu and then State.Has_Menu then
+         T.Config := C;
          Nav.Exit_Menu (State, T, Adaflight.Menu.Save);
          C := T.Config;
       end if;
