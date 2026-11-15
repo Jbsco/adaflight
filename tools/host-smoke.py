@@ -2421,6 +2421,270 @@ def hott_checks(image, work):
         sock.close()
 
 
+def hott_menu_checks(image, work):
+    """HoTT text mode as a menu display, on UART3 with the MSP receiver for sticks and an arm switch. A text mode
+    request opens the menu on the text screen, buttons move the cursor and edit, set leaves with a save, previous
+    opens the menu again, and the text mode's end leaves with a save. An armed craft gets no menu. A menu that
+    sticks open on the silent HoTT display stays, shows in a later text mode and leaves at its end. After a text
+    mode session the menu stick command still moves the menu to the OSD, where set leaves it. Before any of it, a
+    store without a HoTT port has no HoTT display. Over a configuration store of its own."""
+    if not (built("HoTT_Telemetry") and built("Menus")):
+        return
+    store = os.path.join(work, "hott-menu-eeprom.bin")
+    screen_file = store + ".osd.txt"
+    for path in (store, screen_file):
+        if os.path.exists(path):
+            os.remove(path)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature TELEMETRY", "feature RX_MSP", "feature OSD",
+                                                "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                                                "aux 0 0 0 1700 2100 0 0")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("HoTT menu checks have the MSP receiver, an OSD and an arm switch",
+          "RX_MSP" in replies[1] and "osd_displayport_device set to MAX7456" in replies[3]
+          and "aux 0 0 0 1700" in replies[5], repr(replies))
+    rest = [1500, 1500, 1000, 1500, 1000, 1000, 1500, 1500]
+    arm_on = [1500, 1500, 1000, 1500, 1800, 1000, 1500, 1500]
+    gesture = [1500, 2000, 1500, 1000, 1000, 1000, 1500, 1500]
+    nil, previous, set_button, decrease, increase, following = 0xF, 0x7, 0x9, 0xB, 0xD, 0xE
+    menu_flag = 1 << 14
+    proc, sock = start(image, store)
+    link = None
+
+    def run(seconds, channels=rest, request=None, want=0):
+        """Raw RC frames at 50 Hz for that time, a request on the HoTT port after its first frames, and a status
+        request each 200 ms. Returns that port's bytes and each status reply's armed flag and arming disable
+        flags. Ends early once the wanted count of bytes arrived."""
+        answer, inbox = b"", b""
+        began = time.time()
+        next_frame = next_status = began
+        sent = request is None
+        while time.time() < began + seconds and not (want and len(answer) >= want):
+            now = time.time()
+            if now >= next_frame:
+                sock.sendall(msp_frame(200, struct.pack("<8H", *channels)))
+                next_frame = now + 0.02
+            if now >= next_status:
+                sock.sendall(msp_frame(150))
+                next_status = now + 0.2
+            if not sent and now >= began + 0.05:
+                link.sendall(request)
+                sent = True
+            for ready in select.select([sock] if link is None else [link, sock], [], [], 0.005)[0]:
+                try:
+                    chunk = ready.recv(8192)
+                except OSError:
+                    chunk = b""
+                if ready is link:
+                    answer += chunk
+                else:
+                    inbox += chunk
+        statuses = []
+        i = inbox.find(b"$M>")
+        while 0 <= i and i + 6 <= len(inbox):
+            size, cmd = inbox[i + 3], inbox[i + 4]
+            body = inbox[i + 5:i + 5 + size]
+            if cmd == 150 and len(body) == size >= 16 and size >= 21 + body[15]:
+                at = 16 + body[15]
+                statuses.append((bool(body[6] & 1), int.from_bytes(body[at + 1:at + 5], "little")))
+            i = inbox.find(b"$M>", i + 5 + size)
+        return answer, statuses
+
+    def ask(button, channels=rest):
+        """A text mode request with that button: its answer, then the statuses of the 300 ms after it."""
+        answer, _ = run(1.5, channels, bytes([0x7F, 0xE0 | button]), want=173)
+        return answer, run(0.3, channels)[1]
+
+    def framed(answer):
+        return (len(answer) == 173 and answer[0] == 0x7B and answer[171] == 0x7D
+                and answer[172] == sum(answer[:172]) & 0xFF)
+
+    def rows(answer):
+        return [answer[3 + 21 * r:24 + 21 * r].decode("latin1") for r in range(8)] if framed(answer) else []
+
+    def titled(answer):
+        return bool(rows(answer)) and rows(answer)[0].strip() in ("-- QUICK --", "-- MAIN --")
+
+    def blank(answer):
+        return bool(rows(answer)) and all(row.strip(" \0") == "" for row in rows(answer))
+
+    def cursor(answer):
+        at = [r for r, row in enumerate(rows(answer)) if row.startswith(">")]
+        return at[0] if len(at) == 1 else None
+
+    def line(answer, label):
+        """The value of the line with that label, up to the screen's last column, none without that line."""
+        found = [row for row in rows(answer) if row[1:].startswith(label + " ")]
+        return found[0][1 + len(label):].lstrip() if found else None
+
+    def menu_open(statuses):
+        return bool(statuses) and bool(statuses[-1][1] & menu_flag)
+
+    def on_osd():
+        """Whether the OSD's screen shows a menu's title, read up to three times past a file caught mid-write."""
+        for _ in range(3):
+            try:
+                with open(screen_file) as f:
+                    text = f.read()
+            except OSError:
+                text = ""
+            if "-- QUICK --" in text or "-- MAIN --" in text:
+                return True
+            time.sleep(0.005)
+        return False
+
+    # Without a HoTT port the OSD is the menu's only display, so a held stick command leaves its menu there.
+    try:
+        time.sleep(3.0)
+        run(1.0)
+        seen = []
+        for _ in range(25):
+            run(0.1, gesture)
+            seen.append(on_osd())
+        shown = seen[seen.index(True):] if True in seen else []
+        gaps = [k for k in range(len(shown) - 2) if not any(shown[k:k + 3])]
+        check("without a HoTT port a held menu stick command leaves its menu on the OSD",
+              len(shown) >= 12 and not gaps, repr(seen))
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("set telemetry_1_protocol = HOTT", "set telemetry_1_uart = UART3")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("HoTT menu checks have HoTT on UART3",
+          "telemetry_1_protocol set to HOTT" in replies[0] and "telemetry_1_uart set to UART3" in replies[1],
+          repr(replies))
+    if os.path.exists(screen_file):
+        os.remove(screen_file)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(3.0)
+        link = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+        # The accelerometer calibrated, which arming on this store waits for.
+        msp(sock, 205)
+        _, before = run(1.0)
+        first, _ = ask(nil)
+        shown, statuses = ask(nil)
+        check("a text mode request gets the text screen with its frame and checksum",
+              framed(first) and first[1] == 0xE0, repr((len(first), first[:3].hex(), first[-2:].hex())))
+        check("a text mode request opens the menu on the text screen",
+              not menu_open(before) and titled(shown) and cursor(shown) == 1 and menu_open(statuses),
+              repr((before[-1:], rows(shown)[:2], statuses[-1:])))
+        ask(increase)
+        down, _ = ask(nil)
+        ask(decrease)
+        up, _ = ask(nil)
+        check("the increase and decrease buttons move the cursor down and up",
+              cursor(down) == 2 and cursor(up) == 1, repr((cursor(down), cursor(up))))
+        ask(increase)
+        ask(following)
+        edited, _ = ask(nil)
+        ask(previous)
+        back, _ = ask(nil)
+        check("the next and previous buttons edit the line under the cursor",
+              line(edited, "THR LIM") == "SCALE" and line(back, "THR LIM") == "OFF",
+              repr((line(edited, "THR LIM"), line(back, "THR LIM"))))
+        ask(following)
+        left, statuses = ask(set_button)
+        check("the set button leaves the menu with the screen cleared and its escape byte set",
+              framed(left) and left[1] == 0x01 and blank(left) and not menu_open(statuses),
+              repr((left[:3].hex(), rows(left)[:2], statuses[-1:])))
+        again, statuses = ask(previous)
+        check("the previous button opens the menu again after the set button",
+              framed(again) and again[1] == 0xE0 and menu_open(statuses), repr((again[:3].hex(), statuses[-1:])))
+        ask(increase)
+        ask(increase)
+        ask(previous)
+        lowered, _ = ask(nil)
+        check("an edit in the menu opened again shows on the text screen",
+              line(lowered, "THR LIM") == "SCALE" and line(lowered, "THR LIM %") == "99",
+              repr((line(lowered, "THR LIM"), line(lowered, "THR LIM %"))))
+        message, _ = run(1.2, request=bytes([0x80, 0x8E]), want=45)
+        _, statuses = run(1.5)
+        check("the text mode's end leaves the menu",
+              len(message) == 45 and message[0] == 0x7C and not menu_open(statuses),
+              repr((len(message), statuses[-1:])))
+        # The screen's escape byte is still set here, so a previous button asks for the menu again.
+        run(3.0)
+        _, statuses = run(4.0, arm_on)
+        armed = bool(statuses) and statuses[-1][0]
+        reopen, _ = ask(previous, arm_on)
+        ask(nil, arm_on)
+        refused, statuses = ask(nil, arm_on)
+        check("an armed craft gets no menu from a text mode request",
+              armed and bool(statuses) and statuses[-1][0] and framed(reopen) and reopen[1] == 0x01
+              and blank(reopen) and framed(refused) and refused[1] == 0xE0 and blank(refused),
+              repr((armed, statuses[-1:], reopen[:3].hex(), refused[:3].hex(), rows(refused)[:2])))
+        _, statuses = run(2.0)
+        disarmed = bool(statuses) and not statuses[-1][0]
+        ask(nil)
+        after, statuses = ask(nil)
+        check("a text mode request opens the menu again after a disarm",
+              disarmed and titled(after) and menu_open(statuses), repr((disarmed, rows(after)[:2], statuses[-1:])))
+        run(1.2, request=bytes([0x80, 0x8E]), want=45)
+        _, statuses = run(1.5)
+        closed = not menu_open(statuses)
+        # The HoTT display is still the menu's current one, so a short stick command opens the menu there with
+        # no text mode to show it. A text mode that starts later shows it, and its end leaves it.
+        run(0.3, gesture)
+        _, statuses = run(1.5)
+        stays = menu_open(statuses)
+        late, statuses = ask(nil)
+        run(1.2, request=bytes([0x80, 0x8E]), want=45)
+        _, ended = run(1.5)
+        check("a menu that sticks open on the silent HoTT display stays, shows in a later text mode and leaves at "
+              "its end",
+              closed and stays and not on_osd() and titled(late) and menu_open(statuses) and not menu_open(ended),
+              repr((closed, stays, rows(late)[:2], statuses[-1:], ended[-1:])))
+        # Held, that stick command moves the menu on to the OSD. No write of the configuration happens on the way.
+        if os.path.exists(screen_file):
+            os.remove(screen_file)
+        written = os.stat(store).st_mtime_ns
+        deadline = time.time() + 4.0
+        moved = False
+        while time.time() < deadline and not moved:
+            run(0.1, gesture)
+            moved = on_osd()
+        _, statuses = run(0.6)
+        check("after a text mode session the menu stick command moves the menu to the OSD without a save",
+              not menu_open(ended) and moved and menu_open(statuses) and os.stat(store).st_mtime_ns == written,
+              repr((ended[-1:], moved, statuses[-1:], os.stat(store).st_mtime_ns - written)))
+        _, statuses = ask(set_button)
+        check("the set button leaves a menu that shows on the OSD", not menu_open(statuses), repr(statuses[-1:]))
+        link.close()
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        kind, percent = cli(sock, "get throttle_limit_type"), cli(sock, "get throttle_limit_percent")
+    finally:
+        stop(proc)
+        sock.close()
+    check("both ways out of the menu saved their edits",
+          "throttle_limit_type = SCALE" in kind and "throttle_limit_percent = 99" in percent,
+          repr((kind[:60], percent[:60])))
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5392,6 +5656,7 @@ def main():
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
         hott_checks(image, work)
+        hott_menu_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

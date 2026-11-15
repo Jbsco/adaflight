@@ -95,6 +95,8 @@ package body Adaflight.STM32.Telemetry_Port is
       end if;
    end Check_State;
 
+   function Found return Boolean is (Have_Port);
+
    function Enabled return Boolean is (Is_Open);
 
    function Holds (N : USART.Number) return Boolean is (Is_Open and then N = Which);

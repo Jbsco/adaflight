@@ -1,4 +1,5 @@
 with Adaflight.Dashboard;
+with Adaflight.HoTT_Telemetry;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.Menu;
 with Adaflight.Menu_Content;
@@ -6,6 +7,7 @@ with Adaflight.Menu_Nav;
 with Adaflight.PID_Profile;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Dashboard;
+with Adaflight.STM32.HoTT;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Radio;
@@ -22,22 +24,33 @@ package body Adaflight.STM32.Menu is
    Save_Asked  : Boolean := False;
    Reset_Asked : Boolean := False;
    Armed_Now   : Boolean := False;
-   --  The CRSF and SRXL transmitters' displays and the OLED dashboard's
-   --  among the registered ones, when they are.
+   --  The CRSF and SRXL transmitters' displays, the OLED dashboard's and
+   --  the HoTT text mode's among the registered ones, when they are.
    CRSF_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
    SRXL_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
    OLED_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
+   HoTT_Display : Integer range -1 .. Adaflight.Menu.Max_Displays - 1 := -1;
    --  The grabs of the OLED display less its releases.
    OLED_Grabs   : Natural := 0;
+   --  Whether the text mode ran while the menu showed on the HoTT display,
+   --  and whether its heartbeat then found the text mode stopped.
+   HoTT_Ran     : Boolean := False;
+   HoTT_Ended   : Boolean := False;
+   HoTT_Built   : constant Boolean := Adaflight.Build_Features.HoTT_Telemetry;
 
    --  The device a registered display is: the OSD's unless it is one of the
-   --  three registered after it.
-   type Device is (OSD, CRSF, SRXL, OLED);
+   --  four registered after it.
+   type Device is (OSD, CRSF, SRXL, OLED, HoTT);
    function Device_Of (On : Adaflight.Menu.Display_Index) return Device is
-     (if On = CRSF_Display then CRSF elsif On = SRXL_Display then SRXL elsif On = OLED_Display then OLED else OSD);
+     (if On = CRSF_Display then CRSF
+      elsif On = SRXL_Display then SRXL
+      elsif On = OLED_Display then OLED
+      elsif HoTT_Built and then On = HoTT_Display then HoTT
+      else OSD);
 
-   --  Layers, background, redraw and heartbeat are the OSD's alone. The OLED
-   --  display counts a grab and a release.
+   --  Layers, background and redraw are the OSD's alone. The OLED display
+   --  counts a grab and a release. The HoTT display's heartbeat notes the
+   --  text mode's run and its end.
    procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer) is
       To : constant Device := Device_Of (On);
    begin
@@ -48,6 +61,11 @@ package body Adaflight.STM32.Menu is
                when SRXL => Adaflight.STM32.Radio.SRXL_Display_Grab;
                when OLED => OLED_Grabs := OLED_Grabs + 1;
                when OSD  => Adaflight.STM32.OSD.Menu_Grab;
+               when HoTT =>
+                  if HoTT_Built then
+                     Adaflight.STM32.HoTT.Menu_Grab;
+                     HoTT_Ran := not Adaflight.STM32.HoTT.Text_Stopped;
+                  end if;
             end case;
          when Adaflight.Menu.Release =>
             case To is
@@ -55,6 +73,10 @@ package body Adaflight.STM32.Menu is
                when SRXL => Adaflight.STM32.Radio.SRXL_Display_Release;
                when OLED => OLED_Grabs := Natural'Max (1, OLED_Grabs) - 1;
                when OSD  => Adaflight.STM32.OSD.Menu_Release;
+               when HoTT =>
+                  if HoTT_Built then
+                     Adaflight.STM32.HoTT.Menu_Release;
+                  end if;
             end case;
          when Adaflight.Menu.Clear =>
             case To is
@@ -62,6 +84,10 @@ package body Adaflight.STM32.Menu is
                when SRXL => Adaflight.STM32.Radio.SRXL_Display_Clear;
                when OLED => Adaflight.STM32.Dashboard.Menu_Clear;
                when OSD  => Adaflight.STM32.OSD.Menu_Clear;
+               when HoTT =>
+                  if HoTT_Built then
+                     Adaflight.STM32.HoTT.Menu_Clear;
+                  end if;
             end case;
          when Adaflight.Menu.Layer_Select =>
             if To = OSD then
@@ -92,6 +118,12 @@ package body Adaflight.STM32.Menu is
          when Adaflight.Menu.Heartbeat =>
             if To = OSD then
                Adaflight.STM32.OSD.Menu_Heartbeat;
+            elsif HoTT_Built and then To = HoTT then
+               if not Adaflight.STM32.HoTT.Text_Stopped then
+                  HoTT_Ran := True;
+               elsif HoTT_Ran then
+                  HoTT_Ended := True;
+               end if;
             end if;
          when Adaflight.Menu.Begin_Transaction | Adaflight.Menu.Commit_Transaction =>
             null;
@@ -112,6 +144,10 @@ package body Adaflight.STM32.Menu is
          when SRXL => Adaflight.STM32.Radio.SRXL_Display_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
          when OLED => Adaflight.STM32.Dashboard.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
          when OSD  => Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text, Cost);
+         when HoTT =>
+            if HoTT_Built then
+               Adaflight.STM32.HoTT.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
+            end if;
       end case;
    end Write;
 
@@ -131,6 +167,10 @@ package body Adaflight.STM32.Menu is
             Adaflight.STM32.Dashboard.Menu_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), C);
          when OSD =>
             Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C), Unused_Cost);
+         when HoTT =>
+            if HoTT_Built then
+               Adaflight.STM32.HoTT.Menu_Write_Char (Unsigned_8 (X), Unsigned_8 (Y), Character'Pos (C));
+            end if;
       end case;
    end Write_Char;
 
@@ -248,6 +288,12 @@ package body Adaflight.STM32.Menu is
          (if State.Port in Adaflight.Menu.Display_Index and then Device_Of (State.Port) /= OSD
           then Unsigned_32'Last
           else Adaflight.STM32.OSD.Menu_Room));
+      if HoTT_Ended then
+         HoTT_Ended := False;
+         if State.In_Menu and then State.Has_Menu then
+            Nav.Exit_Menu (State, T, Adaflight.Menu.Save);
+         end if;
+      end if;
       if Was_Open or else State.In_Menu then
          C := T.Config;
       end if;
@@ -305,6 +351,62 @@ package body Adaflight.STM32.Menu is
    end Register_OLED;
 
    function OLED_Grabbed return Boolean is (OLED_Grabs > 0);
+
+   procedure Register_HoTT is
+   begin
+      Adaflight.STM32.HoTT.Menu_Register;
+      if State.Port_Count < Adaflight.Menu.Max_Displays then
+         Nav.Register_Display
+           (State,
+            (Columns          => Adaflight.HoTT_Telemetry.Text_Cols,
+             Rows             => Adaflight.HoTT_Telemetry.Text_Rows,
+             Full_Screen      => True,
+             Supports_Symbols => False,
+             others           => <>));
+         HoTT_Display := State.Port_Count - 1;
+      end if;
+   end Register_HoTT;
+
+   procedure Open_On_HoTT (C : Adaflight.Config_Groups.Configuration) is
+      Unused_Found : Boolean;
+   begin
+      if State.In_Menu then
+         return;
+      end if;
+      if HoTT_Display >= 0 then
+         Nav.Select_Display (State, HoTT_Display, Unused_Found);
+      end if;
+      T.Config := C;
+      Nav.Open (State, T, Adaflight.Menu_Content.Start_Menu (T), Natural (C.Osd_Config.Cms_Background_Type));
+   end Open_On_HoTT;
+
+   procedure Leave_Saving (C : in out Adaflight.Config_Groups.Configuration) is
+   begin
+      if State.In_Menu and then State.Has_Menu then
+         Nav.Exit_Menu (State, T, Adaflight.Menu.Save);
+         C := T.Config;
+      end if;
+   end Leave_Saving;
+
+   procedure Set_Key (K : Button_Key) is
+   begin
+      Nav.Set_Extern_Key
+        (State,
+         (case K is
+             when No_Key => Nav.None,
+             when Up     => Nav.Up,
+             when Down   => Nav.Down,
+             when Left   => Nav.Left,
+             when Right  => Nav.Right));
+   end Set_Key;
+
+   procedure Open_Again (C : Adaflight.Config_Groups.Configuration) is
+   begin
+      if not State.In_Menu then
+         T.Config := C;
+      end if;
+      Nav.Open (State, T, Adaflight.Menu_Content.Start_Menu (T), Natural (C.Osd_Config.Cms_Background_Type));
+   end Open_Again;
 
    function On_SRXL return Boolean is (State.In_Menu and then SRXL_Display >= 0 and then State.Port = SRXL_Display);
 

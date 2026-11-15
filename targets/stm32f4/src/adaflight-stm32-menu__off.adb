@@ -48,4 +48,14 @@ package body Adaflight.STM32.Menu is
 
    function OLED_Grabbed return Boolean is (False);
 
+   procedure Register_HoTT is null;
+
+   procedure Open_On_HoTT (C : Adaflight.Config_Groups.Configuration) is null;
+
+   procedure Leave_Saving (C : in out Adaflight.Config_Groups.Configuration) is null;
+
+   procedure Set_Key (K : Button_Key) is null;
+
+   procedure Open_Again (C : Adaflight.Config_Groups.Configuration) is null;
+
 end Adaflight.STM32.Menu;

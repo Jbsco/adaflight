@@ -3364,6 +3364,33 @@ package body Adaflight.STM32.Flight is
       end if;
    end Run_Adjustments;
 
+   --  What a HoTT text mode request asked of the menu: opened on the HoTT
+   --  display, while disarmed alone; left with a save; a button's key; and
+   --  opened again, while disarmed alone.
+   procedure Run_HoTT_Menu (Asks : Adaflight.STM32.HoTT.Menu_Asks) is
+      package H renames Adaflight.HoTT_Telemetry;
+      Disarmed : constant Boolean := not Adaflight.STM32.Pilot.Armed;
+   begin
+      if Asks.Open and then Disarmed then
+         Adaflight.STM32.Menu.Open_On_HoTT (Config);
+      end if;
+      if Asks.Leave then
+         Adaflight.STM32.Menu.Leave_Saving (Config);
+      end if;
+      if Asks.Key_Set then
+         Adaflight.STM32.Menu.Set_Key
+           (case Asks.Key is
+               when H.None  => Adaflight.STM32.Menu.No_Key,
+               when H.Up    => Adaflight.STM32.Menu.Up,
+               when H.Down  => Adaflight.STM32.Menu.Down,
+               when H.Left  => Adaflight.STM32.Menu.Left,
+               when H.Right => Adaflight.STM32.Menu.Right);
+      end if;
+      if Asks.Reopen and then Disarmed then
+         Adaflight.STM32.Menu.Open_Again (Config);
+      end if;
+   end Run_HoTT_Menu;
+
    --  The display port command the receiver took: the menu opened on the
    --  CRSF display at the size the command set, or left; then the menu's
    --  state the display's transfer waits on.
@@ -5330,12 +5357,16 @@ package body Adaflight.STM32.Flight is
                   declare
                      Reschedule : Boolean;
                      Period     : Integer_32;
+                     Asks       : Adaflight.STM32.HoTT.Menu_Asks;
                   begin
                      Adaflight.STM32.HoTT.Run
-                       (HoTT_Inputs, Adaflight.STM32.GPS.Current.Present, Reschedule, Period);
+                       (HoTT_Inputs, Adaflight.STM32.GPS.Current.Present, Reschedule, Period, Asks);
                      if Reschedule and then Period > 0 then
                         Scheduler.Reschedule
                           (Sched, Sched_Settings, Scheduler.Telemetry, Scheduler.Time_Delta (Period));
+                     end if;
+                     if Adaflight.Build_Features.Menus then
+                        Run_HoTT_Menu (Asks);
                      end if;
                   end;
                end if;
@@ -5766,6 +5797,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Adaflight.Build_Features.HoTT_Telemetry then
          Adaflight.STM32.HoTT.Init (Config, Runtime_Features);
+         if Adaflight.Build_Features.Menus and then Adaflight.STM32.HoTT.Has_Port then
+            Adaflight.STM32.Menu.Register_HoTT;
+         end if;
       end if;
       if Adaflight.Build_Features.LTM_Telemetry then
          Adaflight.STM32.LTM.Init (Config, Runtime_Features);

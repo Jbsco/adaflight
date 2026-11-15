@@ -148,3 +148,6 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Mass storage reports success for a block its SD card failed](msc-sd-card-errors-pass.md)
 - [RTC6705 software SPI writes and boot wait stop the scheduler](rtc6705-writes-stop-scheduler.md)
 - [Joystick reports are transmitted from a plain serial USB device on F4 boards](usb-joystick-report-plain-device.md)
+- [HoTT text mode opens the menu while armed](hott-text-mode-menu-while-armed.md)
+- [HoTT display heartbeat exits a menu that a key already closed](hott-heartbeat-exit-without-menu.md)
+- [After a HoTT text mode session the stick command cannot reach the OSD menu](hott-display-exit-after-session.md)

@@ -15350,9 +15350,33 @@ meanwhile, which drops it as Betaflight does when it turns its port back to rece
 starts in receive with no message pending. Its messages read battery voltage in tenths of a volt, both battery states,
 current, charge drawn, altitude, vario, and GPS position with distance and direction home.
 
-Its text mode asks for a faster telemetry task, which a board grants. No menu draws on that screen yet:
-`HoTT_Display_Port` still has no user.
+Its text mode asks for a faster telemetry task, which a board grants. D770 puts a menu on that screen.
 
 Host smoke asks for an electric air module message over a host image's UART3 and checks its 44 bytes'
 frame, checksum and altitude offset. A GPS module request gets no answer without a GPS. A second request
 sent while an answer goes out is dropped. No board has run this.
+
+## D770. HoTT text mode as a menu display (2026-11-15)
+
+`HoTT_Display_Port` had no user, so a transmitter's text mode showed an empty screen. A board with a HoTT port
+now registers that screen with its menu system as a full screen display of eight rows of 21 characters. It
+comes after an OLED display and before a CRSF or SRXL one.
+
+`Adaflight.STM32.HoTT` gives each text mode request's asks to the flight unit: open a menu on this display,
+leave with a save, a button's key, open again. `Adaflight.STM32.Menu` selects its HoTT display and opens a
+menu there, keeps a key for its navigation's next pass, and leaves with a save on whichever display shows that
+menu. Leave hooks write their edits at an exit, so an exit outside a menu pass copies its menu's configuration
+to the live one. That menu task's next run writes it to flash.
+
+A menu on a HoTT display leaves with a save once its text mode has stopped. Three points differ from
+Betaflight. A text mode request opens no menu while armed (F355). A heartbeat's exit needs an open menu
+(F356). That exit also needs a text mode that ran while its menu showed there, so a menu that sticks put on a
+silent HoTT display stays (F357).
+
+Host smoke opens a menu with a text mode request over a host image's UART3, moves its cursor and edits two
+lines. It leaves once through a set button and once through a binary request, and finds both edits after a
+restart. An armed image gets no menu from a request.
+
+A short menu stick command after a text mode session opens a menu on that silent HoTT display. It stays, shows
+in a later text mode and leaves at its end. Held, that command moves a menu to an OSD with no write on its
+way. A store with no HoTT port keeps a held command's menu on its OSD. No board has run this.

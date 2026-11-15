@@ -27,6 +27,8 @@ package Adaflight.STM32.Telemetry_Port is
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32);
    --  The port opened or released as its sharing state asks now.
    procedure Check_State (Armed, Box_Present, Box_Active : Boolean);
+   --  Whether a provider named a port of the board at the init.
+   function Found return Boolean;
    function Enabled return Boolean;
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    function Line return Adaflight.STM32.USART.Number;
