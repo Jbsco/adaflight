@@ -5,6 +5,7 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.RTC;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.GPS is
    use type Adaflight.STM32.USART.Number;
@@ -120,6 +121,9 @@ package body Adaflight.STM32.GPS is
       Adaflight.GPS_Debug.Record_Update
         (Adaflight.STM32.Debug_Values.State, Link, Rx,
          Natural (Unsigned_32'Min (Adaflight.STM32.Time.Micros - Now_Us, 65_535)));
+      if E.Indicator then
+         Adaflight.STM32.Status_LED.Toggle (1);
+      end if;
       if E.Clock.Set then
          Adaflight.STM32.RTC.Set_Date
            ((Year => E.Clock.Year, Month => E.Clock.Month, Day => E.Clock.Day, Hours => E.Clock.Hours,
