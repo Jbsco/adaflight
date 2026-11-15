@@ -21,12 +21,12 @@ with Adaflight.MAVLink;
 with Adaflight.MAVLink_Debug;
 with Adaflight.STM32.MAVLink_Link;
 with Adaflight.SRXL2;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.VTX;
 with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
-with Adaflight.Board;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Plan_Build;
 with Adaflight.Spektrum_Bind;
@@ -245,14 +245,17 @@ package body Adaflight.STM32.Radio is
       begin
          Adaflight.STM32.GPIO.Enable_Port (P.Port);
          Adaflight.STM32.GPIO.Set_Output (P);
+         Adaflight.STM32.Status_LED.Set (1, True);
          Adaflight.STM32.GPIO.Set_High (P);
-         Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
          Adaflight.STM32.Time.Delay_Ms (SB.Window_Ms);
+         Adaflight.STM32.Status_LED.Set (1, False);
          for I in 1 .. C.Rx_Config.Spektrum_Sat_Bind loop
-            Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.Status_LED.Set (0, False);
+            Adaflight.STM32.Status_LED.Set (2, False);
             Adaflight.STM32.GPIO.Set_Low (P);
             Adaflight.STM32.Time.Delay_Us (SB.Pulse_Us);
-            Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.Status_LED.Set (0, True);
+            Adaflight.STM32.Status_LED.Set (2, True);
             Adaflight.STM32.GPIO.Set_High (P);
             Adaflight.STM32.Time.Delay_Us (SB.Pulse_Us);
          end loop;

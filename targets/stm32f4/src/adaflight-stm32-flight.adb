@@ -1,4 +1,3 @@
-with Ada.Real_Time; use Ada.Real_Time;
 with Interfaces; use Interfaces;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
@@ -14,6 +13,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
 with Adaflight.STM32.Build_Stamp;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Timers;
 with Adaflight.Timer_Tables;
 with Adaflight.Build_Features;
@@ -176,6 +176,7 @@ with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.STM32.Stack_Check;
 with Adaflight.Vectors;
+with Adaflight.Warning_LED;
 package body Adaflight.STM32.Flight is
    package CLI renames Adaflight.STM32.Console.CLI;
    package Terminal renames Adaflight.STM32.Console.Terminal;
@@ -219,7 +220,8 @@ package body Adaflight.STM32.Flight is
    --  The platform's floor on a rescheduled period.
    Delay_Limit_Us : constant Scheduler.Delay_Limit := 10;
 
-   Blink    : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+   --  The warning LED the arming status drives.
+   Warning  : Adaflight.Warning_LED.State;
    --  The defaults of the board's hardware, which every reset of the
    --  configuration takes.
    --  The board's timer pin map as the configuration's timer entries: the
@@ -310,7 +312,11 @@ package body Adaflight.STM32.Flight is
       CC2500_Ant_Sel_Tag    => Adaflight.Board.CC2500_Ant_Sel_Tag,
       ADC_DMA_Options       => (Adaflight.Board.ADC1_DMA_Option, Adaflight.Board.ADC2_DMA_Option,
                                 Adaflight.Board.ADC3_DMA_Option),
-      ESC_Serial_Tag        => Adaflight.Board.ESC_Serial_Tag);
+      ESC_Serial_Tag        => Adaflight.Board.ESC_Serial_Tag,
+      LED0_Tag              => Adaflight.Board.LED0_Tag,
+      LED1_Tag              => Adaflight.Board.LED1_Tag,
+      LED2_Tag              => Adaflight.Board.LED2_Tag,
+      LED_Inversion         => Adaflight.Board.LED_Inversion);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
@@ -767,14 +773,21 @@ package body Adaflight.STM32.Flight is
 
    procedure Reset renames Adaflight.STM32.MCU.Reset;
 
-   --  Count flashes of the LED from off, each on and off for the duration.
+   --  Count flashes of the first two LEDs, the second from on and the first
+   --  from off, each toggled twice a flash with the duration between.
    procedure Flash (Count : Natural; Duration_Ms : Natural) is
    begin
-      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      if Count = 0 then
+         return;
+      end if;
+      Adaflight.STM32.Status_LED.Set (1, True);
+      Adaflight.STM32.Status_LED.Set (0, False);
       for I in 1 .. Count loop
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Toggle (1);
+         Adaflight.STM32.Status_LED.Toggle (0);
          Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Toggle (1);
+         Adaflight.STM32.Status_LED.Toggle (0);
          Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
       end loop;
    end Flash;
@@ -3361,8 +3374,10 @@ package body Adaflight.STM32.Flight is
                Adaflight.STM32.Pilot.Modes_Pass (Sense (Channels), Channels, Aux, Before, Delta_Us, Asked);
             end if;
             if Asked.Attitude_Fast then
+               Adaflight.STM32.Status_LED.Set (1, True);
                Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
             else
+               Adaflight.STM32.Status_LED.Set (1, False);
                Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
             end if;
             if Asked.Run_Adjustments then
@@ -3377,6 +3392,23 @@ package body Adaflight.STM32.Flight is
                 LVC_Enabled => Bat.LVC_Enabled, LVC_Percentage => Bat.LVC_Percentage,
                 Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active),
                Att_State, Before, Asked);
+            --  The first LED with the arming status: on while armed, and
+            --  otherwise flashing while a reason holds arming off.
+            if Adaflight.STM32.Pilot.Armed then
+               Adaflight.STM32.Status_LED.Set (0, True);
+            else
+               declare
+                  Call : Adaflight.Warning_LED.LED_Call;
+               begin
+                  if (for some R in Adaflight.Arming.Disable_Reason => Adaflight.STM32.Pilot.Disabled (R)) then
+                     Adaflight.Warning_LED.Flash (Warning);
+                  else
+                     Adaflight.Warning_LED.Disable (Warning);
+                  end if;
+                  Adaflight.Warning_LED.Update (Warning, Adaflight.STM32.Time.Micros, Call);
+                  Adaflight.STM32.Status_LED.Warn (Call);
+               end;
+            end if;
       end case;
       Apply (Asked);
       Report_Pilot;
@@ -5268,14 +5300,18 @@ package body Adaflight.STM32.Flight is
       Run_Body (Id);
    end Run_Task;
 
-   --  The boot signal after the sensors: ten flashes of the LED, each with a
-   --  25 millisecond beep unless the system init sound is off.
+   --  The boot signal after the sensors: the second LED on and the others
+   --  off, then ten toggles of the first two, each with a 25 millisecond
+   --  beep unless the system init sound is off, and both off at the end.
    procedure Boot_Beeps is
       Beeps : constant Boolean := not Beep_Settings.Off_Flags (Adaflight.Beeper.System_Init);
    begin
-      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (1, True);
+      Adaflight.STM32.Status_LED.Set (0, False);
+      Adaflight.STM32.Status_LED.Set (2, False);
       for I in 1 .. 10 loop
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Status_LED.Toggle (1);
+         Adaflight.STM32.Status_LED.Toggle (0);
          Adaflight.STM32.Time.Delay_Ms (25);
          if Beeps then
             Adaflight.STM32.Sound.Set (True);
@@ -5283,7 +5319,8 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Time.Delay_Ms (25);
          Adaflight.STM32.Sound.Set (False);
       end loop;
-      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      Adaflight.STM32.Status_LED.Set (0, False);
+      Adaflight.STM32.Status_LED.Set (1, False);
    end Boot_Beeps;
 
    --  The MSP ports as the reference opens them after the other serial
@@ -5323,9 +5360,9 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.MCU.Check_Bootloader_Request;
       Adaflight.STM32.MCU.Check_Bootloader_Exit;
       Adaflight.STM32.Time.Init;
-      Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
-      Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
       Init_Configuration;
+      Adaflight.STM32.Status_LED.Init (Config.Status_Led_Config);
+      Adaflight.STM32.Status_LED.Set (2, True);
       Adaflight.STM32.Timers.Load (Config.Timer_Io_Config);
       Adaflight.STM32.PINIO.Init (Config);
       declare
@@ -5659,7 +5696,6 @@ package body Adaflight.STM32.Flight is
       Check_Telemetry;
       Offered := Available_Boxes;
       Adaflight.STM32.DShot_Output.Enable;
-      Blink := Ada.Real_Time.Clock;
    end Init;
 
    --  The failsafe's check every ten milliseconds of the realtime block over
@@ -5841,9 +5877,5 @@ package body Adaflight.STM32.Flight is
       end if;
       Scheduler.End_Pass (Sched, Sched_Settings, Start_Us, Adaflight.STM32.Time.Micros);
       Adaflight.Loop_Debug.Record_Scheduler (Adaflight.STM32.Debug_Values.State, Sched);
-      if Ada.Real_Time.Clock >= Blink then
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
-         Blink := Blink + Milliseconds (500);
-      end if;
    end Pass;
 end Adaflight.STM32.Flight;

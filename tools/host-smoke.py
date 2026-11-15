@@ -1988,6 +1988,115 @@ def attitude_rate_checks(image, work):
             sock.close()
 
 
+def status_led_checks(image, work):
+    """The status LEDs in the host's pin log, each lit by a low level. The first is on the board's pin and the
+    other two on pins the resource command gives them. A start lights the third until the boot flashes, which
+    toggle the first two. After it the first flashes while a reason keeps arming off, is off once arming is allowed and
+    on while armed, and the second is on in angle mode. The receiver is the MSP one, over a store of its own."""
+    store = os.path.join(work, "status-led-eeprom.bin")
+    log = os.path.join(work, "status-led-pins.txt")
+    first, second, third = "B05", "C14", "C15"
+    for stale in (store, log):
+        if os.path.exists(stale):
+            os.remove(stale)
+
+    def changes(pin):
+        """The pin's level changes so far, as (milliseconds, level)."""
+        try:
+            with open(log) as f:
+                lines = [line.split() for line in f.read().splitlines()]
+        except OSError:
+            lines = []
+        return [(int(l[0]), int(l[3])) for l in lines if len(l) == 4 and l[1] == "pin" and l[2] == pin]
+
+    def level(pin):
+        seen = changes(pin)
+        return seen[-1][1] if seen else 1
+
+    def stream(sock, *phases):
+        """Raw RC frames at 50 Hz through each phase of channels and a frame count, without a gap, and a status
+        request after each tenth frame. Returns the last status reply's armed and angle mode flags, the first
+        two LEDs' changes over the second half of the last phase, and their levels at its end."""
+        before = (0, 0)
+        for channels, count in phases:
+            payload = struct.pack(f"<{len(channels)}H", *channels)
+            for k in range(count):
+                sock.sendall(msp_frame(200, payload))
+                if k % 10 == 9:
+                    sock.sendall(msp_frame(150))
+                if k == count // 2:
+                    before = (len(changes(first)), len(changes(second)))
+                time.sleep(0.02)
+        late = (changes(first)[before[0]:], changes(second)[before[1]:])
+        levels = (level(first), level(second))
+        data = read_all(sock, 0.3)
+        armed = angle = None
+        i = data.find(b"$M>")
+        while 0 <= i and i + 6 <= len(data):
+            size, cmd = data[i + 3], data[i + 4]
+            body = data[i + 5:i + 5 + size]
+            if cmd == 150 and len(body) >= 10:
+                armed, angle = bool(body[6] & 1), bool(body[6] & 2)
+            i = data.find(b"$M>", i + 5 + size)
+        return armed, angle, late, levels
+
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature RX_MSP", f"resource LED 2 {second}", f"resource LED 3 {third}",
+                                                "aux 0 0 0 1700 2100 0 0", "aux 1 1 1 1700 2100 0 0")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("status LED checks have the MSP receiver, pins for the second and third LED, and arm and angle switches",
+          "Enabled RX_MSP" in replies[0] and f"Resource is set to {second}" in replies[1]
+          and f"Resource is set to {third}" in replies[2] and "aux 0 0 0 1700" in replies[3]
+          and "aux 1 1 1 1700" in replies[4], repr(replies))
+    proc, sock = start(image, store,
+                       {"ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": ",".join((first, second, third))})
+    try:
+        time.sleep(6.0)
+        one, two, three = changes(first), changes(second), changes(third)
+        check("a start lights the third LED until the boot flashes", [v for _, v in three] == [0, 1], repr(three))
+        check("boot flashes toggle the second LED ten times from on and leave it off at their end",
+              [v for _, v in two] == [0, 1] * 6 and bool(three) and abs(two[0][0] - three[-1][0]) <= 5
+              and 40 <= two[11][0] - two[10][0] <= 70, repr(two))
+        gaps = [b[0] - a[0] for a, b in zip(one[:10], one[1:10])]
+        check("boot flashes toggle the first LED ten times from off, 50 ms apart",
+              [v for _, v in one[:10]] == [0, 1] * 5 and all(40 <= g <= 70 for g in gaps), repr(one[:10]))
+        flashes = [b[0] - a[0] for a, b in zip(one[10:], one[11:])]
+        check("the first LED flashes each 500 ms while a reason keeps arming off",
+              len(flashes) >= 4 and all(450 <= g <= 700 for g in flashes), repr(flashes))
+        # The accelerometer calibrated, which arming on this store waits for, then sticks at rest. A switch goes
+        # on inside a stream: one that is on when the link comes back holds arming off.
+        rest = [1500, 1500, 1000, 1500, 1000, 1000, 1500, 1500]
+        angle_on = [1500, 1500, 1000, 1500, 1000, 1800, 1500, 1500]
+        arm_on = [1500, 1500, 1000, 1500, 1800, 1000, 1500, 1500]
+        msp(sock, 205)
+        stream(sock, (rest, 200))
+        armed, angle, late, levels = stream(sock, (rest, 200))
+        check("the first LED is off once arming is allowed",
+              armed is False and late[0] == [] and levels[0] == 1, repr((armed, late[0], levels)))
+        armed, angle, late, levels = stream(sock, (rest, 50), (angle_on, 200))
+        check("angle mode lights the second LED and leaves it on",
+              angle is True and late[1] == [] and levels[1] == 0, repr((angle, late[1][:4], levels)))
+        armed, angle, late, levels = stream(sock, (angle_on, 25), (rest, 100))
+        check("the second LED goes off with angle mode", angle is False and levels[1] == 1, repr((angle, levels)))
+        armed, angle, late, levels = stream(sock, (rest, 50), (arm_on, 200))
+        check("the first LED is on while armed",
+              armed is True and late[0] == [] and levels[0] == 0, repr((armed, late[0], levels)))
+        armed, angle, late, levels = stream(sock, (arm_on, 25), (rest, 200))
+        check("the first LED is off again after a disarm",
+              armed is False and late[0] == [] and levels[0] == 1, repr((armed, late[0], levels)))
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -4954,6 +5063,7 @@ def main():
         rtc6705_checks(image, work)
         joystick_checks(image, work)
         attitude_rate_checks(image, work)
+        status_led_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

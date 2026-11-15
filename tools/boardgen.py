@@ -218,7 +218,8 @@ def generate(config: Path, overrides: dict) -> str:
            ("RX_SPI_EXTI_Tag", "RX_SPI_EXTI_PIN"), ("RX_SPI_Bind_Tag", "RX_SPI_BIND_PIN"),
            ("RX_SPI_LED_Tag", "RX_SPI_LED_PIN"), ("VTX_CS_Tag", "RTC6705_CS_PIN"),
            ("VTX_Power_Tag", "RTC6705_POWER_PIN"), ("VTX_Clock_Tag", "RTC6705_SPICLK_PIN"),
-           ("VTX_Data_Tag", "RTC6705_SPI_SDO_PIN")]
+           ("VTX_Data_Tag", "RTC6705_SPI_SDO_PIN"), ("LED0_Tag", "LED0_PIN"), ("LED1_Tag", "LED1_PIN"),
+           ("LED2_Tag", "LED2_PIN")]
     tags = [(name, defines.get(define, "")) for name, define in tags] \
         + [(name, either(defines, *alternatives)) for name, alternatives in
            (("ELRS_Reset_Tag", ("RX_EXPRESSLRS_SPI_RESET_PIN", "RX_SPI_EXPRESSLRS_RESET_PIN")),
@@ -241,6 +242,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Mag_Align", ALIGNMENTS.get(defines.get("MAG_ALIGN", "ALIGN_DEFAULT"), 0)),
                 ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
                 ("VTX_SPI_Device", spi_device(defines.get("RTC6705_SPI_INSTANCE", ""))),
+                ("LED_Inversion", sum(1 << n for n in range(3) if f"LED{n}_INVERTED" in defines)),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),
                 ("SDCARD_Detect_Low", "True" if "SDCARD_DETECT_INVERTED" in defines else "False"),
