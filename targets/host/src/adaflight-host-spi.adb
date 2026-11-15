@@ -17,14 +17,22 @@
 --  ADAFLIGHT_FLASH_IMAGE names: the identification, the status with the
 --  write enable latch, page programs of up to 256 bytes that wrap in the
 --  page, 64 KB sector erases, the chip erase, and reads from an address
---  with the fast read's idle byte. No image means no chip.
+--  with the fast read's idle byte. No image means no chip. The board's
+--  gyro bus carries a model of an MPU6000 while the environment variable
+--  ADAFLIGHT_GYRO_CHIP is set: its identity and product revision, a
+--  register store that a device reset clears, and its data registers, which
+--  read a simulator's accelerations and rates, or without one a fixed
+--  acceleration and rates that step from zero 8 s after the start.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
 with Adaflight.Board;
 with Adaflight.Host_Pin_Log;
 with Adaflight.Host_Pins;
 with Adaflight.Host_Screen;
+with Adaflight.Host_Simulator;
+with Adaflight.Sim_FDM;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Time;
 package body Adaflight.STM32.SPI is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
@@ -467,6 +475,68 @@ package body Adaflight.STM32.SPI is
       end loop;
    end Card_Transfer;
 
+   Gyro_Model     : constant Boolean := Ada.Environment_Variables.Exists ("ADAFLIGHT_GYRO_CHIP");
+   Gyro_Model_Bus : constant Bus :=
+     (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
+   Gyro_Sleep     : constant Byte := 16#40#;
+   Gyro_Registers : Byte_Array (0 .. 16#7F#) := (16#6B# => Gyro_Sleep, others => 0);
+   Gyro_Step_Ms   : constant := 8_000;
+
+   --  The data registers from 16#3B#: accelerations, temperature and rates,
+   --  each with its high byte first.
+   function Gyro_Data (Offset : Natural) return Byte is
+      type Axes is array (1 .. 3) of Integer;
+      Acc         : Axes := (128, -256, 2_040);
+      Rates       : Axes :=
+        (if Adaflight.STM32.Time.Millis >= Gyro_Step_Ms then (164, 328, -492) else (0, 0, 0));
+      Temperature : constant Integer := -3_920;
+      Value       : Integer;
+   begin
+      if Adaflight.Host_Simulator.Enabled then
+         declare
+            A : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Acc;
+            G : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Gyro;
+         begin
+            for I in 1 .. 3 loop
+               Acc (I) := Integer'Max (-32_768, Integer'Min (32_767, Integer (A (I)) * 8));
+               Rates (I) := Integer (G (I));
+            end loop;
+         end;
+      end if;
+      Value :=
+        (case Offset / 2 is
+            when 0 .. 2 => Acc (Offset / 2 + 1),
+            when 3      => Temperature,
+            when others => Rates (Offset / 2 - 3));
+      Value := Value mod 65_536;
+      return Byte (if Offset mod 2 = 0 then Value / 256 else Value mod 256);
+   end Gyro_Data;
+
+   function Gyro_Read (Register : Byte) return Byte is
+     (if Register in 16#3B# .. 16#48# then Gyro_Data (Natural (Register) - 16#3B#)
+      elsif Register = 16#75# then 16#68#
+      elsif Register = 16#0C# then 16#14#
+      else Gyro_Registers (Natural (Register and 16#7F#)));
+
+   --  One selection: a register read that runs on over the next registers,
+   --  or a register write.
+   procedure Gyro_Frame (Tx : Byte_Array; Rx : out Byte_Array) is
+      Register : constant Byte := Tx (Tx'First) and 16#7F#;
+   begin
+      Rx := (others => 16#FF#);
+      if (Tx (Tx'First) and 16#80#) /= 0 then
+         for K in 1 .. Tx'Length - 1 loop
+            Rx (Rx'First + K) := Gyro_Read (Byte ((Natural (Register) + K - 1) mod 128));
+         end loop;
+      elsif Tx'Length >= 2 then
+         if Register = 16#6B# and then (Tx (Tx'First + 1) and 16#80#) /= 0 then
+            Gyro_Registers := (16#6B# => Gyro_Sleep, others => 0);
+         else
+            Gyro_Registers (Natural (Register)) := Tx (Tx'First + 1);
+         end if;
+      end if;
+   end Gyro_Frame;
+
    procedure Init (B : Bus; SCK, SDI, SDO : Pin) is
       pragma Unreferenced (SCK, SDI, SDO);
    begin
@@ -505,6 +575,10 @@ package body Adaflight.STM32.SPI is
          Chip_Frame (Tx, Rx);
       elsif B = SPI2 then
          Card_Transfer (Tx, Rx);
+      elsif B = Gyro_Model_Bus and then Gyro_Model
+        and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Gyro_1_CS_Pin)
+      then
+         Gyro_Frame (Tx, Rx);
       else
          Rx := (others => 16#FF#);
       end if;

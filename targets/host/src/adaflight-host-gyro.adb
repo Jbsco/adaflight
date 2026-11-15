@@ -1,18 +1,26 @@
+with Ada.Environment_Variables;
 with Adaflight.Gyro_Detect;
 with Adaflight.Host_Simulator;
 with Adaflight.Sim_FDM;
+with Adaflight.STM32.Gyro_Chip;
 package body Adaflight.STM32.Gyro is
    --  The virtual gyro at 1 kHz with its rates in degrees per second, and
-   --  the virtual accelerometer, the craft at rest and level.
+   --  the virtual accelerometer, the craft at rest and level. With the
+   --  environment variable ADAFLIGHT_GYRO_CHIP set, the board's gyro code
+   --  runs in its place over the chip model on the host's gyro bus.
    Rate_Hz : constant := 1_000;
+   Chip    : constant Boolean := Ada.Environment_Variables.Exists ("ADAFLIGHT_GYRO_CHIP");
 
    procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report) is
-      pragma Unreferenced (Hardware_LPF, High_Range);
       Build     : constant Gyro_Detect.Driver_Set := (Gyro_Detect.Virtual => True, others => False);
       Acc_Build : constant Acc_Detect.Driver_Set := (Acc_Detect.Virtual => True, others => False);
       Hardware  : Byte := Gyro_Detect.Hardware_None;
       Found     : Boolean;
    begin
+      if Chip then
+         Gyro_Chip.Start (Hardware_LPF, High_Range, Acc_Configured, R);
+         return;
+      end if;
       R := (others => <>);
       Gyro_Detect.Detect_Sensor (Build, True, 0, Hardware, Found);
       R.Found := Found;
@@ -30,6 +38,10 @@ package body Adaflight.STM32.Gyro is
 
    procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
    begin
+      if Chip then
+         Gyro_Chip.Read_Gyro (Raw, OK);
+         return;
+      end if;
       if Adaflight.Host_Simulator.Enabled then
          declare
             G : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Gyro;
@@ -44,6 +56,10 @@ package body Adaflight.STM32.Gyro is
 
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean) is
    begin
+      if Chip then
+         Gyro_Chip.Read_Acc (Raw, OK);
+         return;
+      end if;
       if Adaflight.Host_Simulator.Enabled then
          declare
             A : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Acc;
@@ -56,27 +72,32 @@ package body Adaflight.STM32.Gyro is
       OK := True;
    end Read_Acc;
 
-   function Mode return Read_Mode is (No_Interrupt);
+   function Mode return Read_Mode is (if Chip then Gyro_Chip.Mode else No_Interrupt);
 
-   function Interrupt_Count return Interfaces.Unsigned_32 is (0);
+   function Interrupt_Count return Interfaces.Unsigned_32 is (if Chip then Gyro_Chip.Interrupt_Count else 0);
 
-   function Sync_Cycles return Interfaces.Unsigned_32 is (0);
+   function Sync_Cycles return Interfaces.Unsigned_32 is (if Chip then Gyro_Chip.Sync_Cycles else 0);
 
-   function Short_Period return Boolean is (False);
+   function Short_Period return Boolean is (Chip and then Gyro_Chip.Short_Period);
    --  The host's virtual gyro reports no temperature, as upstream's does.
    procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us) is
-      pragma Unreferenced (Now_Us);
    begin
-      null;
+      if Chip then
+         Gyro_Chip.Poll_Temperature (Now_Us);
+      end if;
    end Poll_Temperature;
 
-   function Temperature return Interfaces.Integer_16 is (0);
+   function Temperature return Interfaces.Integer_16 is (if Chip then Gyro_Chip.Temperature else 0);
 
    --  The host's virtual gyro has no registers: a read of its one position
    --  answers the register's own address, so a dump shows what it asked for.
    procedure Dump_Register (Position : Natural; Register : Byte; Value : out Byte) is
    begin
-      Value := (if Position = 0 then Register else 0);
+      if Chip then
+         Gyro_Chip.Dump_Register (Position, Register, Value);
+      else
+         Value := (if Position = 0 then Register else 0);
+      end if;
    end Dump_Register;
 
 end Adaflight.STM32.Gyro;

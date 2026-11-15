@@ -15395,3 +15395,20 @@ still reach live configuration at each pass's end.
 Host smoke opens a menu on an OSD by sticks, sets a craft name over MSP and a setting in its command line,
 and reads both back later and after a save. That exit between passes has no check: its window is shorter
 than one menu pass. No board has run this.
+
+## D772. Board gyro code on host over an MPU6000 model (2026-11-15)
+
+A host image replaced the board's whole gyro unit with a virtual gyro, so no host check ran the code that finds
+and starts a gyro chip. That code is now `Adaflight.STM32.Gyro_Chip`. A board's gyro unit renames its
+operations, and a host's gyro unit calls them when `ADAFLIGHT_GYRO_CHIP` is set and keeps its virtual gyro
+otherwise.
+
+Host SPI gains an MPU6000 model on the board's gyro bus: identity, product revision, a register store that a
+device reset clears, and data registers. Those read a simulator's accelerations and rates, or without one a
+fixed acceleration and rates that step from zero 8 s after a start, past the gyro's calibration. A host has no
+interrupt vectors, so its interrupt dispatch keeps no callback and that gyro runs without its data ready line.
+
+Host smoke starts an image on that model. Its status names an MPU6000 gyro and accelerometer, its register
+dump shows the range its start wrote, its gyro task runs at 8 kHz, and its raw IMU reply reads that model's
+acceleration and, after their step, its rates. The other gyro chips' drivers still have no board user. No
+board has run this arrangement.
