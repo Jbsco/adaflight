@@ -15269,3 +15269,14 @@ of run-time errors with this count.
 Host smoke turns a beeper switch on while arming is allowed. Its first LED goes on and off with each short
 beep and stays off once that switch is off. A start's beeps light that LED too, so its flash check reads
 gaps after those beeps.
+
+## D765. Boot beep with a USB cable in (2026-11-15)
+
+Betaflight's boot signal skips its beeps when `beeper -ON_USB` is set and a USB cable is in, since that signal
+does not go through its beeper. A board's boot signal read its system init flag alone and beeped.
+
+It now reads that USB flag with D440's cable test too: a detect pin that reads high, or a host that
+configured its port. A host image's detect pin reads low while `ADAFLIGHT_USB_UNPLUGGED` is set. Host
+smoke counts beeps in a host image's beeper log. With that flag on they sound with a client on its USB
+port. With that flag off they sound without a cable, and stay silent with a cable on its detect pin or with
+a client connected from its start.

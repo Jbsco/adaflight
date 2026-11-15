@@ -5327,9 +5327,12 @@ package body Adaflight.STM32.Flight is
 
    --  The boot signal after the sensors: the second LED on and the others
    --  off, then ten toggles of the first two, each with a 25 millisecond
-   --  beep unless the system init sound is off, and both off at the end.
+   --  beep unless the system init sound is off or the USB sound is off with
+   --  a USB cable in, and both off at the end.
    procedure Boot_Beeps is
-      Beeps : constant Boolean := not Beep_Settings.Off_Flags (Adaflight.Beeper.System_Init);
+      Beeps : constant Boolean :=
+        not Beep_Settings.Off_Flags (Adaflight.Beeper.System_Init)
+        and then not (Beep_Settings.Off_Flags (Adaflight.Beeper.USB) and then USB_Active);
    begin
       Adaflight.STM32.Status_LED.Set (1, True);
       Adaflight.STM32.Status_LED.Set (0, False);

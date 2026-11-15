@@ -2110,6 +2110,67 @@ def status_led_checks(image, work):
         sock.close()
 
 
+def boot_beep_checks(image, work):
+    """The boot signal's ten beeps in the host's beeper log. With the USB beeper flag off they stay silent while a
+    cable is in, by the detect pin or by a host on the port, and sound without one. With that flag on they sound
+    with a host on the port."""
+    store = os.path.join(work, "boot-beep-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+
+    def boot(host, plugged):
+        """A start, the detect pin low unless plugged, and a client on the USB port as early as it opens when a
+        host is wanted. Returns whether that client got on, and the times of the beeper's on calls in the first
+        two seconds."""
+        if os.path.exists(store + ".beeper.txt"):
+            os.remove(store + ".beeper.txt")
+        proc, _ = start(image, store, None if plugged else {"ADAFLIGHT_USB_UNPLUGGED": "1"}, port=None)
+        usb = None
+        try:
+            deadline = time.time() + 2.0
+            while host and usb is None and time.time() < deadline:
+                try:
+                    usb = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=0.2)
+                except OSError:
+                    time.sleep(0.01)
+            time.sleep(3.0)
+            try:
+                with open(store + ".beeper.txt") as f:
+                    lines = [line.split(",") for line in f.read().split()]
+            except OSError:
+                lines = []
+            return (not host or usb is not None), [int(l[0]) for l in lines if l[1] == "1" and int(l[0]) < 2000]
+        finally:
+            if usb is not None:
+                usb.close()
+            stop(proc)
+
+    connected, beeps = boot(host=True, plugged=False)
+    check("boot beeps sound with a USB host while the USB beeper flag is on", connected and len(beeps) == 10,
+          repr((connected, beeps)))
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        reply = cli(sock, "beeper -ON_USB")
+        listed = cli(sock, "beeper")
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("USB beeper flag set off", "Disabled ON_USB" in reply and "Disabled:  ON_USB" in listed,
+          repr((reply, listed[-200:])))
+    connected, beeps = boot(host=False, plugged=False)
+    check("boot beeps sound without a USB cable while the USB beeper flag is off", len(beeps) == 10, repr(beeps))
+    connected, beeps = boot(host=False, plugged=True)
+    check("boot beeps stay silent with a cable on the detect pin while that flag is off", beeps == [], repr(beeps))
+    connected, beeps = boot(host=True, plugged=False)
+    check("boot beeps stay silent with a USB host on the port while that flag is off", connected and beeps == [],
+          repr((connected, beeps)))
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5077,6 +5138,7 @@ def main():
         joystick_checks(image, work)
         attitude_rate_checks(image, work)
         status_led_checks(image, work)
+        boot_beep_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
