@@ -2366,6 +2366,61 @@ def flash_read_checks(image, store, chip):
           repr((in_order, used, len(whole), len(pieces))))
 
 
+def hott_checks(image, work):
+    """HoTT telemetry on UART3: a receiver's two request bytes for the electric air module get its message of 44
+    bytes and a checksum, a byte per telemetry task run; a request for the GPS module gets none without a GPS; and
+    bytes that arrive while an answer goes out are dropped. Over a configuration store of its own."""
+    if not built("HoTT_Telemetry"):
+        return
+    store = os.path.join(work, "hott-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature TELEMETRY", "set telemetry_1_protocol = HOTT",
+                                                "set telemetry_1_uart = UART3")]
+        options = cli(sock, "options")
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("HoTT telemetry set on UART3",
+          "telemetry_1_protocol set to HOTT" in replies[1] and "telemetry_1_uart set to UART3" in replies[2],
+          repr(replies))
+    check("options list the HoTT telemetry", "12302" in options.split(), options[-120:])
+    proc, sock = start(image, store)
+    try:
+        time.sleep(3.0)
+        link = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+        link.settimeout(0.3)
+        read_all(link, 0.5)
+        link.sendall(bytes([0x80, 0x8E]))
+        message = read_all(link, 1.2)
+        check("a request for the electric air module gets its message and checksum",
+              len(message) == 45 and message[0] == 0x7C and message[1] == 0x8E and message[43] == 0x7D
+              and message[44] == sum(message[:44]) & 0xFF, repr((len(message), message[:4].hex(), message[-3:].hex())))
+        altitude = message[26] | message[27] << 8 if len(message) == 45 else None
+        check("its altitude field is near the 500 m offset of the ground",
+              altitude is not None and 495 <= altitude <= 505, repr(altitude))
+        link.sendall(bytes([0x80, 0x8A]))
+        none = read_all(link, 0.8)
+        check("a request for the GPS module gets no answer without a GPS", none == b"", repr(none[:8]))
+        link.sendall(bytes([0x80, 0x8E]))
+        time.sleep(0.06)
+        link.sendall(bytes([0x80, 0x8E]))
+        both = read_all(link, 1.5)
+        check("a request that arrives while an answer goes out is dropped",
+              len(both) == 45 and both[44] == sum(both[:44]) & 0xFF, repr(len(both)))
+        link.close()
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5336,6 +5391,7 @@ def main():
         boot_beep_checks(image, work)
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
+        hott_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
