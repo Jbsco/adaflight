@@ -80,6 +80,18 @@ package body Adaflight.MSP_VTX_Status_Out with SPARK_Mode is
                MD.Get_Power_Levels (V.MD, V.Table, Count, R.Levels, R.Powers);
                R.Level_Count := Count;
             end;
+         when RTC6705_Device =>
+            --  An RTC6705 takes frequencies alone: it knows its band and
+            --  channel as none, and it lists no power levels.
+            R.Type_Code := RTC6705_Type;
+            R.Ready := True;
+            R.Band_Known := True;
+            R.Power_Known := True;
+            R.Power_Index := V.RT.Power_Index;
+            R.Freq_Known := True;
+            R.Freq := V.RT.Frequency;
+            R.Status_Known := True;
+            R.Status := (if V.RT.Pit_Active then Pit_Mode_Status else 0);
          when No_Device =>
             null;
       end case;

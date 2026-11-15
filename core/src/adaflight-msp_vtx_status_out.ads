@@ -10,6 +10,7 @@ with Adaflight.Stream_Buffers;
 with Adaflight.SmartAudio;
 with Adaflight.Tramp;
 with Adaflight.VTX_MSP;
+with Adaflight.VTX_RTC6705;
 with Adaflight.VTX_Table;
 
 package Adaflight.MSP_VTX_Status_Out with SPARK_Mode is
@@ -21,6 +22,7 @@ package Adaflight.MSP_VTX_Status_Out with SPARK_Mode is
    Device_Status_Command : constant := 16#3004#;
 
    --  Device type codes on the wire.
+   RTC6705_Type    : constant := 1;
    SmartAudio_Type : constant := 3;
    Tramp_Type      : constant := 4;
    MSP_Type        : constant := 5;
@@ -31,7 +33,7 @@ package Adaflight.MSP_VTX_Status_Out with SPARK_Mode is
    Max_Levels       : constant := Adaflight.VTX_Table.Max_Power_Levels;
    Max_Reply_Length : constant := 16 + 4 * Max_Levels + Adaflight.SmartAudio.Status_Size;
 
-   type Device is (No_Device, SmartAudio_Device, Tramp_Device, MSP_Device);
+   type Device is (No_Device, SmartAudio_Device, Tramp_Device, MSP_Device, RTC6705_Device);
 
    type Snapshot is record
       VTX_Common : Boolean := False;
@@ -39,6 +41,7 @@ package Adaflight.MSP_VTX_Status_Out with SPARK_Mode is
       SA         : Adaflight.SmartAudio.Driver;
       TR         : Adaflight.Tramp.Driver;
       MD         : Adaflight.VTX_MSP.Driver;
+      RT         : Adaflight.VTX_RTC6705.Driver;
       Table      : Adaflight.VTX_Table.Table;
    end record;
 
