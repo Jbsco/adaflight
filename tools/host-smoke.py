@@ -2171,6 +2171,121 @@ def boot_beep_checks(image, work):
           repr((connected, beeps)))
 
 
+def activity_led_checks(image, work):
+    """The status LEDs' activity signals in the host's pin log, each LED lit by a low level. The second LED toggles
+    each 150 ms while a GPS fix has enough satellites, and goes on and off around a compass's start. The first LED
+    is on while serial passthrough moves bytes. GPS solutions come over MSP, the compass is the simulator's, and
+    passthrough goes to the GPS port."""
+    if not contains("GPS"):
+        return
+    store = os.path.join(work, "activity-led-eeprom.bin")
+    log = os.path.join(work, "activity-led-pins.txt")
+    first, second = "B05", "C14"
+    logging = {"ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": ",".join((first, second))}
+    if os.path.exists(store):
+        os.remove(store)
+
+    def changes(pin):
+        try:
+            with open(log) as f:
+                lines = [line.split() for line in f.read().splitlines()]
+        except OSError:
+            lines = []
+        return [(int(l[0]), int(l[3])) for l in lines if len(l) == 4 and l[1] == "pin" and l[2] == pin]
+
+    def configure(*lines):
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            replies = [cli(sock, line) for line in lines]
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+            return replies
+        finally:
+            stop(proc)
+            sock.close()
+
+    def solutions(sock, satellites, count):
+        """Raw GPS solutions over MSP each 100 ms, with a fix. Returns the second LED's changes over them."""
+        before = len(changes(second))
+        for _ in range(count):
+            sock.sendall(msp_frame(201, struct.pack("<BBiiHH", 1, satellites, 401234567, -1052345678, 1650, 345)))
+            time.sleep(0.1)
+        seen = changes(second)[before:]
+        read_all(sock, 0.3)
+        return seen
+
+    replies = configure("feature GPS", "set gps_provider = MSP", f"resource LED 2 {second}")
+    check("activity LED checks have a GPS over MSP and a pin for the second LED",
+          "gps_provider set to MSP" in replies[1] and f"Resource is set to {second}" in replies[2], repr(replies))
+    for stale in (log,):
+        if os.path.exists(stale):
+            os.remove(stale)
+    proc, sock = start(image, store, logging)
+    try:
+        time.sleep(4.0)
+        # Each toggle lights that LED, and the next modes step, with no level mode on, turns it off again.
+        seen = solutions(sock, 12, 25)
+        lit = [ms for ms, v in seen if v == 0]
+        gaps = [b - a for a, b in zip(lit, lit[1:])]
+        check("a GPS fix with twelve satellites toggles the second LED each 150 ms",
+              len(gaps) >= 8 and all(130 <= g <= 230 for g in gaps), repr(seen[:12]))
+        solutions(sock, 5, 5)
+        seen = solutions(sock, 5, 15)
+        check("a GPS fix with five satellites leaves the second LED alone", seen == [], repr(seen[:6]))
+    finally:
+        stop(proc)
+        sock.close()
+    # A compass's start: the simulator link gives the image its virtual compass.
+    if os.path.exists(log):
+        os.remove(log)
+    proc, sock = start(image, store, dict(logging, ADAFLIGHT_SIMULATOR="gazebo,127.0.0.1"))
+    try:
+        time.sleep(4.0)
+        seen = [v for _, v in changes(second)]
+        check("a compass's start lights the second LED before the boot flashes", seen[:14] == [0, 1] * 7, repr(seen[:16]))
+    finally:
+        stop(proc)
+        sock.close()
+    # Serial passthrough to the GPS port: the first LED is on while bytes move, and still otherwise.
+    replies = configure("set gps_provider = NMEA", "set gps_uart = UART4")
+    check("activity LED checks have a GPS port for passthrough", "gps_uart set to UART4" in replies[1], repr(replies))
+    if os.path.exists(log):
+        os.remove(log)
+    proc, sock = start(image, store, logging)
+    uart4 = None
+    try:
+        time.sleep(2.5)
+        uart4 = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+        uart4.settimeout(0.3)
+        started = msp(sock, 245, bytes([0xFD, 54]))
+        read_all(uart4, 0.5)
+        time.sleep(1.2)
+        before = len(changes(first))
+        time.sleep(1.2)
+        idle = changes(first)[before:]
+        for k in range(3):
+            sock.sendall(b"to the module\r\n")
+            collect(uart4, b"\r\n", 2.0)
+            time.sleep(0.2)
+        for k in range(2):
+            uart4.sendall(b"$GPTXT,from the module*00\r\n")
+            collect(sock, b"*00\r\n", 2.0)
+            time.sleep(0.2)
+        moved = [v for _, v in changes(first)[before + len(idle):]]
+        check("serial passthrough leaves the first LED still without bytes", started == b"\x01" and idle == [],
+              repr((started, idle)))
+        check("serial passthrough lights the first LED while bytes move, each way",
+              len(moved) >= 10 and moved == [0, 1] * (len(moved) // 2), repr(moved[:16]))
+    finally:
+        stop(proc)
+        sock.close()
+        if uart4 is not None:
+            uart4.close()
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5139,6 +5254,7 @@ def main():
         attitude_rate_checks(image, work)
         status_led_checks(image, work)
         boot_beep_checks(image, work)
+        activity_led_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():

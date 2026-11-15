@@ -18,6 +18,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.I2C;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.SPI;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 with Adaflight.Compass_Debug;
 with Adaflight.STM32.Debug_Values;
@@ -289,6 +290,7 @@ package body Adaflight.STM32.Compass is
          return;
       end if;
       Virtual_Dev := Kind = CD.Virtual;
+      Adaflight.STM32.Status_LED.Set (1, True);
       case Kind is
          when CD.HMC5883 =>
             HMC.Init (Dev, HMC_State, Interrupt_Pin => Dev.Interrupt_Tag /= 0, OK => OK);
@@ -320,6 +322,7 @@ package body Adaflight.STM32.Compass is
          when CD.Virtual | CD.AK8963 | CD.MPU925X =>
             null;
       end case;
+      Adaflight.STM32.Status_LED.Set (1, False);
       if not OK then
          Found := False;
          Virtual_Dev := False;
@@ -438,6 +441,11 @@ package body Adaflight.STM32.Compass is
       Adaflight.Compass.Read_Cycle
         (State, Settings, Bus_Busy => False, Data_Ready => Got, Sample => Sample, Gyro => Gyro_Rates, Now_Us => Now_Us,
          Next_Period_Us => Next);
+      --  The first LED is lit at each sample a calibration takes once the
+      --  craft moves.
+      if Got and then State.Calibrating and then State.Movement_Started then
+         Adaflight.STM32.Status_LED.Set (0, True);
+      end if;
       Next_Period_Us := Adaflight.Scheduler.Time_Delta (Next);
       Adaflight.Compass_Debug.Record_Cycle
         (Adaflight.STM32.Debug_Values.State, State, Adaflight.STM32.Time.Micros - Now_Us);

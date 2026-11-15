@@ -15280,3 +15280,21 @@ configured its port. A host image's detect pin reads low while `ADAFLIGHT_USB_UN
 smoke counts beeps in a host image's beeper log. With that flag on they sound with a client on its USB
 port. With that flag off they sound without a cable, and stay silent with a cable on its detect pin or with
 a client connected from its start.
+
+## D766. Status LED signals of GPS, compass and passthrough (2026-11-15)
+
+D763 left some of Betaflight's LED calls out. This entry adds those a board has code for.
+
+`GPS_Link` already reported its fix indicator: a toggle each 150 ms while a fix has at least
+`gps_rescue_min_sats` satellites. A board now toggles its second LED on it. That LED is also on from a
+compass driver's start until its end, whether that start succeeds or not. During a compass calibration,
+each sample taken once movement has begun lights its first LED. Serial passthrough turns both LEDs off as
+it begins and lights its first LED while bytes move, either way.
+
+Betaflight's VTX button and its reset by held buttons drive LEDs too. No board here has those buttons, so
+those calls stay out.
+
+Host smoke reads a host image's pin log. With solutions over MSP, a fix of twelve satellites lights its
+second LED each 150 ms and a fix of five does not. A simulator link's virtual compass lights that LED once
+before boot flashes. Passthrough to a GPS port leaves its first LED still without bytes and lights it for
+bytes each way. A calibration's LED is not covered there, since it needs a moving craft.

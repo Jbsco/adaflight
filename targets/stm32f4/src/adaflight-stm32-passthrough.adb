@@ -8,6 +8,7 @@ with Adaflight.STM32.MCU;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
 with Adaflight.STM32.USB;
@@ -194,14 +195,22 @@ package body Adaflight.STM32.Passthrough is
       To_Left.Which := Left;
       To_Right.Which := Right;
       Adaflight.STM32.USB.Control_Line (State, Seen);
+      --  The first LED is on while bytes move, either way.
+      Adaflight.STM32.Status_LED.Set (0, False);
+      Adaflight.STM32.Status_LED.Set (1, False);
       loop
          Serial.Take (Left, Data, Count);
          Moved := Count > 0;
          if Count > 0 then
+            Adaflight.STM32.Status_LED.Set (0, True);
             Serial.Put (To_Right, Data (0 .. Count - 1));
+            Adaflight.STM32.Status_LED.Set (0, False);
          end if;
          Serial.Take (Right, Data, Count);
          Moved := Moved or else Count > 0;
+         if Count > 0 then
+            Adaflight.STM32.Status_LED.Set (0, True);
+         end if;
          for I in 0 .. Count - 1 loop
             Serial.Put (To_Left, Data (I .. I));
             Adaflight.Passthrough_Escape.Host_Byte
@@ -210,6 +219,9 @@ package body Adaflight.STM32.Passthrough is
                Adaflight.STM32.MCU.Reset;
             end if;
          end loop;
+         if Count > 0 then
+            Adaflight.STM32.Status_LED.Set (0, False);
+         end if;
          if Baud_From_USB and then Adaflight.STM32.USB.Line_Rate /= Rate then
             Rate := Adaflight.STM32.USB.Line_Rate;
             Port_Set_Baud (Id_Of (Baud_Target), Rate);
