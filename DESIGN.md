@@ -15337,3 +15337,22 @@ reads that fit 496 coded bytes, which is one such read for a log's text header a
 Host smoke reads a chip image that has a flight log: a plain read, a read cut to its reply's room, a legacy
 read, and reads at and past its volume's end. It also reads that log back in coded replies and decodes them
 with `Huffman_Table`'s codes. Every byte matches that image. No board has run this.
+
+## D769. HoTT telemetry on boards (2026-11-15)
+
+D228's HoTT link had no board unit, so a provider set to HOTT sent nothing. `Adaflight.STM32.HoTT` runs
+that link on a provider's UART at 19200 baud, on one wire when half duplex is set, as a build feature of
+1024 KB boards beside LTM and iBus.
+
+Each telemetry task run passes that port's waiting bytes to the link and sends its answer's next byte.
+Bytes the link leaves wait for its next run. Once an answer has gone out, that link takes whatever arrived
+meanwhile, which drops it as Betaflight does when it turns its port back to receive. A port that opens
+starts in receive with no message pending. Its messages read battery voltage in tenths of a volt, both battery states,
+current, charge drawn, altitude, vario, and GPS position with distance and direction home.
+
+Its text mode asks for a faster telemetry task, which a board grants. No menu draws on that screen yet:
+`HoTT_Display_Port` still has no user.
+
+Host smoke asks for an electric air module message over a host image's UART3 and checks its 44 bytes'
+frame, checksum and altitude offset. A GPS module request gets no answer without a GPS. A second request
+sent while an answer goes out is dropped. No board has run this.

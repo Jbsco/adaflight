@@ -13,6 +13,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
 with Adaflight.STM32.Build_Stamp;
+with Adaflight.STM32.HoTT;
 with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Timers;
 with Adaflight.Timer_Tables;
@@ -152,6 +153,7 @@ with Adaflight.Gyro_Debug;
 with Adaflight.Position_Debug;
 with Adaflight.Sensor_Debug;
 with Adaflight.Autopilot_Debug;
+with Adaflight.HoTT_Telemetry;
 with Adaflight.MSP_Flash_Read;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.Receiver_Debug;
@@ -570,6 +572,7 @@ package body Adaflight.STM32.Flight is
    --  Whether a telemetry stream holds a UART.
    function Telemetry_Holds (N : Adaflight.STM32.USART.Number) return Boolean is
      (Adaflight.STM32.FrSky_Hub.Holds (N) or else Adaflight.STM32.SmartPort.Holds (N)
+      or else (Adaflight.Build_Features.HoTT_Telemetry and then Adaflight.STM32.HoTT.Holds (N))
       or else (Adaflight.Build_Features.LTM_Telemetry and then Adaflight.STM32.LTM.Holds (N))
       or else (Adaflight.Build_Features.MAVLink_Telemetry and then Adaflight.STM32.MAVLink.Holds (N))
       or else (Adaflight.Build_Features.IBus_Telemetry and then Adaflight.STM32.IBus.Holds (N)));
@@ -607,6 +610,7 @@ package body Adaflight.STM32.Flight is
        Build.Wing => Adaflight.Build_Features.Wing,
        Build.Telemetry_FrSky_Hub | Build.Telemetry_SmartPort => True,
        Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
+       Build.Telemetry_HoTT => Adaflight.Build_Features.HoTT_Telemetry,
        Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
        Build.Telemetry_MAVLink => Adaflight.Build_Features.MAVLink_Telemetry,
        Build.Chirp | Build.OSD_SD | Build.OSD_HD | Build.PINIO | Build.VTX => True,
@@ -2793,6 +2797,9 @@ package body Adaflight.STM32.Flight is
                     and then Telemetry_Holds (UART_Of (Line_Serial (L)));
       end loop;
       Adaflight.STM32.FrSky_Hub.Check_State (Armed, Box_Present, Box_Active);
+      if Adaflight.Build_Features.HoTT_Telemetry then
+         Adaflight.STM32.HoTT.Check_State (Armed, Box_Present, Box_Active);
+      end if;
       Adaflight.STM32.SmartPort.Check_State (Armed, Box_Present, Box_Active);
       if Adaflight.Build_Features.LTM_Telemetry then
          Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
@@ -4933,6 +4940,41 @@ package body Adaflight.STM32.Flight is
       return Inp;
    end SmartPort_Inputs;
 
+   --  What the HoTT link's messages read: the battery with its voltage in
+   --  tenths of a volt, the altitude and the GPS with its way home.
+   function HoTT_Inputs return Adaflight.HoTT_Telemetry.Inputs is
+      package H renames Adaflight.HoTT_Telemetry;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+
+      function State_Of (S : Adaflight.Battery.Battery_State) return H.Battery_State is
+        (case S is
+            when Adaflight.Battery.OK          => H.OK,
+            when Adaflight.Battery.Warning     => H.Warning,
+            when Adaflight.Battery.Critical    => H.Critical,
+            when Adaflight.Battery.Not_Present => H.Not_Present,
+            when Adaflight.Battery.Init        => H.Init_State);
+   begin
+      return
+        (Now_Us            => Adaflight.STM32.Time.Micros,
+         Task_Period_Us    => Integer_32 (Sched.Tasks (Scheduler.Telemetry).Period),
+         In_Menu           => Adaflight.STM32.Menu.Open,
+         Now_Ms            => Adaflight.STM32.Time.Millis,
+         Voltage_Dv        => Unsigned_16 (Natural'Min (65_535, (Bat.Voltage.Display_Filtered + 5) / 10)),
+         Voltage_State     => State_Of (Bat.Voltage_State),
+         Consumption_State => State_Of (Bat.Consumption_State),
+         Amperage_Ca       => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage))),
+         Mah_Drawn         => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Altitude_Cm       => Estimated_Altitude_Cm,
+         Vario_Cms         => Estimated_Vario,
+         Fix               => G.Fix,
+         Num_Sat           => G.Satellites,
+         Lat               => G.Latitude,
+         Lon               => G.Longitude,
+         Ground_Speed      => G.Ground_Speed,
+         Distance_Home     => G.Distance_To_Home_M,
+         Direction_Home    => G.Direction_To_Home);
+   end HoTT_Inputs;
+
    function LTM_Inputs return Adaflight.LTM_Telemetry.Inputs is
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
@@ -5284,6 +5326,19 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Telemetry =>
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
                Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
+               if Adaflight.Build_Features.HoTT_Telemetry then
+                  declare
+                     Reschedule : Boolean;
+                     Period     : Integer_32;
+                  begin
+                     Adaflight.STM32.HoTT.Run
+                       (HoTT_Inputs, Adaflight.STM32.GPS.Current.Present, Reschedule, Period);
+                     if Reschedule and then Period > 0 then
+                        Scheduler.Reschedule
+                          (Sched, Sched_Settings, Scheduler.Telemetry, Scheduler.Time_Delta (Period));
+                     end if;
+                  end;
+               end if;
                SmartPort_Run (SmartPort_Inputs);
                if Adaflight.Build_Features.LTM_Telemetry then
                   Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
@@ -5708,6 +5763,9 @@ package body Adaflight.STM32.Flight is
          else
             Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
          end if;
+      end if;
+      if Adaflight.Build_Features.HoTT_Telemetry then
+         Adaflight.STM32.HoTT.Init (Config, Runtime_Features);
       end if;
       if Adaflight.Build_Features.LTM_Telemetry then
          Adaflight.STM32.LTM.Init (Config, Runtime_Features);

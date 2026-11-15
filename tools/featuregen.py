@@ -53,6 +53,7 @@ FEATURES = [
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
     ("LTM_Telemetry", 1024, "The LTM telemetry."),
+    ("HoTT_Telemetry", 1024, "The HoTT telemetry."),
     ("MAVLink_Telemetry", 1024, "The MAVLink telemetry."),
     ("Jeti_EX_Bus", 1024, "The Jeti EX Bus receiver and its telemetry."),
     ("SUMD", 1024, "The SUMD receiver."),
