@@ -39457,15 +39457,19 @@ procedure Vector_Check is
          return Int (K - 1);
       end Next;
    begin
-      if Name = "vdsinit" then
+      if Name = "vdsinit" or else Name = "vdsrinit" then
          return;
-      elsif Name /= "vdsstep" then
+      elsif Name /= "vdsstep" and then Name /= "vdsrtc" then
          Put_Line ("unknown VTX status case " & Name);
          Failures := Failures + 1;
          return;
       end if;
       V.VTX_Common := True;
-      V.Kind := VS.Device'Val (Next);
+      if Name = "vdsrtc" then
+         V.Kind := (if Next /= 0 then VS.RTC6705_Device else VS.No_Device);
+      else
+         V.Kind := VS.Device'Val (Next);
+      end if;
       V.Table.Bands := Natural (Next);
       V.Table.Channels := Natural (Next);
       for Bd in Adaflight.VTX_Table.Band_Index loop
@@ -39477,30 +39481,36 @@ procedure Vector_Check is
       for I in Adaflight.VTX_Table.Power_Index loop
          V.Table.Power_Value (I) := Interfaces.Unsigned_16 (Next);
       end loop;
-      V.SA.Port_Open := True;
-      V.SA.Device.Version_Seen := Adaflight.SmartAudio.Version'Val (Next);
-      V.SA.Device.Channel := Interfaces.Integer_8 (Next);
-      V.SA.Device.Power := Interfaces.Integer_8 (Next);
-      V.SA.Device.Mode := Interfaces.Unsigned_8 (Next);
-      V.SA.Device.Freq := Interfaces.Unsigned_16 (Next);
-      V.SA.Device.Pit_Freq := Interfaces.Unsigned_16 (Next);
-      V.SA.Device.Will_Boot_Into_Pit_Mode := Next /= 0;
-      V.SA.Levels := Natural (Next);
-      for I in V.SA.Level_Value'Range loop
-         V.SA.Level_Value (I) := Interfaces.Unsigned_16 (Next);
-      end loop;
-      V.TR.Port_Open := True;
-      V.TR.Current := Adaflight.Tramp.Status'Val (Next);
-      V.TR.Conf_Power := Interfaces.Unsigned_16 (Next);
-      V.TR.Cur_Freq := Interfaces.Unsigned_32 (Next);
-      V.TR.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
-      V.TR.Cur_Control_Mode := Interfaces.Unsigned_8 (Next);
-      V.MD.Current := Adaflight.VTX_MSP.Status'Val (Next);
-      V.MD.Conf_Band := Interfaces.Unsigned_8 (Next);
-      V.MD.Conf_Channel := Interfaces.Unsigned_8 (Next);
-      V.MD.Conf_Power := Interfaces.Unsigned_16 (Next);
-      V.MD.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
-      V.MD.Conf_Freq := Interfaces.Unsigned_16 (Next);
+      if Name = "vdsrtc" then
+         V.RT.Power_Index := Interfaces.Unsigned_8 (Next);
+         V.RT.Frequency := Interfaces.Unsigned_16 (Next);
+         V.RT.Pit_Active := Next /= 0;
+      else
+         V.SA.Port_Open := True;
+         V.SA.Device.Version_Seen := Adaflight.SmartAudio.Version'Val (Next);
+         V.SA.Device.Channel := Interfaces.Integer_8 (Next);
+         V.SA.Device.Power := Interfaces.Integer_8 (Next);
+         V.SA.Device.Mode := Interfaces.Unsigned_8 (Next);
+         V.SA.Device.Freq := Interfaces.Unsigned_16 (Next);
+         V.SA.Device.Pit_Freq := Interfaces.Unsigned_16 (Next);
+         V.SA.Device.Will_Boot_Into_Pit_Mode := Next /= 0;
+         V.SA.Levels := Natural (Next);
+         for I in V.SA.Level_Value'Range loop
+            V.SA.Level_Value (I) := Interfaces.Unsigned_16 (Next);
+         end loop;
+         V.TR.Port_Open := True;
+         V.TR.Current := Adaflight.Tramp.Status'Val (Next);
+         V.TR.Conf_Power := Interfaces.Unsigned_16 (Next);
+         V.TR.Cur_Freq := Interfaces.Unsigned_32 (Next);
+         V.TR.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
+         V.TR.Cur_Control_Mode := Interfaces.Unsigned_8 (Next);
+         V.MD.Current := Adaflight.VTX_MSP.Status'Val (Next);
+         V.MD.Conf_Band := Interfaces.Unsigned_8 (Next);
+         V.MD.Conf_Channel := Interfaces.Unsigned_8 (Next);
+         V.MD.Conf_Power := Interfaces.Unsigned_16 (Next);
+         V.MD.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
+         V.MD.Conf_Freq := Interfaces.Unsigned_16 (Next);
+      end if;
       declare
          Buffer : Byte_Array (0 .. 255) := (others => 0);
          St     : Adaflight.Stream_Buffers.Stream;
@@ -39511,7 +39521,7 @@ procedure Vector_Check is
          Record_Bytes (Name & ".reply", Hex_Bytes (K + 1), Buffer (0 .. St.Next - 1));
       end;
       if K + 1 /= NF then
-         Put_Line ("vdsstep: consumed" & Integer'Image (K + 1) & " of" & Integer'Image (NF) & " fields");
+         Put_Line (Name & ": consumed" & Integer'Image (K + 1) & " of" & Integer'Image (NF) & " fields");
          Failures := Failures + 1;
       end if;
    end Check_VTX_Status_Line;

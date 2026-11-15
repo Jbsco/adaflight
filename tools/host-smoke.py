@@ -1933,6 +1933,10 @@ def rtc6705_checks(image, work):
         check("MSP VTX config names a ready RTC6705 on its stored channel",
               config is not None and len(config) >= 8 and config[0] == 1 and config[1:3] == bytes([5, 1])
               and config[5:7] == (5658).to_bytes(2, "little") and config[7] == 1, repr(config))
+        status = msp2(sock, 0x3004)
+        check("MSP device status names a ready RTC6705 with its power index and frequency, out of pit mode",
+              status == bytes([1, 1, 1, 0, 0, 1, 1, 1]) + (5658).to_bytes(2, "little") + bytes([1, 0, 0, 0, 0, 0, 0]),
+              repr(status))
         sock.sendall(b"#")
         read_all(sock, 0.8)
         text = cli(sock, "tasks", 1.5)
@@ -1959,6 +1963,10 @@ def rtc6705_checks(image, work):
         msp(sock, 89, (1).to_bytes(2, "little") + bytes([3, 1]))
         found, seen = until(lambda: activity()[0], lambda p: [on for _, on in p] == [True, False], wait=5.0)
         check("pit mode takes an RTC6705's power", found and len(activity()[1]) == count, f"{seen} {count}")
+        status = msp2(sock, 0x3004)
+        check("MSP device status names an RTC6705 in pit mode on its new channel",
+              status == bytes([1, 1, 1, 0, 0, 1, 3, 1]) + (5845).to_bytes(2, "little") + bytes([1, 1, 0, 0, 0, 0, 0]),
+              repr(status))
         msp(sock, 89, (1).to_bytes(2, "little") + bytes([3, 0]))
         found, seen = until(lambda: activity(), lambda a: len(a[1]) >= count + 3, wait=5.0)
         powers, writes = activity()
@@ -1970,21 +1978,24 @@ def rtc6705_checks(image, work):
     finally:
         stop(proc)
         sock.close()
-    # A serial transmitter that is configured takes the RTC6705's place, and its power stays off.
-    configure("set vtx_uart = UART6", "set vtx_type = SMARTAUDIO")
-    if os.path.exists(log):
-        os.remove(log)
-    proc, sock = start(image, store, logging)
-    try:
-        time.sleep(4.0)
-        config = msp(sock, 88)
-        powers, writes = activity()
-        check("a configured serial transmitter takes an RTC6705's place",
-              config is not None and len(config) >= 1 and config[0] != 1 and powers == [] and writes == [],
-              f"{config!r} {powers} {writes}")
-    finally:
-        stop(proc)
-        sock.close()
+    # A serial transmitter that is configured takes the RTC6705's place, and its power stays off. The device
+    # status reply names that transmitter's kind.
+    for kind, code in (("SMARTAUDIO", 3), ("MSP", 5)):
+        configure("set vtx_uart = UART6", f"set vtx_type = {kind}")
+        if os.path.exists(log):
+            os.remove(log)
+        proc, sock = start(image, store, logging)
+        try:
+            time.sleep(4.0)
+            config = msp(sock, 88)
+            status = msp2(sock, 0x3004)
+            powers, writes = activity()
+            check(f"a configured {kind} transmitter takes an RTC6705's place, in MSP device status too",
+                  config is not None and config[:1] == bytes([code]) and powers == [] and writes == []
+                  and status is not None and status[:1] == bytes([code]), f"{config!r} {status!r} {powers} {writes}")
+        finally:
+            stop(proc)
+            sock.close()
     # The same transmitter on an SPI bus in place of its clock and data pins.
     configure("set vtx_type = NONE", "set vtx_uart = NONE", "set vtx_spi_bus = 1", "set vtx_band = 5",
               "set vtx_channel = 1", "set vtx_power = 1")
@@ -4945,6 +4956,9 @@ def main():
                   repr(reply[:40]))
             check("MSP transmitter pushes its configuration after a goggle's write",
                   b"$X>\x00\x58\x00\x0f\x00\x05\x01\x04\x02" in pushed, repr(pushed[:80]))
+            status = msp2(sock, 0x3004)
+            check("MSP device status names an MSP transmitter", status is not None and len(status) >= 16
+                  and status[0] == 5, repr(status))
         finally:
             stop(proc)
             sock.close()

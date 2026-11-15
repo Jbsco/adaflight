@@ -15119,3 +15119,20 @@ register once before power, as D261's control passes leave it.
 
 We measured this unit's cost: 1092 bytes of code on an STM32F405, and ALIENFLIGHTNGF7_RX now has 3449 bytes of
 flash left. No board has run this unit.
+
+## D758. RTC6705 in MSP device status (2026-11-14)
+
+D157's device status reply knew SmartAudio, Tramp and MSP transmitters, and D757 put an RTC6705 on boards.
+This entry adds an RTC6705 to that reply.
+
+An RTC6705 reports type 1 and is always ready. It knows its band and channel as none, since it takes
+frequencies alone. It reports its power index, its frequency and a pit mode bit, lists no power levels and
+has no status block of its own.
+
+An oracle run adds sequences over Betaflight's RTC6705 device with drawn tables, power indexes, frequencies
+and pit modes, with a device current or none. Every length and byte replays exactly, and D157's vectors stay
+byte for byte. SPARK proves that reply free of run-time errors.
+
+A board's status snapshot named SmartAudio and Tramp alone, so an MSP transmitter got no reply either,
+though D157's unit had one for it. That snapshot now names every device kind. Host smoke reads a device
+status reply for an RTC6705, out of pit mode and in it, and for an MSP transmitter.

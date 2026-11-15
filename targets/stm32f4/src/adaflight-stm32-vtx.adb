@@ -327,10 +327,13 @@ package body Adaflight.STM32.VTX is
          else (case V.Kind is
                   when Core.SmartAudio_Device => Adaflight.MSP_VTX_Status_Out.SmartAudio_Device,
                   when Core.Tramp_Device      => Adaflight.MSP_VTX_Status_Out.Tramp_Device,
-                  when others                 => Adaflight.MSP_VTX_Status_Out.No_Device)),
+                  when Core.MSP_Device        => Adaflight.MSP_VTX_Status_Out.MSP_Device,
+                  when Core.RTC6705_Device    => Adaflight.MSP_VTX_Status_Out.RTC6705_Device,
+                  when Core.No_Device         => Adaflight.MSP_VTX_Status_Out.No_Device)),
       SA         => V.SA,
       TR         => V.TR,
       MD         => V.MD,
+      RT         => V.RT,
       Table      => T);
 
    procedure Peripheral (Present, Pit_Mode, Ready : out Boolean; Type_Code : out Interfaces.Unsigned_8) is
