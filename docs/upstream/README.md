@@ -146,3 +146,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Mass storage class reopens whatever endpoint a clear feature request names](msc-clear-feature-any-endpoint.md)
 - [Mass storage waits without end on an SD card that is absent or failed](msc-sd-card-waits-without-end.md)
 - [Mass storage reports success for a block its SD card failed](msc-sd-card-errors-pass.md)
+- [RTC6705 software SPI writes and boot wait stop the scheduler](rtc6705-writes-stop-scheduler.md)

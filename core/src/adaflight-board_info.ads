@@ -106,6 +106,13 @@ package Adaflight.Board_Info with SPARK_Mode is
       ADC_DMA_Options    : Adaflight.Config_Groups.Integer_8_List_3 :=
         (1, Interfaces.Integer_8 (-1), Interfaces.Integer_8 (-1));
       ESC_Serial_Tag     : Interfaces.Unsigned_8 := 0;
+      --  The RTC6705 video transmitter's select, power, clock and data pins
+      --  and its SPI bus from 1, zero for none.
+      VTX_CS_Tag         : Interfaces.Unsigned_8 := 0;
+      VTX_Power_Tag      : Interfaces.Unsigned_8 := 0;
+      VTX_Clock_Tag      : Interfaces.Unsigned_8 := 0;
+      VTX_Data_Tag       : Interfaces.Unsigned_8 := 0;
+      VTX_SPI_Device     : Interfaces.Unsigned_8 := 0;
       --  The SPI receiver's default protocol, bus, select, interrupt, bind
       --  and LED pins with the LED's inversion, the ExpressLRS radio's
       --  reset and busy pins, and the CC2500 radio's chip detection and

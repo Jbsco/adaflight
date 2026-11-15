@@ -1,8 +1,10 @@
 --  The host's pins: every output level kept with its rising edges, so a
 --  model reads the select pin of its device, and the SD card detect pin
---  high while the environment names a card image in ADAFLIGHT_SD_IMAGE.
+--  high while the environment names a card image in ADAFLIGHT_SD_IMAGE. Level
+--  changes of chosen pins go to the host's pin log.
 with Ada.Environment_Variables;
 with Adaflight.Board;
+with Adaflight.Host_Pin_Log;
 with Adaflight.Host_Pins;
 package body Adaflight.STM32.GPIO is
    Levels : array (Port_Name, Pin_Number) of Boolean := (others => (others => True));
@@ -27,12 +29,16 @@ package body Adaflight.STM32.GPIO is
    begin
       if not Levels (P.Port, P.Number) then
          Adaflight.Host_Pins.Rose (P);
+         Adaflight.Host_Pin_Log.Level (P, True);
       end if;
       Levels (P.Port, P.Number) := True;
    end Set_High;
 
    procedure Set_Low (P : Pin) is
    begin
+      if Levels (P.Port, P.Number) then
+         Adaflight.Host_Pin_Log.Level (P, False);
+      end if;
       Levels (P.Port, P.Number) := False;
    end Set_Low;
 
@@ -42,5 +48,6 @@ package body Adaflight.STM32.GPIO is
          Adaflight.Host_Pins.Rose (P);
       end if;
       Levels (P.Port, P.Number) := not Levels (P.Port, P.Number);
+      Adaflight.Host_Pin_Log.Level (P, Levels (P.Port, P.Number));
    end Toggle;
 end Adaflight.STM32.GPIO;
