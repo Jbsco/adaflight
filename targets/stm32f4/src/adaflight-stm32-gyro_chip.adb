@@ -7,6 +7,7 @@ with Adaflight.MPU_Gyro;
 with Adaflight.MPU_Gyro.BMI270;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.MPU_Gyro.ICM426xx;
+with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -62,7 +63,7 @@ package body Adaflight.STM32.Gyro_Chip is
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 5,
+      Chip_Count       => 7,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -80,6 +81,11 @@ package body Adaflight.STM32.Gyro_Chip is
       Fetch            => Fetch,
       Uses_DMA         => Uses_DMA,
       Read_Registers   => Read_Registers);
+   package LSM6DSV is new Layer.LSM6DSV16X
+     (Write_Register => Write_Register,
+      Read_Register  => Read_Register,
+      Delay_Us       => Delay_Us,
+      Failure        => Failure);
    package ICM20689 is new Layer.ICM20689
      (Write_Register => Write_Register,
       Read_Register  => Read_Register,
@@ -106,8 +112,17 @@ package body Adaflight.STM32.Gyro_Chip is
       Read_Register  => Read_Register,
       Start_Clock_In => No_Clock_In);
 
+   --  Whether the board builds the LSM6DSV16X family's driver, and whether
+   --  a sensor code is one of its chips.
+   LSM_Built : constant Boolean :=
+     Adaflight.Board.Gyro_LSM6DSV16X or else Adaflight.Board.Gyro_LSM6DSV32X
+     or else Adaflight.Board.Gyro_LSM6DSK320X;
+   function Is_LSM (Sensor : Byte) return Boolean is
+     (Sensor in LSM6DSV.Sensor_LSM6DSV16X | LSM6DSV.Sensor_LSM6DSK320X | LSM6DSV.Sensor_LSM6DSV32X);
+
    Bus   : Device;
    State : Layer.State;
+   Latch : LSM6DSV.Sample_Latch;
    Gyro_Found : Boolean := False;
    Polled_Temperature : Interfaces.Integer_16 := Interfaces.Integer_16'First;
 
@@ -173,22 +188,30 @@ package body Adaflight.STM32.Gyro_Chip is
       Sensor := Layer.No_Sensor;
       case Index is
          when 1 =>
+            if Adaflight.Board.Gyro_LSM6DSV16X or else Adaflight.Board.Gyro_LSM6DSV32X then
+               LSM6DSV.Detect_LSM6DSV16X (D, Sensor);
+            end if;
+         when 2 =>
+            if Adaflight.Board.Gyro_LSM6DSK320X then
+               LSM6DSV.Detect_LSM6DSK320X (D, Sensor);
+            end if;
+         when 3 =>
             if Adaflight.Board.Gyro_ICM20689 then
                ICM20689.Detect (D, Sensor);
             end if;
-         when 2 =>
+         when 4 =>
             if Adaflight.Board.Gyro_MPU6000 then
                MPU6000.Detect (D, Sensor);
             end if;
-         when 3 =>
+         when 5 =>
             if Adaflight.Board.Gyro_MPU6500 then
                MPU6500.Detect (D, Sensor);
             end if;
-         when 4 =>
+         when 6 =>
             if Adaflight.Board.Gyro_BMI270 then
                BMI270.Detect (D, Sensor);
             end if;
-         when 5 =>
+         when 7 =>
             if Adaflight.Board.Gyro_ICM426xx then
                ICM426xx.Detect (D, Sensor);
             end if;
@@ -329,14 +352,20 @@ package body Adaflight.STM32.Gyro_Chip is
 
    --  The drivers a board's configuration names.
    Build : constant Gyro_Detect.Driver_Set :=
-     (Gyro_Detect.ICM20689    => Adaflight.Board.Gyro_ICM20689,
+     (Gyro_Detect.LSM6DSV16X  => Adaflight.Board.Gyro_LSM6DSV16X,
+      Gyro_Detect.LSM6DSV32X  => Adaflight.Board.Gyro_LSM6DSV32X,
+      Gyro_Detect.LSM6DSK320X => Adaflight.Board.Gyro_LSM6DSK320X,
+      Gyro_Detect.ICM20689    => Adaflight.Board.Gyro_ICM20689,
       Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
       Gyro_Detect.BMI270      => Adaflight.Board.Gyro_BMI270,
       Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
       others                  => False);
    Acc_Build : constant Acc_Detect.Driver_Set :=
-     (Acc_Detect.ICM20689    => Adaflight.Board.Acc_ICM20689,
+     (Acc_Detect.LSM6DSV16X  => Adaflight.Board.Gyro_LSM6DSV16X,
+      Acc_Detect.LSM6DSV32X  => Adaflight.Board.Gyro_LSM6DSV32X,
+      Acc_Detect.LSM6DSK320X => Adaflight.Board.Gyro_LSM6DSK320X,
+      Acc_Detect.ICM20689    => Adaflight.Board.Acc_ICM20689,
       Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
       Acc_Detect.BMI270      => Adaflight.Board.Acc_BMI270,
@@ -370,6 +399,8 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_ICM20689 then
             ICM20689.Gyro_Detect (State, Found, R.Scale);
          end if;
+      elsif LSM_Built and then Is_LSM (State.Sensor) then
+         LSM6DSV.Gyro_Detect (State, Found);
       elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Gyro_Detect (State, Found, R.Scale);
          Bus.Offset := 0;
@@ -395,6 +426,8 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_ICM20689 then
             ICM20689.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
          end if;
+      elsif LSM_Built and then Is_LSM (State.Sensor) then
+         LSM6DSV.Gyro_Init (Bus, State, Hardware_LPF, R.Scale);
       elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Gyro_Init (Bus, State);
       elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
@@ -412,6 +445,8 @@ package body Adaflight.STM32.Gyro_Chip is
       Acc_Detect.Detect (Acc_Build, Acc_Configured, State.Sensor, R.Acc_Hardware, R.Acc_Found);
       if R.Acc_Found and then Adaflight.Board.Acc_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
          R.One_G := Positive (ICM426xx.Acc_One_G (State));
+      elsif R.Acc_Found and then LSM_Built and then Is_LSM (State.Sensor) then
+         R.One_G := LSM6DSV.Acc_One_G (State);
       end if;
    end Start;
 
@@ -419,6 +454,8 @@ package body Adaflight.STM32.Gyro_Chip is
    begin
       if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Read_Gyro (Bus, State, OK);
+      elsif LSM_Built and then Is_LSM (State.Sensor) then
+         LSM6DSV.Read_Gyro (Bus, State, Latch, OK);
       else
          Layer.Read_Gyro_SPI (Bus, State, OK);
       end if;
@@ -429,6 +466,8 @@ package body Adaflight.STM32.Gyro_Chip is
    begin
       if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Read_Acc (Bus, State, OK);
+      elsif LSM_Built and then Is_LSM (State.Sensor) then
+         LSM6DSV.Read_Acc (Bus, State, Latch, OK);
       else
          Layer.Read_Acc_SPI (Bus, State, OK);
       end if;

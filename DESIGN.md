@@ -15482,3 +15482,16 @@ SPL07-003's identity.
 Host smoke runs all three models and reads each chip's name from its status, an SPA06-003 for that last one,
 and its pressure in hectopascal and its temperature from its barometer's debug values. A board without
 either define no longer links a BMP280 driver. No board has run a DPS310.
+
+## D777. LSM6DSV16X family on boards (2026-11-16)
+
+A board whose configuration names an LSM6DSV16X, LSM6DSV32X or LSM6DSK320X now builds that family's driver.
+Its two probes come first in Betaflight's table order: one for both LSM6DSV chips, which a variant bit tells
+apart, and one for an LSM6DSK320X. That driver reads through its own routines and gives its gyro scale at
+its start. An LSM6DSV32X counts 1024 for one g, which its start report gives.
+
+Host SPI's gyro model becomes one of those three chips when `ADAFLIGHT_GYRO_CHIP` names it. That model keeps
+what a start writes, so each write reads back, ends a software reset at once with block update set, and
+gives data only once both output rates are set. Host smoke runs an LSM6DSK320X and an LSM6DSV32X: name, gyro
+task rate, acceleration, tilt and rates. Its DMA read with a latched sample has no model, since a host has
+no DMA. No board has run this driver.
