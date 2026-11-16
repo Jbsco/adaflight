@@ -15582,3 +15582,21 @@ board here offers it, as each does for every other owner in this table (divergen
 Both command line oracles, multirotor and wing, now build with that owner. Their dump, diff, terminal and
 timer families gained its line and nothing else, which a script confirmed against each committed file. A third
 resource run aims its commands at gyro owners. No board code reads that pin yet.
+
+## D784. Gyro clock input on boards (2026-11-16)
+
+A board whose configuration names a gyro clock input now drives it. Its gyro unit starts a 32 kHz square
+wave on that pin's timer channel before an ICM-42688-P is told to take it, and keeps that channel for
+`GYRO_CLKIN`. Board files give that pin its default, and `resource GYRO_CLKIN 1 NONE` turns it off.
+
+Two things differ from Betaflight. Its start passes one less than a period to a call that subtracts one
+again, which gives 32012 Hz from an 84 MHz timer (F360). Boards here count a whole period for 32000 Hz. Its
+MPU6500 probe also names an ICM-42688-P and runs first, so a build with both drivers never turns that clock
+on (F361). Here either probe does.
+
+Host images log a clock's start and each register write of an ICM426xx model to `ADAFLIGHT_GYRO_CLOCK_LOG`.
+Host smoke reads that log. It shows no clock without a pin, and a clock at 32 kHz with half its period high
+before those chip writes. An ICM-42605 gets none, and neither does a pin without a timer channel.
+
+Three things have no check: a board file's default pin in a reset configuration, a second gyro on that
+clock, and timer registers on a real board. No board has run it.

@@ -26,6 +26,10 @@ package Adaflight.MPU_Gyro.ICM426xx with SPARK_Mode is
    --  The chip probe of the layer's detection.
    procedure Detect (D : in out SPI_Device; Sensor : out Byte);
 
+   --  The clock input started and, where it started, the chip's pin 9 set
+   --  to take it and its external clock turned on.
+   procedure Enable_External_Clock (D : in out SPI_Device);
+
    --  The gyro's scale with the chip's temperature scale and zero.
    procedure Gyro_Detect (S : in out State; Found : out Boolean; Scale : out Float);
 

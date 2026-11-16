@@ -133,6 +133,7 @@ with Adaflight.STM32.MCU;
 with Adaflight.STM32.Memory;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
+with Adaflight.STM32.Gyro_Clock;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Four_Way;
 with Adaflight.STM32.Passthrough;
@@ -262,6 +263,7 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
+      Gyro_Clkin_Tag   => Adaflight.Board.Gyro_Clkin_Tag,
       VTX_CS_Tag       => Adaflight.Board.VTX_CS_Tag,
       VTX_Power_Tag    => Adaflight.Board.VTX_Power_Tag,
       VTX_Clock_Tag    => Adaflight.Board.VTX_Clock_Tag,
@@ -1124,6 +1126,9 @@ package body Adaflight.STM32.Flight is
       Rate   : Adaflight.Config_Fix.Gyro_Rate;
       Bus    : constant CLI.Device_Bus := (Kind => CLI.SPI_Bus, Number => 1, Address => 0);
    begin
+      if Adaflight.Board.Gyro_Clkin then
+         Adaflight.STM32.Gyro_Clock.Set_Pin (Config.Gyro_Device_Config (0).Clk_In);
+      end if;
       Adaflight.STM32.Gyro.Start (Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
                                   Config.Accelerometer_Config.Acc_Hardware, Gyro_Report);
       if Gyro_Report.Init_Failed then

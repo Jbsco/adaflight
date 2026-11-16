@@ -70,6 +70,7 @@ package Adaflight.Board_Info with SPARK_Mode is
       SD_Detect_Low    : Boolean := False;
       Flash_SPI_Device : Interfaces.Unsigned_8 := 0;
       Flash_CS_Tag     : Interfaces.Unsigned_8 := 0;
+      Gyro_Clkin_Tag   : Interfaces.Unsigned_8 := 0;
       Blackbox_Device  : Interfaces.Unsigned_8 := 0;
       PINIO_Tags       : PINIO_Bytes := (others => 0);
       PINIO_Configs    : PINIO_Bytes := (others => 1);

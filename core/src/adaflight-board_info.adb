@@ -138,6 +138,7 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
       C.Flash_Config.Spi_Device := H.Flash_SPI_Device;
       C.Flash_Config.Cs_Tag := H.Flash_CS_Tag;
+      C.Gyro_Device_Config (0).Clk_In := H.Gyro_Clkin_Tag;
       C.Blackbox_Config.Device := H.Blackbox_Device;
       for I in PINIO_Bytes'Range loop
          C.Pinio_Config.Io_Tag (I) := H.PINIO_Tags (I);

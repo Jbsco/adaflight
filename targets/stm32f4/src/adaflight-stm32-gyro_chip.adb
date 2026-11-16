@@ -14,6 +14,7 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Gyro_Clock;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Gyro_Chip is
@@ -57,7 +58,7 @@ package body Adaflight.STM32.Gyro_Chip is
    procedure Read_Register (D : in out Device; Register : Byte; Value : out Byte);
    procedure Delay_Us (D : in out Device; Us : Natural);
    procedure Failure (D : in out Device);
-   procedure No_Clock_In (D : in out Device; Started : out Boolean);
+   procedure Clock_In (D : in out Device; Started : out Boolean);
    procedure Write_Buffer (D : in out Device; Register : Byte; Data : Byte_Array);
    procedure Set_CS (D : in out Device; High : Boolean);
 
@@ -107,10 +108,10 @@ package body Adaflight.STM32.Gyro_Chip is
       Write_Buffer   => Write_Buffer,
       Set_CS         => Set_CS);
    package ICM426xx is new Layer.ICM426xx
-     (External_Clock => False,
+     (External_Clock => Adaflight.Board.Gyro_Clkin,
       Write_Register => Write_Register,
       Read_Register  => Read_Register,
-      Start_Clock_In => No_Clock_In);
+      Start_Clock_In => Clock_In);
 
    --  Whether the board builds the LSM6DSV16X family's driver, and whether
    --  a sensor code is one of its chips.
@@ -206,6 +207,11 @@ package body Adaflight.STM32.Gyro_Chip is
          when 5 =>
             if Adaflight.Board.Gyro_MPU6500 then
                MPU6500.Detect (D, Sensor);
+               if Adaflight.Board.Gyro_Clkin and then Adaflight.Board.Gyro_ICM426xx
+                 and then Sensor = ICM426xx.Sensor_ICM42688P
+               then
+                  ICM426xx.Enable_External_Clock (D);
+               end if;
             end if;
          when 6 =>
             if Adaflight.Board.Gyro_BMI270 then
@@ -323,11 +329,11 @@ package body Adaflight.STM32.Gyro_Chip is
       D.Failed := True;
    end Failure;
 
-   procedure No_Clock_In (D : in out Device; Started : out Boolean) is
+   procedure Clock_In (D : in out Device; Started : out Boolean) is
       pragma Unreferenced (D);
    begin
-      Started := False;
-   end No_Clock_In;
+      Adaflight.STM32.Gyro_Clock.Start (1, Started);
+   end Clock_In;
 
    --  A register's address, then the data, in one selection.
    procedure Write_Buffer (D : in out Device; Register : Byte; Data : Byte_Array) is
