@@ -1,5 +1,6 @@
 --  The flash chip of the board on the SPI bus the stored configuration
---  names with its select pin: the chip driver of the M25P16 family under
+--  names with its select pin: the chip driver of the M25P16 family and,
+--  on a board that names a W25N chip, the driver of that NAND family under
 --  the flash layer, the flash file system over its partition with the
 --  start of the free space found at initialization, each file system
 --  call's operations carried out on the chip, the erase step of the main

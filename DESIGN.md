@@ -15553,3 +15553,22 @@ F359).
 Board wiring passes each read's count on. A board's flash read reports that count, which is a read's whole
 length on a NOR chip. This oracle draws a page size for half of its steps and an empty plain read for some,
 and its vector lines gained each read's asked length.
+
+## D782. W25N flash on boards (2026-11-16)
+
+A board whose configuration names a W25N01G or a W25N02K now builds that NAND driver beside its M25P16 one.
+Its flash layer hands a chip's calls to whichever driver identified it. A NAND chip's filesystem flushes its
+page buffer at a log's end, and its reads stop at a page's end.
+
+Betaflight's failure mode follows a NAND erase or flush that does not end in time, and boards now do that
+too: ten rounds of failure flashes with code 11, then a bootloader request. Failure flashes moved into a
+unit of their own for that. Older failure sites still end in a plain reset.
+
+Host SPI gains a W25N01G model, chosen by a 128 MB file in `ADAFLIGHT_FLASH_IMAGE`. It has a data buffer,
+protection, configuration and status registers, and it refuses programs and erases while a protection bit is
+set. `ADAFLIGHT_FLASH_STUCK` keeps it busy from its first block erase or page read. Host smoke erases such a
+chip over MSP, writes a flight log to it, and reads that log back across a page's end over MSP and CLI. It
+also checks empty replies from a chip that stays busy, and failure flashes after an erase that does not end.
+
+Three wirings have no check: a flush at a log's end, a filesystem kind taken from geometry, and a bootloader
+request after a tenth round. No board has run a W25N chip.

@@ -2367,6 +2367,189 @@ def flash_read_checks(image, store, chip):
           repr((in_order, used, len(whole), len(pieces))))
 
 
+def nand_flash_checks(image, work):
+    """A W25N01G NAND chip in the flash chip's place, as an image of 128 MB over a store of its own: its geometry
+    and partitions, an erase that clears its filesystem blocks and leaves its bad block management blocks, a
+    flight log written through its page buffer, reads that stop at a page's end, empty replies from a chip that
+    stays busy after a page read, and the failure flashes when a block erase does not end."""
+    store = os.path.join(work, "nand-eeprom.bin")
+    chip = os.path.join(work, "nand.img")
+    log = os.path.join(work, "nand-pins.txt")
+    block = 131072
+    for stale in (store, log):
+        if os.path.exists(stale):
+            os.remove(stale)
+    with open(chip, "wb") as f:
+        for _ in range(128):
+            f.write(b"\xff" * (1024 * 1024))
+        f.seek(0)
+        f.write(b"U" * (6 * block))
+        for at, text in ((1002 * block + 100, b"old data in the last block"), (1003 * block, b"bad block marks")):
+            f.seek(at)
+            f.write(text)
+
+    def summary_of(sock):
+        reply = msp(sock, 70)
+        if reply is None or len(reply) != 13:
+            return None
+        return reply[0], int.from_bytes(reply[1:5], "little"), int.from_bytes(reply[5:9], "little"), \
+            int.from_bytes(reply[9:13], "little")
+
+    def image_bytes(at, count):
+        with open(chip, "rb") as f:
+            f.seek(at)
+            return f.read(count)
+
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+    try:
+        time.sleep(2.5)
+        first = summary_of(sock)
+        check("MSP flash summary sizes a NAND chip's filesystem partition",
+              first is not None and first[0] == 3 and first[1] == 1003 and first[2] == 1003 * block, repr(first))
+        check("a NAND chip with old data in six blocks starts after them",
+              first is not None and first[3] == 6 * block, repr(first))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        text = cli(sock, "flash_info", 1.5)
+        check("flash_info names a NAND chip's geometry",
+              "sectors=1024, sectorSize=131072, pagesPerSector=64, pageSize=2048, totalSize=134217728" in text
+              and "JEDEC ID=0x00efaa21" in text, text[-300:])
+        check("flash_info lists a NAND chip's bad block management blocks and the filesystem's before them",
+              "BBMGMT    1003 1023" in text and "FLASHFS   0 1002" in text and "FlashFS size=131465216" in text,
+              text[-300:])
+        text = cli(sock, "set blackbox_device = SPIFLASH")
+        check("flight log device set to the NAND chip", "blackbox_device set to SPIFLASH" in text, text[-120:])
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+    try:
+        time.sleep(2.5)
+        erased = msp(sock, 72)
+        during = summary_of(sock)
+        deadline = time.time() + 60.0
+        after = summary_of(sock)
+        while (after is None or after[0] != 3 or after[3] != 0) and time.time() < deadline:
+            time.sleep(0.5)
+            after = summary_of(sock)
+        check("a NAND chip is not ready while its blocks are erased", during is not None and during[0] == 2,
+              repr(during))
+        check("MSP flash erase empties a NAND chip", erased is not None and after is not None and after[0] == 3
+              and after[3] == 0, repr((erased, after)))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        cli(sock, "set blackbox_mode = ALWAYS")
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("a NAND erase clears its filesystem blocks",
+          image_bytes(0, 6 * block) == b"\xff" * (6 * block)
+          and image_bytes(1002 * block + 100, 32) == b"\xff" * 32,
+          repr((image_bytes(0, 8), image_bytes(5 * block, 8), image_bytes(1002 * block + 100, 8))))
+    check("a NAND erase leaves its bad block management blocks", image_bytes(1003 * block, 15) == b"bad block marks",
+          repr(image_bytes(1003 * block, 15)))
+    replies = {}
+    pieces = []
+    text = ""
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+    try:
+        deadline = time.time() + 24.0
+        used = 0
+        while used < 6144 and time.time() < deadline:
+            now = summary_of(sock)
+            used = now[3] if now else 0
+            time.sleep(0.5)
+        replies["plain"] = msp(sock, 71, struct.pack("<IH", 2000, 300))
+        replies["whole"] = msp(sock, 71, struct.pack("<IH", 2048, 300))
+        at = 0
+        while at < 4500 and len(pieces) < 20:
+            reply = msp(sock, 71, struct.pack("<IHB", at, 4096, 1))
+            if reply is None or len(reply) < 9 or int.from_bytes(reply[7:9], "little") == 0:
+                break
+            pieces.append((at, reply))
+            at += int.from_bytes(reply[7:9], "little")
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        text = cli(sock, "flash_read 2040 16", 1.5)
+    finally:
+        stop(proc)
+        sock.close()
+    content = image_bytes(0, 16384)
+    check("NAND image starts with the log header",
+          content.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"), repr(content[:60]))
+    check("MSP flash summary counts the log's bytes on a NAND chip", used >= 6144, repr(used))
+    reply = replies["plain"]
+    check("MSP flash read stops at a NAND page's end",
+          reply is not None and reply[:7] == struct.pack("<IHB", 2000, 48, 0) and reply[7:] == content[2000:2048],
+          repr(reply[:12] if reply else reply))
+    reply = replies["whole"]
+    check("MSP flash read from a NAND page's start gives all it asked for",
+          reply is not None and reply[:7] == struct.pack("<IHB", 2048, 300, 0) and reply[7:] == content[2048:2348],
+          repr(reply[:12] if reply else reply))
+    whole = b""
+    in_order = True
+    for at, reply in pieces:
+        coded = int.from_bytes(reply[7:9], "little")
+        in_order = (in_order and int.from_bytes(reply[:4], "little") == at and reply[6] == 1
+                    and len(reply) == 7 + int.from_bytes(reply[4:6], "little"))
+        whole += huffman_decode(reply[9:], coded)
+    check("MSP flash reads with compression cross a NAND page's end",
+          in_order and len(whole) > 4096 and whole == content[:len(whole)], repr((in_order, len(whole), len(pieces))))
+    check("flash_read crosses a NAND page's end",
+          content[2040:2056].decode("ascii", "replace") in text, repr((text[-80:], content[2040:2056])))
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip, "ADAFLIGHT_FLASH_STUCK": "read"})
+    try:
+        time.sleep(2.5)
+        plain = msp(sock, 71, struct.pack("<IH", 0, 300))
+        coded = msp(sock, 71, struct.pack("<IHB", 0, 4096, 1))
+        busy = summary_of(sock)
+        check("a plain MSP flash read of a NAND chip that stays busy is empty",
+              plain == struct.pack("<IHB", 0, 0, 0), repr(plain))
+        check("a coded MSP flash read of a NAND chip that stays busy ends empty",
+              coded == struct.pack("<IHBH", 0, 2, 1, 0), repr(coded))
+        check("a NAND chip that stays busy is reported not ready", busy is not None and busy[0] == 2, repr(busy))
+    finally:
+        stop(proc)
+        sock.close()
+    led = "B05"
+
+    def changes():
+        try:
+            with open(log) as f:
+                lines = [line.split() for line in f.read().splitlines()]
+        except OSError:
+            lines = []
+        return [int(l[0]) for l in lines if len(l) == 4 and l[1] == "pin" and l[2] == led]
+
+    proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip, "ADAFLIGHT_FLASH_STUCK": "erase",
+                                      "ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": led})
+    try:
+        time.sleep(6.0)
+        before = len(changes())
+        erased = msp(sock, 72)
+        time.sleep(9.5)
+        times = changes()[before:]
+        groups = [[]]
+        for k, at in enumerate(times):
+            if k > 0 and at - times[k - 1] > 420:
+                groups.append([])
+            groups[-1].append(at)
+        long_gaps = [b - a for a, b in zip(groups[1], groups[1][1:])] if len(groups) > 1 else []
+        check("a NAND block erase that does not end gives five short failure flashes",
+              erased is not None and len(groups) >= 2 and len(groups[0]) in (10, 11), repr([len(g) for g in groups]))
+        check("the failure flashes then give the flash write failure's code as twelve long flashes",
+              len(groups) >= 2 and len(groups[1]) == 24 and all(180 <= g <= 400 for g in long_gaps),
+              repr(([len(g) for g in groups], long_gaps[:6])))
+        check("the failure flashes repeat before a reset", proc.poll() is None, repr(proc.poll()))
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def hott_checks(image, work):
     """HoTT telemetry on UART3: a receiver's two request bytes for the electric air module get its message of 44
     bytes and a checksum, a byte per telemetry task run; a request for the GPS module gets none without a GPS; and
@@ -5841,6 +6024,7 @@ def main():
         boot_beep_checks(image, work)
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
+        nand_flash_checks(image, work)
         hott_checks(image, work)
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)
