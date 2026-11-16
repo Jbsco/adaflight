@@ -1,3 +1,4 @@
+with Adaflight.STM32.Sound;
 with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Failure_Flashes is
@@ -11,9 +12,11 @@ package body Adaflight.STM32.Failure_Flashes is
       for I in 1 .. Count loop
          Adaflight.STM32.Status_LED.Toggle (1);
          Adaflight.STM32.Status_LED.Toggle (0);
+         Adaflight.STM32.Sound.Set (True);
          Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
          Adaflight.STM32.Status_LED.Toggle (1);
          Adaflight.STM32.Status_LED.Toggle (0);
+         Adaflight.STM32.Sound.Set (False);
          Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
       end loop;
    end Flash;

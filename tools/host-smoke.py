@@ -2525,14 +2525,28 @@ def nand_flash_checks(image, work):
             lines = []
         return [int(l[0]) for l in lines if len(l) == 4 and l[1] == "pin" and l[2] == led]
 
+    def beep_changes():
+        try:
+            with open(store + ".beeper.txt") as f:
+                return [int(line.split(",")[0]) for line in f.read().splitlines() if "," in line]
+        except OSError:
+            return []
+
     proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip, "ADAFLIGHT_FLASH_STUCK": "erase",
                                       "ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": led})
     try:
         time.sleep(6.0)
         before = len(changes())
+        beeps_before = len(beep_changes())
         erased = msp(sock, 72)
         time.sleep(9.5)
         times = changes()[before:]
+        beep_times = beep_changes()[beeps_before:]
+        beep_groups = [[]]
+        for k, at in enumerate(beep_times):
+            if k > 0 and at - beep_times[k - 1] > 420:
+                beep_groups.append([])
+            beep_groups[-1].append(at)
         groups = [[]]
         for k, at in enumerate(times):
             if k > 0 and at - times[k - 1] > 420:
@@ -2544,6 +2558,9 @@ def nand_flash_checks(image, work):
         check("the failure flashes then give the flash write failure's code as twelve long flashes",
               len(groups) >= 2 and len(groups[1]) == 24 and all(180 <= g <= 400 for g in long_gaps),
               repr(([len(g) for g in groups], long_gaps[:6])))
+        check("the beeper sounds through the first half of each failure flash, five short and twelve long",
+              len(beep_groups) >= 2 and len(beep_groups[0]) in (9, 10) and len(beep_groups[1]) == 24,
+              repr([len(g) for g in beep_groups]))
         check("the failure flashes repeat before a reset", proc.poll() is None, repr(proc.poll()))
     finally:
         stop(proc)
