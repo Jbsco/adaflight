@@ -12,7 +12,7 @@ project Adaflight_Host is
    --  integration is the STM32F4 image's own.
    for Excluded_Source_Files use
      ("adaflight-stm32-adc.adb", "adaflight-stm32-ccm_clear.ads", "adaflight-stm32-ccm_clear.adb",
-      "adaflight-stm32-exti.adb", "adaflight-stm32-flash.ads",
+      "adaflight-stm32-exti.adb", "adaflight-stm32-exti_dispatch.adb", "adaflight-stm32-flash.ads",
       "adaflight-stm32-flash.adb", "adaflight-stm32-gpio.adb", "adaflight-stm32-gyro.adb",
       "adaflight-stm32-led_strip.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-motors.adb",
       "adaflight-stm32-servos.adb", "adaflight-stm32-camera_control.adb", "adaflight-stm32-elrs_timer.adb",
@@ -26,6 +26,7 @@ project Adaflight_Host is
    package Naming is
       for Body ("Adaflight.STM32.ADC") use "adaflight-host-adc.adb";
       for Body ("Adaflight.STM32.EXTI") use "adaflight-host-exti.adb";
+      for Body ("Adaflight.STM32.EXTI_Dispatch") use "adaflight-host-exti_dispatch.adb";
       for Body ("Adaflight.STM32.ELRS_Timer") use "adaflight-host-elrs_timer.adb";
       for Body ("Adaflight.STM32.Stack_Check") use "adaflight-host-stack_check.adb";
       for Spec ("Adaflight.STM32.Flash") use "adaflight-host-flash.ads";

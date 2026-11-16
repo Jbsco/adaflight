@@ -2760,6 +2760,51 @@ def menu_live_config_checks(image, work):
           "small_angle = 33" in angle and "craft_name = LIVENAME" in name, repr((angle[:60], name[:60])))
 
 
+def gyro_chip_checks(image, work):
+    """The board's gyro code over the host's MPU6000 model: the chip is found with its accelerometer, its start
+    writes the gyro's range to the model's registers, the gyro task runs at the chip's 8 kHz, and the raw IMU reply
+    reads the model's acceleration and, 8 s after the start, its rates. Over a configuration store of its own."""
+    store = os.path.join(work, "gyro-chip-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    began = time.time()
+    proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": "MPU6000"})
+
+    def raw_imu():
+        reply = msp(sock, 102)
+        return struct.unpack("<9h", reply) if reply is not None and len(reply) == 18 else None
+
+    def near(values, wanted):
+        return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
+
+    try:
+        time.sleep(max(0.0, began + 4.0 - time.time()))
+        still = raw_imu()
+        time.sleep(max(0.0, began + 10.5 - time.time()))
+        turning = raw_imu()
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        status = cli(sock, "status")
+        registers = cli(sock, "gyroregisters", wait=1.5)
+        tasks = cli(sock, "tasks", wait=1.5)
+    finally:
+        stop(proc)
+        sock.close()
+    check("the board's gyro code finds the model's MPU6000 and its accelerometer",
+          "GYRO: (1) MPU6000 enabled" in status and "ACC: MPU6000" in status, repr(status[:400]))
+    check("its start writes the gyro's range to the chip",
+          re.search(r"WHO_AM_I\s+0x68\b", registers) is not None
+          and re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
+    rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
+    check("the gyro task runs at the chip's 8 kHz",
+          rate is not None and 7200 <= int(rate.group(1)) <= 8800, repr(rate.group(0) if rate else tasks[:200]))
+    check("the raw IMU reply reads the model's acceleration with no rates at first",
+          still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
+    check("the raw IMU reply reads the model's rates after their step",
+          turning is not None and near(turning[:3], (32, -64, 510)) and near(turning[3:6], (164, 328, -492)),
+          repr(turning))
+
+
 def rtc6705_checks(image, work):
     """An RTC6705 video transmitter on four pins of the host board, then on an SPI bus, over a configuration store
     of its own. The image logs those pins' levels and that bus's transfers, and the checks read the register writes
@@ -5733,6 +5778,7 @@ def main():
         hott_checks(image, work)
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)
+        gyro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
