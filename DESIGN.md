@@ -15506,3 +15506,15 @@ Host I2C gains an MS5611 model at address 0x77 when `ADAFLIGHT_BARO_CHIP` is MS5
 example PROM with a valid check, and an ADC result that follows whichever conversion a command asked for
 last. Host smoke reads that chip's name from its status and 20.07 degrees and 1000 hPa from its barometer's
 debug values, which is that datasheet's result. No board has run an MS5611.
+
+## D779. BMP388 barometer on boards (2026-11-16)
+
+A board whose configuration names a BMP388 now builds that driver, which its detection scan tries after a
+DPS310 and before a BMP280. That driver also knows a BMP390. It runs without an end of conversion pin, since
+no board configuration names one: it waits out each forced measurement's time.
+
+Host I2C gains a BMP388 model in its BMP280's place when `ADAFLIGHT_BARO_CHIP` is BMP388. It has an identity,
+a calibration, and raw readings that it gives only after a forced measurement was started. Host smoke reads
+that chip's name from its status and 24.99 degrees and 1013 hPa from its barometer's debug values. Those are
+what Betaflight's integer compensation gives for that calibration and those readings, at Bosch's scale of a
+hundredth of a pascal (D321). No board has run a BMP388.

@@ -1,9 +1,10 @@
 --  The bus device of the drivers over the board's I2C and SPI buses, read
 --  and written within a call: a started read or write runs at once and its
 --  bytes wait for the fetch, so the bus never reports busy. The detection
---  scans the drivers the board names, the MS5611, the DPS310 and the BMP280
---  so far, and the chip it finds takes the task's calls and gives the
---  samples. The MS5611 takes commands, which go out as they are.
+--  scans the drivers the board names, the MS5611, the DPS310, the BMP388 and
+--  the BMP280 so far, and the chip it finds takes the task's calls and gives
+--  the samples. The MS5611 takes commands, which go out as they are. The
+--  BMP388 runs without its end of conversion pin.
 with Adaflight.Sensor_Debug;
 with Adaflight.STM32.Debug_Values;
 with Interfaces;
@@ -13,6 +14,7 @@ with Adaflight.Baro_Detect;
 with Adaflight.Baro_Detect.Scan;
 with Adaflight.STM32.MCU;
 with Adaflight.BMP280;
+with Adaflight.BMP388;
 with Adaflight.Board;
 with Adaflight.DPS310;
 with Adaflight.MS5611;
@@ -224,12 +226,23 @@ package body Adaflight.STM32.Baro is
       Raw_Start_Write => Raw_Start_Write, Check_Busy => Check_Busy, Fetch => Fetch,
       Register_Device => Register_Device, Delay_Ms => Delay_Ms, Delay_Us => Delay_Us);
 
-   type Chip_Kind is (No_Chip, BMP280_Chip, DPS310_Chip, MS5611_Chip);
+   procedure No_EOC_Interrupt (D : in out Device) is null;
+
+   package BMP388 is new Adaflight.BMP388
+     (Bus_Device => Device, Is_I2C => Is_I2C, Is_SPI => Is_SPI, I2C_Address => I2C_Address,
+      Set_I2C_Address => Set_I2C_Address, Prepare_SPI => Prepare_SPI, Release_SPI => Release_SPI,
+      Enable_EOC_Interrupt => No_EOC_Interrupt, Release_EOC_Interrupt => No_EOC_Interrupt,
+      Read_Registers => Read_Registers, Write_Register => Write_Register, Start_Read => Start_Read,
+      Start_Write => Start_Write, Check_Busy => Check_Busy, Fetch => Fetch, Register_Device => Register_Device,
+      Delay_Ms => Delay_Ms);
+
+   type Chip_Kind is (No_Chip, BMP280_Chip, DPS310_Chip, MS5611_Chip, BMP388_Chip);
    Dev         : Device;
    Kind        : Chip_Kind := No_Chip;
    Chip        : BMP280.State;
    DPS         : DPS310.State;
    MS          : MS5611.State;
+   B388        : BMP388.State;
    Task_Device : Adaflight.Barometer_Task.Device;
    Task_State  : Adaflight.Barometer_Task.State;
    Baro_State  : Adaflight.Barometer.State;
@@ -290,6 +303,11 @@ package body Adaflight.STM32.Baro is
          if Found then
             Kind := MS5611_Chip;
          end if;
+      elsif Which = Adaflight.Baro_Detect.BMP388 and then Adaflight.Board.Baro_BMP388 then
+         BMP388.Detect (D, B388, False, Found, Task_Device);
+         if Found then
+            Kind := BMP388_Chip;
+         end if;
       end if;
    end Detect_Chip;
 
@@ -302,6 +320,7 @@ package body Adaflight.STM32.Baro is
         (Drivers => (Adaflight.Baro_Detect.BMP280 => Adaflight.Board.Baro_BMP280,
                      Adaflight.Baro_Detect.DPS310 => Adaflight.Board.Baro_DPS310,
                      Adaflight.Baro_Detect.MS5611 => Adaflight.Board.Baro_MS5611,
+                     Adaflight.Baro_Detect.BMP388 => Adaflight.Board.Baro_BMP388,
                      others                       => False),
          SPA06 => Adaflight.Board.Baro_SPA06, I2C => True, SPI => True);
       Bus : constant Adaflight.Baro_Detect.Bus_Config :=
@@ -378,6 +397,10 @@ package body Adaflight.STM32.Baro is
                if Adaflight.Board.Baro_MS5611 then
                   MS5611.Device_Call (Dev, MS, Adaflight.Barometer_Task.Call (Task_State), Done);
                end if;
+            when BMP388_Chip =>
+               if Adaflight.Board.Baro_BMP388 then
+                  BMP388.Device_Call (Dev, B388, Adaflight.Barometer_Task.Call (Task_State), Done);
+               end if;
             when BMP280_Chip | No_Chip =>
                if Adaflight.Board.Baro_BMP280 then
                   BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
@@ -388,6 +411,8 @@ package body Adaflight.STM32.Baro is
                DPS310.Calculate (DPS, Pressure, Temperature);
             elsif Kind = MS5611_Chip and then Adaflight.Board.Baro_MS5611 then
                MS5611.Calculate (MS, Pressure, Temperature);
+            elsif Kind = BMP388_Chip and then Adaflight.Board.Baro_BMP388 then
+               BMP388.Calculate (B388, Pressure, Temperature);
             elsif Adaflight.Board.Baro_BMP280 then
                BMP280.Calculate (Chip, Pressure, Temperature);
             end if;

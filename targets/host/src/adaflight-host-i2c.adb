@@ -13,7 +13,10 @@ with Interfaces;
 --  16#77# carries an MS5611: the PROM of its datasheet's worked example with
 --  its check, and the ADC result of the conversion a command asked for last,
 --  whose compensation gives 2007 hundredths of a degree and 100009 pascal.
---  Every other address and bus answers nothing.
+--  With BMP388 the address 16#76# carries a BMP388: its identity, a
+--  calibration, and after a forced measurement raw readings that compensate
+--  to 2499 hundredths of a degree and 101332 pascal. Every other address and
+--  bus answers nothing.
 with Ada.Environment_Variables;
 with Adaflight.Board;
 with Adaflight.Host_OLED;
@@ -64,6 +67,18 @@ package body Adaflight.STM32.I2C is
    MS_Pressure      : constant Byte_Array (0 .. 2) := (16#8A#, 16#A2#, 16#1A#);
    MS_Temperature   : constant Byte_Array (0 .. 2) := (16#82#, 16#C1#, 16#3E#);
    MS_Result        : Byte_Array (0 .. 2) := (others => 0);
+   --  The BMP388 model: T1 27760, T2 18674, T3 -10, P1 -72, P2 -2596, P3 35,
+   --  P4 0, P5 25448, P6 30469, P7 -13, P8 -10, P9 16500, P10 20 and P11 -60
+   --  as the chip stores them, and the raw pressure 7032000 and temperature
+   --  8548000, 24 bits each with the low byte first.
+   B388_Model       : constant Boolean := Baro_Chip = "BMP388";
+   B388_Id          : constant Byte := 16#50#;
+   B388_Calibration : constant Byte_Array (0 .. 20) :=
+     (16#70#, 16#6C#, 16#F2#, 16#48#, 16#F6#, 16#B8#, 16#FF#, 16#DC#, 16#F5#, 16#23#, 16#00#, 16#68#,
+      16#63#, 16#05#, 16#77#, 16#F3#, 16#F6#, 16#74#, 16#40#, 16#14#, 16#C4#);
+   B388_Readings    : constant Byte_Array (0 .. 5) := (16#C0#, 16#4C#, 16#6B#, 16#A0#, 16#6E#, 16#82#);
+   B388_Measured    : Boolean := False;
+   B388_Registers   : Byte_Array (0 .. 16#7F#) := (others => 0);
 
    procedure Init (B : Bus; SCL, SDA : Adaflight.Pins.Pin) is
    begin
@@ -75,6 +90,7 @@ package body Adaflight.STM32.I2C is
    function Answers (B : Bus; Address : Byte) return Boolean is
      (B = I2C1 and then Running (B)
       and then ((Address = Chip_Address and then (if DPS_Model then Adaflight.Board.Baro_DPS310
+                                                  elsif B388_Model then Adaflight.Board.Baro_BMP388
                                                   else Adaflight.Board.Baro_BMP280))
                 or else (Address = MS_Address and then MS_Model and then Adaflight.Board.Baro_MS5611)
                 or else Address = Pitot_Address
@@ -106,6 +122,21 @@ package body Adaflight.STM32.I2C is
                Data (I) :=
                  (if R in 16#A0# .. 16#AF# then MS_PROM (R - 16#A0#)
                   elsif R in 0 .. 2 then MS_Result (R)
+                  else 0);
+            end;
+         end loop;
+         return;
+      end if;
+      if Address = Chip_Address and then B388_Model then
+         for I in Data'Range loop
+            declare
+               R : constant Natural := Natural (Register) + (I - Data'First);
+            begin
+               Data (I) :=
+                 (if R = 0 then B388_Id
+                  elsif R in 4 .. 9 then (if B388_Measured then B388_Readings (R - 4) else 0)
+                  elsif R in 16#31# .. 16#45# then B388_Calibration (R - 16#31#)
+                  elsif R <= B388_Registers'Last then B388_Registers (R)
                   else 0);
             end;
          end loop;
@@ -154,6 +185,13 @@ package body Adaflight.STM32.I2C is
             MS_Result := MS_Pressure;
          elsif (Register and 16#F0#) = 16#50# then
             MS_Result := MS_Temperature;
+         end if;
+      elsif OK and then Address = Chip_Address and then B388_Model then
+         if Register = 16#1B# and then (Value and 16#33#) = 16#13# then
+            B388_Measured := True;
+         end if;
+         if Natural (Register) <= B388_Registers'Last then
+            B388_Registers (Natural (Register)) := Value;
          end if;
       elsif OK and then Address = Chip_Address and then DPS_Model then
          if Register = 16#0C# and then (Value and 16#0F#) = 16#09# then

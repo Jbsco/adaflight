@@ -139,6 +139,7 @@ def rx_feature(text) -> int:
 
 
 BMP280_BARO = ("USE_BARO_BMP280", "USE_BARO_SPI_BMP280")
+BMP388_BARO = ("USE_BARO_BMP388", "USE_BARO_SPI_BMP388")
 MS5611_BARO = ("USE_BARO_MS5611", "USE_BARO_SPI_MS5611")
 DPS310_BARO = ("USE_BARO_DPS310", "USE_BARO_SPI_DPS310", "USE_BARO_SPA06_003")
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
@@ -260,6 +261,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Baro_BMP280", "True" if any(d in defines for d in BMP280_BARO) else "False"),
                 ("Baro_DPS310", "True" if any(d in defines for d in DPS310_BARO) else "False"),
                 ("Baro_MS5611", "True" if any(d in defines for d in MS5611_BARO) else "False"),
+                ("Baro_BMP388", "True" if any(d in defines for d in BMP388_BARO) else "False"),
                 ("Baro_SPA06", "True" if "USE_BARO_SPA06_003" in defines else "False"),
                 ("Mag_I2C_Device", i2c_device(defines.get("MAG_I2C_INSTANCE", ""))),
                 ("Mag_SPI_Device", spi_device(defines.get("MAG_SPI_INSTANCE", ""))),
