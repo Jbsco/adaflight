@@ -142,6 +142,7 @@ BMP280_BARO = ("USE_BARO_BMP280", "USE_BARO_SPI_BMP280")
 BMP388_BARO = ("USE_BARO_BMP388", "USE_BARO_SPI_BMP388")
 MS5611_BARO = ("USE_BARO_MS5611", "USE_BARO_SPI_MS5611")
 DPS310_BARO = ("USE_BARO_DPS310", "USE_BARO_SPI_DPS310", "USE_BARO_SPA06_003")
+W25N_FLASH = ("USE_FLASH_W25N01G", "USE_FLASH_W25N02K")
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
 ICM426XX_GYRO = ("USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P") + ICM426XX_SHARED
 ICM426XX_ACC = ("USE_ACC_SPI_ICM42605", "USE_ACC_SPI_ICM42688P") + ICM426XX_SHARED
@@ -263,6 +264,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Baro_MS5611", "True" if any(d in defines for d in MS5611_BARO) else "False"),
                 ("Baro_BMP388", "True" if any(d in defines for d in BMP388_BARO) else "False"),
                 ("Baro_SPA06", "True" if "USE_BARO_SPA06_003" in defines else "False"),
+                ("Flash_W25N", "True" if any(d in defines for d in W25N_FLASH) else "False"),
                 ("Mag_I2C_Device", i2c_device(defines.get("MAG_I2C_INSTANCE", ""))),
                 ("Mag_SPI_Device", spi_device(defines.get("MAG_SPI_INSTANCE", ""))),
                 ("Mag_Align", ALIGNMENTS.get(defines.get("MAG_ALIGN", "ALIGN_DEFAULT"), 0)),

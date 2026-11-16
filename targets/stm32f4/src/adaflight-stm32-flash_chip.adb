@@ -1,8 +1,12 @@
+with Adaflight.Board;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Flash_Device.M25P16;
+with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_FS;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.STM32.Failure_Flashes;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
@@ -10,6 +14,7 @@ package body Adaflight.STM32.Flash_Chip is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
+   use type Adaflight.Flash_Device.Flash_Type;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    package GPIO renames Adaflight.STM32.GPIO;
@@ -69,8 +74,9 @@ package body Adaflight.STM32.Flash_Chip is
    --  A segment list as the reference's bus runs it: the select pin low at
    --  the first segment and after each negation, each segment's bytes from
    --  its command or a buffer, idle bytes for a read, the callback after
-   --  it, a busy answer repeating the segment and an abort skipping the
-   --  rest.
+   --  it with a status read's last byte, a busy answer repeating the
+   --  segment, an abort skipping the rest, and a link going on with the
+   --  segment after it.
    procedure Run_List
      (D        : in out Chip_Bus;
       F        : in out FD.Device;
@@ -88,7 +94,11 @@ package body Adaflight.STM32.Flash_Chip is
       Guard : Natural := 0;
    begin
       SPI.Set_Divisor (D.Bus, D.Divisor);
-      while Q (I).Length /= 0 and then Guard < 100_000 loop
+      loop
+         while Q (I).Length = 0 and then Q (I).Source = FD.Link and then I < FD.Segment_Index'Last loop
+            I := I + 1;
+         end loop;
+         exit when Q (I).Length = 0 or else Guard >= 100_000;
          Guard := Guard + 1;
          declare
             S      : constant FD.Segment := Q (I);
@@ -121,7 +131,7 @@ package body Adaflight.STM32.Flash_Chip is
                when FD.None =>
                   null;
                when FD.Ready_Poll =>
-                  FD.Ready_Poll_Done (F, Rx (1), R);
+                  FD.Ready_Poll_Done (F, Rx (Rx'Last), R);
                when FD.Write_Enabled =>
                   FD.Write_Enable_Done (F);
                when FD.Write_Done =>
@@ -258,24 +268,140 @@ package body Adaflight.STM32.Flash_Chip is
       Now := Adaflight.STM32.Time.Millis;
    end Millis;
 
-   procedure Write_Failed (D : in out Chip_Bus) is null;
-
-   procedure Identify_None (F : in out FD.Device; JEDEC : Unsigned_32; OK : out Boolean) is
-      pragma Unreferenced (F, JEDEC);
+   --  A write failure: its code flashed ten times, then the bootloader.
+   procedure Write_Failed (D : in out Chip_Bus) is
+      pragma Unreferenced (D);
    begin
-      OK := False;
-   end Identify_None;
+      Adaflight.STM32.Failure_Flashes.Indicate (Adaflight.STM32.Failure_Flashes.External_Flash_Write_Failed, 10);
+      Adaflight.STM32.MCU.Reset_To_Bootloader;
+   end Write_Failed;
+
+   procedure Run_One
+     (D : in out Chip_Bus; F : in out FD.Device; Q : FD.Sequence; First : FD.Segment_Index; Data : Byte_Array)
+   is
+      None     : constant Byte_Array (1 .. 0) := (others => 0);
+      Received : Byte_Array (1 .. 0);
+   begin
+      Run_List (D, F, Q, First, Data, None, Received);
+   end Run_One;
+
+   procedure Report_Written (D : in out Chip_Bus; Bytes : Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Program_Done (Bytes);
+   end Report_Written;
+
+   package NAND is new FD.W25N
+     (SPI_Device     => Chip_Bus,
+      Send           => Write_Bytes,
+      Exchange       => Read_Write,
+      Run            => Run_One,
+      Run_Read       => Run_Read,
+      Wait           => Wait,
+      Uses_DMA       => Uses_DMA,
+      Bus_Busy       => Bus_Busy,
+      Divider        => Divider,
+      Set_Divisor    => Set_Divisor,
+      Millis         => Millis,
+      Report_Written => Report_Written);
+
+   --  The driver a chip's calls go to: the W25N one for a NAND chip on a
+   --  board that names one, the M25P16 one otherwise.
+   function Is_NAND (F : FD.Device) return Boolean is (Adaflight.Board.Flash_W25N and then F.Map.Kind = FD.NAND);
+
+   procedure Identify_Newer (F : in out FD.Device; JEDEC : Unsigned_32; OK : out Boolean) is
+   begin
+      if Adaflight.Board.Flash_W25N then
+         NAND.Identify (F, JEDEC, OK);
+      else
+         OK := False;
+      end if;
+   end Identify_Newer;
+
+   procedure Chip_Configure (D : in out Chip_Bus; F : in out FD.Device; Flags : Unsigned_32) is
+   begin
+      if Is_NAND (F) then
+         NAND.Configure (D, F, Flags);
+      else
+         Chip.Configure (D, F, Flags);
+      end if;
+   end Chip_Configure;
+
+   procedure Chip_Is_Ready (D : in out Chip_Bus; F : in out FD.Device; Ready : out Boolean) is
+   begin
+      if Is_NAND (F) then
+         NAND.Is_Ready (D, F, Ready);
+      else
+         Chip.Is_Ready (D, F, Ready);
+      end if;
+   end Chip_Is_Ready;
 
    procedure Chip_Wait (D : in out Chip_Bus; F : in out FD.Device; Ready : out Boolean) is
    begin
-      Chip.Wait_For_Ready (D, F);
-      Ready := True;
+      if Is_NAND (F) then
+         NAND.Wait_For_Ready (D, F, Ready);
+      else
+         Chip.Wait_For_Ready (D, F);
+         Ready := True;
+      end if;
    end Chip_Wait;
 
-   procedure Chip_Flush (D : in out Chip_Bus; F : in out FD.Device; Present : out Boolean) is
-      pragma Unreferenced (D, F);
+   procedure Chip_Erase_Sector (D : in out Chip_Bus; F : in out FD.Device; Address : Unsigned_32) is
    begin
-      Present := False;
+      if Is_NAND (F) then
+         NAND.Erase_Sector (D, F, Address);
+      else
+         Chip.Erase_Sector (D, F, Address);
+      end if;
+   end Chip_Erase_Sector;
+
+   procedure Chip_Erase_Completely (D : in out Chip_Bus; F : in out FD.Device) is
+   begin
+      if Is_NAND (F) then
+         NAND.Erase_Completely (D, F);
+      else
+         Chip.Erase_Completely (D, F);
+      end if;
+   end Chip_Erase_Completely;
+
+   procedure Chip_Program_Begin (F : in out FD.Device; Address : Unsigned_32; Has_Callback : Boolean) is
+   begin
+      if Is_NAND (F) then
+         NAND.Page_Program_Begin (F, Address, Has_Callback);
+      else
+         Chip.Page_Program_Begin (F, Address, Has_Callback);
+      end if;
+   end Chip_Program_Begin;
+
+   procedure Chip_Program_Continue
+     (D : in out Chip_Bus; F : in out FD.Device; Data_1 : Byte_Array; Data_2 : Byte_Array; Count : Natural;
+      Written : out Unsigned_32)
+   is
+   begin
+      if Is_NAND (F) then
+         NAND.Page_Program_Continue (D, F, Data_1, Data_2, Count, Written);
+      else
+         Chip.Page_Program_Continue (D, F, Data_1, Data_2, Count, Written);
+      end if;
+   end Chip_Program_Continue;
+
+   procedure Chip_Program
+     (D : in out Chip_Bus; F : in out FD.Device; Address : Unsigned_32; Data : Byte_Array; Has_Callback : Boolean)
+   is
+   begin
+      if Is_NAND (F) then
+         NAND.Page_Program (D, F, Address, Data, Has_Callback);
+      else
+         Chip.Page_Program (D, F, Address, Data, Has_Callback);
+      end if;
+   end Chip_Program;
+
+   procedure Chip_Flush (D : in out Chip_Bus; F : in out FD.Device; Present : out Boolean) is
+   begin
+      Present := Is_NAND (F);
+      if Present then
+         NAND.Flush (D, F);
+      end if;
    end Chip_Flush;
 
    procedure Chip_Read
@@ -283,8 +409,12 @@ package body Adaflight.STM32.Flash_Chip is
       Count : out Natural)
    is
    begin
-      Chip.Read_Bytes (D, F, Address, Buffer);
-      Count := Buffer'Length;
+      if Is_NAND (F) then
+         NAND.Read_Bytes (D, F, Address, Buffer, Count);
+      else
+         Chip.Read_Bytes (D, F, Address, Buffer);
+         Count := Buffer'Length;
+      end if;
    end Chip_Read;
 
    package Layer is new FD.Layer
@@ -300,15 +430,15 @@ package body Adaflight.STM32.Flash_Chip is
       Millis                => Millis,
       Write_Failed          => Write_Failed,
       Chip_Identify         => Chip.Identify,
-      Chip_Identify_Newer   => Identify_None,
-      Chip_Configure        => Chip.Configure,
-      Chip_Is_Ready         => Chip.Is_Ready,
+      Chip_Identify_Newer   => Identify_Newer,
+      Chip_Configure        => Chip_Configure,
+      Chip_Is_Ready         => Chip_Is_Ready,
       Chip_Wait_For_Ready   => Chip_Wait,
-      Chip_Erase_Sector     => Chip.Erase_Sector,
-      Chip_Erase_Completely => Chip.Erase_Completely,
-      Chip_Program_Begin    => Chip.Page_Program_Begin,
-      Chip_Program_Continue => Chip.Page_Program_Continue,
-      Chip_Program          => Chip.Page_Program,
+      Chip_Erase_Sector     => Chip_Erase_Sector,
+      Chip_Erase_Completely => Chip_Erase_Completely,
+      Chip_Program_Begin    => Chip_Program_Begin,
+      Chip_Program_Continue => Chip_Program_Continue,
+      Chip_Program          => Chip_Program,
       Chip_Flush            => Chip_Flush,
       Chip_Read             => Chip_Read);
 
@@ -374,7 +504,7 @@ package body Adaflight.STM32.Flash_Chip is
                      end;
                   end if;
                when FS.Flush =>
-                  null;
+                  Layer.Flush (Dev, L);
                when FS.LED_Toggle =>
                   Adaflight.STM32.Status_LED.Toggle (1);
                when FS.LED_Off =>
@@ -420,7 +550,7 @@ package body Adaflight.STM32.Flash_Chip is
       declare
          G : constant FD.Geometry := Layer.Get_Geometry (L);
       begin
-         Map.Kind := FS.NOR;
+         Map.Kind := (if G.Kind = FD.NAND then FS.NAND else FS.NOR);
          Map.Sectors := G.Sectors;
          Map.Page_Size := (if G.Page_Size in 1 .. 2_048 then Positive (G.Page_Size) else 256);
          Map.Sector_Size := G.Sector_Size;
@@ -523,7 +653,11 @@ package body Adaflight.STM32.Flash_Chip is
             Ready : Boolean;
             O     : FS.Output;
          begin
-            Device_Ready (Ready);
+            if State.Chip_Erase and then L.Have then
+               Layer.Is_Ready_Or_Fail (Dev, L, Ready);
+            else
+               Device_Ready (Ready);
+            end if;
             FS.Erase_Async (State, Ready, O);
             Execute (O);
          end;

@@ -112,6 +112,7 @@ with Adaflight.STM32.Control;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.ESC_Serial;
+with Adaflight.STM32.Failure_Flashes;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
@@ -209,9 +210,9 @@ package body Adaflight.STM32.Flight is
    --  The failure codes the LED flashes: a missing gyro, a configuration
    --  store that could not be written, and a gyro whose initialization read
    --  failed.
-   Failure_Missing_Acc          : constant := 1;
-   Failure_Config_Store_Failure : constant := 5;
-   Failure_Gyro_Init_Failed     : constant := 6;
+   Failure_Missing_Acc          : constant := Adaflight.STM32.Failure_Flashes.Missing_Acc;
+   Failure_Config_Store_Failure : constant := Adaflight.STM32.Failure_Flashes.Config_Store_Failure;
+   Failure_Gyro_Init_Failed     : constant := Adaflight.STM32.Failure_Flashes.Gyro_Init_Failed;
 
    --  The board identifier a stored configuration must name.
    Board_Identifier : constant String := Adaflight.STM32.Memory.Board_Identifier;
@@ -778,36 +779,8 @@ package body Adaflight.STM32.Flight is
 
    procedure Reset renames Adaflight.STM32.MCU.Reset;
 
-   --  Count flashes of the first two LEDs, the second from on and the first
-   --  from off, each toggled twice a flash with the duration between.
-   procedure Flash (Count : Natural; Duration_Ms : Natural) is
-   begin
-      if Count = 0 then
-         return;
-      end if;
-      Adaflight.STM32.Status_LED.Set (1, True);
-      Adaflight.STM32.Status_LED.Set (0, False);
-      for I in 1 .. Count loop
-         Adaflight.STM32.Status_LED.Toggle (1);
-         Adaflight.STM32.Status_LED.Toggle (0);
-         Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
-         Adaflight.STM32.Status_LED.Toggle (1);
-         Adaflight.STM32.Status_LED.Toggle (0);
-         Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
-      end loop;
-   end Flash;
-
-   --  The failure indication: five short flashes, a pause, the code as long
-   --  flashes and a second's pause, repeated.
-   procedure Indicate_Failure (Code : Natural; Repeats : Natural) is
-   begin
-      for I in 1 .. Repeats loop
-         Flash (5, 50);
-         Adaflight.STM32.Time.Delay_Ms (500);
-         Flash (Code + 1, 250);
-         Adaflight.STM32.Time.Delay_Ms (1000);
-      end loop;
-   end Indicate_Failure;
+   procedure Indicate_Failure (Code : Natural; Repeats : Natural)
+     renames Adaflight.STM32.Failure_Flashes.Indicate;
 
    --  The software serial ports' pins, with the ports on while the build
    --  has them and the feature runs.

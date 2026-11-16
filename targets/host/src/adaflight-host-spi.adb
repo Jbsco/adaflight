@@ -17,7 +17,15 @@
 --  ADAFLIGHT_FLASH_IMAGE names: the identification, the status with the
 --  write enable latch, page programs of up to 256 bytes that wrap in the
 --  page, 64 KB sector erases, the chip erase, and reads from an address
---  with the fast read's idle byte. No image means no chip. The board's
+--  with the fast read's idle byte. An image of 128 MB is a W25N01G NAND
+--  chip instead: its identification after a dummy byte, its protection,
+--  configuration and status registers, a data buffer of 2048 bytes that a
+--  load fills and a page read takes from a page, programs and 128 KB block
+--  erases that a set protection bit refuses, and buffer reads from a
+--  column while its buffer read mode is on. The environment variable
+--  ADAFLIGHT_FLASH_STUCK keeps that chip busy from its first block erase
+--  when it says erase, and from its first page read when it says read. No
+--  image means no chip. The board's
 --  gyro bus carries a gyro model while the environment variable
 --  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
 --  its value names one, with their five register banks, a BMI270 where it
@@ -331,6 +339,20 @@ package body Adaflight.STM32.SPI is
    Flash_Loaded   : Boolean := False;
    Flash_Rises    : Natural := 0;
 
+   --  The NAND model's registers and data buffer over the same image file,
+   --  eight of its records to a page.
+   NAND_Page_Bytes  : constant := 2048;
+   Flash_NAND       : Boolean := False;
+   NAND_Buffer      : Byte_Array (0 .. NAND_Page_Bytes - 1) := (others => 16#FF#);
+   NAND_Protection  : Byte := 16#7C#;
+   NAND_Config      : Byte := 16#18#;
+   NAND_Register    : Byte := 0;
+   NAND_Column      : Natural := 0;
+   NAND_Busy        : Boolean := False;
+   NAND_Failed      : Byte := 0;
+   NAND_Stuck_Erase : Boolean := False;
+   NAND_Stuck_Read  : Boolean := False;
+
    procedure Flash_Open is
    begin
       Flash_Checked := True;
@@ -339,7 +361,10 @@ package body Adaflight.STM32.SPI is
       end if;
       Page_IO.Open (Flash_File, Page_IO.Inout_File, Ada.Environment_Variables.Value ("ADAFLIGHT_FLASH_IMAGE"));
       Flash_Pages := Interfaces.Unsigned_32 (Page_IO.Size (Flash_File));
-      Flash_Present := Flash_Pages = 65_536;
+      Flash_NAND := Flash_Pages = 524_288;
+      Flash_Present := Flash_Pages = 65_536 or else Flash_NAND;
+      NAND_Stuck_Erase := Ada.Environment_Variables.Value ("ADAFLIGHT_FLASH_STUCK", "") = "erase";
+      NAND_Stuck_Read := Ada.Environment_Variables.Value ("ADAFLIGHT_FLASH_STUCK", "") = "read";
    exception
       when others =>
          Flash_Present := False;
@@ -372,11 +397,139 @@ package body Adaflight.STM32.SPI is
       Flash_Loaded := False;
    end Flash_Erase_Pages;
 
+   --  A NAND page into the data buffer, and the buffer's cleared bits into
+   --  a page.
+   procedure NAND_Read_Page (Index : Interfaces.Unsigned_32) is
+   begin
+      for K in Interfaces.Unsigned_32 range 0 .. 7 loop
+         Flash_Load (Index * 8 + K);
+         NAND_Buffer (Natural (K) * 256 .. Natural (K) * 256 + 255) := Flash_Page;
+      end loop;
+   end NAND_Read_Page;
+
+   procedure NAND_Program_Page (Index : Interfaces.Unsigned_32) is
+   begin
+      for K in Interfaces.Unsigned_32 range 0 .. 7 loop
+         Flash_Load (Index * 8 + K);
+         for J in Flash_Page'Range loop
+            Flash_Page (J) := Flash_Page (J) and NAND_Buffer (Natural (K) * 256 + J);
+         end loop;
+         Flash_Store;
+      end loop;
+   end NAND_Program_Page;
+
+   --  One byte clocked to the NAND chip while it is selected, and the byte
+   --  it answers. A busy chip takes status reads alone.
+   function NAND_Clock (Input : Byte) return Byte is
+      Output : Byte := 16#FF#;
+      Page   : Interfaces.Unsigned_32;
+   begin
+      if Flash_Idle then
+         Flash_Idle := False;
+         Flash_Command := Input;
+         Flash_Pos := 0;
+         Flash_Address := 0;
+         NAND_Column := 0;
+         if NAND_Busy and then Input not in 16#05# | 16#0F# then
+            Flash_Command := 0;
+            return 16#FF#;
+         end if;
+         case Input is
+            when 16#06# =>
+               Flash_WEL := True;
+            when 16#04# =>
+               Flash_WEL := False;
+            when 16#FF# =>
+               Flash_WEL := False;
+               NAND_Protection := 16#7C#;
+               NAND_Config := 16#18#;
+               NAND_Failed := 0;
+            when 16#02# =>
+               if Flash_WEL then
+                  NAND_Buffer := (others => 16#FF#);
+               end if;
+            when others =>
+               null;
+         end case;
+         return 16#FF#;
+      end if;
+      Flash_Pos := Flash_Pos + 1;
+      case Flash_Command is
+         when 16#9F# =>
+            Output := (case Flash_Pos is when 2 => 16#EF#, when 3 => 16#AA#, when 4 => 16#21#, when others => 0);
+         when 16#05# | 16#0F# =>
+            if Flash_Pos = 1 then
+               NAND_Register := Input;
+            else
+               Output :=
+                 (case NAND_Register is
+                     when 16#A0# => NAND_Protection,
+                     when 16#B0# => NAND_Config,
+                     when 16#C0# => (if NAND_Busy then 1 else 0) or (if Flash_WEL then 2 else 0) or NAND_Failed,
+                     when others => 0);
+            end if;
+         when 16#01# | 16#1F# =>
+            if Flash_Pos = 1 then
+               NAND_Register := Input;
+            elsif Flash_Pos = 2 and then NAND_Register = 16#A0# then
+               NAND_Protection := Input;
+            elsif Flash_Pos = 2 and then NAND_Register = 16#B0# then
+               NAND_Config := Input;
+            end if;
+         when 16#D8# | 16#10# | 16#13# =>
+            if Flash_Pos in 2 .. 3 then
+               Flash_Address := Flash_Address * 256 + Interfaces.Unsigned_32 (Input);
+            end if;
+            if Flash_Pos = 3 then
+               Page := Flash_Address mod (Flash_Pages / 8);
+               if Flash_Command = 16#13# then
+                  NAND_Read_Page (Page);
+                  NAND_Busy := NAND_Stuck_Read;
+               elsif Flash_WEL and then (NAND_Protection and 16#7C#) /= 0 then
+                  NAND_Failed := NAND_Failed or (if Flash_Command = 16#D8# then 4 else 8);
+                  Flash_WEL := False;
+               elsif Flash_WEL and then Flash_Command = 16#D8# then
+                  if NAND_Stuck_Erase then
+                     NAND_Busy := True;
+                  else
+                     Flash_Erase_Pages ((Page / 64) * 512, 512);
+                  end if;
+                  Flash_WEL := False;
+               elsif Flash_WEL then
+                  NAND_Program_Page (Page);
+                  Flash_WEL := False;
+               end if;
+            end if;
+         when 16#02# | 16#84# =>
+            if Flash_Pos <= 2 then
+               NAND_Column := (NAND_Column * 256 + Natural (Input)) mod 65_536;
+            elsif Flash_WEL and then NAND_Column < NAND_Page_Bytes then
+               NAND_Buffer (NAND_Column) := Input;
+               NAND_Column := NAND_Column + 1;
+            end if;
+         when 16#03# =>
+            if Flash_Pos <= 2 then
+               NAND_Column := (NAND_Column * 256 + Natural (Input)) mod 65_536;
+            elsif Flash_Pos >= 4 then
+               if (NAND_Config and 16#08#) /= 0 and then NAND_Column < NAND_Page_Bytes then
+                  Output := NAND_Buffer (NAND_Column);
+               end if;
+               NAND_Column := NAND_Column + 1;
+            end if;
+         when others =>
+            null;
+      end case;
+      return Output;
+   end NAND_Clock;
+
    --  One byte clocked to the flash chip while it is selected, and the
    --  byte it answers.
    function Flash_Clock (Input : Byte) return Byte is
       Output : Byte := 16#FF#;
    begin
+      if Flash_NAND then
+         return NAND_Clock (Input);
+      end if;
       if Flash_Idle then
          Flash_Idle := False;
          Flash_Command := Input;
@@ -433,7 +586,7 @@ package body Adaflight.STM32.SPI is
 
    procedure Flash_Deselect is
    begin
-      if not Flash_Idle and then Flash_Command = 16#02# and then Flash_Loaded then
+      if not Flash_Idle and then not Flash_NAND and then Flash_Command = 16#02# and then Flash_Loaded then
          Flash_Store;
          Flash_WEL := False;
       end if;
