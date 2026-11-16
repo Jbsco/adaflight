@@ -15,9 +15,8 @@ goes adaflight-checks.adc, the configuration pragmas of the board crate, which t
 checks off when Board_Checks is off, itcm_load.ld, which names where an STM32F7 image loads its ITCM code from,
 and the linker scripts' RAM sections, where an STM32F4 build packs its
 initialized data and elaboration code only and keeps its tables in flash. A feature
-with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less with an SPI
-receiver, for the receiver's room, and in an STM32F4 build of 512 KB or less, whose flash also holds the tables an
-STM32F7 build unpacks into RAM. An STM32F411 build leaves the servos and the GPS out. The output is deterministic for the same inputs, so a build regenerates it
+with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less, for the
+room its drivers take. An STM32F411 build leaves the servos and the GPS out. The output is deterministic for the same inputs, so a build regenerates it
 without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
 The --json form prints the board's MCU, flash size and crate, and each feature with its description, its default
 and its state after the changes, for a configurator's feature selection.
@@ -91,7 +90,7 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
               or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
-    if flash_kb <= 512 and (chosen.get("SPI_Receiver") or mcu.startswith("STM32F4")):
+    if flash_kb <= 512:
         chosen["Debug_Values"] = False
     if mcu == "STM32F411":
         chosen["Servos"] = False
