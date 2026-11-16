@@ -15632,3 +15632,17 @@ Host I2C gains an LPS22DF model at address 0x5D when `ADAFLIGHT_BARO_CHIP` is LP
 then answers nothing. That model has an identity, control registers whose reset bit reads clear, and fixed
 readings. Host smoke reads that chip's name from its status and 25.00 degrees and 1013 hPa from its
 barometer's debug values. No board has run an LPS22DF.
+
+## D788. QMP6988 barometer on boards (2026-11-16)
+
+A board whose configuration names a QMP6988 now builds that driver, which its detection scan tries after a
+BMP280 and before an LPS22DF. Five STM32F722 board configurations name one.
+
+Host I2C gains a QMP6988 model at address 0x70 when `ADAFLIGHT_BARO_CHIP` is QMP6988, with no chip at its
+first address. Its calibration bytes set two offsets and leave every other coefficient at its base value.
+Host smoke reads that chip's name from its status and 1013 hPa from its barometer's debug values, which a
+single precision calculation outside this code also gives for those bytes and readings.
+
+Its temperature debug value reads 25 where other chips read hundredths of a degree. Betaflight's QMP6988
+driver gives whole degrees, and D351's driver follows it (F362). That stays until a later change. No board
+has run a QMP6988.

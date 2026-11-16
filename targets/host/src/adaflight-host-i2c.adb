@@ -18,8 +18,12 @@ with Interfaces;
 --  to 2499 hundredths of a degree and 101332 pascal. With LPS22DF the
 --  address 16#5D# carries an LPS22DF and the first address none: its
 --  identity, control registers whose reset bit reads clear, and readings of
---  2500 hundredths of a degree and 101325 pascal. Every other address and
---  bus answers nothing.
+--  2500 hundredths of a degree and 101325 pascal. With QMP6988 the address
+--  16#70# carries a QMP6988, again with no chip at the first address: its
+--  identity, the calibration bytes of two offsets with every other
+--  coefficient at its base value, and raw readings that compensate to 25
+--  degrees, which that chip's driver gives whole, and 101324 pascal. Every
+--  other address and bus answers nothing.
 with Ada.Environment_Variables;
 with Adaflight.Board;
 with Adaflight.Host_OLED;
@@ -89,6 +93,16 @@ package body Adaflight.STM32.I2C is
    LPS_Id           : constant Byte := 16#B4#;
    LPS_Readings     : constant Byte_Array (0 .. 4) := (16#00#, 16#54#, 16#3F#, 16#C4#, 16#09#);
    LPS_Registers    : Byte_Array (0 .. 16#7F#) := (others => 0);
+   --  The QMP6988 model: the offsets b00 31660 and a0 5890, in sixteenths
+   --  over twenty bits, every other calibration word zero, and the raw
+   --  pressure 10438608 and temperature 8288608 with the high byte first.
+   QMP_Model        : constant Boolean := Baro_Chip = "QMP6988";
+   QMP_Address      : constant Byte := 16#70#;
+   QMP_Id           : constant Byte := 16#5C#;
+   QMP_Calibration  : constant Byte_Array (0 .. 24) :=
+     (0 => 16#7B#, 1 => 16#AC#, 18 => 16#17#, 19 => 16#02#, others => 0);
+   QMP_Readings     : constant Byte_Array (0 .. 5) := (16#9F#, 16#47#, 16#D0#, 16#7E#, 16#79#, 16#60#);
+   QMP_Registers    : Byte_Array (0 .. 16#FF#) := (others => 0);
 
    procedure Init (B : Bus; SCL, SDA : Adaflight.Pins.Pin) is
    begin
@@ -99,12 +113,13 @@ package body Adaflight.STM32.I2C is
 
    function Answers (B : Bus; Address : Byte) return Boolean is
      (B = I2C1 and then Running (B)
-      and then ((Address = Chip_Address and then not LPS_Model
+      and then ((Address = Chip_Address and then not LPS_Model and then not QMP_Model
                  and then (if DPS_Model then Adaflight.Board.Baro_DPS310
                            elsif B388_Model then Adaflight.Board.Baro_BMP388
                            else Adaflight.Board.Baro_BMP280))
                 or else (Address = MS_Address and then MS_Model and then Adaflight.Board.Baro_MS5611)
                 or else (Address = LPS_Address and then LPS_Model and then Adaflight.Board.Baro_LPS22DF)
+                or else (Address = QMP_Address and then QMP_Model and then Adaflight.Board.Baro_QMP6988)
                 or else Address = Pitot_Address
                 or else (Address = Adaflight.Host_OLED.Address and then Adaflight.Host_OLED.On)));
 
@@ -134,6 +149,21 @@ package body Adaflight.STM32.I2C is
                Data (I) :=
                  (if R in 16#A0# .. 16#AF# then MS_PROM (R - 16#A0#)
                   elsif R in 0 .. 2 then MS_Result (R)
+                  else 0);
+            end;
+         end loop;
+         return;
+      end if;
+      if Address = QMP_Address then
+         for I in Data'Range loop
+            declare
+               R : constant Natural := Natural (Register) + (I - Data'First);
+            begin
+               Data (I) :=
+                 (if R = 16#D1# then QMP_Id
+                  elsif R in 16#A0# .. 16#B8# then QMP_Calibration (R - 16#A0#)
+                  elsif R in 16#F7# .. 16#FC# then QMP_Readings (R - 16#F7#)
+                  elsif R <= QMP_Registers'Last then QMP_Registers (R)
                   else 0);
             end;
          end loop;
@@ -213,6 +243,8 @@ package body Adaflight.STM32.I2C is
          elsif (Register and 16#F0#) = 16#50# then
             MS_Result := MS_Temperature;
          end if;
+      elsif OK and then Address = QMP_Address then
+         QMP_Registers (Natural (Register)) := Value;
       elsif OK and then Address = LPS_Address then
          if Natural (Register) <= LPS_Registers'Last then
             LPS_Registers (Natural (Register)) := Value;
