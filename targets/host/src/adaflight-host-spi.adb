@@ -18,11 +18,14 @@
 --  write enable latch, page programs of up to 256 bytes that wrap in the
 --  page, 64 KB sector erases, the chip erase, and reads from an address
 --  with the fast read's idle byte. No image means no chip. The board's
---  gyro bus carries a model of an MPU6000 while the environment variable
---  ADAFLIGHT_GYRO_CHIP is set: its identity and product revision, a
---  register store that a device reset clears, and its data registers, which
---  read a simulator's accelerations and rates, or without one a fixed
---  acceleration and rates that step from zero 8 s after the start.
+--  gyro bus carries a gyro model while the environment variable
+--  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
+--  its value names one, with their five register banks, and an MPU6000
+--  otherwise. A model has its identity, a register store that a device
+--  reset clears, and its data registers, which read zeros until its start
+--  wakes its sensors. They then read a simulator's accelerations and rates,
+--  or without one a fixed acceleration and rates that step from zero 8 s
+--  after the start.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
 with Adaflight.Board;
@@ -475,48 +478,127 @@ package body Adaflight.STM32.SPI is
       end loop;
    end Card_Transfer;
 
-   Gyro_Model     : constant Boolean := Ada.Environment_Variables.Exists ("ADAFLIGHT_GYRO_CHIP");
+   --  The chip the gyro model is: none without the environment variable, an
+   --  ICM426xx where its value names one, an MPU6000 for any other value.
+   type Gyro_Kind is (No_Model, MPU6000, ICM42605, ICM42688P, IIM42653);
+   function Gyro_Kind_Of_Environment return Gyro_Kind is
+      Name : constant String := "ADAFLIGHT_GYRO_CHIP";
+   begin
+      if not Ada.Environment_Variables.Exists (Name) then
+         return No_Model;
+      end if;
+      declare
+         Value : constant String := Ada.Environment_Variables.Value (Name);
+      begin
+         return
+           (if Value = "ICM42605" then ICM42605
+            elsif Value = "ICM42688P" then ICM42688P
+            elsif Value = "IIM42653" then IIM42653
+            else MPU6000);
+      end;
+   end Gyro_Kind_Of_Environment;
+
+   Gyro_Model     : constant Gyro_Kind := Gyro_Kind_Of_Environment;
    Gyro_Model_Bus : constant Bus :=
      (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
    Gyro_Sleep     : constant Byte := 16#40#;
-   Gyro_Registers : Byte_Array (0 .. 16#7F#) := (16#6B# => Gyro_Sleep, others => 0);
    Gyro_Step_Ms   : constant := 8_000;
+   subtype Gyro_Bank_Index is Natural range 0 .. 4;
+   type Gyro_Banks is array (Gyro_Bank_Index) of Byte_Array (0 .. 16#7F#);
+   Gyro_Reset     : constant Gyro_Banks :=
+     (0      => (16#6B# => (if Gyro_Model = MPU6000 then Gyro_Sleep else 0), others => 0),
+      others => (others => 0));
+   Gyro_Registers : Gyro_Banks := Gyro_Reset;
+   Gyro_Bank      : Gyro_Bank_Index := 0;
 
-   --  The data registers from 16#3B#: accelerations, temperature and rates,
-   --  each with its high byte first.
-   function Gyro_Data (Offset : Natural) return Byte is
+   --  One of the chip's seven readings: three accelerations, the
+   --  temperature of 25 degrees and three rates. A chip that sleeps, or
+   --  whose sensors are off, reads zeros.
+   function Gyro_Reading (Which : Natural) return Integer is
       type Axes is array (1 .. 3) of Integer;
-      Acc         : Axes := (128, -256, 2_040);
-      Rates       : Axes :=
+      One_G : constant Integer := (if Gyro_Model = IIM42653 then 1_024 else 2_048);
+      Acc   : Axes := (One_G / 16, -One_G / 8, One_G - One_G / 256);
+      Rates : Axes :=
         (if Adaflight.STM32.Time.Millis >= Gyro_Step_Ms then (164, 328, -492) else (0, 0, 0));
-      Temperature : constant Integer := -3_920;
-      Value       : Integer;
+      Awake : constant Boolean :=
+        (if Gyro_Model = MPU6000 then (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0
+         else (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
    begin
+      if not Awake then
+         return 0;
+      end if;
       if Adaflight.Host_Simulator.Enabled then
          declare
             A : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Acc;
             G : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Gyro;
          begin
             for I in 1 .. 3 loop
-               Acc (I) := Integer'Max (-32_768, Integer'Min (32_767, Integer (A (I)) * 8));
+               Acc (I) := Integer'Max (-32_768, Integer'Min (32_767, Integer (A (I)) * One_G / 256));
                Rates (I) := Integer (G (I));
             end loop;
          end;
       end if;
-      Value :=
-        (case Offset / 2 is
-            when 0 .. 2 => Acc (Offset / 2 + 1),
-            when 3      => Temperature,
-            when others => Rates (Offset / 2 - 3));
-      Value := Value mod 65_536;
-      return Byte (if Offset mod 2 = 0 then Value / 256 else Value mod 256);
-   end Gyro_Data;
+      return
+        (case Which is
+            when 0 .. 2 => Acc (Which + 1),
+            when 3      => (if Gyro_Model = MPU6000 then -3_920 else 0),
+            when others => Rates (Integer'Min (3, Which - 3)));
+   end Gyro_Reading;
 
+   --  A byte of a reading, its high byte first.
+   function Gyro_Reading_Byte (Which : Natural; Low : Boolean) return Byte is
+      Value : constant Integer := Gyro_Reading (Which) mod 65_536;
+   begin
+      return Byte (if Low then Value mod 256 else Value / 256);
+   end Gyro_Reading_Byte;
+
+   --  The MPU6000's data registers run from 16#3B#: accelerations,
+   --  temperature, rates. The ICM426xx's run from 16#1D# in bank 0:
+   --  temperature, accelerations, rates.
    function Gyro_Read (Register : Byte) return Byte is
-     (if Register in 16#3B# .. 16#48# then Gyro_Data (Natural (Register) - 16#3B#)
-      elsif Register = 16#75# then 16#68#
-      elsif Register = 16#0C# then 16#14#
-      else Gyro_Registers (Natural (Register and 16#7F#)));
+      R : constant Natural := Natural (Register and 16#7F#);
+   begin
+      if Gyro_Model = MPU6000 then
+         return
+           (if R in 16#3B# .. 16#48# then Gyro_Reading_Byte ((R - 16#3B#) / 2, (R - 16#3B#) mod 2 = 1)
+            elsif R = 16#75# then 16#68#
+            elsif R = 16#0C# then 16#14#
+            else Gyro_Registers (0) (R));
+      elsif R = 16#76# then
+         return Byte (Gyro_Bank);
+      elsif Gyro_Bank = 0 and then R in 16#1D# .. 16#1E# then
+         return Gyro_Reading_Byte (3, R = 16#1E#);
+      elsif Gyro_Bank = 0 and then R in 16#1F# .. 16#24# then
+         return Gyro_Reading_Byte ((R - 16#1F#) / 2, (R - 16#1F#) mod 2 = 1);
+      elsif Gyro_Bank = 0 and then R in 16#25# .. 16#2A# then
+         return Gyro_Reading_Byte (4 + (R - 16#25#) / 2, (R - 16#25#) mod 2 = 1);
+      elsif Gyro_Bank = 0 and then R = 16#75# then
+         return (case Gyro_Model is when ICM42605 => 16#42#, when IIM42653 => 16#56#, when others => 16#47#);
+      else
+         return Gyro_Registers (Gyro_Bank) (R);
+      end if;
+   end Gyro_Read;
+
+   --  A device reset clears the registers: the MPU6000's on its power
+   --  register's top bit, the ICM426xx's on its device configuration's
+   --  lowest. The ICM426xx's bank register selects one of five banks.
+   procedure Gyro_Write (Register : Byte; Value : Byte) is
+      R : constant Natural := Natural (Register and 16#7F#);
+   begin
+      if Gyro_Model = MPU6000 then
+         if R = 16#6B# and then (Value and 16#80#) /= 0 then
+            Gyro_Registers := Gyro_Reset;
+         else
+            Gyro_Registers (0) (R) := Value;
+         end if;
+      elsif R = 16#76# then
+         Gyro_Bank := (if Natural (Value and 7) <= 4 then Natural (Value and 7) else 0);
+      elsif Gyro_Bank = 0 and then R = 16#11# and then (Value and 1) /= 0 then
+         Gyro_Registers := Gyro_Reset;
+      else
+         Gyro_Registers (Gyro_Bank) (R) := Value;
+      end if;
+   end Gyro_Write;
 
    --  One selection: a register read that runs on over the next registers,
    --  or a register write.
@@ -529,11 +611,7 @@ package body Adaflight.STM32.SPI is
             Rx (Rx'First + K) := Gyro_Read (Byte ((Natural (Register) + K - 1) mod 128));
          end loop;
       elsif Tx'Length >= 2 then
-         if Register = 16#6B# and then (Tx (Tx'First + 1) and 16#80#) /= 0 then
-            Gyro_Registers := (16#6B# => Gyro_Sleep, others => 0);
-         else
-            Gyro_Registers (Natural (Register)) := Tx (Tx'First + 1);
-         end if;
+         Gyro_Write (Register, Tx (Tx'First + 1));
       end if;
    end Gyro_Frame;
 
@@ -575,7 +653,7 @@ package body Adaflight.STM32.SPI is
          Chip_Frame (Tx, Rx);
       elsif B = SPI2 then
          Card_Transfer (Tx, Rx);
-      elsif B = Gyro_Model_Bus and then Gyro_Model
+      elsif B = Gyro_Model_Bus and then Gyro_Model /= No_Model
         and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Gyro_1_CS_Pin)
       then
          Gyro_Frame (Tx, Rx);

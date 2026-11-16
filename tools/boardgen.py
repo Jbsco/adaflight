@@ -138,6 +138,11 @@ def rx_feature(text) -> int:
     return RX_FEATURES[text]
 
 
+ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
+ICM426XX_GYRO = ("USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P") + ICM426XX_SHARED
+ICM426XX_ACC = ("USE_ACC_SPI_ICM42605", "USE_ACC_SPI_ICM42688P") + ICM426XX_SHARED
+
+
 def find_config(configs: Path, board: str) -> Path:
     hits = sorted(configs.glob(f"*/{board}/config.h"))
     if len(hits) != 1:
@@ -238,6 +243,8 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Gyro_MPU6500", "True" if "USE_GYRO_SPI_MPU6500" in defines else "False"),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),
                 ("Acc_MPU6500", "True" if "USE_ACC_SPI_MPU6500" in defines else "False"),
+                ("Gyro_ICM426xx", "True" if any(d in defines for d in ICM426XX_GYRO) else "False"),
+                ("Acc_ICM426xx", "True" if any(d in defines for d in ICM426XX_ACC) else "False"),
                 ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),
                 ("Baro_SPI_Device", spi_device(defines.get("BARO_SPI_INSTANCE", ""))),
                 ("Baro_BMP280", "True" if "USE_BARO_BMP280" in defines else "False"),

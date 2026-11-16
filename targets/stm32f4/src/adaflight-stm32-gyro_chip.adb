@@ -4,6 +4,7 @@ with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Gyro_Detect;
 with Adaflight.Gyro_Start;
 with Adaflight.MPU_Gyro;
+with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -51,10 +52,11 @@ package body Adaflight.STM32.Gyro_Chip is
    procedure Read_Register (D : in out Device; Register : Byte; Value : out Byte);
    procedure Delay_Us (D : in out Device; Us : Natural);
    procedure Failure (D : in out Device);
+   procedure No_Clock_In (D : in out Device; Started : out Boolean);
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 2,
+      Chip_Count       => 3,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -83,6 +85,11 @@ package body Adaflight.STM32.Gyro_Chip is
       Read_Register      => Read_Register,
       Bus_Write_Register => Write_Register,
       Delay_Us           => Delay_Us);
+   package ICM426xx is new Layer.ICM426xx
+     (External_Clock => False,
+      Write_Register => Write_Register,
+      Read_Register  => Read_Register,
+      Start_Clock_In => No_Clock_In);
 
    Bus   : Device;
    State : Layer.State;
@@ -157,6 +164,10 @@ package body Adaflight.STM32.Gyro_Chip is
          when 2 =>
             if Adaflight.Board.Gyro_MPU6500 then
                MPU6500.Detect (D, Sensor);
+            end if;
+         when 3 =>
+            if Adaflight.Board.Gyro_ICM426xx then
+               ICM426xx.Detect (D, Sensor);
             end if;
          when others =>
             null;
@@ -265,14 +276,22 @@ package body Adaflight.STM32.Gyro_Chip is
       D.Failed := True;
    end Failure;
 
+   procedure No_Clock_In (D : in out Device; Started : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Started := False;
+   end No_Clock_In;
+
    --  The drivers a board's configuration names.
    Build : constant Gyro_Detect.Driver_Set :=
      (Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
+      Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
       others                  => False);
    Acc_Build : constant Acc_Detect.Driver_Set :=
      (Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
+      Acc_Detect.ICM426xx    => Adaflight.Board.Acc_ICM426xx,
       others                 => False);
    --  The gyro on SPI bus 1 with a select pin.
    Config : constant Layer.Device_Config := (Index => 0, Bus_Type => 2, SPI_Bus => 1, CS_Tag => 1);
@@ -295,6 +314,8 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Detect (State, Found, R.Scale);
          end if;
+      elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
+         ICM426xx.Gyro_Detect (State, Found, R.Scale);
       elsif Adaflight.Board.Gyro_MPU6500 then
          MPU6500.Gyro_Detect (State, High_Range, Found, R.Scale);
       end if;
@@ -311,6 +332,8 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
          end if;
+      elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
+         ICM426xx.Gyro_Init (Bus, State, Hardware_LPF, Gyro_Start.Divider_Drops);
       elsif Adaflight.Board.Gyro_MPU6500 then
          MPU6500.Gyro_Init (Bus, State, High_Range, Gyro_Start.Divider_Drops);
       end if;
@@ -322,6 +345,9 @@ package body Adaflight.STM32.Gyro_Chip is
       R.Acc_Sample_Rate_Hz := Rates.Acc_Hz;
       R.Overflow_Protected := Gyro_Start.Overflow_Protected (Hardware);
       Acc_Detect.Detect (Acc_Build, Acc_Configured, State.Sensor, R.Acc_Hardware, R.Acc_Found);
+      if R.Acc_Found and then Adaflight.Board.Acc_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
+         R.One_G := Positive (ICM426xx.Acc_One_G (State));
+      end if;
    end Start;
 
    procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
