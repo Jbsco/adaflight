@@ -2525,14 +2525,28 @@ def nand_flash_checks(image, work):
             lines = []
         return [int(l[0]) for l in lines if len(l) == 4 and l[1] == "pin" and l[2] == led]
 
+    def beep_changes():
+        try:
+            with open(store + ".beeper.txt") as f:
+                return [int(line.split(",")[0]) for line in f.read().splitlines() if "," in line]
+        except OSError:
+            return []
+
     proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip, "ADAFLIGHT_FLASH_STUCK": "erase",
                                       "ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": led})
     try:
         time.sleep(6.0)
         before = len(changes())
+        beeps_before = len(beep_changes())
         erased = msp(sock, 72)
         time.sleep(9.5)
         times = changes()[before:]
+        beep_times = beep_changes()[beeps_before:]
+        beep_groups = [[]]
+        for k, at in enumerate(beep_times):
+            if k > 0 and at - beep_times[k - 1] > 420:
+                beep_groups.append([])
+            beep_groups[-1].append(at)
         groups = [[]]
         for k, at in enumerate(times):
             if k > 0 and at - times[k - 1] > 420:
@@ -2544,10 +2558,74 @@ def nand_flash_checks(image, work):
         check("the failure flashes then give the flash write failure's code as twelve long flashes",
               len(groups) >= 2 and len(groups[1]) == 24 and all(180 <= g <= 400 for g in long_gaps),
               repr(([len(g) for g in groups], long_gaps[:6])))
+        check("the beeper sounds through the first half of each failure flash, five short and twelve long",
+              len(beep_groups) >= 2 and len(beep_groups[0]) in (9, 10) and len(beep_groups[1]) == 24,
+              repr([len(g) for g in beep_groups]))
         check("the failure flashes repeat before a reset", proc.poll() is None, repr(proc.poll()))
     finally:
         stop(proc)
         sock.close()
+
+
+def failure_mode_checks(image, work):
+    """The failure mode: a save to a configuration store that cannot be written, here a file made read-only,
+    gives the store failure's code as six long flashes after five short ones, with a beep in each, ten times, and
+    then the image ends as a restart into the bootloader does. Over a configuration store of its own."""
+    store = os.path.join(work, "failure-eeprom.bin")
+    log = os.path.join(work, "failure-pins.txt")
+    led = "B05"
+    for stale in (store, log, store + ".beeper.txt"):
+        if os.path.exists(stale):
+            os.chmod(stale, 0o644)
+            os.remove(stale)
+
+    def stamps(path, pin=None):
+        try:
+            with open(path) as f:
+                lines = f.read().splitlines()
+        except OSError:
+            return []
+        if pin is None:
+            return [int(line.split(",")[0]) for line in lines if "," in line]
+        fields = [line.split() for line in lines]
+        return [int(l[0]) for l in fields if len(l) == 4 and l[1] == "pin" and l[2] == pin]
+
+    def grouped(times):
+        groups = [[]]
+        for k, at in enumerate(times):
+            if k > 0 and at - times[k - 1] > 420:
+                groups.append([])
+            groups[-1].append(at)
+        return [len(g) for g in groups]
+
+    code = None
+    proc, sock = start(image, store, {"ADAFLIGHT_PIN_LOG": log, "ADAFLIGHT_PIN_LOG_PINS": led})
+    try:
+        time.sleep(6.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        cli(sock, "set debug_mode = GYRO_SCALED")
+        os.chmod(store, 0o444)
+        leds_before = len(stamps(log, led))
+        beeps_before = len(stamps(store + ".beeper.txt"))
+        sock.sendall(b"save\r\n")
+        try:
+            code = proc.wait(timeout=75)
+        except subprocess.TimeoutExpired:
+            code = None
+    finally:
+        stop(proc)
+        sock.close()
+        os.chmod(store, 0o644)
+    leds = grouped(stamps(log, led)[leds_before:])
+    beeps = grouped(stamps(store + ".beeper.txt")[beeps_before:])
+    check("a save to a store that cannot be written flashes its failure code ten times",
+          len(leds) == 20 and all(s in (10, 11) for s in leds[0::2]) and all(s == 12 for s in leds[1::2]),
+          repr(leds))
+    check("each of those flashes has its beep",
+          len(beeps) == 20 and all(s in (9, 10) for s in beeps[0::2]) and all(s == 12 for s in beeps[1::2]),
+          repr(beeps))
+    check("the failure mode ends in a restart into the bootloader", code == 2, repr(code))
 
 
 def hott_checks(image, work):
@@ -6103,6 +6181,7 @@ def main():
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
         nand_flash_checks(image, work)
+        failure_mode_checks(image, work)
         hott_checks(image, work)
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)

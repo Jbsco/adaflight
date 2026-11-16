@@ -6,7 +6,6 @@ with Adaflight.Flash_FS;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.Failure_Flashes;
 with Adaflight.STM32.GPIO;
-with Adaflight.STM32.MCU;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Status_LED;
 with Adaflight.STM32.Time;
@@ -268,12 +267,11 @@ package body Adaflight.STM32.Flash_Chip is
       Now := Adaflight.STM32.Time.Millis;
    end Millis;
 
-   --  A write failure: its code flashed ten times, then the bootloader.
+   --  A write failure: the failure mode with its code.
    procedure Write_Failed (D : in out Chip_Bus) is
       pragma Unreferenced (D);
    begin
-      Adaflight.STM32.Failure_Flashes.Indicate (Adaflight.STM32.Failure_Flashes.External_Flash_Write_Failed, 10);
-      Adaflight.STM32.MCU.Reset_To_Bootloader;
+      Adaflight.STM32.Failure_Flashes.Mode (Adaflight.STM32.Failure_Flashes.External_Flash_Write_Failed);
    end Write_Failed;
 
    procedure Run_One

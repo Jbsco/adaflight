@@ -15609,3 +15609,16 @@ receiver and for STM32F4 builds, and other STM32F722 boards kept them.
 HGLRC_F722_S, with an ICM-42688-P, a gyro clock input and a W25N flash chip, no longer fit: its image ran
 1556 bytes past its flash region, and 1827 with D784. It now has 4554 bytes free. CLRACINGF7 goes from 1911
 free bytes to 7290. Builds of 1 MB keep debug values.
+
+## D786. Failure mode (2026-11-16)
+
+A failure that stops a board now ends as Betaflight's failure mode does. Its code flashes ten times, with a
+beep through each flash's first half, and a reset then starts its ROM bootloader. A configuration store that
+stays unwritable, a gyro whose start fails and a flash write that does not end all go through
+`Adaflight.STM32.Failure_Flashes.Mode`. Until now those first two ended in a plain reset, and no failure
+beeped. A missing accelerometer still flashes its code twice and goes on, now with beeps.
+
+Host smoke makes a configuration store read-only and saves. It then reads ten rounds of five short and six
+long flashes from an LED pin log, a beep for each from a beeper log, and an exit as for a bootloader request.
+That also checks D782's request after a tenth round. A failure at boot shows nothing on LEDs or beeper,
+since both start after a configuration load, as in Betaflight. No check starts a gyro that fails.
