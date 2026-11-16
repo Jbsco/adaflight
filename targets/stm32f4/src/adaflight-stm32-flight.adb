@@ -833,7 +833,7 @@ package body Adaflight.STM32.Flight is
    --  The configuration written to the store after its checks: the region
    --  as it reads, the image of every group when any changed, programmed
    --  and checked back, in up to three attempts; a store that still fails
-   --  flashes its code and resets.
+   --  ends in the failure mode with its code.
    procedure Write_Configuration is
       Data    : Adaflight.Config_Codec.Data;
       Image   : Adaflight.Bytes.Byte_Array (Adaflight.STM32.Flash.Config'Range);
@@ -860,8 +860,7 @@ package body Adaflight.STM32.Flight is
             return;
          end if;
       end loop;
-      Indicate_Failure (Failure_Config_Store_Failure, 10);
-      Reset;
+      Adaflight.STM32.Failure_Flashes.Mode (Failure_Config_Store_Failure);
    end Write_Configuration;
 
    --  The mode boxes the image offers: those always offered, those of the
@@ -1132,8 +1131,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Gyro.Start (Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
                                   Config.Accelerometer_Config.Acc_Hardware, Gyro_Report);
       if Gyro_Report.Init_Failed then
-         Indicate_Failure (Failure_Gyro_Init_Failed, 10);
-         Reset;
+         Adaflight.STM32.Failure_Flashes.Mode (Failure_Gyro_Init_Failed);
       end if;
       Inputs.Count := 1;
       Inputs.Stored_Detected := Config.Gyro_Config.Gyros_Detected;
