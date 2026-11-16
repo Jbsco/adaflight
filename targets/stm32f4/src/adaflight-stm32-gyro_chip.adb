@@ -148,13 +148,18 @@ package body Adaflight.STM32.Gyro_Chip is
 
    procedure Probe_Chip (D : in out Device; Index : Positive; Sensor : out Byte) is
    begin
+      Sensor := Layer.No_Sensor;
       case Index is
          when 1 =>
-            MPU6000.Detect (D, Sensor);
+            if Adaflight.Board.Gyro_MPU6000 then
+               MPU6000.Detect (D, Sensor);
+            end if;
          when 2 =>
-            MPU6500.Detect (D, Sensor);
+            if Adaflight.Board.Gyro_MPU6500 then
+               MPU6500.Detect (D, Sensor);
+            end if;
          when others =>
-            Sensor := Layer.No_Sensor;
+            null;
       end case;
    end Probe_Chip;
 
@@ -260,10 +265,15 @@ package body Adaflight.STM32.Gyro_Chip is
       D.Failed := True;
    end Failure;
 
+   --  The drivers a board's configuration names.
    Build : constant Gyro_Detect.Driver_Set :=
-     (Gyro_Detect.MPU6000 | Gyro_Detect.MPU6500_SPI => True, others => False);
+     (Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
+      Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
+      others                  => False);
    Acc_Build : constant Acc_Detect.Driver_Set :=
-     (Acc_Detect.MPU6000 | Acc_Detect.MPU6500_SPI => True, others => False);
+     (Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
+      Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
+      others                 => False);
    --  The gyro on SPI bus 1 with a select pin.
    Config : constant Layer.Device_Config := (Index => 0, Bus_Type => 2, SPI_Bus => 1, CS_Tag => 1);
 
@@ -280,12 +290,14 @@ package body Adaflight.STM32.Gyro_Chip is
       if not Found then
          return;
       end if;
-      case Hardware is
-         when Layer.Hardware_MPU6000 =>
+      Found := False;
+      if Hardware = Layer.Hardware_MPU6000 then
+         if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Detect (State, Found, R.Scale);
-         when others =>
-            MPU6500.Gyro_Detect (State, High_Range, Found, R.Scale);
-      end case;
+         end if;
+      elsif Adaflight.Board.Gyro_MPU6500 then
+         MPU6500.Gyro_Detect (State, High_Range, Found, R.Scale);
+      end if;
       if not Found then
          return;
       end if;
@@ -295,12 +307,13 @@ package body Adaflight.STM32.Gyro_Chip is
       State.Hardware := Hardware;
       Rates := Gyro_Start.Sample_Rates (State.Sensor, Hardware_LPF);
       State.Rate_KHz := Rates.Rate_Code;
-      case Hardware is
-         when Layer.Hardware_MPU6000 =>
+      if Hardware = Layer.Hardware_MPU6000 then
+         if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
-         when others =>
-            MPU6500.Gyro_Init (Bus, State, High_Range, Gyro_Start.Divider_Drops);
-      end case;
+         end if;
+      elsif Adaflight.Board.Gyro_MPU6500 then
+         MPU6500.Gyro_Init (Bus, State, High_Range, Gyro_Start.Divider_Drops);
+      end if;
       R.Found := True;
       R.Init_Failed := Bus.Failed;
       R.Hardware := Hardware;
