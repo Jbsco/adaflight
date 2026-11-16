@@ -8,12 +8,12 @@ package Adaflight.STM32.Gyro is
    subtype Byte is Interfaces.Unsigned_8;
    type Axis_Values is array (0 .. 2) of Interfaces.Integer_16;
    type Read_Mode is (Interrupt_Init, Interrupt_DMA, Interrupt, No_Interrupt);
-   --  The accelerometer's count for one g on both chip families.
+   --  The accelerometer's count for one g on most chips.
    Acc_One_G : constant := 2048;
    --  What the start found: the gyro hardware code and the chip's sensor
    --  code, the scale in degrees per second per count, the sample rates, the
    --  overflow protection of the hardware, whether the initialization read
-   --  failed, and the accelerometer hardware.
+   --  failed, and the accelerometer hardware with its count for one g.
    type Report is record
       Found              : Boolean := False;
       Init_Failed        : Boolean := False;
@@ -25,6 +25,7 @@ package Adaflight.STM32.Gyro is
       Overflow_Protected : Boolean := False;
       Acc_Found          : Boolean := False;
       Acc_Hardware       : Byte := Acc_Detect.Hardware_None;
+      One_G              : Positive := Acc_One_G;
    end record;
    --  The detection and initialization with the hardware filter setting, the
    --  high range option and the configured accelerometer hardware.

@@ -451,10 +451,10 @@ package body Adaflight.STM32.Flight is
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
-   Acc_Scale    : constant Float :=
-     (if Adaflight.STM32.Gyro.Acc_One_G > 512 * 4 then 8.0
-      elsif Adaflight.STM32.Gyro.Acc_One_G > 512 * 2 then 4.0
-      elsif Adaflight.STM32.Gyro.Acc_One_G >= 512 then 2.0
+   function Acc_Scale return Float is
+     (if Gyro_Report.One_G > 512 * 4 then 8.0
+      elsif Gyro_Report.One_G > 512 * 2 then 4.0
+      elsif Gyro_Report.One_G >= 512 then 2.0
       else 1.0);
 
    --  The loop units: the scheduler's settings, the core loop's cadence and
@@ -685,7 +685,7 @@ package body Adaflight.STM32.Flight is
    begin
       F.Motor_Output_Low := Integer_32 (Float'Rounding (Adaflight.STM32.Control.Output_Low));
       F.Motor_Output_High := Integer_32 (Float'Rounding (Adaflight.STM32.Control.Output_High));
-      F.Acc_1G := Integer_32 (Adaflight.STM32.Gyro.Acc_One_G);
+      F.Acc_1G := Integer_32 (Gyro_Report.One_G);
       F.Loop_Time := Integer_32 (Loop_Time_Us);
       F.PID_Process_Denom := Integer_32 (Loop_Ratio);
       F.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
@@ -1230,7 +1230,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Acc_Settings := Adaflight.Config_Runtime.Accelerometer_Settings_Of
         (A => Config.Accelerometer_Config, Device => Config.Gyro_Device_Config (0), Board => Config.Board_Alignment,
-         Sample_Rate_Hz => Acc_Hz, One_G => Adaflight.STM32.Gyro.Acc_One_G,
+         Sample_Rate_Hz => Acc_Hz, One_G => Gyro_Report.One_G,
          Features => Config.Feature_Config.Enabled_Features);
       Adaflight.Accelerometer.Init (Acc_State, Acc_Settings);
       Attitude_Period_Fast_Us :=
@@ -4729,7 +4729,7 @@ package body Adaflight.STM32.Flight is
       Inp.GPS_Altitude_Cm := G.Altitude_Cm;
       Inp.GPS_Sensor := G.Present;
       Inp.Acc_ADC := (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z));
-      Inp.One_G := Positive'Max (1, Natural'Min (65_535, Adaflight.STM32.Gyro.Acc_One_G));
+      Inp.One_G := Positive'Max (1, Natural'Min (65_535, Gyro_Report.One_G));
       Inp.Motor_Count := Motors;
       Inp.Debug := JT.Debug_Values (Adaflight.STM32.Debug_Values.State.Data);
       for M in 0 .. Motors - 1 loop
@@ -5097,7 +5097,7 @@ package body Adaflight.STM32.Flight is
       Src.IMU.Acc := (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.X)),
                       1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
                       2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
-      Src.IMU.Acc_1G_Reciprocal := 1.0 / Float (Natural'Max (1, Adaflight.STM32.Gyro.Acc_One_G));
+      Src.IMU.Acc_1G_Reciprocal := 1.0 / Float (Natural'Max (1, Gyro_Report.One_G));
       Src.IMU.Temperature := Adaflight.STM32.Gyro.Temperature;
       for I in Config.Pilot_Config.Craft_Name'Range loop
          exit when Config.Pilot_Config.Craft_Name (I) = 0 or else Src.Name_Last = Adaflight.CRSF_Telemetry.Name_Length_Max;
