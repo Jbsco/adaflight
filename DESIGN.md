@@ -15600,3 +15600,12 @@ before those chip writes. An ICM-42605 gets none, and neither does a pin without
 
 Three things have no check: a board file's default pin in a reset configuration, a second gyro on that
 clock, and timer registers on a real board. No board has run it.
+
+## D785. Debug values off in every 512 KB build (2026-11-16)
+
+Every build of 512 KB or less now leaves debug values out. D632 and D663 did that for boards with an SPI
+receiver and for STM32F4 builds, and other STM32F722 boards kept them.
+
+HGLRC_F722_S, with an ICM-42688-P, a gyro clock input and a W25N flash chip, no longer fit: its image ran
+1556 bytes past its flash region, and 1827 with D784. It now has 4554 bytes free. CLRACINGF7 goes from 1911
+free bytes to 7290. Builds of 1 MB keep debug values.
