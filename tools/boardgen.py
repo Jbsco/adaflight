@@ -138,6 +138,8 @@ def rx_feature(text) -> int:
     return RX_FEATURES[text]
 
 
+BMP280_BARO = ("USE_BARO_BMP280", "USE_BARO_SPI_BMP280")
+DPS310_BARO = ("USE_BARO_DPS310", "USE_BARO_SPI_DPS310", "USE_BARO_SPA06_003")
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
 ICM426XX_GYRO = ("USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P") + ICM426XX_SHARED
 ICM426XX_ACC = ("USE_ACC_SPI_ICM42605", "USE_ACC_SPI_ICM42688P") + ICM426XX_SHARED
@@ -251,7 +253,9 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Acc_ICM426xx", "True" if any(d in defines for d in ICM426XX_ACC) else "False"),
                 ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),
                 ("Baro_SPI_Device", spi_device(defines.get("BARO_SPI_INSTANCE", ""))),
-                ("Baro_BMP280", "True" if "USE_BARO_BMP280" in defines else "False"),
+                ("Baro_BMP280", "True" if any(d in defines for d in BMP280_BARO) else "False"),
+                ("Baro_DPS310", "True" if any(d in defines for d in DPS310_BARO) else "False"),
+                ("Baro_SPA06", "True" if "USE_BARO_SPA06_003" in defines else "False"),
                 ("Mag_I2C_Device", i2c_device(defines.get("MAG_I2C_INSTANCE", ""))),
                 ("Mag_SPI_Device", spi_device(defines.get("MAG_SPI_INSTANCE", ""))),
                 ("Mag_Align", ALIGNMENTS.get(defines.get("MAG_ALIGN", "ALIGN_DEFAULT"), 0)),

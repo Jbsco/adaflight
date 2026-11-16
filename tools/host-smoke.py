@@ -2121,7 +2121,8 @@ def boot_beep_checks(image, work):
     def boot(host, plugged):
         """A start, the detect pin low unless plugged, and a client on the USB port as early as it opens when a
         host is wanted. Returns whether that client got on, and the times of the beeper's on calls in the first
-        two seconds."""
+        2.6 s: the boot signal ends by about 2.1 s when the barometer's detection goes through two drivers, and
+        the next beeps come about 1.5 s after its end."""
         if os.path.exists(store + ".beeper.txt"):
             os.remove(store + ".beeper.txt")
         proc, _ = start(image, store, None if plugged else {"ADAFLIGHT_USB_UNPLUGGED": "1"}, port=None)
@@ -2139,7 +2140,7 @@ def boot_beep_checks(image, work):
                     lines = [line.split(",") for line in f.read().split()]
             except OSError:
                 lines = []
-            return (not host or usb is not None), [int(l[0]) for l in lines if l[1] == "1" and int(l[0]) < 2000]
+            return (not host or usb is not None), [int(l[0]) for l in lines if l[1] == "1" and int(l[0]) < 2600]
         finally:
             if usb is not None:
                 usb.close()
@@ -2822,6 +2823,46 @@ def gyro_chip_checks(image, work):
         check(f"the raw IMU reply reads the {chip} model's rates after their step",
               turning is not None and near(turning[:3], (32, -64, 510)) and near(turning[3:6], (164, 328, -492)),
               repr(turning))
+
+
+def baro_chip_checks(image, work):
+    """The board's barometer code over the host's I2C models, a BMP280, a DPS310 and an SPL07-003 in turn. The
+    DPS310 driver probes first, so the BMP280 run also shows a chip it refuses going on to the next driver, and it
+    finds the SPL07-003, which the host build names SPA06-003. Each chip gives its name in the status and its
+    model's pressure and temperature in the barometer's debug values. Over a configuration store of its own."""
+    if not built("Barometer"):
+        return
+    store = os.path.join(work, "baro-chip-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        reply = cli(sock, "set debug_mode = BARO")
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("barometer chip checks have the barometer's debug mode", "debug_mode set to BARO" in reply, repr(reply[-80:]))
+    for chip, extra, hectopascal, centidegrees in (("BMP280", {}, 1007, 2508),
+                                                   ("DPS310", {"ADAFLIGHT_BARO_CHIP": "DPS310"}, 1010, 2600),
+                                                   ("SPA06_003", {"ADAFLIGHT_BARO_CHIP": "SPL07"}, 1010, 2600)):
+        proc, sock = start(image, store, extra)
+        try:
+            time.sleep(5.0)
+            values = debug_values(sock)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            status = cli(sock, "status")
+        finally:
+            stop(proc)
+            sock.close()
+        check(f"the board's barometer code finds the model's {chip}", f"BARO: {chip}" in status, repr(status[:400]))
+        check(f"the {chip} model's pressure and temperature reach the barometer",
+              values[1:3] == [hectopascal, centidegrees], repr(values))
 
 
 def rtc6705_checks(image, work):
@@ -5798,6 +5839,7 @@ def main():
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)
         gyro_chip_checks(image, work)
+        baro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             def flash_used():
