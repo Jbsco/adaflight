@@ -1,7 +1,9 @@
 --  The gyro chip on the board's gyro bus: the SPI gyro layer over the bus
---  driver with the MPU6000, MPU6500 family, BMI270 and ICM426xx drivers,
---  each built where the board's configuration names it, the data ready
---  line's interrupt, the start at boot, and the readings the main takes. The
+--  driver with the ICM20689 family, MPU6000, MPU6500 family, BMI270 and
+--  ICM426xx drivers, each built where the board's configuration names it and
+--  probed in that order, the data ready line's interrupt, the start at boot,
+--  and the readings the main takes. The gyro detection's hardware code says
+--  which of the ICM20689 and MPU6500 drivers starts a chip both know. The
 --  BMI270 reads through its own driver, and its received bytes start one
 --  place earlier in the layer's buffer. The ICM426xx runs from its own
 --  clock. The operations are the board gyro unit's, which a board image

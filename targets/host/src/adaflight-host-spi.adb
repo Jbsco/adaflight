@@ -21,7 +21,8 @@
 --  gyro bus carries a gyro model while the environment variable
 --  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
 --  its value names one, with their five register banks, a BMI270 where it
---  names that, and an MPU6000 otherwise. A model has its identity, a
+--  names that, an ICM-20602 or ICM-20689 with the MPU6000's register
+--  layout, and an MPU6000 otherwise. A model has its identity, a
 --  register store that a device reset clears, and its data registers, which
 --  read zeros until its start wakes its sensors. They then read a
 --  simulator's accelerations and rates, or without one a fixed acceleration
@@ -484,7 +485,7 @@ package body Adaflight.STM32.SPI is
 
    --  The chip the gyro model is: none without the environment variable, an
    --  ICM426xx where its value names one, an MPU6000 for any other value.
-   type Gyro_Kind is (No_Model, MPU6000, BMI270, ICM42605, ICM42688P, IIM42653);
+   type Gyro_Kind is (No_Model, MPU6000, ICM20602, ICM20689, BMI270, ICM42605, ICM42688P, IIM42653);
    function Gyro_Kind_Of_Environment return Gyro_Kind is
       Name : constant String := "ADAFLIGHT_GYRO_CHIP";
    begin
@@ -496,6 +497,8 @@ package body Adaflight.STM32.SPI is
       begin
          return
            (if Value = "BMI270" then BMI270
+            elsif Value = "ICM20602" then ICM20602
+            elsif Value = "ICM20689" then ICM20689
             elsif Value = "ICM42605" then ICM42605
             elsif Value = "ICM42688P" then ICM42688P
             elsif Value = "IIM42653" then IIM42653
@@ -504,6 +507,8 @@ package body Adaflight.STM32.SPI is
    end Gyro_Kind_Of_Environment;
 
    Gyro_Model     : constant Gyro_Kind := Gyro_Kind_Of_Environment;
+   --  The chips with the MPU6000's register layout.
+   MPU_Layout     : constant Boolean := Gyro_Model in MPU6000 | ICM20602 | ICM20689;
    Gyro_Model_Bus : constant Bus :=
      (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
    Gyro_Sleep     : constant Byte := 16#40#;
@@ -512,7 +517,7 @@ package body Adaflight.STM32.SPI is
    type Gyro_Banks is array (Gyro_Bank_Index) of Byte_Array (0 .. 16#7F#);
    --  A reset leaves an MPU6000 asleep and a BMI270 in its power save.
    Gyro_Reset     : constant Gyro_Banks :=
-     (0      => (16#6B# => (if Gyro_Model = MPU6000 then Gyro_Sleep else 0),
+     (0      => (16#6B# => (if MPU_Layout then Gyro_Sleep else 0),
                  16#7C# => (if Gyro_Model = BMI270 then 3 else 0),
                  others => 0),
       others => (others => 0));
@@ -537,9 +542,9 @@ package body Adaflight.STM32.SPI is
         (if Adaflight.STM32.Time.Millis >= Gyro_Step_Ms then (164, 328, -492) else (0, 0, 0));
       Awake : constant Boolean :=
         (case Gyro_Model is
-            when MPU6000 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
-            when BMI270  => BMI_Loaded and then (Gyro_Registers (0) (16#7D#) and 16#06#) = 16#06#,
-            when others  => (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
+            when MPU6000 | ICM20602 | ICM20689 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
+            when BMI270 => BMI_Loaded and then (Gyro_Registers (0) (16#7D#) and 16#06#) = 16#06#,
+            when others => (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
    begin
       if not Awake then
          return 0;
@@ -575,11 +580,11 @@ package body Adaflight.STM32.SPI is
    function Gyro_Read (Register : Byte) return Byte is
       R : constant Natural := Natural (Register and 16#7F#);
    begin
-      if Gyro_Model = MPU6000 then
+      if MPU_Layout then
          return
            (if R in 16#3B# .. 16#48# then Gyro_Reading_Byte ((R - 16#3B#) / 2, (R - 16#3B#) mod 2 = 1)
-            elsif R = 16#75# then 16#68#
-            elsif R = 16#0C# then 16#14#
+            elsif R = 16#75# then (case Gyro_Model is when ICM20602 => 16#12#, when ICM20689 => 16#98#, when others => 16#68#)
+            elsif R = 16#0C# and then Gyro_Model = MPU6000 then 16#14#
             else Gyro_Registers (0) (R));
       elsif R = 16#76# then
          return Byte (Gyro_Bank);
@@ -602,7 +607,7 @@ package body Adaflight.STM32.SPI is
    procedure Gyro_Write (Register : Byte; Value : Byte) is
       R : constant Natural := Natural (Register and 16#7F#);
    begin
-      if Gyro_Model = MPU6000 then
+      if MPU_Layout then
          if R = 16#6B# and then (Value and 16#80#) /= 0 then
             Gyro_Registers := Gyro_Reset;
          else

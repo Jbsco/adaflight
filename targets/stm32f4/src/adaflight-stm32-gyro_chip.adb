@@ -5,6 +5,7 @@ with Adaflight.Gyro_Detect;
 with Adaflight.Gyro_Start;
 with Adaflight.MPU_Gyro;
 with Adaflight.MPU_Gyro.BMI270;
+with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
@@ -61,7 +62,7 @@ package body Adaflight.STM32.Gyro_Chip is
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 4,
+      Chip_Count       => 5,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -79,6 +80,10 @@ package body Adaflight.STM32.Gyro_Chip is
       Fetch            => Fetch,
       Uses_DMA         => Uses_DMA,
       Read_Registers   => Read_Registers);
+   package ICM20689 is new Layer.ICM20689
+     (Write_Register => Write_Register,
+      Read_Register  => Read_Register,
+      Delay_Us       => Delay_Us);
    package MPU6000 is new Layer.MPU6000
      (Write_Register   => Write_Register,
       Read_Register    => Read_Register,
@@ -168,18 +173,22 @@ package body Adaflight.STM32.Gyro_Chip is
       Sensor := Layer.No_Sensor;
       case Index is
          when 1 =>
+            if Adaflight.Board.Gyro_ICM20689 then
+               ICM20689.Detect (D, Sensor);
+            end if;
+         when 2 =>
             if Adaflight.Board.Gyro_MPU6000 then
                MPU6000.Detect (D, Sensor);
             end if;
-         when 2 =>
+         when 3 =>
             if Adaflight.Board.Gyro_MPU6500 then
                MPU6500.Detect (D, Sensor);
             end if;
-         when 3 =>
+         when 4 =>
             if Adaflight.Board.Gyro_BMI270 then
                BMI270.Detect (D, Sensor);
             end if;
-         when 4 =>
+         when 5 =>
             if Adaflight.Board.Gyro_ICM426xx then
                ICM426xx.Detect (D, Sensor);
             end if;
@@ -320,17 +329,22 @@ package body Adaflight.STM32.Gyro_Chip is
 
    --  The drivers a board's configuration names.
    Build : constant Gyro_Detect.Driver_Set :=
-     (Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
+     (Gyro_Detect.ICM20689    => Adaflight.Board.Gyro_ICM20689,
+      Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
       Gyro_Detect.BMI270      => Adaflight.Board.Gyro_BMI270,
       Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
       others                  => False);
    Acc_Build : constant Acc_Detect.Driver_Set :=
-     (Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
+     (Acc_Detect.ICM20689    => Adaflight.Board.Acc_ICM20689,
+      Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
       Acc_Detect.BMI270      => Adaflight.Board.Acc_BMI270,
       Acc_Detect.ICM426xx    => Adaflight.Board.Acc_ICM426xx,
       others                 => False);
+   --  The gyro hardware code the detection gives a chip that the ICM20689
+   --  driver starts.
+   Hardware_ICM20689 : constant Byte := 11;
    --  The gyro on SPI bus 1 with a select pin.
    Config : constant Layer.Device_Config := (Index => 0, Bus_Type => 2, SPI_Bus => 1, CS_Tag => 1);
 
@@ -352,6 +366,10 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Detect (State, Found, R.Scale);
          end if;
+      elsif Hardware = Hardware_ICM20689 then
+         if Adaflight.Board.Gyro_ICM20689 then
+            ICM20689.Gyro_Detect (State, Found, R.Scale);
+         end if;
       elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Gyro_Detect (State, Found, R.Scale);
          Bus.Offset := 0;
@@ -372,6 +390,10 @@ package body Adaflight.STM32.Gyro_Chip is
       if Hardware = Layer.Hardware_MPU6000 then
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
+         end if;
+      elsif Hardware = Hardware_ICM20689 then
+         if Adaflight.Board.Gyro_ICM20689 then
+            ICM20689.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
          end if;
       elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
          BMI270.Gyro_Init (Bus, State);
