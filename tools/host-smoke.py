@@ -2761,8 +2761,10 @@ def menu_live_config_checks(image, work):
 
 
 def gyro_chip_checks(image, work):
-    """The board's gyro code over the host's gyro models, an MPU6000, a BMI270, an ICM-42688-P and an IIM-42653
-    in turn. Each chip is found with its accelerometer, a register dump reads its identity where the dump's
+    """The board's gyro code over the host's gyro models, an MPU6000, an ICM-20689, an ICM-20602, a BMI270, an
+    ICM-42688-P and an IIM-42653 in turn. The ICM-20689 driver probes first and finds both of its chips, and the
+    MPU6500 driver then starts the ICM-20602, as the gyro detection's hardware code says. Each chip is found with
+    its accelerometer, a register dump reads its identity where the dump's
     register holds one, the gyro task runs at the chip's rate, and the raw IMU reply reads the model's
     acceleration and, 8 s after the start, its rates. The attitude reply shows that acceleration's tilt. A
     model's data registers read zeros until the start wakes its sensors, which for the BMI270 takes its select
@@ -2773,7 +2775,8 @@ def gyro_chip_checks(image, work):
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
 
-    for chip, identity, rate_hz, rate_text in (("MPU6000", 0x68, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
+    for chip, identity, rate_hz, rate_text in (("MPU6000", 0x68, 8000, "8 kHz"), ("ICM20689", 0x98, 8000, "8 kHz"),
+                                               ("ICM20602", 0x12, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
                                                ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz")):
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
         if os.path.exists(store):
@@ -2805,8 +2808,8 @@ def gyro_chip_checks(image, work):
         if identity is not None:
             check(f"a register dump reads the {chip}'s identity",
                   re.search(rf"WHO_AM_I\s+0x{identity:x}\b", registers, re.I) is not None, repr(registers[:200]))
-        if chip == "MPU6000":
-            check("its start writes the gyro's range to the MPU6000",
+        if chip in ("MPU6000", "ICM20689", "ICM20602"):
+            check(f"its start writes the gyro's range to the {chip}",
                   re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
         rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
         check(f"the gyro task runs at the {chip}'s {rate_text}",

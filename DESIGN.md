@@ -15450,3 +15450,16 @@ after its select pin has risen, again after each soft reset, and puts a dummy by
 Its sensors stay off until its configuration file arrives whole, byte for byte, with its power save off and
 its loading open. Host smoke adds that chip to its gyro section: name, gyro task rate, acceleration, tilt and
 rates. Its FIFO mode under the experimental filter setting has no model. No board has run a BMI270.
+
+## D775. ICM20689 family on boards (2026-11-15)
+
+A board whose configuration names an ICM20689 now builds that driver. It probes first, before both MPU
+drivers, in Betaflight's table order, so a board with that driver waits 100 ms longer at its start for
+another chip. Its probe also finds an ICM-20601, ICM-20602 and ICM-20608-G, which an MPU6500 driver knows
+too. Gyro detection's hardware code then says which driver starts such a chip: an MPU6500 driver where a
+board builds one, as in Betaflight's detection order, and an ICM20689 driver otherwise.
+
+Host SPI's gyro model becomes an ICM-20689 or ICM-20602 when `ADAFLIGHT_GYRO_CHIP` names one, with an
+MPU6000's register layout and its own identity. Host smoke runs both: an ICM-20689 through its own driver,
+and an ICM-20602 found by that driver's probe and started by an MPU6500 driver. Each gives its name,
+identity, range write, gyro task rate, acceleration, tilt and rates. No board has run this driver.
