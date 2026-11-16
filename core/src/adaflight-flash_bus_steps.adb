@@ -127,6 +127,18 @@ package body Adaflight.Flash_Bus_Steps with SPARK_Mode is
       Response := (others => 0);
    end Step_Read_Id;
 
+   procedure Step_Write_Failed (D : in out Flash_Line) is
+      pragma Unreferenced (D);
+   begin
+      null;
+   end Step_Write_Failed;
+
+   procedure Step_Chip_Flush (D : in out Flash_Line; F : in out Device; Present : out Boolean) is
+      pragma Unreferenced (D, F);
+   begin
+      Present := True;
+   end Step_Chip_Flush;
+
    procedure Step_Die_Identify (Die : Natural; F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
    is
       pragma Unreferenced (Die, F, JEDEC);

@@ -15518,3 +15518,24 @@ a calibration, and raw readings that it gives only after a forced measurement wa
 that chip's name from its status and 24.99 degrees and 1013 hPa from its barometer's debug values. Those are
 what Betaflight's integer compensation gives for that calibration and those readings, at Bosch's scale of a
 hundredth of a pascal (D321). No board has run a BMP388.
+
+## D780. Newer flash chips in flash layer (2026-11-16)
+
+Flash layer identification now has two steps. Its first driver sees an identification's first three bytes.
+When that driver does not know them, a second driver sees three bytes after a dummy byte, which is how W25N
+chips answer. A NAND chip's bad block management blocks become a partition, and its filesystem partition ends
+before them.
+
+Layer calls gained what a NAND driver needs. A read returns its driver's byte count, since a NAND read stops
+at its page's end. A flush writes that driver's buffered page and waits for its chip. A wait that ends busy
+after a sector erase or a flush calls a write failure procedure, and so does a ready check on a chip past its
+deadline.
+
+That deadline check reads a millisecond clock. Betaflight's check divides its 32-bit microsecond count by
+1000, which restarts every 71.58 minutes, while its W25N deadlines count milliseconds (divergence, F358). Its
+filesystem makes that check only during a NOR chip erase, so no W25N reaches it today.
+
+A second layer oracle runs Betaflight's layer over its W25N driver and a simulated NAND chip. Its cases have
+chips that answer with and without a dummy byte, slow erases that end in a write failure, and reads across a
+page's end. Proof now covers this layer over a W25N driver's shape with an M25P16 identification first.
+Boards still build one driver: their second identification finds nothing and their flush does nothing.
