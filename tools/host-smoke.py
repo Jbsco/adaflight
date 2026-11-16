@@ -2761,17 +2761,20 @@ def menu_live_config_checks(image, work):
 
 
 def gyro_chip_checks(image, work):
-    """The board's gyro code over the host's gyro models, an MPU6000, an ICM-42688-P and an IIM-42653 in turn. Each
-    chip is found with its accelerometer, a register dump reads its identity, the gyro task runs at its 8 kHz, and
-    the raw IMU reply reads the model's acceleration and, 8 s after the start, its rates. The attitude reply
-    shows that acceleration's tilt. A model's data registers read zeros until the start wakes its sensors, and
-    the IIM-42653 counts 1024 for one g where the others count 2048, so the same acceleration and tilt from each
-    show both. Over configuration stores of their own."""
+    """The board's gyro code over the host's gyro models, an MPU6000, a BMI270, an ICM-42688-P and an IIM-42653
+    in turn. Each chip is found with its accelerometer, a register dump reads its identity where the dump's
+    register holds one, the gyro task runs at the chip's rate, and the raw IMU reply reads the model's
+    acceleration and, 8 s after the start, its rates. The attitude reply shows that acceleration's tilt. A
+    model's data registers read zeros until the start wakes its sensors, which for the BMI270 takes its select
+    pin's rise after a reset and its whole configuration file. The IIM-42653 counts 1024 for one g where the
+    others count 2048, so the same acceleration and tilt from each show both. Over configuration stores of
+    their own."""
 
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
 
-    for chip, identity in (("MPU6000", 0x68), ("ICM42688P", 0x47), ("IIM42653", 0x56)):
+    for chip, identity, rate_hz, rate_text in (("MPU6000", 0x68, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
+                                               ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz")):
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
         if os.path.exists(store):
             os.remove(store)
@@ -2799,14 +2802,16 @@ def gyro_chip_checks(image, work):
             sock.close()
         check(f"the board's gyro code finds the model's {chip} and its accelerometer",
               f"GYRO: (1) {chip} enabled" in status and f"ACC: {chip}" in status, repr(status[:400]))
-        check(f"a register dump reads the {chip}'s identity",
-              re.search(rf"WHO_AM_I\s+0x{identity:x}\b", registers, re.I) is not None, repr(registers[:200]))
+        if identity is not None:
+            check(f"a register dump reads the {chip}'s identity",
+                  re.search(rf"WHO_AM_I\s+0x{identity:x}\b", registers, re.I) is not None, repr(registers[:200]))
         if chip == "MPU6000":
             check("its start writes the gyro's range to the MPU6000",
                   re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
         rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
-        check(f"the gyro task runs at the {chip}'s 8 kHz",
-              rate is not None and 7200 <= int(rate.group(1)) <= 8800, repr(rate.group(0) if rate else tasks[:200]))
+        check(f"the gyro task runs at the {chip}'s {rate_text}",
+              rate is not None and 0.9 * rate_hz <= int(rate.group(1)) <= 1.1 * rate_hz,
+              repr(rate.group(0) if rate else tasks[:200]))
         check(f"the raw IMU reply reads the {chip} model's acceleration with no rates at first",
               still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
         check(f"the attitude reply shows the tilt of the {chip} model's acceleration",
