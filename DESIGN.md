@@ -15412,3 +15412,24 @@ Host smoke starts an image on that model. Its status names an MPU6000 gyro and a
 dump shows the range its start wrote, its gyro task runs at 8 kHz, and its raw IMU reply reads that model's
 acceleration and, after their step, its rates. The other gyro chips' drivers still have no board user. No
 board has run this arrangement.
+
+## D773. ICM426xx gyros on boards (2026-11-15)
+
+Boards built their MPU6000 and MPU6500 drivers alone, whatever chip a board had, and most of Betaflight's
+newer board configurations name an ICM-42688-P. Three changes put an ICM426xx driver on boards.
+
+A board's gyro and accelerometer driver set now comes from its configuration's defines, through
+`tools/boardgen.py`, as Betaflight compiles a board's drivers. A board without a driver's define no longer
+links it: an ALIENFLIGHTNGF7_RX image drops its MPU6000 driver and a KAKUTEF7 image its MPU6500 one.
+
+A gyro start's report now gives its accelerometer's count for one g, which the flight unit read from a
+constant. An IIM-42653 counts 1024 where other chips count 2048.
+
+`Gyro_Chip` probes an ICM426xx third, after both MPU drivers, in Betaflight's table order, and starts it
+with the gyro configuration's hardware filter setting. That chip runs from its own clock, since no board
+drives a clock input for an ICM-42688-P yet.
+
+Host SPI's gyro model is an ICM-42605, ICM-42688-P or IIM-42653 when `ADAFLIGHT_GYRO_CHIP` names one. It has
+five register banks, a soft reset, and data registers that read zeros until a start turns its sensors on.
+Host smoke runs an MPU6000, an ICM-42688-P and an IIM-42653 in turn and reads each one's name, identity,
+gyro task rate, acceleration, tilt and rates. No board has run an ICM426xx.

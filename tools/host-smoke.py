@@ -2761,48 +2761,59 @@ def menu_live_config_checks(image, work):
 
 
 def gyro_chip_checks(image, work):
-    """The board's gyro code over the host's MPU6000 model: the chip is found with its accelerometer, its start
-    writes the gyro's range to the model's registers, the gyro task runs at the chip's 8 kHz, and the raw IMU reply
-    reads the model's acceleration and, 8 s after the start, its rates. Over a configuration store of its own."""
-    store = os.path.join(work, "gyro-chip-eeprom.bin")
-    if os.path.exists(store):
-        os.remove(store)
-    began = time.time()
-    proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": "MPU6000"})
-
-    def raw_imu():
-        reply = msp(sock, 102)
-        return struct.unpack("<9h", reply) if reply is not None and len(reply) == 18 else None
+    """The board's gyro code over the host's gyro models, an MPU6000, an ICM-42688-P and an IIM-42653 in turn. Each
+    chip is found with its accelerometer, a register dump reads its identity, the gyro task runs at its 8 kHz, and
+    the raw IMU reply reads the model's acceleration and, 8 s after the start, its rates. The attitude reply
+    shows that acceleration's tilt. A model's data registers read zeros until the start wakes its sensors, and
+    the IIM-42653 counts 1024 for one g where the others count 2048, so the same acceleration and tilt from each
+    show both. Over configuration stores of their own."""
 
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
 
-    try:
-        time.sleep(max(0.0, began + 4.0 - time.time()))
-        still = raw_imu()
-        time.sleep(max(0.0, began + 10.5 - time.time()))
-        turning = raw_imu()
-        sock.sendall(b"#")
-        read_all(sock, 0.8)
-        status = cli(sock, "status")
-        registers = cli(sock, "gyroregisters", wait=1.5)
-        tasks = cli(sock, "tasks", wait=1.5)
-    finally:
-        stop(proc)
-        sock.close()
-    check("the board's gyro code finds the model's MPU6000 and its accelerometer",
-          "GYRO: (1) MPU6000 enabled" in status and "ACC: MPU6000" in status, repr(status[:400]))
-    check("its start writes the gyro's range to the chip",
-          re.search(r"WHO_AM_I\s+0x68\b", registers) is not None
-          and re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
-    rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
-    check("the gyro task runs at the chip's 8 kHz",
-          rate is not None and 7200 <= int(rate.group(1)) <= 8800, repr(rate.group(0) if rate else tasks[:200]))
-    check("the raw IMU reply reads the model's acceleration with no rates at first",
-          still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
-    check("the raw IMU reply reads the model's rates after their step",
-          turning is not None and near(turning[:3], (32, -64, 510)) and near(turning[3:6], (164, 328, -492)),
-          repr(turning))
+    for chip, identity in (("MPU6000", 0x68), ("ICM42688P", 0x47), ("IIM42653", 0x56)):
+        store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
+        if os.path.exists(store):
+            os.remove(store)
+        began = time.time()
+        proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": chip})
+
+        def raw_imu():
+            reply = msp(sock, 102)
+            return struct.unpack("<9h", reply) if reply is not None and len(reply) == 18 else None
+
+        try:
+            time.sleep(max(0.0, began + 4.0 - time.time()))
+            still = raw_imu()
+            reply = msp(sock, 108)
+            tilt = struct.unpack("<3h", reply)[:2] if reply is not None and len(reply) == 6 else None
+            time.sleep(max(0.0, began + 10.5 - time.time()))
+            turning = raw_imu()
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            status = cli(sock, "status")
+            registers = cli(sock, "gyroregisters", wait=1.5)
+            tasks = cli(sock, "tasks", wait=1.5)
+        finally:
+            stop(proc)
+            sock.close()
+        check(f"the board's gyro code finds the model's {chip} and its accelerometer",
+              f"GYRO: (1) {chip} enabled" in status and f"ACC: {chip}" in status, repr(status[:400]))
+        check(f"a register dump reads the {chip}'s identity",
+              re.search(rf"WHO_AM_I\s+0x{identity:x}\b", registers, re.I) is not None, repr(registers[:200]))
+        if chip == "MPU6000":
+            check("its start writes the gyro's range to the MPU6000",
+                  re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
+        rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
+        check(f"the gyro task runs at the {chip}'s 8 kHz",
+              rate is not None and 7200 <= int(rate.group(1)) <= 8800, repr(rate.group(0) if rate else tasks[:200]))
+        check(f"the raw IMU reply reads the {chip} model's acceleration with no rates at first",
+              still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
+        check(f"the attitude reply shows the tilt of the {chip} model's acceleration",
+              tilt is not None and all(abs(a - b) <= 4 for a, b in zip(tilt, (-72, -36))), repr(tilt))
+        check(f"the raw IMU reply reads the {chip} model's rates after their step",
+              turning is not None and near(turning[:3], (32, -64, 510)) and near(turning[3:6], (164, 328, -492)),
+              repr(turning))
 
 
 def rtc6705_checks(image, work):

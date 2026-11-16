@@ -1,8 +1,9 @@
 --  The gyro chip on the board's gyro bus: the SPI gyro layer over the bus
---  driver with the MPU6000 and MPU6500 family drivers the board family
---  builds, the data ready line's interrupt, the start at boot, and the
---  readings the main takes. The operations are the board gyro unit's, which
---  a board image passes on to these.
+--  driver with the MPU6000, MPU6500 family and ICM426xx drivers, each built
+--  where the board's configuration names it, the data ready line's
+--  interrupt, the start at boot, and the readings the main takes. The
+--  ICM426xx runs from its own clock. The operations are the board gyro
+--  unit's, which a board image passes on to these.
 with Interfaces;
 with Adaflight.Scheduler;
 with Adaflight.STM32.Gyro; use Adaflight.STM32.Gyro;
