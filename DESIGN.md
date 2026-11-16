@@ -15572,3 +15572,13 @@ also checks empty replies from a chip that stays busy, and failure flashes after
 
 Three wirings have no check: a flush at a log's end, a filesystem kind taken from geometry, and a bootloader
 request after a tenth round. No board has run a W25N chip.
+
+## D783. Gyro clock input resource owner (2026-11-16)
+
+Resource table entries now include `GYRO_CLKIN`, after a gyro's select pin, with one pin kept in that gyro's
+device configuration. Betaflight has that owner on boards whose configuration names a gyro clock input. Every
+board here offers it, as each does for every other owner in this table (divergence).
+
+Both command line oracles, multirotor and wing, now build with that owner. Their dump, diff, terminal and
+timer families gained its line and nothing else, which a script confirmed against each committed file. A third
+resource run aims its commands at gyro owners. No board code reads that pin yet.
