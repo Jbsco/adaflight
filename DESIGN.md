@@ -15463,3 +15463,22 @@ Host SPI's gyro model becomes an ICM-20689 or ICM-20602 when `ADAFLIGHT_GYRO_CHI
 MPU6000's register layout and its own identity. Host smoke runs both: an ICM-20689 through its own driver,
 and an ICM-20602 found by that driver's probe and started by an MPU6500 driver. Each gives its name,
 identity, range write, gyro task rate, acceleration, tilt and rates. No board has run this driver.
+
+## D776. DPS310 barometer on boards (2026-11-15)
+
+Boards built a BMP280 driver alone, and more of Betaflight's board configurations name a DPS310. A board
+whose configuration names one now builds that driver too. Its detection scan tries a DPS310 before a BMP280,
+as Betaflight's does, so a BMP280 board with both drivers spends five identity reads, 100 ms apart, on its
+way to its own chip. Whichever chip that scan finds takes its barometer task's calls and gives its samples.
+
+Board flags for both drivers now also come from a configuration's SPI defines, which Betaflight's detection
+reads beside its I2C ones. A configuration that names an SPA06-003 builds a DPS310 driver and its name.
+
+Host I2C gains a DPS310 model in its BMP280's place when `ADAFLIGHT_BARO_CHIP` is DPS310. It has an
+identity, a status with coefficients and sensor ready, and a register store that a soft reset clears. Its
+coefficients and raw readings compensate to 26.00 degrees and 101015 Pa. An SPL07 value gives that model an
+SPL07-003's identity.
+
+Host smoke runs all three models and reads each chip's name from its status, an SPA06-003 for that last one,
+and its pressure in hectopascal and its temperature from its barometer's debug values. A board without
+either define no longer links a BMP280 driver. No board has run a DPS310.

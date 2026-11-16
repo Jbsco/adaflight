@@ -4,7 +4,13 @@ with Interfaces;
 --  readings of its datasheet's worked example, whose compensation gives
 --  2508 hundredths of a degree and 100653 pascal, and keeping the control
 --  registers written to it, and the OLED display's model when one is on.
---  Every other address and bus answers nothing.
+--  With the environment variable ADAFLIGHT_BARO_CHIP set to DPS310 or SPL07
+--  that address carries a DPS310 or an SPL07-003 in the BMP280's place, the
+--  two alike but for the identity: its identity, a status
+--  with its coefficients and sensor ready, coefficients and raw readings
+--  whose compensation gives 2600 hundredths of a degree and 101015 pascal,
+--  and a register store that its soft reset clears. Every other address and
+--  bus answers nothing.
 with Ada.Environment_Variables;
 with Adaflight.Board;
 with Adaflight.Host_OLED;
@@ -32,6 +38,18 @@ package body Adaflight.STM32.I2C is
    Readings : constant Byte_Array (0 .. 5) := (16#65#, 16#5A#, 16#C0#, 16#7E#, 16#ED#, 16#00#);
    Control  : Byte := 0;
    Config   : Byte := 0;
+   --  The DPS310 model: C0 50, C1 100, C00 100000, C10 -20000, C01 1000 and
+   --  C20 2000 in the chip's packing, the rest zero, and the raw pressure
+   --  -12698 and temperature 2540, 24 bits each with the high byte first.
+   Baro_Chip        : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_BARO_CHIP", "");
+   DPS_Model        : constant Boolean := Baro_Chip = "DPS310" or else Baro_Chip = "SPL07";
+   DPS_Id           : constant Byte := (if Baro_Chip = "SPL07" then 16#11# else 16#10#);
+   DPS_Coefficients : constant Byte_Array (0 .. 17) :=
+     (16#03#, 16#20#, 16#64#, 16#18#, 16#6A#, 16#0F#, 16#B1#, 16#E0#, 16#03#, 16#E8#, 16#00#, 16#00#,
+      16#07#, 16#D0#, 16#00#, 16#00#, 16#00#, 16#00#);
+   DPS_Readings     : constant Byte_Array (0 .. 5) := (16#FF#, 16#CE#, 16#66#, 16#00#, 16#09#, 16#EC#);
+   DPS_Ready        : constant Byte := 16#C0#;
+   DPS_Registers    : Byte_Array (0 .. 16#3F#) := (others => 0);
 
    procedure Init (B : Bus; SCL, SDA : Adaflight.Pins.Pin) is
    begin
@@ -42,7 +60,9 @@ package body Adaflight.STM32.I2C is
 
    function Answers (B : Bus; Address : Byte) return Boolean is
      (B = I2C1 and then Running (B)
-      and then ((Address = Chip_Address and then Adaflight.Board.Baro_BMP280) or else Address = Pitot_Address
+      and then ((Address = Chip_Address and then (if DPS_Model then Adaflight.Board.Baro_DPS310
+                                                  else Adaflight.Board.Baro_BMP280))
+                or else Address = Pitot_Address
                 or else (Address = Adaflight.Host_OLED.Address and then Adaflight.Host_OLED.On)));
 
    procedure Read (B : Bus; Address : Byte; Register : Byte; Data : out Byte_Array; OK : out Boolean) is
@@ -60,6 +80,22 @@ package body Adaflight.STM32.I2C is
             Data (I) :=
               (if Pitot_Step > 0 and then Pitot_Reads > Pitot_Step then Pitot_Moving ((I - Data'First) mod 4)
                else Pitot_Frame ((I - Data'First) mod 4));
+         end loop;
+         return;
+      end if;
+      if Address = Chip_Address and then DPS_Model then
+         for I in Data'Range loop
+            declare
+               R : constant Natural := Natural (Register) + (I - Data'First);
+            begin
+               Data (I) :=
+                 (if R in 0 .. 5 then DPS_Readings (R)
+                  elsif R = 16#08# then DPS_Registers (R) or DPS_Ready
+                  elsif R = 16#0D# then DPS_Id
+                  elsif R in 16#10# .. 16#21# then DPS_Coefficients (R - 16#10#)
+                  elsif R <= DPS_Registers'Last then DPS_Registers (R)
+                  else 0);
+            end;
          end loop;
          return;
       end if;
@@ -83,6 +119,12 @@ package body Adaflight.STM32.I2C is
       OK := Answers (B, Address);
       if OK and then Address = Adaflight.Host_OLED.Address then
          Adaflight.Host_OLED.Write (Register, Value);
+      elsif OK and then Address = Chip_Address and then DPS_Model then
+         if Register = 16#0C# and then (Value and 16#0F#) = 16#09# then
+            DPS_Registers := (others => 0);
+         elsif Natural (Register) <= DPS_Registers'Last then
+            DPS_Registers (Natural (Register)) := Value;
+         end if;
       elsif OK then
          if Register = 16#F4# then
             Control := Value;

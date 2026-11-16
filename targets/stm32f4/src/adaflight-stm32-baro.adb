@@ -1,7 +1,8 @@
 --  The bus device of the drivers over the board's I2C and SPI buses, read
 --  and written within a call: a started read or write runs at once and its
 --  bytes wait for the fetch, so the bus never reports busy. The detection
---  scans the drivers the board names, the BMP280 alone so far.
+--  scans the drivers the board names, the DPS310 and the BMP280 so far, and
+--  the chip it finds takes the task's calls and gives the samples.
 with Adaflight.Sensor_Debug;
 with Adaflight.STM32.Debug_Values;
 with Interfaces;
@@ -12,6 +13,7 @@ with Adaflight.Baro_Detect.Scan;
 with Adaflight.STM32.MCU;
 with Adaflight.BMP280;
 with Adaflight.Board;
+with Adaflight.DPS310;
 with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -140,8 +142,21 @@ package body Adaflight.STM32.Baro is
       Start_Write => Start_Write, Check_Busy => Check_Busy, Fetch => Fetch, Register_Device => Register_Device,
       Delay_Ms => Delay_Ms);
 
+   package DPS310 is new Adaflight.DPS310
+     (Bus_Device => Device, Is_I2C => Is_I2C, Is_SPI => Is_SPI, I2C_Address => I2C_Address,
+      Set_I2C_Address => Set_I2C_Address, Prepare_SPI => Prepare_SPI, Release_SPI => Release_SPI,
+      Read_Registers => Read_Registers, Write_Register => Write_Register, Start_Read => Start_Read,
+      Check_Busy => Check_Busy, Fetch => Fetch, Register_Device => Register_Device, Delay_Ms => Delay_Ms);
+
+   --  The identity of an SPL07-003, which the DPS310 driver also finds, and
+   --  the variant the detection names an SPA06-003 from.
+   SPL07_Id      : constant Byte := 16#11#;
+   SPL07_Variant : constant Byte := 1;
+   type Chip_Kind is (No_Chip, BMP280_Chip, DPS310_Chip);
    Dev         : Device;
+   Kind        : Chip_Kind := No_Chip;
    Chip        : BMP280.State;
+   DPS         : DPS310.State;
    Task_Device : Adaflight.Barometer_Task.Device;
    Task_State  : Adaflight.Barometer_Task.State;
    Baro_State  : Adaflight.Barometer.State;
@@ -188,6 +203,15 @@ package body Adaflight.STM32.Baro is
       Found := False;
       if Which = Adaflight.Baro_Detect.BMP280 and then Adaflight.Board.Baro_BMP280 then
          BMP280.Detect (D, Chip, Found, Task_Device);
+         if Found then
+            Kind := BMP280_Chip;
+         end if;
+      elsif Which = Adaflight.Baro_Detect.DPS310 and then Adaflight.Board.Baro_DPS310 then
+         DPS310.Detect (D, DPS, Found, Task_Device);
+         if Found then
+            Kind := DPS310_Chip;
+            Variant := (if DPS.Chip_Id = SPL07_Id then SPL07_Variant else 0);
+         end if;
       end if;
    end Detect_Chip;
 
@@ -197,8 +221,10 @@ package body Adaflight.STM32.Baro is
 
    procedure Init (C : Adaflight.Config_Groups.Configuration) is
       B : constant Adaflight.Baro_Detect.Build :=
-        (Drivers => (Adaflight.Baro_Detect.BMP280 => Adaflight.Board.Baro_BMP280, others => False),
-         SPA06 => False, I2C => True, SPI => True);
+        (Drivers => (Adaflight.Baro_Detect.BMP280 => Adaflight.Board.Baro_BMP280,
+                     Adaflight.Baro_Detect.DPS310 => Adaflight.Board.Baro_DPS310,
+                     others                       => False),
+         SPA06 => Adaflight.Board.Baro_SPA06, I2C => True, SPI => True);
       Bus : constant Adaflight.Baro_Detect.Bus_Config :=
         (Bus_Type    => C.Barometer_Config.Baro_Bus_Type,
          I2C_Device  => C.Barometer_Config.Baro_I2c_Device,
@@ -210,6 +236,7 @@ package body Adaflight.STM32.Baro is
       Drift : constant Integer := Integer (C.Barometer_Config.Baro_Temp_Drift_Cm_Per10_C);
    begin
       Found := False;
+      Kind := No_Chip;
       Hardware_Id := Adaflight.Baro_Detect.Hardware_None;
       if not Adaflight.Build_Features.Barometer then
          return;
@@ -263,9 +290,22 @@ package body Adaflight.STM32.Baro is
             Temperature := 2_500;
          end if;
       else
-         BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
+         case Kind is
+            when DPS310_Chip =>
+               if Adaflight.Board.Baro_DPS310 then
+                  DPS310.Device_Call (Dev, DPS, Adaflight.Barometer_Task.Call (Task_State), Done);
+               end if;
+            when BMP280_Chip | No_Chip =>
+               if Adaflight.Board.Baro_BMP280 then
+                  BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
+               end if;
+         end case;
          if Adaflight.Barometer_Task.Takes_Sample (Task_State, Done) then
-            BMP280.Calculate (Chip, Pressure, Temperature);
+            if Kind = DPS310_Chip and then Adaflight.Board.Baro_DPS310 then
+               DPS310.Calculate (DPS, Pressure, Temperature);
+            elsif Adaflight.Board.Baro_BMP280 then
+               BMP280.Calculate (Chip, Pressure, Temperature);
+            end if;
             Temperature := Adaflight.Barometer.Temperature_Centi'Max
               (Adaflight.Barometer.Temperature_Centi'First,
                Adaflight.Barometer.Temperature_Centi'Min (Adaflight.Barometer.Temperature_Centi'Last, Temperature));
