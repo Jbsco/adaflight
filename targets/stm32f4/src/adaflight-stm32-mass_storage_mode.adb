@@ -50,14 +50,16 @@ package body Adaflight.STM32.Mass_Storage_Mode is
    end Since;
 
    procedure Read_Start (Offset : Unsigned_32; Data : out FAT.Flash_Read) is
+      Count : Natural;
    begin
-      Adaflight.STM32.Flash_Chip.Read (Offset, Data);
+      Adaflight.STM32.Flash_Chip.Read (Offset, Data, Count);
    end Read_Start;
 
    procedure Read_Sector (File : FAT.Entry_Index; Offset : Unsigned_32; Data : out FAT.Sector) is
       pragma Unreferenced (File);
+      Count : Natural;
    begin
-      Adaflight.STM32.Flash_Chip.Read (Offset, Data);
+      Adaflight.STM32.Flash_Chip.Read (Offset, Data, Count);
    end Read_Sector;
 
    package Logs is new FAT.Logs (Read => Read_Start);

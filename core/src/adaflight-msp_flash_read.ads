@@ -7,6 +7,9 @@
 --  volume's end. A read is cut to the reply's room less 16 bytes and to the
 --  volume's end. The caller supplies the volume's bytes: it asks for the
 --  next read, feeds its bytes, and finishes the reply once no read is left.
+--  A read may bring fewer bytes than asked, as a NAND chip's does at its
+--  page's end: a plain reply then has those bytes alone, and a coded one
+--  reads on from where they end. A read that brings none ends the reply.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Huffman;
@@ -91,10 +94,14 @@ package Adaflight.MSP_Flash_Read with SPARK_Mode is
      with Pre  => Reply'First = 0 and then Reply'Length >= Room,
           Post => Fits (S, Reply) and then S.Room = Room;
 
-   --  The bytes of the read that was asked for.
+   --  The bytes the read that was asked for brought, from its start.
    procedure Feed (S : in out State; Data : Byte_Array; Reply : in out Byte_Array)
-     with Pre  => Fits (S, Reply) and then Data'Length >= 1 and then Data'Length = Next_Count (S),
+     with Pre  => Fits (S, Reply) and then Data'Length in 1 .. Next_Count (S),
           Post => Fits (S, Reply) and then S.Room = S.Room'Old;
+
+   --  A read that brought no bytes: no read is left.
+   procedure Stop (S : in out State)
+     with Post => Next_Count (S) = 0;
 
    --  The reply's counts and method written, and its length.
    procedure Finish (S : State; Reply : in out Byte_Array; Length : out Natural)

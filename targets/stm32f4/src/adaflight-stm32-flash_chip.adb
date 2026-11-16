@@ -368,8 +368,9 @@ package body Adaflight.STM32.Flash_Chip is
                         Count : Natural;
                      begin
                         Layer.Read_Bytes (Dev, L, P.Address, Got, Count);
-                        Into (Into'First + Taken .. Into'First + Taken + P.Length - 1) := Got;
-                        Taken := Taken + P.Length;
+                        Count := Natural'Min (Count, P.Length);
+                        Into (Into'First + Taken .. Into'First + Taken + Count - 1) := Got (0 .. Count - 1);
+                        Taken := Taken + Count;
                      end;
                   end if;
                when FS.Flush =>
@@ -681,16 +682,18 @@ package body Adaflight.STM32.Flash_Chip is
 
    function Offset return Unsigned_32 is (FS.Offset (State));
 
-   procedure Read (Address : Unsigned_32; Data : out Byte_Array) is
+   procedure Read (Address : Unsigned_32; Data : out Byte_Array; Count : out Natural) is
       O     : FS.Output;
       Taken : Natural := 0;
       Asked : Natural;
    begin
       Data := (others => 0);
+      Count := 0;
       if Data'Length = 0 or else not FS.Is_Supported (State) then
          return;
       end if;
       FS.Read_Abs (State, Address, Data'Length, O, Asked);
       Execute (O, Data, Taken);
+      Count := Natural'Min (Taken, Asked);
    end Read;
 end Adaflight.STM32.Flash_Chip;

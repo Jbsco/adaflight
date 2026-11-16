@@ -31653,17 +31653,26 @@ procedure Vector_Check is
       while Next_Count (S) > 0 loop
          declare
             Count : constant Natural := Next_Count (S);
-            Field : constant Positive := 10 + 3 * Done;
-            Data  : Byte_Array (0 .. Count - 1) := (others => 0);
+            Field : constant Positive := 10 + 4 * Done;
+            Got   : Natural := Count;
          begin
             if Done < Reads then
                Record_Int ("frstep.read_address", Int (Field), Integer_64 (Next_Address (S)));
                Record_Int ("frstep.read_count", Int (Field + 1), Integer_64 (Count));
-               if Natural (Int (Field + 1)) = Count then
-                  Data := Hex_Bytes (Field + 2);
-               end if;
+               Got := Natural'Min (Natural (Int (Field + 2)), Count);
             end if;
-            Feed (S, Data, Reply);
+            if Got = 0 then
+               Stop (S);
+            else
+               declare
+                  Data : Byte_Array (0 .. Got - 1) := (others => 0);
+               begin
+                  if Done < Reads and then FL (Field + 3) = 2 * Got then
+                     Data := Hex_Bytes (Field + 3);
+                  end if;
+                  Feed (S, Data, Reply);
+               end;
+            end if;
             Done := Done + 1;
          end;
       end loop;

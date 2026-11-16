@@ -15539,3 +15539,17 @@ A second layer oracle runs Betaflight's layer over its W25N driver and a simulat
 chips that answer with and without a dummy byte, slow erases that end in a write failure, and reads across a
 page's end. Proof now covers this layer over a W25N driver's shape with an M25P16 identification first.
 Boards still build one driver: their second identification finds nothing and their flush does nothing.
+
+## D781. Short reads in MSP flash read (2026-11-16)
+
+An MSP flash read now takes a read that brings fewer bytes than it asked for, which is what a NAND chip gives
+at its page's end. A plain reply then has those bytes and their count. A coded reply reads on from where they
+ended, in pieces of 256 bytes at most, so its pieces follow page ends as Betaflight's do.
+
+A read that brings no bytes ends a reply, and a plain reply then has a count of zero. Betaflight's coding loop
+asks again from that address, and it does not end while a chip keeps answering with nothing (divergence,
+F359).
+
+Board wiring passes each read's count on. A board's flash read reports that count, which is a read's whole
+length on a NOR chip. This oracle draws a page size for half of its steps and an empty plain read for some,
+and its vector lines gained each read's asked length.
