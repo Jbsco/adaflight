@@ -89,6 +89,17 @@ package body Adaflight.Flash_Device.Layer with SPARK_Mode is
         Interfaces.Unsigned_32 (Response (0)) * 2 ** 16 + Interfaces.Unsigned_32 (Response (1)) * 2 ** 8
         + Interfaces.Unsigned_32 (Response (2));
       Chip_Identify (L.Chip, JEDEC, Detected);
+      if not Detected then
+         JEDEC :=
+           Interfaces.Unsigned_32 (Response (1)) * 2 ** 16 + Interfaces.Unsigned_32 (Response (2)) * 2 ** 8
+           + Interfaces.Unsigned_32 (Response (3));
+         Chip_Identify_Newer (L.Chip, JEDEC, Detected);
+         if Detected and then L.Chip.Map.Kind = NAND then
+            Partition_Set
+              (L, Bad_Block_Partition, Interfaces.Unsigned_32 (L.Chip.NAND.Bad_Block_First),
+               Interfaces.Unsigned_32 (L.Chip.NAND.Bad_Block_Last));
+         end if;
+      end if;
       if Detected then
          L.Chip.Map.JEDEC_Id := JEDEC;
          return;
@@ -116,16 +127,41 @@ package body Adaflight.Flash_Device.Layer with SPARK_Mode is
       Chip_Is_Ready (D, L.Chip, Ready);
    end Is_Ready;
 
-   procedure Wait_For_Ready (D : in out SPI_Device; L : in out Flash) is
+   procedure Is_Ready_Or_Fail (D : in out SPI_Device; L : in out Flash; Ready : out Boolean) is
+      Now : Interfaces.Unsigned_32;
    begin
-      Chip_Wait_For_Ready (D, L.Chip);
+      Chip_Is_Ready (D, L.Chip, Ready);
+      if Ready then
+         L.Chip.Timeout_At := 0;
+         return;
+      end if;
+      if L.Chip.Timeout_At /= 0 then
+         Millis (D, Now);
+         if Now - L.Chip.Timeout_At < 2 ** 31 then
+            Write_Failed (D);
+         end if;
+      end if;
+   end Is_Ready_Or_Fail;
+
+   procedure Wait_For_Ready (D : in out SPI_Device; L : in out Flash; Ready : out Boolean) is
+   begin
+      Chip_Wait_For_Ready (D, L.Chip, Ready);
    end Wait_For_Ready;
+
+   procedure Wait_Or_Fail (D : in out SPI_Device; L : in out Flash) is
+      Ready : Boolean;
+   begin
+      Chip_Wait_For_Ready (D, L.Chip, Ready);
+      if not Ready then
+         Write_Failed (D);
+      end if;
+   end Wait_Or_Fail;
 
    procedure Erase_Sector (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32) is
    begin
       L.Chip.Has_Callback := False;
       Chip_Erase_Sector (D, L.Chip, Address);
-      Chip_Wait_For_Ready (D, L.Chip);
+      Wait_Or_Fail (D, L);
    end Erase_Sector;
 
    procedure Erase_Completely (D : in out SPI_Device; L : in out Flash) is
@@ -176,12 +212,22 @@ package body Adaflight.Flash_Device.Layer with SPARK_Mode is
    end Page_Program;
 
    procedure Read_Bytes
-     (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32; Buffer : out Byte_Array)
+     (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32; Buffer : in out Byte_Array;
+      Count : out Natural)
    is
    begin
       L.Chip.Has_Callback := False;
-      Chip_Read (D, L.Chip, Address, Buffer);
+      Chip_Read (D, L.Chip, Address, Buffer, Count);
    end Read_Bytes;
+
+   procedure Flush (D : in out SPI_Device; L : in out Flash) is
+      Present : Boolean;
+   begin
+      Chip_Flush (D, L.Chip, Present);
+      if Present then
+         Wait_Or_Fail (D, L);
+      end if;
+   end Flush;
 
    function Type_Name (Kind : Natural) return String is
      (case Kind is

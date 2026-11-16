@@ -72,6 +72,12 @@ package Adaflight.Flash_Bus_Steps with SPARK_Mode is
    procedure Step_Read_Id (D : in out Flash_Line; Response : out Byte_Array)
      with Global => null;
 
+   procedure Step_Write_Failed (D : in out Flash_Line)
+     with Global => null;
+
+   procedure Step_Chip_Flush (D : in out Flash_Line; F : in out Device; Present : out Boolean)
+     with Global => null;
+
    procedure Step_Die_Identify (Die : Natural; F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
      with Global => null;
 

@@ -3,7 +3,12 @@
 --  the bus attaches, its configuration, the partition table with the flash
 --  filesystem over the chip's sectors, and the calls the flash filesystem
 --  makes, with a sector erase that waits for the chip and programs trimmed
---  at the end of the page.
+--  at the end of the page. The identification's first three bytes go to
+--  the first driver and, when it does not know them, the three bytes after
+--  a dummy byte go to the driver of the newer chips, whose bad block
+--  management blocks become a partition that ends the filesystem's. A wait
+--  that ends without the chip ready after an erase or a flush, and a chip
+--  still busy past its deadline, are write failures.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
@@ -17,10 +22,13 @@ generic
    with procedure Set_Divisor (D : in out SPI_Device; Divisor : Interfaces.Unsigned_16);
    with procedure Delay_Ms (D : in out SPI_Device; Ms : Natural);
    with procedure Read_Id (D : in out SPI_Device; Response : out Byte_Array);
+   with procedure Millis (D : in out SPI_Device; Now : out Interfaces.Unsigned_32);
+   with procedure Write_Failed (D : in out SPI_Device);
    with procedure Chip_Identify (F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean);
+   with procedure Chip_Identify_Newer (F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean);
    with procedure Chip_Configure (D : in out SPI_Device; F : in out Device; Flags : Interfaces.Unsigned_32);
    with procedure Chip_Is_Ready (D : in out SPI_Device; F : in out Device; Ready : out Boolean);
-   with procedure Chip_Wait_For_Ready (D : in out SPI_Device; F : in out Device);
+   with procedure Chip_Wait_For_Ready (D : in out SPI_Device; F : in out Device; Ready : out Boolean);
    with procedure Chip_Erase_Sector (D : in out SPI_Device; F : in out Device; Address : Interfaces.Unsigned_32);
    with procedure Chip_Erase_Completely (D : in out SPI_Device; F : in out Device);
    with procedure Chip_Program_Begin (F : in out Device; Address : Interfaces.Unsigned_32; Has_Callback : Boolean);
@@ -30,8 +38,10 @@ generic
    with procedure Chip_Program
      (D : in out SPI_Device; F : in out Device; Address : Interfaces.Unsigned_32; Data : Byte_Array;
       Has_Callback : Boolean);
+   with procedure Chip_Flush (D : in out SPI_Device; F : in out Device; Present : out Boolean);
    with procedure Chip_Read
-     (D : in out SPI_Device; F : in out Device; Address : Interfaces.Unsigned_32; Buffer : out Byte_Array);
+     (D : in out SPI_Device; F : in out Device; Address : Interfaces.Unsigned_32; Buffer : in out Byte_Array;
+      Count : out Natural);
 package Adaflight.Flash_Device.Layer with SPARK_Mode is
    use type Interfaces.Unsigned_16;
 
@@ -74,7 +84,11 @@ package Adaflight.Flash_Device.Layer with SPARK_Mode is
 
    procedure Is_Ready (D : in out SPI_Device; L : in out Flash; Ready : out Boolean);
 
-   procedure Wait_For_Ready (D : in out SPI_Device; L : in out Flash);
+   --  Ready, or busy with a write failure when the chip's deadline has
+   --  passed; a ready chip has no deadline.
+   procedure Is_Ready_Or_Fail (D : in out SPI_Device; L : in out Flash; Ready : out Boolean);
+
+   procedure Wait_For_Ready (D : in out SPI_Device; L : in out Flash; Ready : out Boolean);
 
    procedure Erase_Sector (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32);
 
@@ -93,8 +107,14 @@ package Adaflight.Flash_Device.Layer with SPARK_Mode is
      (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32; Data : Byte_Array;
       Has_Callback : Boolean);
 
+   --  Count is the bytes the chip's driver read into the buffer's start.
    procedure Read_Bytes
-     (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32; Buffer : out Byte_Array);
+     (D : in out SPI_Device; L : in out Flash; Address : Interfaces.Unsigned_32; Buffer : in out Byte_Array;
+      Count : out Natural);
+
+   --  The driver's buffered data written, then a wait for the chip, where
+   --  the driver has a flush.
+   procedure Flush (D : in out SPI_Device; L : in out Flash);
 
    --  The index of the first partition of a type, empty ones being of the
    --  unknown type, or -1.

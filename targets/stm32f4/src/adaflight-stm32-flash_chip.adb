@@ -252,6 +252,41 @@ package body Adaflight.STM32.Flash_Chip is
       Response := Rx (1 .. Response'Length);
    end Read_Id;
 
+   procedure Millis (D : in out Chip_Bus; Now : out Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Now := Adaflight.STM32.Time.Millis;
+   end Millis;
+
+   procedure Write_Failed (D : in out Chip_Bus) is null;
+
+   procedure Identify_None (F : in out FD.Device; JEDEC : Unsigned_32; OK : out Boolean) is
+      pragma Unreferenced (F, JEDEC);
+   begin
+      OK := False;
+   end Identify_None;
+
+   procedure Chip_Wait (D : in out Chip_Bus; F : in out FD.Device; Ready : out Boolean) is
+   begin
+      Chip.Wait_For_Ready (D, F);
+      Ready := True;
+   end Chip_Wait;
+
+   procedure Chip_Flush (D : in out Chip_Bus; F : in out FD.Device; Present : out Boolean) is
+      pragma Unreferenced (D, F);
+   begin
+      Present := False;
+   end Chip_Flush;
+
+   procedure Chip_Read
+     (D : in out Chip_Bus; F : in out FD.Device; Address : Unsigned_32; Buffer : in out Byte_Array;
+      Count : out Natural)
+   is
+   begin
+      Chip.Read_Bytes (D, F, Address, Buffer);
+      Count := Buffer'Length;
+   end Chip_Read;
+
    package Layer is new FD.Layer
      (SPI_Device            => Chip_Bus,
       Preinit_CS            => Preinit_CS,
@@ -262,16 +297,20 @@ package body Adaflight.STM32.Flash_Chip is
       Set_Divisor           => Set_Divisor,
       Delay_Ms              => Delay_Ms,
       Read_Id               => Read_Id,
+      Millis                => Millis,
+      Write_Failed          => Write_Failed,
       Chip_Identify         => Chip.Identify,
+      Chip_Identify_Newer   => Identify_None,
       Chip_Configure        => Chip.Configure,
       Chip_Is_Ready         => Chip.Is_Ready,
-      Chip_Wait_For_Ready   => Chip.Wait_For_Ready,
+      Chip_Wait_For_Ready   => Chip_Wait,
       Chip_Erase_Sector     => Chip.Erase_Sector,
       Chip_Erase_Completely => Chip.Erase_Completely,
       Chip_Program_Begin    => Chip.Page_Program_Begin,
       Chip_Program_Continue => Chip.Page_Program_Continue,
       Chip_Program          => Chip.Page_Program,
-      Chip_Read             => Chip.Read_Bytes);
+      Chip_Flush            => Chip_Flush,
+      Chip_Read             => Chip_Read);
 
    Dev   : Chip_Bus;
    L     : Layer.Flash;
@@ -304,7 +343,11 @@ package body Adaflight.STM32.Flash_Chip is
                when FS.Ready_Check =>
                   null;
                when FS.Ready_Wait =>
-                  Layer.Wait_For_Ready (Dev, L);
+                  declare
+                     Ready : Boolean;
+                  begin
+                     Layer.Wait_For_Ready (Dev, L, Ready);
+                  end;
                when FS.Program =>
                   declare
                      Data : Byte_Array (0 .. P.First + P.Second - 1);
@@ -321,9 +364,10 @@ package body Adaflight.STM32.Flash_Chip is
                when FS.Read =>
                   if P.Length > 0 and then Taken + P.Length <= Into'Length then
                      declare
-                        Got : Byte_Array (0 .. P.Length - 1);
+                        Got   : Byte_Array (0 .. P.Length - 1) := (others => 0);
+                        Count : Natural;
                      begin
-                        Layer.Read_Bytes (Dev, L, P.Address, Got);
+                        Layer.Read_Bytes (Dev, L, P.Address, Got, Count);
                         Into (Into'First + Taken .. Into'First + Taken + P.Length - 1) := Got;
                         Taken := Taken + P.Length;
                      end;
@@ -366,7 +410,8 @@ package body Adaflight.STM32.Flash_Chip is
       P      : Layer.Partition;
       Search : FS.Search;
       Block  : FS.Test_Block := (others => 0);
-      Probe  : Byte_Array (0 .. FS.Free_Test_Bytes - 1);
+      Probe  : Byte_Array (0 .. FS.Free_Test_Bytes - 1) := (others => 0);
+      Taken  : Natural;
       O      : FS.Output;
    begin
       Setup := Config_Of (C);
@@ -396,7 +441,7 @@ package body Adaflight.STM32.Flash_Chip is
       end if;
       FS.Search_Start (Search, State);
       while not FS.Search_Done (Search) loop
-         Layer.Read_Bytes (Dev, L, FS.Search_Address (Search), Probe);
+         Layer.Read_Bytes (Dev, L, FS.Search_Address (Search), Probe, Taken);
          for K in Block'Range loop
             Block (K) := Probe (K);
          end loop;
