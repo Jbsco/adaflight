@@ -2828,9 +2828,10 @@ def gyro_chip_checks(image, work):
 
 
 def baro_chip_checks(image, work):
-    """The board's barometer code over the host's I2C models, a BMP280, a DPS310 and an SPL07-003 in turn. The
-    DPS310 driver probes first, so the BMP280 run also shows a chip it refuses going on to the next driver, and it
-    finds the SPL07-003, which the host build names SPA06-003. Each chip gives its name in the status and its
+    """The board's barometer code over the host's I2C models, a BMP280, a DPS310, an SPL07-003 and an MS5611 in
+    turn. The MS5611 driver probes first, at an address of its own, and the DPS310 driver next, so the BMP280 run
+    also shows a chip two drivers refuse going on to the next, and the DPS310 driver finds the SPL07-003, which
+    the host build names SPA06-003. Each chip gives its name in the status and its
     model's pressure and temperature in the barometer's debug values. Over a configuration store of its own."""
     if not built("Barometer"):
         return
@@ -2851,7 +2852,8 @@ def baro_chip_checks(image, work):
     check("barometer chip checks have the barometer's debug mode", "debug_mode set to BARO" in reply, repr(reply[-80:]))
     for chip, extra, hectopascal, centidegrees in (("BMP280", {}, 1007, 2508),
                                                    ("DPS310", {"ADAFLIGHT_BARO_CHIP": "DPS310"}, 1010, 2600),
-                                                   ("SPA06_003", {"ADAFLIGHT_BARO_CHIP": "SPL07"}, 1010, 2600)):
+                                                   ("SPA06_003", {"ADAFLIGHT_BARO_CHIP": "SPL07"}, 1010, 2600),
+                                                   ("MS5611", {"ADAFLIGHT_BARO_CHIP": "MS5611"}, 1000, 2007)):
         proc, sock = start(image, store, extra)
         try:
             time.sleep(5.0)

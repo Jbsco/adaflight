@@ -15495,3 +15495,14 @@ what a start writes, so each write reads back, ends a software reset at once wit
 gives data only once both output rates are set. Host smoke runs an LSM6DSK320X and an LSM6DSV32X: name, gyro
 task rate, acceleration, tilt and rates. Its DMA read with a latched sample has no model, since a host has
 no DMA. No board has run this driver.
+
+## D778. MS5611 barometer on boards (2026-11-16)
+
+A board whose configuration names an MS5611 now builds that driver, which its detection scan tries first, at
+that chip's own address. An MS5611 takes commands where other barometers take register addresses, so the
+board's bus device sends those as they are: an SPI read without a read bit and a write without a mask.
+
+Host I2C gains an MS5611 model at address 0x77 when `ADAFLIGHT_BARO_CHIP` is MS5611. It has its datasheet's
+example PROM with a valid check, and an ADC result that follows whichever conversion a command asked for
+last. Host smoke reads that chip's name from its status and 20.07 degrees and 1000 hPa from its barometer's
+debug values, which is that datasheet's result. No board has run an MS5611.
