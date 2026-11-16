@@ -1,11 +1,12 @@
 --  The bus device of the drivers over the board's I2C and SPI buses, read
 --  and written within a call: a started read or write runs at once and its
 --  bytes wait for the fetch, so the bus never reports busy. The detection
---  scans the drivers the board names, the MS5611, the DPS310, the BMP388,
---  the BMP280, the QMP6988 and the LPS22DF so far, and the chip it finds
---  takes the task's calls and gives the samples. The MS5611 takes commands,
---  which go out as they are. The BMP388 runs without its end of conversion
---  pin.
+--  scans the drivers the board names, the BMP085, the MS5611, the DPS310,
+--  the BMP388, the BMP280, the QMP6988 and the LPS22DF so far, and the chip
+--  it finds takes the task's calls and gives the samples. The MS5611 takes
+--  commands, which go out as they are. The BMP388 and the BMP085 run
+--  without an end of conversion pin, and the BMP085's clear pin is a plain
+--  output.
 with Adaflight.Sensor_Debug;
 with Adaflight.STM32.Debug_Values;
 with Interfaces;
@@ -14,6 +15,7 @@ with Adaflight.Barometer_Task;
 with Adaflight.Baro_Detect;
 with Adaflight.Baro_Detect.Scan;
 with Adaflight.STM32.MCU;
+with Adaflight.BMP085;
 with Adaflight.BMP280;
 with Adaflight.BMP388;
 with Adaflight.Board;
@@ -258,8 +260,51 @@ package body Adaflight.STM32.Baro is
       Read_Registers => Read_Registers, Write_Register => Write_Register, Start_Read => Start_Read,
       Check_Busy => Check_Busy, Fetch => Fetch, Register_Device => Register_Device, Delay_Ms => Delay_Ms);
 
+   --  The BMP085's pins: the clear pin as an output, and no end of
+   --  conversion pin, which reads low and has no interrupt.
+   procedure Pin_Init (D : in out Device; Tag : Byte; Owner : Byte) is null;
+   procedure Pin_Output (D : in out Device; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      if Tag /= 0 then
+         GPIO.Enable_Port (Pin_Of (Natural (Tag)).Port);
+         GPIO.Set_Output (Pin_Of (Natural (Tag)));
+      end if;
+   end Pin_Output;
+   procedure Pin_High (D : in out Device; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      if Tag /= 0 then
+         GPIO.Set_High (Pin_Of (Natural (Tag)));
+      end if;
+   end Pin_High;
+   procedure Pin_Low (D : in out Device; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      if Tag /= 0 then
+         GPIO.Set_Low (Pin_Of (Natural (Tag)));
+      end if;
+   end Pin_Low;
+   procedure Pin_Read (D : in out Device; Tag : Byte; High : out Boolean) is
+      pragma Unreferenced (D, Tag);
+   begin
+      High := False;
+   end Pin_Read;
+   procedure Pin_Release (D : in out Device; Tag : Byte) is null;
+   procedure No_Interrupt (D : in out Device) is null;
+   procedure No_Pin_Interrupt (D : in out Device; Tag : Byte) is null;
+
+   package BMP085 is new Adaflight.BMP085
+     (Bus_Device => Device, Is_I2C => Is_I2C, I2C_Address => I2C_Address, Set_I2C_Address => Set_I2C_Address,
+      Read_Registers => Read_Registers, Start_Write => Start_Write, Start_Read => Start_Read,
+      Check_Busy => Check_Busy, Fetch => Fetch, Register_Device => Register_Device, Delay_Ms => Delay_Ms,
+      Delay_Us => Delay_Us, Init_Pin => Pin_Init, Config_Pin => Pin_Output, Pin_High => Pin_High,
+      Pin_Low => Pin_Low, Read_Pin => Pin_Read, Release_Pin => Pin_Release, Interrupt_Init => No_Interrupt,
+      Interrupt_Config => No_Pin_Interrupt, Interrupt_Enable => No_Pin_Interrupt,
+      Interrupt_Release => No_Pin_Interrupt);
+
    type Chip_Kind is
-     (No_Chip, BMP280_Chip, DPS310_Chip, MS5611_Chip, BMP388_Chip, LPS22DF_Chip, QMP6988_Chip);
+     (No_Chip, BMP280_Chip, DPS310_Chip, MS5611_Chip, BMP388_Chip, LPS22DF_Chip, QMP6988_Chip, BMP085_Chip);
    Dev         : Device;
    Kind        : Chip_Kind := No_Chip;
    Chip        : BMP280.State;
@@ -268,6 +313,7 @@ package body Adaflight.STM32.Baro is
    B388        : BMP388.State;
    LPS         : LPS22DF.State;
    QMP         : QMP6988.State;
+   B085        : BMP085.State;
    Task_Device : Adaflight.Barometer_Task.Device;
    Task_State  : Adaflight.Barometer_Task.State;
    Baro_State  : Adaflight.Barometer.State;
@@ -308,11 +354,16 @@ package body Adaflight.STM32.Baro is
      (D : in out Device; Which : Adaflight.Baro_Detect.Driver; EOC_Tag, XCLR_Tag : Byte; Found : out Boolean;
       Variant : out Byte)
    is
-      pragma Unreferenced (EOC_Tag, XCLR_Tag);
+      pragma Unreferenced (EOC_Tag);
    begin
       Variant := 0;
       Found := False;
-      if Which = Adaflight.Baro_Detect.BMP280 and then Adaflight.Board.Baro_BMP280 then
+      if Which = Adaflight.Baro_Detect.BMP085 and then Adaflight.Board.Baro_BMP085 then
+         BMP085.Detect (D, (XCLR_Tag => XCLR_Tag, EOC_Tag => 0), B085, Found, Task_Device);
+         if Found then
+            Kind := BMP085_Chip;
+         end if;
+      elsif Which = Adaflight.Baro_Detect.BMP280 and then Adaflight.Board.Baro_BMP280 then
          BMP280.Detect (D, Chip, Found, Task_Device);
          if Found then
             Kind := BMP280_Chip;
@@ -358,6 +409,7 @@ package body Adaflight.STM32.Baro is
                      Adaflight.Baro_Detect.BMP388 => Adaflight.Board.Baro_BMP388,
                      Adaflight.Baro_Detect.LPS22DF => Adaflight.Board.Baro_LPS22DF,
                      Adaflight.Baro_Detect.QMP6988 => Adaflight.Board.Baro_QMP6988,
+                     Adaflight.Baro_Detect.BMP085 => Adaflight.Board.Baro_BMP085,
                      others                       => False),
          SPA06 => Adaflight.Board.Baro_SPA06, I2C => True, SPI => True);
       Bus : constant Adaflight.Baro_Detect.Bus_Config :=
@@ -446,6 +498,10 @@ package body Adaflight.STM32.Baro is
                if Adaflight.Board.Baro_QMP6988 then
                   QMP6988.Device_Call (Dev, QMP, Adaflight.Barometer_Task.Call (Task_State), Done);
                end if;
+            when BMP085_Chip =>
+               if Adaflight.Board.Baro_BMP085 then
+                  BMP085.Device_Call (Dev, B085, Adaflight.Barometer_Task.Call (Task_State), Done);
+               end if;
             when BMP280_Chip | No_Chip =>
                if Adaflight.Board.Baro_BMP280 then
                   BMP280.Device_Call (Dev, Chip, Adaflight.Barometer_Task.Call (Task_State), Done);
@@ -462,6 +518,8 @@ package body Adaflight.STM32.Baro is
                LPS22DF.Calculate (LPS, Pressure, Temperature);
             elsif Kind = QMP6988_Chip and then Adaflight.Board.Baro_QMP6988 then
                QMP6988.Calculate (QMP, Pressure, Temperature);
+            elsif Kind = BMP085_Chip and then Adaflight.Board.Baro_BMP085 then
+               BMP085.Calculate (B085, Pressure, Temperature);
             elsif Adaflight.Board.Baro_BMP280 then
                BMP280.Calculate (Chip, Pressure, Temperature);
             end if;

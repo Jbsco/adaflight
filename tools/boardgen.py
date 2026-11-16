@@ -143,6 +143,7 @@ BMP388_BARO = ("USE_BARO_BMP388", "USE_BARO_SPI_BMP388")
 MS5611_BARO = ("USE_BARO_MS5611", "USE_BARO_SPI_MS5611")
 LPS22DF_BARO = ("USE_BARO_LPS22DF", "USE_BARO_SPI_LPS22DF")
 QMP6988_BARO = ("USE_BARO_QMP6988", "USE_BARO_SPI_QMP6988")
+BMP085_BARO = ("USE_BARO_BMP085",)
 DPS310_BARO = ("USE_BARO_DPS310", "USE_BARO_SPI_DPS310", "USE_BARO_SPA06_003")
 W25N_FLASH = ("USE_FLASH_W25N01G", "USE_FLASH_W25N02K")
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
@@ -268,6 +269,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Baro_BMP388", "True" if any(d in defines for d in BMP388_BARO) else "False"),
                 ("Baro_LPS22DF", "True" if any(d in defines for d in LPS22DF_BARO) else "False"),
                 ("Baro_QMP6988", "True" if any(d in defines for d in QMP6988_BARO) else "False"),
+                ("Baro_BMP085", "True" if any(d in defines for d in BMP085_BARO) else "False"),
                 ("Baro_SPA06", "True" if "USE_BARO_SPA06_003" in defines else "False"),
                 ("Flash_W25N", "True" if any(d in defines for d in W25N_FLASH) else "False"),
                 ("Gyro_Clkin", "True" if "USE_GYRO_CLKIN" in defines else "False"),

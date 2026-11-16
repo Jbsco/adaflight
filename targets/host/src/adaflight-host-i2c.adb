@@ -22,8 +22,12 @@ with Interfaces;
 --  16#70# carries a QMP6988, again with no chip at the first address: its
 --  identity, the calibration bytes of two offsets with every other
 --  coefficient at its base value, and raw readings that compensate to 25
---  degrees, which that chip's driver gives whole, and 101324 pascal. Every
---  other address and bus answers nothing.
+--  degrees, which that chip's driver gives whole, and 101324 pascal. With
+--  BMP085 the address 16#77# carries a BMP085: its identity, the
+--  calibration of its datasheet's worked example, and the temperature or
+--  pressure reading that a control write asked for last, the example's at
+--  the driver's oversampling, which compensate to 1500 hundredths of a
+--  degree and 69963 pascal. Every other address and bus answers nothing.
 with Ada.Environment_Variables;
 with Adaflight.Board;
 with Adaflight.Host_OLED;
@@ -103,6 +107,19 @@ package body Adaflight.STM32.I2C is
      (0 => 16#7B#, 1 => 16#AC#, 18 => 16#17#, 19 => 16#02#, others => 0);
    QMP_Readings     : constant Byte_Array (0 .. 5) := (16#9F#, 16#47#, 16#D0#, 16#7E#, 16#79#, 16#60#);
    QMP_Registers    : Byte_Array (0 .. 16#FF#) := (others => 0);
+   --  The BMP085 model at the MS5611's address: AC1 408, AC2 -72, AC3 -14383,
+   --  AC4 32741, AC5 32757, AC6 23153, B1 6190, B2 4, MB -32768, MC -8711 and
+   --  MD 2868 with the high byte first, the temperature reading 27898, and
+   --  the pressure reading 190744 at eight times oversampling, in the top
+   --  nineteen bits of three bytes.
+   B085_Model       : constant Boolean := Baro_Chip = "BMP085";
+   B085_Id          : constant Byte := 16#55#;
+   B085_Calibration : constant Byte_Array (0 .. 21) :=
+     (16#01#, 16#98#, 16#FF#, 16#B8#, 16#C7#, 16#D1#, 16#7F#, 16#E5#, 16#7F#, 16#F5#, 16#5A#, 16#71#,
+      16#18#, 16#2E#, 16#00#, 16#04#, 16#80#, 16#00#, 16#DD#, 16#F9#, 16#0B#, 16#34#);
+   B085_Temperature : constant Byte_Array (0 .. 2) := (16#6C#, 16#FA#, 16#00#);
+   B085_Pressure    : constant Byte_Array (0 .. 2) := (16#5D#, 16#23#, 16#00#);
+   B085_Result      : Byte_Array (0 .. 2) := (others => 0);
 
    procedure Init (B : Bus; SCL, SDA : Adaflight.Pins.Pin) is
    begin
@@ -118,6 +135,7 @@ package body Adaflight.STM32.I2C is
                            elsif B388_Model then Adaflight.Board.Baro_BMP388
                            else Adaflight.Board.Baro_BMP280))
                 or else (Address = MS_Address and then MS_Model and then Adaflight.Board.Baro_MS5611)
+                or else (Address = MS_Address and then B085_Model and then Adaflight.Board.Baro_BMP085)
                 or else (Address = LPS_Address and then LPS_Model and then Adaflight.Board.Baro_LPS22DF)
                 or else (Address = QMP_Address and then QMP_Model and then Adaflight.Board.Baro_QMP6988)
                 or else Address = Pitot_Address
@@ -138,6 +156,21 @@ package body Adaflight.STM32.I2C is
             Data (I) :=
               (if Pitot_Step > 0 and then Pitot_Reads > Pitot_Step then Pitot_Moving ((I - Data'First) mod 4)
                else Pitot_Frame ((I - Data'First) mod 4));
+         end loop;
+         return;
+      end if;
+      if Address = MS_Address and then B085_Model then
+         for I in Data'Range loop
+            declare
+               R : constant Natural := Natural (Register) + (I - Data'First);
+            begin
+               Data (I) :=
+                 (if R = 16#D0# then B085_Id
+                  elsif R = 16#D1# then 1
+                  elsif R in 16#AA# .. 16#BF# then B085_Calibration (R - 16#AA#)
+                  elsif R in 16#F6# .. 16#F8# then B085_Result (R - 16#F6#)
+                  else 0);
+            end;
          end loop;
          return;
       end if;
@@ -235,6 +268,10 @@ package body Adaflight.STM32.I2C is
       OK := Answers (B, Address);
       if OK and then Address = Adaflight.Host_OLED.Address then
          Adaflight.Host_OLED.Write (Register, Value);
+      elsif OK and then Address = MS_Address and then B085_Model then
+         if Register = 16#F4# then
+            B085_Result := (if Value = 16#2E# then B085_Temperature else B085_Pressure);
+         end if;
       elsif OK and then Address = MS_Address then
          if Register = 16#1E# then
             MS_Result := (others => 0);

@@ -3168,8 +3168,9 @@ def gyro_clock_checks(image, work):
 
 def baro_chip_checks(image, work):
     """The board's barometer code over the host's I2C models, a BMP280, a DPS310, an SPL07-003, an MS5611, a
-    BMP388, an LPS22DF and a QMP6988 in turn. The MS5611 driver probes first, at an address of its own, then the
-    DPS310 and the BMP388 drivers, so the BMP280 run also shows a chip the drivers before its own refuse going on
+    BMP388, an LPS22DF, a QMP6988 and a BMP085 in turn. The BMP085 and the MS5611 drivers probe first, at an
+    address they share, then the DPS310 and the BMP388 drivers, so the BMP280 run also shows a chip the drivers
+    before its own refuse going on
     to the next, and the DPS310 driver finds the SPL07-003, which the host build names SPA06-003. The BMP388
     model gives its readings only after the forced measurement the driver starts. The LPS22DF and the QMP6988
     answer at addresses of their own with no chip at the first one, and the QMP6988 driver gives its
@@ -3198,7 +3199,8 @@ def baro_chip_checks(image, work):
                                                    ("MS5611", {"ADAFLIGHT_BARO_CHIP": "MS5611"}, 1000, 2007),
                                                    ("BMP388", {"ADAFLIGHT_BARO_CHIP": "BMP388"}, 1013, 2499),
                                                    ("LPS22DF", {"ADAFLIGHT_BARO_CHIP": "LPS22DF"}, 1013, 2500),
-                                                   ("QMP6988", {"ADAFLIGHT_BARO_CHIP": "QMP6988"}, 1013, 25)):
+                                                   ("QMP6988", {"ADAFLIGHT_BARO_CHIP": "QMP6988"}, 1013, 25),
+                                                   ("BMP085", {"ADAFLIGHT_BARO_CHIP": "BMP085"}, 700, 1500)):
         proc, sock = start(image, store, extra)
         try:
             time.sleep(5.0)
