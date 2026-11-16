@@ -15433,3 +15433,20 @@ Host SPI's gyro model is an ICM-42605, ICM-42688-P or IIM-42653 when `ADAFLIGHT_
 five register banks, a soft reset, and data registers that read zeros until a start turns its sensors on.
 Host smoke runs an MPU6000, an ICM-42688-P and an IIM-42653 in turn and reads each one's name, identity,
 gyro task rate, acceleration, tilt and rates. No board has run an ICM426xx.
+
+## D774. BMI270 gyro on boards (2026-11-15)
+
+A board whose configuration names a BMI270 now builds that driver, probed third, between its MPU drivers and
+an ICM426xx, in Betaflight's table order. `Gyro_Chip` gives that driver what its start needs beyond a
+register write. That is a read with a dummy byte, a write of a whole buffer in one selection for its
+configuration file, and its select pin, whose rise puts that chip on SPI.
+
+A BMI270 reads through its own driver, at 3.2 kHz for its gyro and 800 Hz for its accelerometer. Its received
+bytes start one place earlier in the gyro layer's buffer than an MPU chip's, as Betaflight's receive pointers
+differ, so the board's device notes that place once a BMI270 is found.
+
+Host SPI's gyro model becomes a BMI270 when `ADAFLIGHT_GYRO_CHIP` names it. That model answers on SPI only
+after its select pin has risen, again after each soft reset, and puts a dummy byte before a read's values.
+Its sensors stay off until its configuration file arrives whole, byte for byte, with its power save off and
+its loading open. Host smoke adds that chip to its gyro section: name, gyro task rate, acceleration, tilt and
+rates. Its FIFO mode under the experimental filter setting has no model. No board has run a BMI270.

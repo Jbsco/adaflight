@@ -20,14 +20,18 @@
 --  with the fast read's idle byte. No image means no chip. The board's
 --  gyro bus carries a gyro model while the environment variable
 --  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
---  its value names one, with their five register banks, and an MPU6000
---  otherwise. A model has its identity, a register store that a device
---  reset clears, and its data registers, which read zeros until its start
---  wakes its sensors. They then read a simulator's accelerations and rates,
---  or without one a fixed acceleration and rates that step from zero 8 s
---  after the start.
+--  its value names one, with their five register banks, a BMI270 where it
+--  names that, and an MPU6000 otherwise. A model has its identity, a
+--  register store that a device reset clears, and its data registers, which
+--  read zeros until its start wakes its sensors. They then read a
+--  simulator's accelerations and rates, or without one a fixed acceleration
+--  and rates that step from zero 8 s after the start. The BMI270 answers on
+--  SPI after a rise of its select pin, puts a dummy byte before a read's
+--  values, and wakes only with its configuration file loaded whole while
+--  its power save is off.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
+with Adaflight.BMI270_Config;
 with Adaflight.Board;
 with Adaflight.Host_Pin_Log;
 with Adaflight.Host_Pins;
@@ -480,7 +484,7 @@ package body Adaflight.STM32.SPI is
 
    --  The chip the gyro model is: none without the environment variable, an
    --  ICM426xx where its value names one, an MPU6000 for any other value.
-   type Gyro_Kind is (No_Model, MPU6000, ICM42605, ICM42688P, IIM42653);
+   type Gyro_Kind is (No_Model, MPU6000, BMI270, ICM42605, ICM42688P, IIM42653);
    function Gyro_Kind_Of_Environment return Gyro_Kind is
       Name : constant String := "ADAFLIGHT_GYRO_CHIP";
    begin
@@ -491,7 +495,8 @@ package body Adaflight.STM32.SPI is
          Value : constant String := Ada.Environment_Variables.Value (Name);
       begin
          return
-           (if Value = "ICM42605" then ICM42605
+           (if Value = "BMI270" then BMI270
+            elsif Value = "ICM42605" then ICM42605
             elsif Value = "ICM42688P" then ICM42688P
             elsif Value = "IIM42653" then IIM42653
             else MPU6000);
@@ -505,9 +510,19 @@ package body Adaflight.STM32.SPI is
    Gyro_Step_Ms   : constant := 8_000;
    subtype Gyro_Bank_Index is Natural range 0 .. 4;
    type Gyro_Banks is array (Gyro_Bank_Index) of Byte_Array (0 .. 16#7F#);
+   --  A reset leaves an MPU6000 asleep and a BMI270 in its power save.
    Gyro_Reset     : constant Gyro_Banks :=
-     (0      => (16#6B# => (if Gyro_Model = MPU6000 then Gyro_Sleep else 0), others => 0),
+     (0      => (16#6B# => (if Gyro_Model = MPU6000 then Gyro_Sleep else 0),
+                 16#7C# => (if Gyro_Model = BMI270 then 3 else 0),
+                 others => 0),
       others => (others => 0));
+   --  The BMI270 answers on SPI once its select pin has risen: one rise
+   --  after power, and after a soft reset the rise that ends the reset's own
+   --  transfer and one more. Its configuration file loads with the power
+   --  save off and the loading open, and counts when every byte is right.
+   BMI_Rises_Needed : Natural := 1;
+   BMI_File_Good    : Boolean := False;
+   BMI_Loaded       : Boolean := False;
    Gyro_Registers : Gyro_Banks := Gyro_Reset;
    Gyro_Bank      : Gyro_Bank_Index := 0;
 
@@ -521,8 +536,10 @@ package body Adaflight.STM32.SPI is
       Rates : Axes :=
         (if Adaflight.STM32.Time.Millis >= Gyro_Step_Ms then (164, 328, -492) else (0, 0, 0));
       Awake : constant Boolean :=
-        (if Gyro_Model = MPU6000 then (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0
-         else (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
+        (case Gyro_Model is
+            when MPU6000 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
+            when BMI270  => BMI_Loaded and then (Gyro_Registers (0) (16#7D#) and 16#06#) = 16#06#,
+            when others  => (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
    begin
       if not Awake then
          return 0;
@@ -600,11 +617,59 @@ package body Adaflight.STM32.SPI is
       end if;
    end Gyro_Write;
 
+   --  The BMI270's registers: its identity at 0, accelerations from 16#0C#
+   --  and rates from 16#12#, each with its low byte first, and whether its
+   --  configuration file is loaded at 16#21#.
+   function BMI_Read (R : Natural) return Byte is
+     (if R = 0 then 16#24#
+      elsif R in 16#0C# .. 16#11# then Gyro_Reading_Byte ((R - 16#0C#) / 2, (R - 16#0C#) mod 2 = 0)
+      elsif R in 16#12# .. 16#17# then Gyro_Reading_Byte (4 + (R - 16#12#) / 2, (R - 16#12#) mod 2 = 0)
+      elsif R = 16#21# then (if BMI_Loaded then 1 else 0)
+      else Gyro_Registers (0) (R mod 128));
+
+   --  One selection of the BMI270: lost while the chip is not on SPI yet; a
+   --  read with a dummy byte before its values; the soft reset; the
+   --  configuration file; or a register write.
+   procedure BMI_Frame (Tx : Byte_Array; Rx : out Byte_Array) is
+      Register : constant Natural := Natural (Tx (Tx'First) and 16#7F#);
+      Rises    : constant Natural := Adaflight.Host_Pins.Rises (Adaflight.Board.Gyro_1_CS_Pin);
+   begin
+      Rx := (others => 16#FF#);
+      if Rises < BMI_Rises_Needed then
+         return;
+      end if;
+      if (Tx (Tx'First) and 16#80#) /= 0 then
+         for K in 1 .. Tx'Length - 1 loop
+            Rx (Rx'First + K) := (if K = 1 then 0 else BMI_Read ((Register + K - 2) mod 128));
+         end loop;
+      elsif Tx'Length >= 2 then
+         if Register = 16#7E# and then Tx (Tx'First + 1) = 16#B6# then
+            Gyro_Registers := Gyro_Reset;
+            BMI_File_Good := False;
+            BMI_Loaded := False;
+            BMI_Rises_Needed := Rises + 2;
+         elsif Register = 16#5E# then
+            BMI_File_Good :=
+              Gyro_Registers (0) (16#59#) = 0 and then (Gyro_Registers (0) (16#7C#) and 1) = 0
+              and then Tx (Tx'First + 1 .. Tx'Last) = Adaflight.BMI270_Config.Maximum_FIFO;
+         else
+            if Register = 16#59# then
+               BMI_Loaded := Tx (Tx'First + 1) = 1 and then BMI_File_Good;
+            end if;
+            Gyro_Registers (0) (Register) := Tx (Tx'First + 1);
+         end if;
+      end if;
+   end BMI_Frame;
+
    --  One selection: a register read that runs on over the next registers,
    --  or a register write.
    procedure Gyro_Frame (Tx : Byte_Array; Rx : out Byte_Array) is
       Register : constant Byte := Tx (Tx'First) and 16#7F#;
    begin
+      if Gyro_Model = BMI270 then
+         BMI_Frame (Tx, Rx);
+         return;
+      end if;
       Rx := (others => 16#FF#);
       if (Tx (Tx'First) and 16#80#) /= 0 then
          for K in 1 .. Tx'Length - 1 loop

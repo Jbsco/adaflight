@@ -243,6 +243,8 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Gyro_MPU6500", "True" if "USE_GYRO_SPI_MPU6500" in defines else "False"),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),
                 ("Acc_MPU6500", "True" if "USE_ACC_SPI_MPU6500" in defines else "False"),
+                ("Gyro_BMI270", "True" if "USE_ACCGYRO_BMI270" in defines else "False"),
+                ("Acc_BMI270", "True" if "USE_ACCGYRO_BMI270" in defines else "False"),
                 ("Gyro_ICM426xx", "True" if any(d in defines for d in ICM426XX_GYRO) else "False"),
                 ("Acc_ICM426xx", "True" if any(d in defines for d in ICM426XX_ACC) else "False"),
                 ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),

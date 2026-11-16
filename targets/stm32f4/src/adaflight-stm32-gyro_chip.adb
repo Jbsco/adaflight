@@ -4,6 +4,7 @@ with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Gyro_Detect;
 with Adaflight.Gyro_Start;
 with Adaflight.MPU_Gyro;
+with Adaflight.MPU_Gyro.BMI270;
 with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
@@ -23,11 +24,13 @@ package body Adaflight.STM32.Gyro_Chip is
    Read_Bit : constant Byte := 16#80#;
 
    --  The gyro's SPI device: its select pin, its data ready line, the bytes
-   --  the last transfer brought in and whether an initialization read failed.
+   --  the last transfer brought in, the place in the layer's buffer its
+   --  first byte goes to, and whether an initialization read failed.
    type Device is limited record
       CS     : Pin := Adaflight.Board.Gyro_1_CS_Pin;
       Line   : Pin := Adaflight.Board.Gyro_1_EXTI_Pin;
       Rx     : Byte_Array (0 .. 15) := (others => 0);
+      Offset : Natural range 0 .. 1 := 1;
       Failed : Boolean := False;
    end record;
 
@@ -53,10 +56,12 @@ package body Adaflight.STM32.Gyro_Chip is
    procedure Delay_Us (D : in out Device; Us : Natural);
    procedure Failure (D : in out Device);
    procedure No_Clock_In (D : in out Device; Started : out Boolean);
+   procedure Write_Buffer (D : in out Device; Register : Byte; Data : Byte_Array);
+   procedure Set_CS (D : in out Device; High : Boolean);
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 3,
+      Chip_Count       => 4,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -85,6 +90,11 @@ package body Adaflight.STM32.Gyro_Chip is
       Read_Register      => Read_Register,
       Bus_Write_Register => Write_Register,
       Delay_Us           => Delay_Us);
+   package BMI270 is new Layer.BMI270
+     (Read_Masked    => Read_Registers,
+      Write_Register => Write_Register,
+      Write_Buffer   => Write_Buffer,
+      Set_CS         => Set_CS);
    package ICM426xx is new Layer.ICM426xx
      (External_Clock => False,
       Write_Register => Write_Register,
@@ -166,6 +176,10 @@ package body Adaflight.STM32.Gyro_Chip is
                MPU6500.Detect (D, Sensor);
             end if;
          when 3 =>
+            if Adaflight.Board.Gyro_BMI270 then
+               BMI270.Detect (D, Sensor);
+            end if;
+         when 4 =>
             if Adaflight.Board.Gyro_ICM426xx then
                ICM426xx.Detect (D, Sensor);
             end if;
@@ -221,13 +235,14 @@ package body Adaflight.STM32.Gyro_Chip is
    end Wait;
 
    --  The received bytes as the layer reads its buffer: the byte clocked
-   --  with the command at 1, the data from 2.
+   --  with the command at 1 and the data from 2, or for a BMI270 that byte
+   --  at 0, its dummy byte at 1 and the data from 2.
    procedure Fetch (D : in out Device; Data : out Byte_Array) is
    begin
       Data := (others => 0);
       for I in D.Rx'Range loop
-         exit when Data'First + I + 1 > Data'Last;
-         Data (Data'First + I + 1) := D.Rx (I);
+         exit when Data'First + I + D.Offset > Data'Last;
+         Data (Data'First + I + D.Offset) := D.Rx (I);
       end loop;
    end Fetch;
 
@@ -282,15 +297,38 @@ package body Adaflight.STM32.Gyro_Chip is
       Started := False;
    end No_Clock_In;
 
+   --  A register's address, then the data, in one selection.
+   procedure Write_Buffer (D : in out Device; Register : Byte; Data : Byte_Array) is
+      Tx : Byte_Array (0 .. Data'Length);
+      Rx : Byte_Array (0 .. Data'Length);
+   begin
+      Tx (0) := Register;
+      Tx (1 .. Data'Length) := Data;
+      Select_Chip (D);
+      SPI.Transfer (Gyro_Bus, Tx, Rx);
+      Deselect_Chip (D);
+   end Write_Buffer;
+
+   procedure Set_CS (D : in out Device; High : Boolean) is
+   begin
+      if High then
+         Deselect_Chip (D);
+      else
+         Select_Chip (D);
+      end if;
+   end Set_CS;
+
    --  The drivers a board's configuration names.
    Build : constant Gyro_Detect.Driver_Set :=
      (Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
+      Gyro_Detect.BMI270      => Adaflight.Board.Gyro_BMI270,
       Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
       others                  => False);
    Acc_Build : constant Acc_Detect.Driver_Set :=
      (Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
+      Acc_Detect.BMI270      => Adaflight.Board.Acc_BMI270,
       Acc_Detect.ICM426xx    => Adaflight.Board.Acc_ICM426xx,
       others                 => False);
    --  The gyro on SPI bus 1 with a select pin.
@@ -314,6 +352,9 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Detect (State, Found, R.Scale);
          end if;
+      elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
+         BMI270.Gyro_Detect (State, Found, R.Scale);
+         Bus.Offset := 0;
       elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
          ICM426xx.Gyro_Detect (State, Found, R.Scale);
       elsif Adaflight.Board.Gyro_MPU6500 then
@@ -332,6 +373,8 @@ package body Adaflight.STM32.Gyro_Chip is
          if Adaflight.Board.Gyro_MPU6000 then
             MPU6000.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
          end if;
+      elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
+         BMI270.Gyro_Init (Bus, State);
       elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
          ICM426xx.Gyro_Init (Bus, State, Hardware_LPF, Gyro_Start.Divider_Drops);
       elsif Adaflight.Board.Gyro_MPU6500 then
@@ -352,13 +395,21 @@ package body Adaflight.STM32.Gyro_Chip is
 
    procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
    begin
-      Layer.Read_Gyro_SPI (Bus, State, OK);
+      if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
+         BMI270.Read_Gyro (Bus, State, OK);
+      else
+         Layer.Read_Gyro_SPI (Bus, State, OK);
+      end if;
       Raw := (State.Raw (0), State.Raw (1), State.Raw (2));
    end Read_Gyro;
 
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean) is
    begin
-      Layer.Read_Acc_SPI (Bus, State, OK);
+      if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
+         BMI270.Read_Acc (Bus, State, OK);
+      else
+         Layer.Read_Acc_SPI (Bus, State, OK);
+      end if;
       Raw := (State.Acc_Raw (0), State.Acc_Raw (1), State.Acc_Raw (2));
    end Read_Acc;
 
