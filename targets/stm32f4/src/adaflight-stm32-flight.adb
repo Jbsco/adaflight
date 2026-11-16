@@ -1505,10 +1505,15 @@ package body Adaflight.STM32.Flight is
             FR.Start (S, FR.Parse (Request), Reply'Length, Adaflight.STM32.Flash_Chip.Summary.Size, Reply);
             while FR.Next_Count (S) > 0 loop
                declare
-                  Data : Adaflight.Bytes.Byte_Array (0 .. FR.Next_Count (S) - 1);
+                  Data  : Adaflight.Bytes.Byte_Array (0 .. FR.Next_Count (S) - 1);
+                  Count : Natural;
                begin
-                  Adaflight.STM32.Flash_Chip.Read (FR.Next_Address (S), Data);
-                  FR.Feed (S, Data, Reply);
+                  Adaflight.STM32.Flash_Chip.Read (FR.Next_Address (S), Data, Count);
+                  if Count = 0 then
+                     FR.Stop (S);
+                  else
+                     FR.Feed (S, Data (0 .. Count - 1), Reply);
+                  end if;
                end;
             end loop;
             FR.Finish (S, Reply, Length);

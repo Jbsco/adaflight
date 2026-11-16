@@ -50,7 +50,7 @@ package Adaflight.STM32.Flash_Chip is
      (Index : Natural; Found : out Boolean; Kind : out Natural; First, Last : out Interfaces.Unsigned_16);
    function Offset return Interfaces.Unsigned_32;
 
-   --  Mass storage mode's read: the chip's bytes from an address, zeros
-   --  where it gives none.
-   procedure Read (Address : Interfaces.Unsigned_32; Data : out Byte_Array);
+   --  A read for MSP and mass storage mode: the chip's bytes from an
+   --  address, zeros where it gives none, and the count it gave.
+   procedure Read (Address : Interfaces.Unsigned_32; Data : out Byte_Array; Count : out Natural);
 end Adaflight.STM32.Flash_Chip;

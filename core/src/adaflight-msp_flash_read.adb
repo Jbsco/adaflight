@@ -83,6 +83,11 @@ package body Adaflight.MSP_Flash_Read with SPARK_Mode is
       end case;
    end Feed;
 
+   procedure Stop (S : in out State) is
+   begin
+      S.Stopped := True;
+   end Stop;
+
    procedure Finish (S : State; Reply : in out Byte_Array; Length : out Natural) is
       procedure Put_16 (At_Index : Read_Size; V : Unsigned_16)
         with Pre => Reply'First = 0 and then At_Index < Reply'Last, Post => Reply'First = 0
