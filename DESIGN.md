@@ -15622,3 +15622,13 @@ Host smoke makes a configuration store read-only and saves. It then reads ten ro
 long flashes from an LED pin log, a beep for each from a beeper log, and an exit as for a bootloader request.
 That also checks D782's request after a tenth round. A failure at boot shows nothing on LEDs or beeper,
 since both start after a configuration load, as in Betaflight. No check starts a gyro that fails.
+
+## D787. LPS22DF barometer on boards (2026-11-16)
+
+A board whose configuration names an LPS22DF now builds that driver, which its detection scan tries last,
+after a BMP280. HGLRC_F405_S names one beside a DPS310.
+
+Host I2C gains an LPS22DF model at address 0x5D when `ADAFLIGHT_BARO_CHIP` is LPS22DF, and its first address
+then answers nothing. That model has an identity, control registers whose reset bit reads clear, and fixed
+readings. Host smoke reads that chip's name from its status and 25.00 degrees and 1013 hPa from its
+barometer's debug values. No board has run an LPS22DF.
