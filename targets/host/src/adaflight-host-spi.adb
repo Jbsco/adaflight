@@ -39,9 +39,12 @@
 --  and rates that step from zero 8 s after the start. The BMI270 answers on
 --  SPI after a rise of its select pin, puts a dummy byte before a read's
 --  values, and wakes only with its configuration file loaded whole while
---  its power save is off.
+--  its power save is off. An ICM426xx model writes each register write, as
+--  its bank, register and value, to the file the environment variable
+--  ADAFLIGHT_GYRO_CLOCK_LOG names, when it names one.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
+with Ada.Text_IO;
 with Adaflight.BMI270_Config;
 with Adaflight.Board;
 with Adaflight.Host_Pin_Log;
@@ -772,8 +775,20 @@ package body Adaflight.STM32.SPI is
    --  register's top bit, the ICM426xx's on its device configuration's
    --  lowest. The ICM426xx's bank register selects one of five banks.
    procedure Gyro_Write (Register : Byte; Value : Byte) is
-      R : constant Natural := Natural (Register and 16#7F#);
+      R    : constant Natural := Natural (Register and 16#7F#);
+      Name : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_GYRO_CLOCK_LOG", "");
+      File : Ada.Text_IO.File_Type;
    begin
+      if Name'Length > 0 and then not MPU_Layout and then Gyro_Model in ICM42605 | ICM42688P | IIM42653 then
+         begin
+            Ada.Text_IO.Open (File, Ada.Text_IO.Append_File, Name);
+         exception
+            when Ada.Text_IO.Name_Error =>
+               Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name);
+         end;
+         Ada.Text_IO.Put_Line (File, "write" & Natural'Image (Gyro_Bank) & Natural'Image (R) & Byte'Image (Value));
+         Ada.Text_IO.Close (File);
+      end if;
       if MPU_Layout then
          if R = 16#6B# and then (Value and 16#80#) /= 0 then
             Gyro_Registers := Gyro_Reset;

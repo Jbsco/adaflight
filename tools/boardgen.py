@@ -219,7 +219,8 @@ def generate(config: Path, overrides: dict) -> str:
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
             ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN"),
             ("USB_Detect_Tag", "USB_DETECT_PIN"), ("Baro_CS_Tag", "BARO_CS_PIN"), ("Baro_EOC_Tag", "BARO_EOC_PIN"),
-            ("Baro_XCLR_Tag", "BARO_XCLR_PIN"), ("Mag_CS_Tag", "MAG_CS_PIN"), ("Mag_EXTI_Tag", "MAG_INT_EXTI")] \
+            ("Baro_XCLR_Tag", "BARO_XCLR_PIN"), ("Mag_CS_Tag", "MAG_CS_PIN"), ("Mag_EXTI_Tag", "MAG_INT_EXTI"),
+            ("Gyro_Clkin_Tag", "GYRO_1_CLKIN_PIN")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
@@ -265,6 +266,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Baro_BMP388", "True" if any(d in defines for d in BMP388_BARO) else "False"),
                 ("Baro_SPA06", "True" if "USE_BARO_SPA06_003" in defines else "False"),
                 ("Flash_W25N", "True" if any(d in defines for d in W25N_FLASH) else "False"),
+                ("Gyro_Clkin", "True" if "USE_GYRO_CLKIN" in defines else "False"),
                 ("Mag_I2C_Device", i2c_device(defines.get("MAG_I2C_INSTANCE", ""))),
                 ("Mag_SPI_Device", spi_device(defines.get("MAG_SPI_INSTANCE", ""))),
                 ("Mag_Align", ALIGNMENTS.get(defines.get("MAG_ALIGN", "ALIGN_DEFAULT"), 0)),

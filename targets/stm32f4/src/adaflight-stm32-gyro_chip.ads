@@ -8,9 +8,10 @@
 --  which of the ICM20689 and MPU6500 drivers starts a chip both know. The
 --  LSM6DSV16X family and the BMI270 read through their own drivers, and the
 --  BMI270's received bytes start one
---  place earlier in the layer's buffer. The ICM426xx runs from its own
---  clock. The operations are the board gyro unit's, which a board image
---  passes on to these.
+--  place earlier in the layer's buffer. An ICM-42688-P takes the gyro
+--  clock input where the board has one, and the other ICM426xx chips run
+--  from their own clock. The operations are the board gyro unit's, which a
+--  board image passes on to these.
 with Interfaces;
 with Adaflight.Scheduler;
 with Adaflight.STM32.Gyro; use Adaflight.STM32.Gyro;

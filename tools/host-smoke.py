@@ -3010,6 +3010,84 @@ def gyro_chip_checks(image, work):
               repr(turning))
 
 
+def gyro_clock_checks(image, work):
+    """The gyro clock input over the host's ICM426xx models, with the clock's start and each register write of a
+    model in one log. Without a clock pin no clock starts and an ICM-42688-P keeps its own oscillator. With the
+    pin on a timer channel, the start takes that channel for the gyro clock input, counts the timer's 84 MHz
+    over 2625 for 32 kHz with half of it high, and only then has the chip take pin 9 as its clock and turn its
+    external clock on, which the later start's write to that register keeps. An ICM-42605 gets no clock, and a
+    pin without a timer channel starts none. Over a configuration store of its own."""
+    store = os.path.join(work, "gyro-clock-eeprom.bin")
+    log = os.path.join(work, "gyro-clock.txt")
+    if os.path.exists(store):
+        os.remove(store)
+
+    def run(chip, lines=()):
+        """One start over a model: the log's lines, the timer listing and the replies to the lines, which a save
+        follows when there are any."""
+        if os.path.exists(log):
+            os.remove(log)
+        proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": chip, "ADAFLIGHT_GYRO_CLOCK_LOG": log})
+        replies = []
+        try:
+            time.sleep(3.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            status = cli(sock, "status")
+            timers = cli(sock, "timer show", wait=1.5)
+            for line in lines:
+                replies.append(cli(sock, line))
+            if lines:
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        try:
+            with open(log) as f:
+                written = f.read().splitlines()
+        except OSError:
+            written = []
+        return written, status, timers, replies
+
+    def clocks(written):
+        return [line for line in written if line.startswith("clock")]
+
+    pin_writes = ("write 1 123 4", "write 0 77 4")
+    written, status, timers, replies = run("ICM42688P", ("resource BEEPER 1 NONE", "resource GYRO_CLKIN 1 B04"))
+    check("without a clock pin no gyro clock starts",
+          "GYRO: (1) ICM42688P enabled" in status and len(written) > 10 and clocks(written) == []
+          and "GYRO_CLKIN" not in timers, repr((clocks(written), written[:4])))
+    check("without a clock an ICM-42688-P keeps its own oscillator",
+          not any(line in written for line in pin_writes) and "write 0 77 64" in written, repr(written))
+    check("the clock pin goes to a timer pin that the beeper gave up",
+          len(replies) == 2 and "Resource is freed" in replies[0] and "Resource is set to B04" in replies[1],
+          repr(replies))
+    written, status, timers, _ = run("ICM42688P")
+    check("a clock pin starts the gyro clock on its timer channel at 32 kHz with half of its period high",
+          clocks(written) == ["clock 1 4 TIM3 1 84000000 2625 1312"], repr(clocks(written)))
+    listed = re.search(r"TIM3:\s+CH1\s*: GYRO_CLKIN 1\b", timers)
+    check("the timer listing shows that channel held for the gyro clock input", listed is not None,
+          repr(timers[timers.find("TIM3"):][:80]))
+    at = written.index(clocks(written)[0]) if clocks(written) else -1
+    after = written[at + 1:at + 5] if at >= 0 else []
+    check("the chip takes pin 9 as its clock and turns its external clock on once the clock runs",
+          "GYRO: (1) ICM42688P enabled" in status
+          and after == ["write 0 118 1", "write 1 123 4", "write 1 118 0", "write 0 77 4"], repr(after))
+    check("the gyro's start keeps the external clock on",
+          "write 0 77 68" in written[at + 5:] and "write 0 77 64" not in written, repr(written[at + 5:]))
+    written, status, timers, _ = run("ICM42605", ("resource GYRO_CLKIN 1 C13",))
+    check("an ICM-42605 gets no gyro clock",
+          "GYRO: (1) ICM42605 enabled" in status and len(written) > 10 and clocks(written) == []
+          and not any(line in written for line in pin_writes) and "GYRO_CLKIN" not in timers,
+          repr((status[:200], clocks(written))))
+    written, status, timers, _ = run("ICM42688P")
+    check("a clock pin without a timer channel starts no clock and leaves the chip on its own oscillator",
+          "GYRO: (1) ICM42688P enabled" in status and len(written) > 10 and clocks(written) == []
+          and not any(line in written for line in pin_writes) and "GYRO_CLKIN" not in timers,
+          repr((clocks(written), written[:6])))
+
+
 def baro_chip_checks(image, work):
     """The board's barometer code over the host's I2C models, a BMP280, a DPS310, an SPL07-003, an MS5611 and a
     BMP388 in turn. The MS5611 driver probes first, at an address of its own, then the DPS310 and the BMP388
@@ -6029,6 +6107,7 @@ def main():
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)
         gyro_chip_checks(image, work)
+        gyro_clock_checks(image, work)
         baro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
