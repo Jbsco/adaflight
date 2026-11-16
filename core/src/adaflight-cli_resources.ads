@@ -12,8 +12,8 @@ package Adaflight.CLI_Resources with SPARK_Mode is
       SPI_SDO, ESC_Serial, Camera_Control, ADC_Batt, ADC_RSSI, ADC_Curr, ADC_Ext, Baro_CS, Baro_EOC, Baro_XCLR,
       Compass_CS, Compass_EXTI, SD_Card_CS, SD_Card_Detect, PINIO, USB_MSC_Pin, Flash_CS, OSD_CS, RX_SPI_CS,
       RX_SPI_EXTI, RX_SPI_Bind, RX_SPI_LED, RX_SPI_CC2500_TX_EN, RX_SPI_CC2500_LNA_EN, RX_SPI_CC2500_Ant_Sel,
-      RX_SPI_ExpressLRS_Reset, RX_SPI_ExpressLRS_Busy, Gyro_EXTI, Gyro_CS, USB_Detect, VTX_Power, VTX_CS, VTX_Data,
-      VTX_CLK, Pullup, Pulldown);
+      RX_SPI_ExpressLRS_Reset, RX_SPI_ExpressLRS_Busy, Gyro_EXTI, Gyro_CS, Gyro_Clkin, USB_Detect, VTX_Power, VTX_CS,
+      VTX_Data, VTX_CLK, Pullup, Pulldown);
 
    --  The owner's name as the command line prints and reads it.
    function Name (O : Owner) return String
@@ -28,7 +28,7 @@ package Adaflight.CLI_Resources with SPARK_Mode is
          when Softserial_TX | Softserial_RX => 2,
          when I2C_SCL | I2C_SDA | LED | SPI_SCK | SPI_SDI | SPI_SDO => 3,
          when PINIO | Pullup | Pulldown => 4,
-         when Gyro_EXTI | Gyro_CS => 1,
+         when Gyro_EXTI | Gyro_CS | Gyro_Clkin => 1,
          when others => 0);
 
    --  The pins of an owner.
