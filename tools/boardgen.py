@@ -203,7 +203,8 @@ def generate(config: Path, overrides: dict) -> str:
     fixed = [f"UART{n}_{d}_PIN" for n in range(1, 7) for d in ("TX", "RX")] \
         + [f"SPI{n}_{d}_PIN" for n in range(1, 7) for d in ("SCK", "SDI", "SDO")] \
         + [f"I2C{n}_{d}_PIN" for n in range(1, 5) for d in ("SCL", "SDA")] \
-        + ["LED0_PIN", "GYRO_1_CS_PIN", "GYRO_1_EXTI_PIN", "FLASH_CS_PIN", "SDCARD_SPI_CS_PIN", "SDCARD_DETECT_PIN"]
+        + ["LED0_PIN", "GYRO_1_CS_PIN", "GYRO_1_EXTI_PIN", "GYRO_2_CS_PIN", "GYRO_2_EXTI_PIN", "FLASH_CS_PIN",
+           "SDCARD_SPI_CS_PIN", "SDCARD_DETECT_PIN"]
     pins = sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                   if k.endswith("_PIN") and k not in fixed and re.fullmatch(r"P[A-K]\d{1,2}", v))
     # Every UART's and SPI bus's pins and the pins the crate reads by name, a placeholder where the board

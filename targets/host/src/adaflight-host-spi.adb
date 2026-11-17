@@ -675,6 +675,10 @@ package body Adaflight.STM32.SPI is
    LSM_Layout     : constant Boolean := Gyro_Model in LSM6DSV16X | LSM6DSV32X | LSM6DSK320X;
    Gyro_Model_Bus : constant Bus :=
      (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
+   --  A board's second gyro is the same model behind its own select pin.
+   Gyro_2_Model_Bus : constant Bus :=
+     (if Adaflight.Board.Gyro_2_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_2_SPI_Device - 1)
+      else SPI1);
    Gyro_Sleep     : constant Byte := 16#40#;
    Gyro_Step_Ms   : constant := 8_000;
    subtype Gyro_Bank_Index is Natural range 0 .. 4;
@@ -698,6 +702,10 @@ package body Adaflight.STM32.SPI is
    BMI_Loaded       : Boolean := False;
    Gyro_Registers : Gyro_Banks := Gyro_Reset;
    Gyro_Bank      : Gyro_Bank_Index := 0;
+   --  Whether the transfer in progress selects a board's second gyro. That
+   --  chip shares the first one's registers and reads twice its rates and
+   --  twice its first acceleration, so each chip's readings tell it apart.
+   Second_Gyro_Selected : Boolean := False;
 
    --  One of the chip's seven readings: three accelerations, the
    --  temperature of 25 degrees and three rates. A chip that sleeps, or
@@ -705,9 +713,12 @@ package body Adaflight.STM32.SPI is
    function Gyro_Reading (Which : Natural) return Integer is
       type Axes is array (1 .. 3) of Integer;
       One_G : constant Integer := (if Gyro_Model in IIM42653 | LSM6DSV32X then 1_024 else 2_048);
-      Acc   : Axes := (One_G / 16, -One_G / 8, One_G - One_G / 256);
+      Acc   : Axes :=
+        ((if Second_Gyro_Selected then One_G / 8 else One_G / 16), -One_G / 8, One_G - One_G / 256);
       Rates : Axes :=
-        (if Adaflight.STM32.Time.Millis >= Gyro_Step_Ms then (164, 328, -492) else (0, 0, 0));
+        (if Adaflight.STM32.Time.Millis < Gyro_Step_Ms then (0, 0, 0)
+         elsif Second_Gyro_Selected then (328, 656, -984)
+         else (164, 328, -492));
       Awake : constant Boolean :=
         (case Gyro_Model is
             when MPU6000 | ICM20602 | ICM20689 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
@@ -940,6 +951,13 @@ package body Adaflight.STM32.SPI is
         and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Gyro_1_CS_Pin)
       then
          Gyro_Frame (Tx, Rx);
+      elsif Adaflight.Board.Gyro_Count > 1 and then Adaflight.Board.Gyro_2_CS_Tag /= 0
+        and then B = Gyro_2_Model_Bus and then Gyro_Model /= No_Model
+        and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Gyro_2_CS_Pin)
+      then
+         Second_Gyro_Selected := True;
+         Gyro_Frame (Tx, Rx);
+         Second_Gyro_Selected := False;
       else
          Rx := (others => 16#FF#);
       end if;

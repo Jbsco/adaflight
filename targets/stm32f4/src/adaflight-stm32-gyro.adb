@@ -1,8 +1,12 @@
 with Adaflight.STM32.Gyro_Chip;
 package body Adaflight.STM32.Gyro is
-   procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report)
-     renames Gyro_Chip.Start;
-   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) renames Gyro_Chip.Read_Gyro;
+   procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report)
+     renames Gyro_Chip.Detect;
+   procedure Init
+     (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : in out Report)
+     renames Gyro_Chip.Init;
+   procedure Set_Active (Position : Natural) renames Gyro_Chip.Set_Active;
+   procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean) renames Gyro_Chip.Read_Gyro;
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean) renames Gyro_Chip.Read_Acc;
    function Mode return Read_Mode renames Gyro_Chip.Mode;
    function Interrupt_Count return Interfaces.Unsigned_32 renames Gyro_Chip.Interrupt_Count;
