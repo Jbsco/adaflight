@@ -263,13 +263,18 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
-      Gyro_Clkin_Tag   => Adaflight.Board.Gyro_Clkin_Tag,
-      Gyro_SPI_Device  => (if Adaflight.Board.Gyro_SPI then Adaflight.Board.Gyro_1_SPI_Device else 0),
-      Gyro_CS_Tag      => Adaflight.Board.Gyro_1_CS_Tag,
-      Gyro_EXTI_Tag    => Adaflight.Board.Gyro_1_EXTI_Tag,
-      Gyro_Align       => Adaflight.Board.Gyro_1_Align,
-      Gyro_Custom_Align =>
-        (Adaflight.Board.Gyro_1_Align_Roll, Adaflight.Board.Gyro_1_Align_Pitch, Adaflight.Board.Gyro_1_Align_Yaw),
+      Gyros            =>
+        (0      =>
+           (SPI_Device   => (if Adaflight.Board.Gyro_SPI then Adaflight.Board.Gyro_1_SPI_Device else 0),
+            CS_Tag       => Adaflight.Board.Gyro_1_CS_Tag,
+            EXTI_Tag     => Adaflight.Board.Gyro_1_EXTI_Tag,
+            Clkin_Tag    => Adaflight.Board.Gyro_Clkin_Tag,
+            Align        => Adaflight.Board.Gyro_1_Align,
+            Custom_Align =>
+              (Adaflight.Board.Gyro_1_Align_Roll, Adaflight.Board.Gyro_1_Align_Pitch,
+               Adaflight.Board.Gyro_1_Align_Yaw)),
+         others => <>),
+      Gyros_Enabled    => 1,
       VTX_CS_Tag       => Adaflight.Board.VTX_CS_Tag,
       VTX_Power_Tag    => Adaflight.Board.VTX_Power_Tag,
       VTX_Clock_Tag    => Adaflight.Board.VTX_Clock_Tag,

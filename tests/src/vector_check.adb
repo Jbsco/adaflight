@@ -80,6 +80,7 @@ with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
 with Adaflight.Board_Info;
+with Adaflight.Config_Reset;
 with Adaflight.Bytes;
 with Adaflight.Build_Options;
 with Adaflight.Spektrum_Bind;
@@ -32028,37 +32029,53 @@ procedure Vector_Check is
       end if;
    end Check_Ack_Receiver_Line;
 
-   --  A board's gyro values written into a reset configuration: the gyro
-   --  device entry as the reference's reset writes it from the board's defines.
+   --  A board's gyro values in a reset configuration for the board's gyro
+   --  count: the enabled mask and both gyro device entries as the reference's
+   --  resets write them from the board's defines.
    procedure Check_Gyro_Device_Line is
       use Adaflight.Config_Groups;
-      C     : Configuration := Defaults;
+      C     : Configuration;
       Board : Adaflight.Board_Info.State;
+      Count : constant Positive := Positive (Int (4));
    begin
-      Board.Hardware.Gyro_SPI_Device := Byte (Int (5));
-      Board.Hardware.Gyro_CS_Tag := Byte (Int (6));
-      Board.Hardware.Gyro_EXTI_Tag := Byte (Int (7));
-      Board.Hardware.Gyro_Clkin_Tag := Byte (Int (8));
-      Board.Hardware.Gyro_Align := Byte (Int (9));
-      Board.Hardware.Gyro_Custom_Align :=
-        (Interfaces.Integer_16 (Int (10)), Interfaces.Integer_16 (Int (11)), Interfaces.Integer_16 (Int (12)));
-      Adaflight.Board_Info.Reset_Config (C, Board);
-      declare
-         G : constant Gyro_Device_Config_Record := C.Gyro_Device_Config (0);
-      begin
-         Record_Int ("gyrodev.index", Int (13), Integer_64 (G.Index));
-         Record_Int ("gyrodev.bus_type", Int (14), Integer_64 (G.Bus_Type));
-         Record_Int ("gyrodev.spi_bus", Int (15), Integer_64 (G.Spi_Bus));
-         Record_Int ("gyrodev.select_tag", Int (16), Integer_64 (G.Csn_Tag));
-         Record_Int ("gyrodev.i2c_bus", Int (17), Integer_64 (G.I2c_Bus));
-         Record_Int ("gyrodev.i2c_address", Int (18), Integer_64 (G.I2c_Address));
-         Record_Int ("gyrodev.interrupt_tag", Int (19), Integer_64 (G.Exti_Tag));
-         Record_Int ("gyrodev.alignment", Int (20), Integer_64 (G.Alignment));
-         Record_Int ("gyrodev.custom_roll", Int (21), Integer_64 (G.Custom_Alignment (0)));
-         Record_Int ("gyrodev.custom_pitch", Int (22), Integer_64 (G.Custom_Alignment (1)));
-         Record_Int ("gyrodev.custom_yaw", Int (23), Integer_64 (G.Custom_Alignment (2)));
-         Record_Int ("gyrodev.clock_tag", Int (24), Integer_64 (G.Clk_In));
-      end;
+      Board.Hardware.Gyros_Enabled := Byte (Int (5));
+      for G in 0 .. 1 loop
+         Board.Hardware.Gyros (G) :=
+           (SPI_Device   => Byte (Int (6 + 8 * G)),
+            CS_Tag       => Byte (Int (7 + 8 * G)),
+            EXTI_Tag     => Byte (Int (8 + 8 * G)),
+            Clkin_Tag    => Byte (Int (9 + 8 * G)),
+            Align        => Byte (Int (10 + 8 * G)),
+            Custom_Align =>
+              (Interfaces.Integer_16 (Int (11 + 8 * G)), Interfaces.Integer_16 (Int (12 + 8 * G)),
+               Interfaces.Integer_16 (Int (13 + 8 * G))));
+      end loop;
+      --  A board with one gyro may still name a second gyro's bus, which must
+      --  leave the second entry as it is.
+      if Count = 1 then
+         Board.Hardware.Gyros (1) := Board.Hardware.Gyros (0);
+      end if;
+      Adaflight.Config_Reset.Reset (Board, False, Count, C);
+      Record_Int ("gyrodev.enabled_mask", Int (5), Integer_64 (C.Gyro_Config.Gyro_Enabled_Bitmask));
+      for G in 0 .. 1 loop
+         declare
+            E : constant Gyro_Device_Config_Record := C.Gyro_Device_Config (G);
+            F : constant Positive := 22 + 12 * G;
+         begin
+            Record_Int ("gyrodev.index", Int (F), Integer_64 (E.Index));
+            Record_Int ("gyrodev.bus_type", Int (F + 1), Integer_64 (E.Bus_Type));
+            Record_Int ("gyrodev.spi_bus", Int (F + 2), Integer_64 (E.Spi_Bus));
+            Record_Int ("gyrodev.select_tag", Int (F + 3), Integer_64 (E.Csn_Tag));
+            Record_Int ("gyrodev.i2c_bus", Int (F + 4), Integer_64 (E.I2c_Bus));
+            Record_Int ("gyrodev.i2c_address", Int (F + 5), Integer_64 (E.I2c_Address));
+            Record_Int ("gyrodev.interrupt_tag", Int (F + 6), Integer_64 (E.Exti_Tag));
+            Record_Int ("gyrodev.alignment", Int (F + 7), Integer_64 (E.Alignment));
+            Record_Int ("gyrodev.custom_roll", Int (F + 8), Integer_64 (E.Custom_Alignment (0)));
+            Record_Int ("gyrodev.custom_pitch", Int (F + 9), Integer_64 (E.Custom_Alignment (1)));
+            Record_Int ("gyrodev.custom_yaw", Int (F + 10), Integer_64 (E.Custom_Alignment (2)));
+            Record_Int ("gyrodev.clock_tag", Int (F + 11), Integer_64 (E.Clk_In));
+         end;
+      end loop;
    end Check_Gyro_Device_Line;
 
    Settings_Seen  : Natural := 0;

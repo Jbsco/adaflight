@@ -15741,3 +15741,21 @@ Oracle `gen_gyrodev` builds the reference's gyro device reset once per set of bo
 checks the entry `Reset_Config` writes from each set's board values, and `tools/boardgen-check.py` checks that
 the generator reads those values from the same defines. Host smoke checks the default board's bus, pins and
 alignment, and `hostwing.do` checks a LUXF4OSD image's turned readings.
+
+## D795. Board description of a second gyro (2026-11-17)
+
+`tools/boardgen.py` now gives a board's gyro count, the mask of gyros it enables by default, and a second
+gyro's SPI bus, pins, alignment code and custom angles. Count follows the select pins a board names, capped at
+two, since the configuration has two gyro device entries. One board configuration names a third gyro. The mask
+follows `DEFAULT_GYRO_TO_USE`: the first gyro, the second or both, and the first where a board says nothing.
+
+`Board_Info.Hardware_Defaults` has a gyro per device entry and that mask. `Reset_Config` takes a gyro count,
+writes the mask, and writes each entry of that count whose gyro has an SPI bus. A second gyro without a bus
+keeps the entry `Apply_Second_Gyro` gave it: index 1 and no bus.
+
+Board images still read one gyro. The flight unit passes one gyro and the first gyro's values, so no board's
+configuration changes with this entry.
+
+Oracle `gen_gyrodev` now takes count and mask from the reference's own header lines and has sets of defines
+for two gyros. Family `gyrodev` checks the mask and both entries of a reset configuration, and
+`tools/boardgen-check.py` checks count, mask and each gyro's values against those sets.

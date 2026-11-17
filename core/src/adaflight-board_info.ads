@@ -27,6 +27,21 @@ package Adaflight.Board_Info with SPARK_Mode is
    Board_Name_Length   : constant := 20;
    Manufacturer_Length : constant := 4;
 
+   --  A gyro as the board has it: its SPI bus from 1, zero where the board
+   --  names none or has no gyro driver on an SPI bus, its select, interrupt
+   --  and clock pins, its alignment code and a custom alignment's angles in
+   --  decidegrees. Without a bus the gyro's device entry keeps its defaults,
+   --  the clock pin among them.
+   type Gyro_Defaults is record
+      SPI_Device   : Interfaces.Unsigned_8 := 0;
+      CS_Tag       : Interfaces.Unsigned_8 := 0;
+      EXTI_Tag     : Interfaces.Unsigned_8 := 0;
+      Clkin_Tag    : Interfaces.Unsigned_8 := 0;
+      Align        : Interfaces.Unsigned_8 := 0;
+      Custom_Align : Adaflight.Config_Groups.Integer_16_List_3 := (others => 0);
+   end record;
+   type Gyro_Defaults_List is array (0 .. 1) of Gyro_Defaults;
+
    --  An analog input as the board has it: whether it is on, and its pin's
    --  tag, zero for none.
    type Analog_Input is record
@@ -70,17 +85,9 @@ package Adaflight.Board_Info with SPARK_Mode is
       SD_Detect_Low    : Boolean := False;
       Flash_SPI_Device : Interfaces.Unsigned_8 := 0;
       Flash_CS_Tag     : Interfaces.Unsigned_8 := 0;
-      Gyro_Clkin_Tag   : Interfaces.Unsigned_8 := 0;
-      --  The first gyro's SPI bus from 1, zero where the board names none or
-      --  has no gyro driver on an SPI bus, then its select and interrupt
-      --  pins, its alignment code and a custom alignment's angles in
-      --  decidegrees. Without a bus the gyro device entry keeps its defaults,
-      --  the clock pin among them.
-      Gyro_SPI_Device  : Interfaces.Unsigned_8 := 0;
-      Gyro_CS_Tag      : Interfaces.Unsigned_8 := 0;
-      Gyro_EXTI_Tag    : Interfaces.Unsigned_8 := 0;
-      Gyro_Align       : Interfaces.Unsigned_8 := 0;
-      Gyro_Custom_Align : Adaflight.Config_Groups.Integer_16_List_3 := (others => 0);
+      --  The board's gyros, and the mask of those it enables by default.
+      Gyros            : Gyro_Defaults_List;
+      Gyros_Enabled    : Interfaces.Unsigned_8 := 1;
       Blackbox_Device  : Interfaces.Unsigned_8 := 0;
       PINIO_Tags       : PINIO_Bytes := (others => 0);
       PINIO_Configs    : PINIO_Bytes := (others => 1);
@@ -178,8 +185,9 @@ package Adaflight.Board_Info with SPARK_Mode is
 
    --  The board configuration's reset: a reset configuration keeps the
    --  information and the signature the board has taken in, and takes the
-   --  board's hardware defaults.
-   procedure Reset_Config (C : in out Configuration; Board : State);
+   --  board's hardware defaults, with a gyro device entry for each of that
+   --  many gyros.
+   procedure Reset_Config (C : in out Configuration; Board : State; Gyros : Positive := 1);
 
    --  The board's information as a command set it, stored and taken in
    --  again.
