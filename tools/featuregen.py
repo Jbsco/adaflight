@@ -179,10 +179,20 @@ HEAP_RESERVE = 4096
 BOOT_STACK = 16384
 
 # Zeroed objects a packed build moves from the main RAM to the core coupled memory, for the main RAM the packed
-# data takes. None of them is a DMA target.
+# data and code take. None of them is a DMA target.
 CCM_OBJECTS = ["adaflight__stm32__usart__receivers", "adaflight__stm32__flight__config",
                "adaflight__stm32__flight__ctx", "adaflight__stm32__osd__context", "adaflight__stm32__flight__sched",
-               "adaflight__stm32__flight__lines"]
+               "adaflight__stm32__flight__lines", "adaflight__stm32__flight__env", "adaflight__stm32__rx_spi_cc2500__ops",
+               "adaflight__stm32__esc_serial_port__p", "adaflight__stm32__blackbox__in_flight",
+               "adaflight__stm32__osd__chip_state", "adaflight__stm32__rx_spi_cc2500__state",
+               "adaflight__stm32__rx_spi_cc2500__trial_state", "adaflight__stm32__pilot__rc",
+               "adaflight__stm32__osd__task_data", "adaflight__stm32__control__ctl", "adaflight__stm32__osd__trail",
+               "adaflight__stm32__rx_spi_cc2500__rp_trial", "adaflight__stm32__rx_spi_cc2500__rp_state",
+               "adaflight__stm32__flight__adj_ranges", "adaflight__stm32__blackbox__l",
+               "adaflight__stm32__rx_spi_cc2500__cal", "adaflight__stm32__smartport__tunnel",
+               "adaflight__stm32__rx_spi_cc2500__tunnel", "adaflight__stm32__radio__msp_link",
+               "adaflight__stm32__rx_spi_sx1280__pin_ops", "adaflight__stm32__rx_spi_sx1280__receiver",
+               "adaflight__stm32__rx_spi_sx1280__tunnel"]
 
 
 # The RAM the unpacking's model takes in the main stack, below the start-up's frames.
