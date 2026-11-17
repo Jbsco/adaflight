@@ -79,6 +79,7 @@ with Adaflight.Tramp;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
+with Adaflight.Board_Info;
 with Adaflight.Bytes;
 with Adaflight.Build_Options;
 with Adaflight.Spektrum_Bind;
@@ -32027,6 +32028,39 @@ procedure Vector_Check is
       end if;
    end Check_Ack_Receiver_Line;
 
+   --  A board's gyro values written into a reset configuration: the gyro
+   --  device entry as the reference's reset writes it from the board's defines.
+   procedure Check_Gyro_Device_Line is
+      use Adaflight.Config_Groups;
+      C     : Configuration := Defaults;
+      Board : Adaflight.Board_Info.State;
+   begin
+      Board.Hardware.Gyro_SPI_Device := Byte (Int (5));
+      Board.Hardware.Gyro_CS_Tag := Byte (Int (6));
+      Board.Hardware.Gyro_EXTI_Tag := Byte (Int (7));
+      Board.Hardware.Gyro_Clkin_Tag := Byte (Int (8));
+      Board.Hardware.Gyro_Align := Byte (Int (9));
+      Board.Hardware.Gyro_Custom_Align :=
+        (Interfaces.Integer_16 (Int (10)), Interfaces.Integer_16 (Int (11)), Interfaces.Integer_16 (Int (12)));
+      Adaflight.Board_Info.Reset_Config (C, Board);
+      declare
+         G : constant Gyro_Device_Config_Record := C.Gyro_Device_Config (0);
+      begin
+         Record_Int ("gyrodev.index", Int (13), Integer_64 (G.Index));
+         Record_Int ("gyrodev.bus_type", Int (14), Integer_64 (G.Bus_Type));
+         Record_Int ("gyrodev.spi_bus", Int (15), Integer_64 (G.Spi_Bus));
+         Record_Int ("gyrodev.select_tag", Int (16), Integer_64 (G.Csn_Tag));
+         Record_Int ("gyrodev.i2c_bus", Int (17), Integer_64 (G.I2c_Bus));
+         Record_Int ("gyrodev.i2c_address", Int (18), Integer_64 (G.I2c_Address));
+         Record_Int ("gyrodev.interrupt_tag", Int (19), Integer_64 (G.Exti_Tag));
+         Record_Int ("gyrodev.alignment", Int (20), Integer_64 (G.Alignment));
+         Record_Int ("gyrodev.custom_roll", Int (21), Integer_64 (G.Custom_Alignment (0)));
+         Record_Int ("gyrodev.custom_pitch", Int (22), Integer_64 (G.Custom_Alignment (1)));
+         Record_Int ("gyrodev.custom_yaw", Int (23), Integer_64 (G.Custom_Alignment (2)));
+         Record_Int ("gyrodev.clock_tag", Int (24), Integer_64 (G.Clk_In));
+      end;
+   end Check_Gyro_Device_Line;
+
    Settings_Seen  : Natural := 0;
    --  The build the settings and defaults files name, and the settings each
    --  build's file listed.
@@ -43844,6 +43878,8 @@ procedure Vector_Check is
                   Check_CX10_Line;
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
+               elsif Kind = "gyrodev" then
+                  Check_Gyro_Device_Line;
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
                  or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2"
                then
@@ -44235,6 +44271,7 @@ begin
    Run (Dir & "/h83d.csv", "h83d");
    Run (Dir & "/cx10.csv", "cx10");
    Run (Dir & "/ackrx.csv", "ackrx");
+   Run (Dir & "/gyrodev.csv", "gyrodev");
    Run (Dir & "/settings.csv", "settings");
    Run (Dir & "/confgroups.csv", "confgroups");
    Settings_Seen := 0;

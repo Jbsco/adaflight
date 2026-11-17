@@ -71,6 +71,16 @@ package Adaflight.Board_Info with SPARK_Mode is
       Flash_SPI_Device : Interfaces.Unsigned_8 := 0;
       Flash_CS_Tag     : Interfaces.Unsigned_8 := 0;
       Gyro_Clkin_Tag   : Interfaces.Unsigned_8 := 0;
+      --  The first gyro's SPI bus from 1, zero where the board names none or
+      --  has no gyro driver on an SPI bus, then its select and interrupt
+      --  pins, its alignment code and a custom alignment's angles in
+      --  decidegrees. Without a bus the gyro device entry keeps its defaults,
+      --  the clock pin among them.
+      Gyro_SPI_Device  : Interfaces.Unsigned_8 := 0;
+      Gyro_CS_Tag      : Interfaces.Unsigned_8 := 0;
+      Gyro_EXTI_Tag    : Interfaces.Unsigned_8 := 0;
+      Gyro_Align       : Interfaces.Unsigned_8 := 0;
+      Gyro_Custom_Align : Adaflight.Config_Groups.Integer_16_List_3 := (others => 0);
       Blackbox_Device  : Interfaces.Unsigned_8 := 0;
       PINIO_Tags       : PINIO_Bytes := (others => 0);
       PINIO_Configs    : PINIO_Bytes := (others => 1);

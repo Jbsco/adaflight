@@ -264,6 +264,12 @@ package body Adaflight.STM32.Flight is
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
       Gyro_Clkin_Tag   => Adaflight.Board.Gyro_Clkin_Tag,
+      Gyro_SPI_Device  => (if Adaflight.Board.Gyro_SPI then Adaflight.Board.Gyro_1_SPI_Device else 0),
+      Gyro_CS_Tag      => Adaflight.Board.Gyro_1_CS_Tag,
+      Gyro_EXTI_Tag    => Adaflight.Board.Gyro_1_EXTI_Tag,
+      Gyro_Align       => Adaflight.Board.Gyro_1_Align,
+      Gyro_Custom_Align =>
+        (Adaflight.Board.Gyro_1_Align_Roll, Adaflight.Board.Gyro_1_Align_Pitch, Adaflight.Board.Gyro_1_Align_Yaw),
       VTX_CS_Tag       => Adaflight.Board.VTX_CS_Tag,
       VTX_Power_Tag    => Adaflight.Board.VTX_Power_Tag,
       VTX_Clock_Tag    => Adaflight.Board.VTX_Clock_Tag,

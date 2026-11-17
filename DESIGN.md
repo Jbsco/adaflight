@@ -15718,3 +15718,26 @@ description names a second.
 A command generator mode writes sets and gets of gyro settings, resource commands on gyro owners, diffs,
 hardware dumps and resets, and MSP setting messages over those settings. A one gyro settings oracle and a two
 gyro one answer that one input, as families `cligyros` and `cligyro2`.
+
+## D794. Board gyro bus, pins and alignment as configuration defaults (2026-11-16)
+
+A board's gyro alignment had no way into a board build. Gyro and accelerometer readings turn by the alignment
+in the configuration's gyro device entry, and that entry got only the clock pin from the board. This Betaflight
+version has no setting for a gyro's alignment, so a board's `GYRO_1_ALIGN` is its only source. A host image
+built for LUXF4OSD, which names CW180, read the MPU6000 model's acceleration as (32, -64, 510), unturned. With
+this change it reads (-32, 64, 510). No bench run showed the fault: CLRACINGF7 names no alignment for its first
+gyro.
+
+`tools/boardgen.py` now gives the first gyro's select and interrupt pins, whether a gyro driver takes an SPI
+bus, and the alignment code, CW0 where a board names none. It gives custom angles from `GYRO_1_ALIGN_ROLL`,
+`_PITCH` and `_YAW`, cut to whole degrees as the reference cuts them. `Board_Info.Reset_Config` writes the
+entry when the board has a gyro on an SPI bus: bus type, bus, both pins, alignment, a standard alignment's
+angles and the clock pin. Without such a bus the entry keeps its defaults, the clock pin too.
+
+`resource`, `gyro_1_bustype` and `gyro_1_spibus` now show a board's gyro, and the sensor alignment message
+reports its alignment.
+
+Oracle `gen_gyrodev` builds the reference's gyro device reset once per set of board defines. Family `gyrodev`
+checks the entry `Reset_Config` writes from each set's board values, and `tools/boardgen-check.py` checks that
+the generator reads those values from the same defines. Host smoke checks the default board's bus, pins and
+alignment, and `hostwing.do` checks a LUXF4OSD image's turned readings.

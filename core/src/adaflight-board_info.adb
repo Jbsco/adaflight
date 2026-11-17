@@ -1,9 +1,26 @@
 with Adaflight.MSP_Allocation;
+with Adaflight.Sensor_Alignment;
 with Adaflight.Serial_Feature_Map;
 
 package body Adaflight.Board_Info with SPARK_Mode is
    use type Interfaces.Integer_8;
    use type Interfaces.Unsigned_8;
+
+   --  A gyro's custom angles as its alignment gives them: a standard
+   --  alignment's own, a custom alignment's as the board names them, none
+   --  for the default alignment.
+   function Gyro_Angles (Alignment : Interfaces.Unsigned_8; Custom : Integer_16_List_3) return Integer_16_List_3 is
+      use Adaflight.Sensor_Alignment;
+      A : Alignment_Angles;
+   begin
+      if Alignment in 1 .. 8 then
+         From_Standard (A, Standard_Alignment'Val (Alignment));
+         return (A.Roll, A.Pitch, A.Yaw);
+      elsif Alignment = 9 then
+         return Custom;
+      end if;
+      return (others => 0);
+   end Gyro_Angles;
 
    function To_Identity (Text : String) return Identity_Text is
       T : Identity_Text;
@@ -138,7 +155,19 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
       C.Flash_Config.Spi_Device := H.Flash_SPI_Device;
       C.Flash_Config.Cs_Tag := H.Flash_CS_Tag;
-      C.Gyro_Device_Config (0).Clk_In := H.Gyro_Clkin_Tag;
+      if H.Gyro_SPI_Device /= 0 then
+         C.Gyro_Device_Config (0) :=
+           (Index            => 0,
+            Bus_Type         => 2,
+            Spi_Bus          => H.Gyro_SPI_Device,
+            Csn_Tag          => H.Gyro_CS_Tag,
+            I2c_Bus          => 0,
+            I2c_Address      => 0,
+            Exti_Tag         => H.Gyro_EXTI_Tag,
+            Alignment        => H.Gyro_Align,
+            Custom_Alignment => Gyro_Angles (H.Gyro_Align, H.Gyro_Custom_Align),
+            Clk_In           => H.Gyro_Clkin_Tag);
+      end if;
       C.Blackbox_Config.Device := H.Blackbox_Device;
       for I in PINIO_Bytes'Range loop
          C.Pinio_Config.Io_Tag (I) := H.PINIO_Tags (I);
