@@ -85,7 +85,7 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Board_Config.Signature_Set := 1;
    end Store_Signature;
 
-   procedure Reset_Config (C : in out Configuration; Board : State) is
+   procedure Reset_Config (C : in out Configuration; Board : State; Gyros : Positive := 1) is
       H : Hardware_Defaults renames Board.Hardware;
    begin
       if Board.Information_Set then
@@ -155,19 +155,22 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
       C.Flash_Config.Spi_Device := H.Flash_SPI_Device;
       C.Flash_Config.Cs_Tag := H.Flash_CS_Tag;
-      if H.Gyro_SPI_Device /= 0 then
-         C.Gyro_Device_Config (0) :=
-           (Index            => 0,
-            Bus_Type         => 2,
-            Spi_Bus          => H.Gyro_SPI_Device,
-            Csn_Tag          => H.Gyro_CS_Tag,
-            I2c_Bus          => 0,
-            I2c_Address      => 0,
-            Exti_Tag         => H.Gyro_EXTI_Tag,
-            Alignment        => H.Gyro_Align,
-            Custom_Alignment => Gyro_Angles (H.Gyro_Align, H.Gyro_Custom_Align),
-            Clk_In           => H.Gyro_Clkin_Tag);
-      end if;
+      for I in 0 .. Natural'Min (Gyros, Gyro_Defaults_List'Length) - 1 loop
+         if H.Gyros (I).SPI_Device /= 0 then
+            C.Gyro_Device_Config (I) :=
+              (Index            => Interfaces.Integer_8 (I),
+               Bus_Type         => 2,
+               Spi_Bus          => H.Gyros (I).SPI_Device,
+               Csn_Tag          => H.Gyros (I).CS_Tag,
+               I2c_Bus          => 0,
+               I2c_Address      => 0,
+               Exti_Tag         => H.Gyros (I).EXTI_Tag,
+               Alignment        => H.Gyros (I).Align,
+               Custom_Alignment => Gyro_Angles (H.Gyros (I).Align, H.Gyros (I).Custom_Align),
+               Clk_In           => H.Gyros (I).Clkin_Tag);
+         end if;
+      end loop;
+      C.Gyro_Config.Gyro_Enabled_Bitmask := H.Gyros_Enabled;
       C.Blackbox_Config.Device := H.Blackbox_Device;
       for I in PINIO_Bytes'Range loop
          C.Pinio_Config.Io_Tag (I) := H.PINIO_Tags (I);

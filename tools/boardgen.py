@@ -131,6 +131,20 @@ def gyro_alignment(defines: dict, n: int):
     return ALIGNMENT_CODES.get(defines.get(f"GYRO_{n}_ALIGN", "CW0_DEG"), 1), [0, 0, 0]
 
 
+def gyro_count(defines: dict) -> int:
+    """The gyros a board names by their select pins, one at least, and two at most as the configuration has
+    two gyro device entries."""
+    return max(1, min(2, sum(1 for n in range(1, 5) if f"GYRO_{n}_CS_PIN" in defines)))
+
+
+def default_gyros_enabled(defines: dict) -> int:
+    """The mask of the gyros a board enables by default: the first, the second or both by name or by number,
+    the first where the board says nothing."""
+    choice = re.sub(r"//.*|/\*.*?\*/", "", defines.get("DEFAULT_GYRO_TO_USE", "")).strip()
+    return {"GYRO_CONFIG_USE_GYRO_1": 1, "0": 1, "GYRO_CONFIG_USE_GYRO_2": 2, "1": 2,
+            "GYRO_CONFIG_USE_GYRO_BOTH": 3, "2": 3}.get(choice, 1)
+
+
 def either(defines: dict, *names: str) -> str:
     """The value of the first of these names the configuration defines, empty for none."""
     return next((defines[n] for n in names if n in defines), "")
@@ -230,8 +244,9 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
     out.append("   --  card's select and detect, the flash chip's select, the USB cable")
     out.append("   --  detect and the UARTs' inverters, zero for none,")
-    out.append("   --  the gyro's and their SPI buses from 1, the gyro's select and interrupt pins, whether a gyro driver")
-    out.append("   --  takes an SPI bus, the gyro's alignment code and custom angles in decidegrees,")
+    out.append("   --  the gyro's and their SPI buses from 1, each gyro's select, interrupt and clock pins, whether a gyro")
+    out.append("   --  driver takes an SPI bus, each gyro's alignment code and custom angles in decidegrees, the gyros the")
+    out.append("   --  board names, two at most, and the mask of those it enables by default,")
     out.append("   --  the barometer's I2C or SPI bus and chip, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
@@ -248,7 +263,8 @@ def generate(config: Path, overrides: dict) -> str:
             ("USB_Detect_Tag", "USB_DETECT_PIN"), ("Baro_CS_Tag", "BARO_CS_PIN"), ("Baro_EOC_Tag", "BARO_EOC_PIN"),
             ("Baro_XCLR_Tag", "BARO_XCLR_PIN"), ("Mag_CS_Tag", "MAG_CS_PIN"), ("Mag_EXTI_Tag", "MAG_INT_EXTI"),
             ("Gyro_Clkin_Tag", "GYRO_1_CLKIN_PIN"), ("Gyro_1_CS_Tag", "GYRO_1_CS_PIN"),
-            ("Gyro_1_EXTI_Tag", "GYRO_1_EXTI_PIN")] \
+            ("Gyro_1_EXTI_Tag", "GYRO_1_EXTI_PIN"), ("Gyro_2_Clkin_Tag", "GYRO_2_CLKIN_PIN"),
+            ("Gyro_2_CS_Tag", "GYRO_2_CS_PIN"), ("Gyro_2_EXTI_Tag", "GYRO_2_EXTI_PIN")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
@@ -278,6 +294,13 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Gyro_1_Align_Roll", gyro_alignment(defines, 1)[1][0]),
                 ("Gyro_1_Align_Pitch", gyro_alignment(defines, 1)[1][1]),
                 ("Gyro_1_Align_Yaw", gyro_alignment(defines, 1)[1][2]),
+                ("Gyro_Count", gyro_count(defines)),
+                ("Default_Gyros_Enabled", default_gyros_enabled(defines)),
+                ("Gyro_2_SPI_Device", spi_device(defines.get("GYRO_2_SPI_INSTANCE", ""))),
+                ("Gyro_2_Align", gyro_alignment(defines, 2)[0]),
+                ("Gyro_2_Align_Roll", gyro_alignment(defines, 2)[1][0]),
+                ("Gyro_2_Align_Pitch", gyro_alignment(defines, 2)[1][1]),
+                ("Gyro_2_Align_Yaw", gyro_alignment(defines, 2)[1][2]),
                 ("Gyro_MPU6000", "True" if "USE_GYRO_SPI_MPU6000" in defines else "False"),
                 ("Gyro_MPU6500", "True" if "USE_GYRO_SPI_MPU6500" in defines else "False"),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),

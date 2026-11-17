@@ -19,7 +19,7 @@ package body Adaflight.Config_Reset with SPARK_Mode is
          Apply_Second_Gyro (C);
       end if;
       Apply_Tuning (C);
-      Board_Info.Reset_Config (C, Board);
+      Board_Info.Reset_Config (C, Board, Gyros);
    end Reset;
 
    function Reset
