@@ -3103,6 +3103,32 @@ def gyro_chip_checks(image, work):
               repr(turning))
 
 
+def board_gyro_checks(image, work):
+    """The board's gyro as a fresh configuration has it: the SPI bus and the select and interrupt pins of the
+    board the host stands in for, and its alignment, which is the first standard one where a board names none."""
+    store = os.path.join(work, "board-gyro-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": "MPU6000"})
+    try:
+        time.sleep(2.5)
+        aligned = msp(sock, 126)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        settings = cli(sock, "get gyro_1")
+        pins = cli(sock, "resource")
+    finally:
+        stop(proc)
+        sock.close()
+    check("a fresh configuration has the board's gyro on its SPI bus",
+          "gyro_1_bustype = SPI" in settings and "gyro_1_spibus = 1" in settings, repr(settings[-200:]))
+    check("resource lists the board's gyro select and interrupt pins",
+          "resource GYRO_EXTI 1 C04" in pins and "resource GYRO_CS 1 A04" in pins, repr(pins[-300:]))
+    check("the sensor alignment reply gives the first standard alignment for a board that names none",
+          aligned is not None and len(aligned) >= 2 and aligned[0] == 1 and aligned[1] == 1,
+          repr(aligned[:5] if aligned else aligned))
+
+
 def gyro_clock_checks(image, work):
     """The gyro clock input over the host's ICM426xx models, with the clock's start and each register write of a
     model in one log. Without a clock pin no clock starts and an ICM-42688-P keeps its own oscillator. With the
@@ -6207,6 +6233,7 @@ def main():
         hott_menu_checks(image, work)
         menu_live_config_checks(image, work)
         gyro_chip_checks(image, work)
+        board_gyro_checks(image, work)
         gyro_clock_checks(image, work)
         baro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})

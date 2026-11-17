@@ -109,6 +109,28 @@ def serial_port(text) -> int:
     return -1
 
 
+# The gyro drivers on an SPI bus: with one of them a board's gyro bus is its SPI instance.
+SPI_GYROS = ("USE_SPI_GYRO", "USE_GYRO_SPI_ICM20689", "USE_GYRO_SPI_MPU6000", "USE_GYRO_SPI_MPU6500",
+             "USE_GYRO_SPI_MPU9250", "USE_GYRO_SPI_ICM20601", "USE_GYRO_SPI_ICM20602", "USE_GYRO_SPI_ICM20608G",
+             "USE_GYRO_L3GD20", "USE_ACCGYRO_BMI160", "USE_ACCGYRO_BMI270", "USE_ACCGYRO_BMI423",
+             "USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P", "USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P",
+             "USE_ACCGYRO_ICM56686", "USE_ACCGYRO_ICM40609D", "USE_ACCGYRO_ICM45605", "USE_ACCGYRO_ICM45686",
+             "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653", "USE_ACCGYRO_LSM6DSV16X", "USE_ACCGYRO_LSM6DSV32X",
+             "USE_ACCGYRO_LSM6DSO", "USE_ACCGYRO_LSM6DSK320X")
+ALIGNMENT_CODES = {"ALIGN_DEFAULT": 0, "CW0_DEG": 1, "CW90_DEG": 2, "CW180_DEG": 3, "CW270_DEG": 4, "CW0_DEG_FLIP": 5,
+                   "CW90_DEG_FLIP": 6, "CW180_DEG_FLIP": 7, "CW270_DEG_FLIP": 8, "ALIGN_CUSTOM": 9}
+
+
+def gyro_alignment(defines: dict, n: int):
+    """A gyro's alignment code and its custom angles in decidegrees: the board's standard alignment, CW0 where
+    it names none, or the custom code with the board's angles cut to whole degrees."""
+    angles = [defines.get(f"GYRO_{n}_ALIGN_{axis}") for axis in ("ROLL", "PITCH", "YAW")]
+    if any(a is not None for a in angles):
+        return (ALIGNMENT_CODES.get(defines.get(f"GYRO_{n}_ALIGN", "ALIGN_CUSTOM"), 9),
+                [int(number(a, 0) / 10) * 10 for a in angles])
+    return ALIGNMENT_CODES.get(defines.get(f"GYRO_{n}_ALIGN", "CW0_DEG"), 1), [0, 0, 0]
+
+
 def either(defines: dict, *names: str) -> str:
     """The value of the first of these names the configuration defines, empty for none."""
     return next((defines[n] for n in names if n in defines), "")
@@ -208,7 +230,9 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
     out.append("   --  card's select and detect, the flash chip's select, the USB cable")
     out.append("   --  detect and the UARTs' inverters, zero for none,")
-    out.append("   --  the gyro's and their SPI buses from 1, the barometer's I2C or SPI bus and chip, whether the detect pin reads low")
+    out.append("   --  the gyro's and their SPI buses from 1, the gyro's select and interrupt pins, whether a gyro driver")
+    out.append("   --  takes an SPI bus, the gyro's alignment code and custom angles in decidegrees,")
+    out.append("   --  the barometer's I2C or SPI bus and chip, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
     out.append("   --  motors', the LED strip's, the camera control and the ESC serial pins,")
@@ -223,7 +247,8 @@ def generate(config: Path, overrides: dict) -> str:
             ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN"),
             ("USB_Detect_Tag", "USB_DETECT_PIN"), ("Baro_CS_Tag", "BARO_CS_PIN"), ("Baro_EOC_Tag", "BARO_EOC_PIN"),
             ("Baro_XCLR_Tag", "BARO_XCLR_PIN"), ("Mag_CS_Tag", "MAG_CS_PIN"), ("Mag_EXTI_Tag", "MAG_INT_EXTI"),
-            ("Gyro_Clkin_Tag", "GYRO_1_CLKIN_PIN")] \
+            ("Gyro_Clkin_Tag", "GYRO_1_CLKIN_PIN"), ("Gyro_1_CS_Tag", "GYRO_1_CS_PIN"),
+            ("Gyro_1_EXTI_Tag", "GYRO_1_EXTI_PIN")] \
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
@@ -248,6 +273,11 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
                 ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
                 ("Gyro_1_SPI_Device", spi_device(defines.get("GYRO_1_SPI_INSTANCE", ""))),
+                ("Gyro_SPI", "True" if any(d in defines for d in SPI_GYROS) else "False"),
+                ("Gyro_1_Align", gyro_alignment(defines, 1)[0]),
+                ("Gyro_1_Align_Roll", gyro_alignment(defines, 1)[1][0]),
+                ("Gyro_1_Align_Pitch", gyro_alignment(defines, 1)[1][1]),
+                ("Gyro_1_Align_Yaw", gyro_alignment(defines, 1)[1][2]),
                 ("Gyro_MPU6000", "True" if "USE_GYRO_SPI_MPU6000" in defines else "False"),
                 ("Gyro_MPU6500", "True" if "USE_GYRO_SPI_MPU6500" in defines else "False"),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),
