@@ -21,8 +21,8 @@ with Interfaces;
 --  2500 hundredths of a degree and 101325 pascal. With QMP6988 the address
 --  16#70# carries a QMP6988, again with no chip at the first address: its
 --  identity, the calibration bytes of two offsets with every other
---  coefficient at its base value, and raw readings that compensate to 25
---  degrees, which that chip's driver gives whole, and 101324 pascal. With
+--  coefficient at its base value, and raw readings that compensate to 2546
+--  hundredths of a degree and 101324 pascal. With
 --  BMP085 the address 16#77# carries a BMP085: its identity, the
 --  calibration of its datasheet's worked example, and the temperature or
 --  pressure reading that a control write asked for last, the example's at

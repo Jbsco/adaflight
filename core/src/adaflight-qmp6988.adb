@@ -186,7 +186,12 @@ package body Adaflight.QMP6988 with SPARK_Mode is
          end if;
       end;
       if Tr /= 0.0 then
-         Temperature := Cut (Tr) / 256;
+         declare
+            Scaled : constant Float := Tr * 100.0;
+         begin
+            pragma Assert (abs Scaled <= 1.1E7);
+            Temperature := Cut (Scaled / 256.0);
+         end;
       end if;
    end Calculate;
 

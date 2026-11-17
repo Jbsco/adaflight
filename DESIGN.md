@@ -15658,3 +15658,14 @@ Host I2C gains a BMP085 model when `ADAFLIGHT_BARO_CHIP` is BMP085, with its dat
 reading a control write asked for last. Host smoke reads that chip's name from its status and 15.00 degrees
 and 700 hPa from its barometer's debug values. Betaflight's integer arithmetic on those readings gives 1500
 and 69963 pascal. No board has run a BMP085.
+
+## D790. QMP6988 temperature in hundredths (2026-11-16)
+
+D351's QMP6988 driver now gives its temperature in hundredths of a degree, as every reader of a barometer's
+temperature expects. Betaflight's driver divides its compensated value by 256 for whole degrees. With that,
+25 degrees reads as 0.25 in telemetry and debug values, and altitude drift correction acts at a hundredth of
+its setting (divergence, F362).
+
+This oracle's fixed QMP6988 source gained that change beside F271's. Its regenerated cases differ from before
+in temperature results alone, each a hundred times its old whole-degree value to within one degree. Host
+smoke now reads 25.46 degrees from its QMP6988 model.
