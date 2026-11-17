@@ -233,7 +233,7 @@ package Adaflight.Settings_Table with SPARK_Mode is
    --  Whether the multirotor or the wing build has a setting, with the flight plan or without it,
    --  on a board with that many gyros.
    function In_Build
-     (S : Setting; Wing : Boolean; Gyros : Positive := 1;
+     (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table.
