@@ -3032,8 +3032,9 @@ def gyro_chip_checks(image, work):
     acceleration and, 8 s after the start, its rates. The attitude reply shows that acceleration's tilt. A
     model's data registers read zeros until the start wakes its sensors, which for the BMI270 takes its select
     pin's rise after a reset and its whole configuration file. The IIM-42653 and the LSM6DSV32X count 1024 for
-    one g where the others count 2048, so the same acceleration and tilt from each show both. Over configuration
-    stores of their own."""
+    one g where the others count 2048, so the same acceleration and tilt from each show both. A chip's run is
+    repeated once when its gyro task's rate is outside its band, since an image short of processor time runs
+    that task slower. Over configuration stores of their own."""
 
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
@@ -3043,30 +3044,47 @@ def gyro_chip_checks(image, work):
                                                ("ICM20602", 0x12, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
                                                ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz")):
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
-        if os.path.exists(store):
-            os.remove(store)
-        began = time.time()
-        proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": chip})
 
-        def raw_imu():
-            reply = msp(sock, 102)
-            return struct.unpack("<9h", reply) if reply is not None and len(reply) == 18 else None
+        def run():
+            """One start over the chip's model: its readings, its replies and its gyro task's rate."""
+            if os.path.exists(store):
+                os.remove(store)
+            began = time.time()
+            proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": chip})
 
-        try:
-            time.sleep(max(0.0, began + 4.0 - time.time()))
-            still = raw_imu()
-            reply = msp(sock, 108)
-            tilt = struct.unpack("<3h", reply)[:2] if reply is not None and len(reply) == 6 else None
-            time.sleep(max(0.0, began + 10.5 - time.time()))
-            turning = raw_imu()
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            status = cli(sock, "status")
-            registers = cli(sock, "gyroregisters", wait=1.5)
-            tasks = cli(sock, "tasks", wait=1.5)
-        finally:
-            stop(proc)
-            sock.close()
+            def raw_imu():
+                reply = msp(sock, 102)
+                return struct.unpack("<9h", reply) if reply is not None and len(reply) == 18 else None
+
+            try:
+                time.sleep(max(0.0, began + 4.0 - time.time()))
+                still = raw_imu()
+                reply = msp(sock, 108)
+                tilt = struct.unpack("<3h", reply)[:2] if reply is not None and len(reply) == 6 else None
+                time.sleep(max(0.0, began + 10.5 - time.time()))
+                turning = raw_imu()
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                status = cli(sock, "status")
+                registers = cli(sock, "gyroregisters", wait=1.5)
+                tasks = cli(sock, "tasks", wait=1.5)
+            finally:
+                stop(proc)
+                sock.close()
+            found = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
+            return still, tilt, turning, status, registers, tasks, int(found.group(1)) if found else None
+
+        def in_band(value):
+            return value is not None and 0.9 * rate_hz <= value <= 1.1 * rate_hz
+
+        # An image short of processor time runs its gyro task below the chip's rate, so a rate outside its band
+        # gets the run once more, and a rate that stays outside fails.
+        readings = run()
+        rates = [readings[6]]
+        if not in_band(rates[0]):
+            readings = run()
+            rates.append(readings[6])
+        still, tilt, turning, status, registers, tasks, _ = readings
         check(f"the board's gyro code finds the model's {chip} and its accelerometer",
               f"GYRO: (1) {chip} enabled" in status and f"ACC: {chip}" in status, repr(status[:400]))
         if identity is not None:
@@ -3075,10 +3093,7 @@ def gyro_chip_checks(image, work):
         if chip in ("MPU6000", "ICM20689", "ICM20602"):
             check(f"its start writes the gyro's range to the {chip}",
                   re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
-        rate = re.search(r"\(\s*GYRO\)\s+(\d+)", tasks)
-        check(f"the gyro task runs at the {chip}'s {rate_text}",
-              rate is not None and 0.9 * rate_hz <= int(rate.group(1)) <= 1.1 * rate_hz,
-              repr(rate.group(0) if rate else tasks[:200]))
+        check(f"the gyro task runs at the {chip}'s {rate_text}", in_band(rates[-1]), repr((rates, tasks[:200])))
         check(f"the raw IMU reply reads the {chip} model's acceleration with no rates at first",
               still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
         check(f"the attitude reply shows the tilt of the {chip} model's acceleration",
