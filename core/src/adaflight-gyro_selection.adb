@@ -4,24 +4,34 @@ package body Adaflight.Gyro_Selection with SPARK_Mode is
 
    function Lowest (M : Mask) return Mask is (M and (-M));
 
-   ------------
-   -- Choose --
-   ------------
+   -------------
+   -- Scanned --
+   -------------
 
-   procedure Choose (I : Inputs; R : out Result) is
-      Scan        : Mask := (if I.Stored_Detected = 0 then 16#FF# else I.Stored_Detected);
-      First_Found : Boolean := False;
-      Compatible  : Boolean := True;
-      Rate        : Natural range 0 .. 65_535 := 0;
-      Scale       : Float range 0.0 .. 1.0 := 0.0;
+   function Scanned (I : Inputs) return Mask is
+      Scan : Mask := (if I.Stored_Detected = 0 then 16#FF# else I.Stored_Detected);
    begin
-      R := (Stored_Detected => I.Stored_Detected, Enabled_Setting => I.Enabled_Setting, others => <>);
       Scan := Scan or I.Enabled_Setting;
       for G in 0 .. I.Count - 1 loop
          if I.Configured (G) then
             Scan := Scan or Bit (G);
          end if;
       end loop;
+      return Scan;
+   end Scanned;
+
+   ------------
+   -- Choose --
+   ------------
+
+   procedure Choose (I : Inputs; R : out Result) is
+      Scan        : constant Mask := Scanned (I);
+      First_Found : Boolean := False;
+      Compatible  : Boolean := True;
+      Rate        : Natural range 0 .. 65_535 := 0;
+      Scale       : Float range 0.0 .. 1.0 := 0.0;
+   begin
+      R := (Stored_Detected => I.Stored_Detected, Enabled_Setting => I.Enabled_Setting, others => <>);
       for G in 0 .. I.Count - 1 loop
          if (Scan and Bit (G)) /= 0 and then I.Present (G) then
             R.Detected := R.Detected or Bit (G);

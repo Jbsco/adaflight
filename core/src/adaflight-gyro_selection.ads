@@ -49,6 +49,11 @@ package Adaflight.Gyro_Selection with SPARK_Mode, Pure is
       Sample_Rate_Hz     : Natural range 0 .. 65_535 := 0;
    end record;
 
+   --  The gyros a start looks for: the stored detected ones, every gyro when
+   --  none is stored, the enabled setting's and those with a configured bus.
+   function Scanned (I : Inputs) return Mask
+     with Global => null;
+
    --  Without a detected sensor nothing is stored, and the scale is one and
    --  the sample rate 1 kHz.
    procedure Choose (I : Inputs; R : out Result)
