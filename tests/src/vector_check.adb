@@ -32032,7 +32032,61 @@ procedure Vector_Check is
    --  build's file listed.
    Settings_Wing  : Boolean := False;
    Settings_Plan  : Boolean := True;
-   Settings_Count : array (Boolean, Boolean) of Natural := (others => (others => 0));
+   Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
+
+   --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
+   Oracle_Gyros : Positive range 1 .. 2 := 1;
+
+   --  The gyro device group's offset or size in the configuration's data.
+   function Gyro_Group_Field (Size : Boolean) return Natural is
+      use type Interfaces.Unsigned_16;
+   begin
+      for G of Adaflight.Config_Codec.Registry loop
+         if G.Number = 540 then
+            return (if Size then G.Size else G.Offset);
+         end if;
+      end loop;
+      raise Program_Error with "no gyro device group";
+   end Gyro_Group_Field;
+
+   --  The gyro device list's second entry in the data. A one gyro oracle's groups end before it: its data has
+   --  no such bytes, and its positions after them lie the entry's length lower.
+   Second_Gyro_Length : constant Natural := Gyro_Group_Field (Size => True) / 2;
+   Second_Gyro_First  : constant Natural := Gyro_Group_Field (Size => False) + Second_Gyro_Length;
+
+   --  The multirotor groups' data as an oracle with that many gyros encodes it.
+   function Oracle_Data
+     (D : Adaflight.Config_Codec.Data; Gyros : Positive := 1) return Adaflight.Bytes.Byte_Array
+   is
+      Last : constant Natural := Adaflight.Config_Codec.Multirotor_Data_Size - 1;
+   begin
+      if Gyros > 1 then
+         return D (0 .. Last);
+      end if;
+      return D (0 .. Second_Gyro_First - 1) & D (Second_Gyro_First + Second_Gyro_Length .. Last);
+   end Oracle_Data;
+
+   --  The data's position of a one gyro oracle's byte.
+   function Data_Position (Oracle : Natural) return Natural is
+     (if Oracle < Second_Gyro_First then Oracle else Oracle + Second_Gyro_Length);
+
+   --  A byte's position in a one gyro oracle's data, past the data's end for a byte that oracle does not have.
+   function Oracle_Position (Data : Natural) return Natural is
+     (if Data < Second_Gyro_First then Data
+      elsif Data < Second_Gyro_First + Second_Gyro_Length then Adaflight.Config_Codec.Data_Size + Data
+      else Data - Second_Gyro_Length);
+
+   --  The defaults of the build a settings family came from.
+   function Oracle_Defaults return Adaflight.Config_Groups.Configuration is
+   begin
+      return C : Adaflight.Config_Groups.Configuration :=
+        (if Settings_Wing then Adaflight.Config_Groups.Wing_Defaults else Adaflight.Config_Groups.Defaults)
+      do
+         if Oracle_Gyros > 1 then
+            Adaflight.Config_Groups.Apply_Second_Gyro (C);
+         end if;
+      end return;
+   end Oracle_Defaults;
 
    --  The settings table's position of a build's lookup table, from that
    --  build's own position of it.
@@ -32077,7 +32131,7 @@ procedure Vector_Check is
    begin
       if Str (1) = "setting" then
          while Settings_Seen <= Setting'Pos (Setting'Last)
-           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing, Settings_Plan)
+           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32092,7 +32146,8 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            Settings_Count (Settings_Wing, Settings_Plan) := Settings_Count (Settings_Wing, Settings_Plan) + 1;
+            Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) :=
+              Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) + 1;
             Record_Text ("settings.name", Str (2), Name (S));
             Record_Text ("settings.type", Str (3), Trim (Kind_Names (D.Kind)));
             Record_Text ("settings.scope", Str (4), Trim (Scope_Names (D.Where)));
@@ -32129,10 +32184,10 @@ procedure Vector_Check is
    procedure Check_Config_Groups_Line is
       use Adaflight.Settings_Table;
       use Adaflight.Config_Groups;
-      Start : constant Configuration := (if Settings_Wing then Wing_Defaults else Defaults);
+      Start : constant Configuration := Oracle_Defaults;
    begin
       while Defaults_Seen <= Setting'Pos (Setting'Last)
-        and then not In_Build (Setting'Val (Defaults_Seen), Settings_Wing, Settings_Plan)
+        and then not In_Build (Setting'Val (Defaults_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan)
       loop
          Defaults_Seen := Defaults_Seen + 1;
       end loop;
@@ -32188,7 +32243,7 @@ procedure Vector_Check is
       Pos : Natural := 0;
    begin
       for S in Setting loop
-         if In_Build (S, False, True) and then Describe (S).How /= Text then
+         if In_Build (S, False, Oracle_Gyros, True) and then Describe (S).How /= Text then
             for P in 0 .. Profile_Count (S) - 1 loop
                for K in 0 .. Element_Count (S) - 1 loop
                   Sum := Sum + Interfaces.Unsigned_64 ((Pos + 1) * 31 + P * 7 + K)
@@ -32196,7 +32251,7 @@ procedure Vector_Check is
                end loop;
             end loop;
          end if;
-         if In_Build (S, False, True) then
+         if In_Build (S, False, Oracle_Gyros, True) then
             Pos := Pos + 1;
          end if;
       end loop;
@@ -32247,13 +32302,14 @@ procedure Vector_Check is
       D : Codec.Data;
    begin
       if Str (1) = "codecstart" then
-         Codec_Config := Defaults;
+         Codec_Config := Oracle_Defaults;
          Codec.Encode (Codec_Config, D);
          declare
-            Text : String (1 .. 2 * Codec.Multirotor_Data_Size);
+            Seen : constant Adaflight.Bytes.Byte_Array := Oracle_Data (D, Oracle_Gyros);
+            Text : String (1 .. 2 * Seen'Length);
          begin
-            for I in 0 .. Codec.Multirotor_Data_Size - 1 loop
-               Text (2 * I + 1 .. 2 * I + 2) := FD_Hex (Natural (D (I)), 2);
+            for I in 0 .. Seen'Length - 1 loop
+               Text (2 * I + 1 .. 2 * I + 2) := FD_Hex (Natural (Seen (Seen'First + I)), 2);
             end loop;
             declare
                Expected : String (1 .. 2 * D'Length + 2 * NF);
@@ -32276,7 +32332,7 @@ procedure Vector_Check is
                Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
                Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (7));
             begin
-               for B of D (0 .. Codec.Multirotor_Data_Size - 1) loop
+               for B of Oracle_Data (D, Oracle_Gyros) loop
                   Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
                end loop;
                Record_Int ("confcodec.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -32319,7 +32375,7 @@ procedure Vector_Check is
                   Item  : constant String := Text (Start .. I - 1);
                   Colon : constant Natural := Ada.Strings.Fixed.Index (Item, ":");
                begin
-                  D (Natural'Value (Item (Item'First .. Colon - 1))) :=
+                  D (Data_Position (Natural'Value (Item (Item'First .. Colon - 1)))) :=
                     Interfaces.Unsigned_8'Value ("16#" & Item (Colon + 1 .. Item'Last) & "#");
                end;
                Start := I + 1;
@@ -32335,7 +32391,8 @@ procedure Vector_Check is
             if From (I) /= To (I) then
                declare
                   Item : constant String :=
-                    (if Last > 0 then ";" else "") & Ada.Strings.Fixed.Trim (Natural'Image (I), Ada.Strings.Left)
+                    (if Last > 0 then ";" else "")
+                    & Ada.Strings.Fixed.Trim (Natural'Image (Oracle_Position (I)), Ada.Strings.Left)
                     & ":" & FD_Hex (Natural (To (I)), 2);
                begin
                   Text (Last + 1 .. Last + Item'Length) := Item;
@@ -32669,7 +32726,7 @@ procedure Vector_Check is
          Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
          Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (8));
       begin
-         for B of Output (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
+         for B of Oracle_Data (Output) loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
          end loop;
          Record_Int ("conffix.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -34239,7 +34296,7 @@ procedure Vector_Check is
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (3));
          begin
             Adaflight.Config_Codec.Encode (CLI_Config, D);
-            for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
+            for B of Oracle_Data (D) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
             Record_Int ("cli.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -34262,7 +34319,7 @@ procedure Vector_Check is
       end Record_Fingerprint;
    begin
       if Str (1) = "setstart" then
-         Set_Config := Defaults;
+         Set_Config := Oracle_Defaults;
          Record_Fingerprint (3);
          Check_Config_Round_Trip (Set_Config, True);
          return;
@@ -42108,7 +42165,7 @@ procedure Vector_Check is
          Record_Int (Name & ".rate_asked", Next, Integer_64 (MCT_T.Asked.Rate_Asked));
          Record_Int (Name & ".endpoint_inits", Next, Integer_64 (MCT_T.Asked.Endpoint_Inits));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
-         for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
+         for B of Oracle_Data (D) loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
          end loop;
          declare
@@ -42516,7 +42573,7 @@ procedure Vector_Check is
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (455));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
-            for B of D (0 .. Adaflight.Config_Codec.Multirotor_Data_Size - 1) loop
+            for B of Oracle_Data (D) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
             if not MC_Wing then
@@ -43780,17 +43837,21 @@ procedure Vector_Check is
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
-                 or else Kind = "settingswingnoplan"
+                 or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
-                  Settings_Plan := Kind = "settings" or else Kind = "settingswing";
+                  Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2";
+                  Oracle_Gyros := (if Kind = "settingsgyro2" then 2 else 1);
                   Check_Settings_Line;
-               elsif Kind = "confgroups" or else Kind = "confgroupswing" then
+               elsif Kind = "confgroups" or else Kind = "confgroupswing" or else Kind = "confgroupsgyro2" then
                   Settings_Wing := Kind = "confgroupswing";
+                  Oracle_Gyros := (if Kind = "confgroupsgyro2" then 2 else 1);
                   Check_Config_Groups_Line;
-               elsif Kind = "confset" then
+               elsif Kind = "confset" or else Kind = "confsetgyro2" then
+                  Oracle_Gyros := (if Kind = "confsetgyro2" then 2 else 1);
                   Check_Config_Set_Line;
-               elsif Kind = "confcodec" then
+               elsif Kind = "confcodec" or else Kind = "confcodecgyro2" then
+                  Oracle_Gyros := (if Kind = "confcodecgyro2" then 2 else 1);
                   Check_Config_Codec_Line;
                elsif Kind = "conffix" then
                   Check_Config_Fix_Line;
@@ -44177,6 +44238,13 @@ begin
    Run (Dir & "/settings-wing-noplan.csv", "settingswingnoplan");
    Settings_Wing := False;
    Settings_Plan := True;
+   Settings_Seen := 0;
+   Defaults_Seen := 0;
+   Run (Dir & "/settings-gyro2.csv", "settingsgyro2");
+   Run (Dir & "/confgroups-gyro2.csv", "confgroupsgyro2");
+   Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
+   Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
+   Oracle_Gyros := 1;
    Run (Dir & "/confset.csv", "confset");
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
@@ -44254,20 +44322,25 @@ begin
    Run (Dir & "/cliflash.csv", "cliset");
    for W in Boolean loop
       for P in Boolean loop
-         declare
-            Expected : Natural := 0;
-         begin
-            for S in Adaflight.Settings_Table.Setting loop
-               if Adaflight.Settings_Table.In_Build (S, W, P) then
-                  Expected := Expected + 1;
-               end if;
-            end loop;
-            if Settings_Count (W, P) /= Expected then
-               Put_Line
-                 ("settings: the vectors hold" & Settings_Count (W, P)'Image & " settings of" & Expected'Image);
-               Failures := Failures + 1;
+         for G in 1 .. 2 loop
+            if G = 1 or else (P and then not W) then
+               declare
+                  Expected : Natural := 0;
+               begin
+                  for S in Adaflight.Settings_Table.Setting loop
+                     if Adaflight.Settings_Table.In_Build (S, W, G, P) then
+                        Expected := Expected + 1;
+                     end if;
+                  end loop;
+                  if Settings_Count (W, P, G) /= Expected then
+                     Put_Line
+                       ("settings: the vectors hold" & Settings_Count (W, P, G)'Image & " settings of"
+                        & Expected'Image);
+                     Failures := Failures + 1;
+                  end if;
+               end;
             end if;
-         end;
+         end loop;
       end loop;
    end loop;
    Run (Dir & "/battmeter.csv", "battmeter");
