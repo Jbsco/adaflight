@@ -15669,3 +15669,14 @@ its setting (divergence, F362).
 This oracle's fixed QMP6988 source gained that change beside F271's. Its regenerated cases differ from before
 in temperature results alone, each a hundred times its old whole-degree value to within one degree. Host
 smoke now reads 25.46 degrees from its QMP6988 model.
+
+## D791. One repeat for host smoke's gyro rate check (2026-11-16)
+
+Host smoke checks that a gyro chip model's gyro task runs at that chip's rate, within a tenth. A host image
+short of processor time runs that task slower. Beside 64 busy processes on 16 cores it reported 711 runs a
+second for 8000. PR #860's target job failed that check on a hosted runner for two of its eight chips, at 5744
+and 3951.
+
+A chip's run now repeats once when its rate is outside that band, and a rate still outside fails. With an
+altered task listing, a low rate in a first run alone passes after one repeat, and a low rate in both runs
+fails. Other timing checks of that section have no repeat.
