@@ -15770,3 +15770,15 @@ class on a core two busy loops hold, eight of eight runs lost every byte.
 
 Bytes for the line now wait in it while no client is connected. A new client gets them before any later byte,
 and a new link starts with none waiting. Under those conditions eight of eight runs pass.
+
+## D799. Beep flicks in status LED flash check (2026-11-17)
+
+With an MSP receiver and no frames, a host image beeps for receiver loss: 500 ms on, 500 ms off, and on again
+10 ms later. Each beeper step sets the first status LED and moves its next flash 500 ms on, so that LED follows
+the beep. When a beep's end and a flash fall due together and the flash runs first, the LED turns over, turns
+back at the beep's end and turns over again 10 ms later.
+
+Hosted runners and a busy workstation showed this as gaps of 4 to 7 ms and 10 ms at the end of the check's
+window, and the check read its last four gaps. Two changes within 50 ms are now left out before the gaps are
+read. With an image stopped for 40 ms in every 130 ms, three of eight 8 second windows failed the old reading.
+None fails the new one, and neither do the three failing logs.
