@@ -15622,3 +15622,39 @@ Host smoke makes a configuration store read-only and saves. It then reads ten ro
 long flashes from an LED pin log, a beep for each from a beeper log, and an exit as for a bootloader request.
 That also checks D782's request after a tenth round. A failure at boot shows nothing on LEDs or beeper,
 since both start after a configuration load, as in Betaflight. No check starts a gyro that fails.
+
+## D787. LPS22DF barometer on boards (2026-11-16)
+
+A board whose configuration names an LPS22DF now builds that driver, which its detection scan tries last,
+after a BMP280. HGLRC_F405_S names one beside a DPS310.
+
+Host I2C gains an LPS22DF model at address 0x5D when `ADAFLIGHT_BARO_CHIP` is LPS22DF, and its first address
+then answers nothing. That model has an identity, control registers whose reset bit reads clear, and fixed
+readings. Host smoke reads that chip's name from its status and 25.00 degrees and 1013 hPa from its
+barometer's debug values. No board has run an LPS22DF.
+
+## D788. QMP6988 barometer on boards (2026-11-16)
+
+A board whose configuration names a QMP6988 now builds that driver, which its detection scan tries after a
+BMP280 and before an LPS22DF. Five STM32F722 board configurations name one.
+
+Host I2C gains a QMP6988 model at address 0x70 when `ADAFLIGHT_BARO_CHIP` is QMP6988, with no chip at its
+first address. Its calibration bytes set two offsets and leave every other coefficient at its base value.
+Host smoke reads that chip's name from its status and 1013 hPa from its barometer's debug values, which a
+single precision calculation outside this code also gives for those bytes and readings.
+
+Its temperature debug value reads 25 where other chips read hundredths of a degree. Betaflight's QMP6988
+driver gives whole degrees, and D351's driver follows it (F362). That stays until a later change. No board
+has run a QMP6988.
+
+## D789. BMP085 barometer on boards (2026-11-16)
+
+A board whose configuration names a BMP085 now builds that driver, which its detection scan tries first, at
+an address an MS5611 shares. Four STM32F405 board configurations name one, all on I2C. No board configuration
+names a clear pin or an end of conversion pin, so a clear pin is a plain output where one is set, and this
+driver runs without an end of conversion pin.
+
+Host I2C gains a BMP085 model when `ADAFLIGHT_BARO_CHIP` is BMP085, with its datasheet's calibration and the
+reading a control write asked for last. Host smoke reads that chip's name from its status and 15.00 degrees
+and 700 hPa from its barometer's debug values. Betaflight's integer arithmetic on those readings gives 1500
+and 69963 pascal. No board has run a BMP085.
