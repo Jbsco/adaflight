@@ -33507,6 +33507,12 @@ procedure Vector_Check is
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!gyroalign" then
+               --  A gyro device entry's alignment, for an entry of the board's gyros.
+               if Natural'Value (Word (Command, 1)) < CLI_Gyros then
+                  CLI_Config.Gyro_Device_Config (Natural'Value (Word (Command, 1))).Alignment :=
+                    Interfaces.Unsigned_8'Value (Word (Command, 2));
+               end if;
             elsif Word (Command, 0) = "!gyroflags" then
                MV_Flags := Interfaces.Unsigned_8'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!mspout" then
@@ -33966,6 +33972,7 @@ procedure Vector_Check is
                Vw.Common.OSD := True;
                Vw.Build := (others => True);
                Vw.Detected_Flags := MV_Flags;
+               Vw.Enabled_Gyros := CLI_Env.Gyros_Enabled;
                Vw.Receiver.Channel_Count := MV_Channel_Count;
                Vw.Hardware.Motor_Count := MV_Motor_Count;
                Vw.Hardware.Use_DShot_Telemetry := MV_DShot_Telemetry;
@@ -44318,6 +44325,8 @@ begin
    Run (Dir & "/cliwingprof.csv", "cliwing");
    Run (Dir & "/cligyros.csv", "cliset");
    Run (Dir & "/cligyro2.csv", "cligyro2");
+   Run (Dir & "/cligyroalign.csv", "cliset");
+   Run (Dir & "/cligyro2align.csv", "cligyro2");
    Run (Dir & "/cliprof.csv", "cliset");
    Run (Dir & "/cliflag.csv", "cliset");
    Run (Dir & "/cliaux.csv", "cliset");

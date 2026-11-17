@@ -1172,6 +1172,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Gyro) := True;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Acc) := Gyro_Report.Acc_Found;
       Ctx.Out_Views.Detected_Flags := Selection.Detected;
+      Ctx.Out_Views.Enabled_Gyros := Selection.Enabled;
       Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Gyro) := Gyro_Report.Hardware;
       Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Acc) := Gyro_Report.Acc_Hardware;
       Ctx.Out_Views.Hardware.Gyro_Count := 1;

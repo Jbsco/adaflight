@@ -96,6 +96,9 @@ package Adaflight.MSP_Processor with SPARK_Mode is
       Active         : Modes.Mask := (others => False);
       Build          : MSP_Tuning_Out.Build_Options;
       Detected_Flags : Unsigned_8 := 0;
+      --  The gyros the board runs, of which the first gives the alignment
+      --  the sensor alignment reply reports.
+      Enabled_Gyros  : Unsigned_8 := 0;
       Receiver       : MSP_Views.Receiver_Options;
       Hardware       : MSP_Views.Hardware_Runtime;
       Peripheral     : MSP_Views.Peripheral_Runtime;

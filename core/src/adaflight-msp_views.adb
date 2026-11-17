@@ -118,7 +118,7 @@ package body Adaflight.MSP_Views with SPARK_Mode is
    end Failsafe_Channels;
 
    function Tuning_View
-     (C : Configuration; Build : MSP_Tuning_Out.Build_Options; Detected_Flags : Unsigned_8)
+     (C : Configuration; Build : MSP_Tuning_Out.Build_Options; Detected_Flags : Unsigned_8; Gyro : Natural := 0)
       return MSP_Tuning_Out.Snapshot
    is
       P  : Pid_Profile_Record renames C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index));
@@ -198,7 +198,7 @@ package body Adaflight.MSP_Views with SPARK_Mode is
       V.Gyro.Offset_Yaw := G.Gyro_Offset_Yaw;
       V.Gyro.Check_Overflow := G.Check_Overflow;
       V.Gyro.Enabled_Bitmask := G.Gyro_Enabled_Bitmask;
-      V.Gyro.Alignment := C.Gyro_Device_Config (0).Alignment;
+      V.Gyro.Alignment := C.Gyro_Device_Config (Gyro).Alignment;
       V.Gyro.Detected_Flags := Detected_Flags;
       V.Notches.Dyn_Notch_Q := C.Dyn_Notch_Config.Dyn_Notch_Q;
       V.Notches.Dyn_Notch_Min_Hz := C.Dyn_Notch_Config.Dyn_Notch_Min_Hz;

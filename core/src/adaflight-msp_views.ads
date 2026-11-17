@@ -48,11 +48,12 @@ package Adaflight.MSP_Views with SPARK_Mode is
    --  last step.
    function Failsafe_Channels (C : Configuration) return Receiver.Failsafe_Channels;
 
-   --  Build names the options built in and Detected_Flags the gyros detected.
+   --  Build names the options built in, Detected_Flags the gyros detected and
+   --  Gyro the first enabled gyro, whose alignment the view reports.
    function Tuning_View
-     (C : Configuration; Build : MSP_Tuning_Out.Build_Options; Detected_Flags : Unsigned_8)
+     (C : Configuration; Build : MSP_Tuning_Out.Build_Options; Detected_Flags : Unsigned_8; Gyro : Natural := 0)
       return MSP_Tuning_Out.Snapshot
-     with Pre => Profiles_Valid (C);
+     with Pre => Profiles_Valid (C) and then Gyro in Gyro_Device_Config_Record_List_2'Range;
 
    --  The receiver options built in and the running channel count.
    type Receiver_Options is record
