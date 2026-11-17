@@ -2071,8 +2071,15 @@ def status_led_checks(image, work):
         gaps = [b[0] - a[0] for a, b in zip(one[:10], one[1:10])]
         check("boot flashes toggle the first LED ten times from off, 50 ms apart",
               [v for _, v in one[:10]] == [0, 1] * 5 and all(40 <= g <= 70 for g in gaps), repr(one[:10]))
-        # The start's beeps light that LED too, so the flashes are read once those have ended.
-        flashes = [b[0] - a[0] for a, b in zip(one[10:], one[11:])]
+        # The start's beeps light that LED too, so the flashes are read once those have ended. A beep that ends
+        # as a flash falls due turns the LED over and back within 50 ms, and those two changes are left out.
+        kept = []
+        for change in one[10:]:
+            if kept and change[0] - kept[-1][0] < 50:
+                kept.pop()
+            else:
+                kept.append(change)
+        flashes = [b[0] - a[0] for a, b in zip(kept, kept[1:])]
         check("the first LED flashes each 500 ms while a reason keeps arming off",
               len(flashes) >= 4 and all(450 <= g <= 700 for g in flashes[-4:]), repr(flashes))
         # The accelerometer calibrated, which arming on this store waits for, then sticks at rest. A switch goes
