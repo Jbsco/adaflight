@@ -324,9 +324,12 @@ package body Adaflight.STM32.Flight is
       LED2_Tag              => Adaflight.Board.LED2_Tag,
       LED_Inversion         => Adaflight.Board.LED_Inversion);
 
+   --  The gyros the board reads.
+   Gyro_Count : constant Positive := 1;
+
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
-     Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing);
+     Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Gyro_Count);
    --  The scheduler's state lives in the core coupled memory too. Its init
    --  sets all of it.
    Sched    : Scheduler.State;
@@ -749,7 +752,7 @@ package body Adaflight.STM32.Flight is
       Serial_Ports    => <>,
       Timer_Owners    => <>,
       CLI_Port        => 20,
-      Gyro_Positions  => 1,
+      Gyro_Positions  => Gyro_Count,
       Gyros_Enabled   => 0,
       Gyros           => <>,
       Acc             => <>,
@@ -962,7 +965,7 @@ package body Adaflight.STM32.Flight is
       Defaults : Adaflight.Config_Codec.Data;
       Data     : Adaflight.Config_Codec.Data;
    begin
-      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Fresh);
+      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Gyro_Count, Fresh);
       Adaflight.Config_Codec.Encode (Fresh, Defaults);
       Adaflight.Config_Store.Load
         (Adaflight.STM32.Flash.Config, Adaflight.Config_Codec.Registry, Defaults, Data, Hashes, Success);
@@ -979,7 +982,7 @@ package body Adaflight.STM32.Flight is
    procedure Reset_Configuration is
       Unused_Success : Boolean;
    begin
-      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Config);
+      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Gyro_Count, Config);
       for I in Board_Identifier'Range loop
          Config.System_Config.Board_Identifier (I - 1) := Character'Pos (Board_Identifier (I));
       end loop;
@@ -1133,7 +1136,7 @@ package body Adaflight.STM32.Flight is
       if Gyro_Report.Init_Failed then
          Adaflight.STM32.Failure_Flashes.Mode (Failure_Gyro_Init_Failed);
       end if;
-      Inputs.Count := 1;
+      Inputs.Count := Gyro_Count;
       Inputs.Stored_Detected := Config.Gyro_Config.Gyros_Detected;
       Inputs.Enabled_Setting := Config.Gyro_Config.Gyro_Enabled_Bitmask;
       Inputs.Configured (0) := True;
@@ -5585,6 +5588,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Receiver_Source := Adaflight.STM32.Radio.Source;
       Ctx.Serial_Protocol := Adaflight.STM32.Radio.Serial_Protocol;
       Ctx.Wing := Adaflight.Build_Features.Wing;
+      Ctx.Gyros := Gyro_Count;
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then

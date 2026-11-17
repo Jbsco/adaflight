@@ -265,7 +265,8 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          declare
             BR : MSP_Board_In.Result;
          begin
-            MSP_Board_In.Process (C, Board, Command, Request, Ctx.Control.Armed, Ctx.Wing, BR, E.Board);
+            MSP_Board_In.Process
+              (C, Board, Command, Request, Ctx.Control.Armed, Ctx.Wing, Ctx.Gyros, BR, E.Board);
             R := (if BR = MSP_Board_In.Ack then Ack else Error);
             E.Save := E.Board.Save;
             E.Reboot := E.Board.Reboot;
@@ -278,7 +279,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             SR    : MSP_CLI_Setting.Result;
             Reply : MSP_CLI_Setting.Reply_Text;
          begin
-            MSP_CLI_Setting.Process (C, Request, Ports, Ctx.Wing, SR, Reply);
+            MSP_CLI_Setting.Process (C, Request, Ports, Ctx.Wing, Ctx.Gyros, SR, Reply);
             R := (if SR = MSP_CLI_Setting.Ack then Ack else Error);
             Write_Text (B, S, Reply);
          end;
@@ -288,7 +289,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             Reply : MSP_CLI_Setting.Info_Reply;
             Room  : Natural;
          begin
-            MSP_CLI_Setting.Setting_Info (C, Request, Ports, Ctx.Wing, SR, Reply);
+            MSP_CLI_Setting.Setting_Info (C, Request, Ports, Ctx.Wing, Ctx.Gyros, SR, Reply);
             R := (if SR = MSP_CLI_Setting.Ack then Ack else Error);
             Room := Natural'Min (Reply.Length, Remaining (S));
             Write_Data (B, S, Reply.Data (0 .. Room - 1));

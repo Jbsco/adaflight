@@ -1,5 +1,6 @@
---  The configuration reset: the defaults, the simplified tuning applied to
---  every PID profile, and the board's information kept.
+--  The configuration reset: the defaults of the build and of the board's
+--  gyro count, the simplified tuning applied to every PID profile, and the
+--  board's information kept.
 with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 
@@ -9,9 +10,10 @@ package Adaflight.Config_Reset with SPARK_Mode is
    procedure Apply_Tuning (C : in out Configuration);
 
    --  The reset configuration for a board.
-   function Reset (Board : Board_Info.State; Wing : Boolean := False) return Configuration;
+   function Reset
+     (Board : Board_Info.State; Wing : Boolean := False; Gyros : Positive := 1) return Configuration;
 
    --  The reset configuration for a board, written into C.
-   procedure Reset (Board : Board_Info.State; Wing : Boolean; C : out Configuration);
+   procedure Reset (Board : Board_Info.State; Wing : Boolean; Gyros : Positive; C : out Configuration);
 
 end Adaflight.Config_Reset;

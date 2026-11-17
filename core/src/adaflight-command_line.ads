@@ -137,15 +137,19 @@ package Adaflight.Command_Line with SPARK_Mode is
    end record;
 
    --  Every setting whose name contains the fragment without regard to case,
-   --  or an invalid name error; Command names the command in errors.
+   --  or an invalid name error; Command names the command in errors. Gyros
+   --  is the board's gyro count, which some settings need above one.
    procedure Get
-     (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List; Wing : Boolean)
+     (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List; Wing : Boolean;
+      Gyros : Positive)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
    --  Every setting's value, with each direct setting's range for an
    --  asterisk; a value for the setting named before an equals sign; or get
    --  for arguments without one.
-   procedure Set (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List; Wing : Boolean)
+   procedure Set
+     (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List; Wing : Boolean;
+      Gyros : Positive)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
                  and then Arguments'Last < Positive'Last;
 

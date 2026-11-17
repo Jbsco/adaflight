@@ -29,12 +29,12 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    end Append;
 
    --  The setting a name names, without regard to case.
-   procedure Find (Text : String; Wing : Boolean; Found : out Boolean; S : out Setting)
+   procedure Find (Text : String; Wing : Boolean; Gyros : Positive; Found : out Boolean; S : out Setting)
      with Global => null
    is
    begin
       for T in Setting loop
-         if In_Build (T, Wing) and then CLI_Text.Same_Ignoring_Case (Settings_Table.Name (T), Text) then
+         if In_Build (T, Wing, Gyros) and then CLI_Text.Same_Ignoring_Case (Settings_Table.Name (T), Text) then
             Found := True;
             S := T;
             return;
@@ -104,7 +104,8 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  A named setting's reply, "name = value"; OK is false for no such
    --  setting or a value without text, and the reply is then empty.
    procedure Get_Reply
-     (C : Configuration; Text : String; Ports : Port_List; Wing : Boolean; Reply : out Reply_Text; OK : out Boolean)
+     (C : Configuration; Text : String; Ports : Port_List; Wing : Boolean; Gyros : Positive; Reply : out Reply_Text;
+      OK : out Boolean)
      with Global => null,
           Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports and then Valid_Profiles (C),
           Post   => (if not OK then Reply.Length = 0)
@@ -113,7 +114,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       S     : Setting;
    begin
       Reply := No_Reply;
-      Find (Text, Wing, Found, S);
+      Find (Text, Wing, Gyros, Found, S);
       OK := Found;
       if not Found then
          return;
@@ -351,7 +352,8 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    --  empty, then the value written; OK is false, and nothing written,
    --  otherwise.
    procedure Set_By_Name
-     (C : in out Configuration; Text : String; Eq : Positive; Ports : Port_List; Wing : Boolean; OK : out Boolean)
+     (C : in out Configuration; Text : String; Eq : Positive; Ports : Port_List; Wing : Boolean; Gyros : Positive;
+      OK : out Boolean)
      with Global => null,
           Pre    => Text'First = 1 and then Text'Last <= Max_Request and then Eq in Text'Range
                     and then Ports'Length <= Serial_Feature_Map.Max_Ports and then Valid_Profiles (C)
@@ -384,7 +386,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       if Last < First then
          return;
       end if;
-      Find (Text (Text'First .. Name_Last), Wing, Found, S);
+      Find (Text (Text'First .. Name_Last), Wing, Gyros, Found, S);
       if Found then
          Write_Value (C, S, Profile_Of (C, S), Text (First .. Last), Ports, Wing, OK);
       end if;
@@ -395,6 +397,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    -------------
 
    procedure Process (C : in out Configuration; Request : Byte_Array; Ports : Port_List; Wing : Boolean;
+                      Gyros : Positive;
                       R : out Result; Reply : out Reply_Text)
    is
       Text      : String (1 .. Max_Request) := (others => ' ');
@@ -422,13 +425,13 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
          end if;
       end loop;
       if Eq = 0 then
-         Get_Reply (C, Text (1 .. Length), Ports, Wing, Reply, OK);
+         Get_Reply (C, Text (1 .. Length), Ports, Wing, Gyros, Reply, OK);
          if OK then
             R := Ack;
          end if;
          return;
       end if;
-      Set_By_Name (C, Text (1 .. Length), Eq, Ports, Wing, OK);
+      Set_By_Name (C, Text (1 .. Length), Eq, Ports, Wing, Gyros, OK);
       if not OK then
          return;
       end if;
@@ -439,7 +442,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
          Name_Last := Name_Last - 1;
       end loop;
       if Valid_Profiles (C) then
-         Get_Reply (C, Text (1 .. Name_Last), Ports, Wing, Reply, Ignore_Echo);
+         Get_Reply (C, Text (1 .. Name_Last), Ports, Wing, Gyros, Reply, Ignore_Echo);
       end if;
       R := Ack;
    end Process;
@@ -559,7 +562,8 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
    ------------------
 
    procedure Setting_Info
-     (C : Configuration; Request : Byte_Array; Ports : Port_List; Wing : Boolean; R : out Result;
+     (C : Configuration; Request : Byte_Array; Ports : Port_List; Wing : Boolean; Gyros : Positive;
+      R : out Result;
       Reply : out Info_Reply)
    is
       Max_Info_Request : constant := 128;
@@ -586,7 +590,7 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
            Natural (Request (Request'First + Length + 1)) + 256 * Natural (Request (Request'First + Length + 2));
       end if;
       Reply.Length := 2;
-      Find (Name (1 .. Length), Wing, Found, S);
+      Find (Name (1 .. Length), Wing, Gyros, Found, S);
       if not Found then
          return;
       end if;

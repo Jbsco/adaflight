@@ -28,11 +28,17 @@ package Adaflight.CLI_Resources with SPARK_Mode is
          when Softserial_TX | Softserial_RX => 2,
          when I2C_SCL | I2C_SDA | LED | SPI_SCK | SPI_SDI | SPI_SDO => 3,
          when PINIO | Pullup | Pulldown => 4,
-         when Gyro_EXTI | Gyro_CS | Gyro_Clkin => 1,
+         when Gyro_EXTI | Gyro_CS | Gyro_Clkin => 2,
          when others => 0);
 
    --  The pins of an owner.
    function Count (O : Owner) return Positive is (if Max_Index (O) = 0 then 1 else Max_Index (O));
+
+   --  The pins of an owner on a board with that many gyros: a gyro owner has
+   --  a pin per gyro.
+   function Count (O : Owner; Gyros : Positive) return Positive is
+     (if O in Gyro_EXTI | Gyro_CS | Gyro_Clkin then Positive'Min (Gyros, Count (O)) else Count (O))
+     with Post => Count'Result <= Count (O);
 
    --  The pin an owner's index holds in the configuration, zero for none.
    function Tag (C : Configuration; O : Owner; I : Natural) return Unsigned_8

@@ -15699,3 +15699,22 @@ takes as many stored bytes as its record has, and the second entry keeps its def
 Recorded vector families come from one gyro oracle builds and did not change. The harness leaves the second
 entry's bytes out of a comparison with a one gyro oracle's data. Families from the two gyro oracle check its
 settings list, its defaults, writes with their read back, and the codec with the longer list.
+
+## D793. Gyro count in command line and MSP settings (2026-11-16)
+
+A board's gyro count now reaches every place that reads a setting by name. Command line code takes it from its
+environment (`Gyro_Positions`, which status and gyro register listings already used). MSP setting messages take
+it from a new context field. `Settings_Table.In_Build` requires it, so no caller falls back to one gyro.
+
+With a count of two the answers are those of a Betaflight build for such a board. `get`, `set`, `dump` and
+`diff` include a second gyro's settings. A configuration reset writes a second gyro device entry with index 1
+through `Apply_Second_Gyro`. `resource` takes ordinal 2 for `GYRO_EXTI`, `GYRO_CS` and `GYRO_CLKIN`, and dumps
+list those pins.
+
+With one gyro each of these answers as before: a second gyro's setting name is invalid, and ordinal 2 is
+outside an owner's range. Board builds pass one gyro (flight unit constant `Gyro_Count`) until a board
+description names a second.
+
+A command generator mode writes sets and gets of gyro settings, resource commands on gyro owners, diffs,
+hardware dumps and resets, and MSP setting messages over those settings. A one gyro settings oracle and a two
+gyro one answer that one input, as families `cligyros` and `cligyro2`.

@@ -129,8 +129,10 @@ package Adaflight.MSP_Processor with SPARK_Mode is
       Receiver_Source     : Receiver.Provider := Receiver.None;
       Serial_Protocol     : Natural := 0;
       Out_Views           : Views;
-      --  A wing build, whose settings the setting messages take.
+      --  A wing build, whose settings the setting messages take, and the
+      --  board's gyro count, which some settings need above one.
       Wing                : Boolean := False;
+      Gyros               : Positive := 1;
       Motor_Outputs       : MSP_Motor_In.Motor_Count := 0;
       Passthrough_Open    : Boolean := False;
    end record;

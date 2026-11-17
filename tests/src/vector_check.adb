@@ -33109,6 +33109,8 @@ procedure Vector_Check is
    --  A wing build's command line runs: its settings and defaults, and no
    --  configuration hash, which the wing oracle takes over its own layout.
    CLI_Wing     : Boolean := False;
+   --  The gyros of the board a command line family's oracle was built for.
+   CLI_Gyros    : Positive range 1 .. 2 := 1;
    --  The build options of the command line oracle's build, for the list the
    --  port derives from its option table.
    package BO renames Adaflight.Build_Options;
@@ -33245,8 +33247,12 @@ procedure Vector_Check is
       if Str (1) = "cli" then
          if Int (2) = 0 then
             CLI_Config := (if CLI_Wing then Groups.Wing_Defaults else Groups.Defaults);
+            if CLI_Gyros > 1 then
+               Groups.Apply_Second_Gyro (CLI_Config);
+            end if;
             CLI_Env := CLI_Identity;
             CLI_Env.Wing := CLI_Wing;
+            CLI_Env.Gyro_Positions := CLI_Gyros;
             CLI_Gyro_Bus_Kind := 0;
             CLI_Gyro_Bus_Devices := 0;
             CLI_Board := (others => <>);
@@ -33498,6 +33504,7 @@ procedure Vector_Check is
                           Serial_Protocol     => CLI_Env.Serial_Protocol,
                           Out_Views           => <>,
                           Wing                => False,
+                          Gyros               => CLI_Gyros,
                           Motor_Outputs       => MSP_Motors,
                           Passthrough_Open    => False);
                   Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
@@ -33939,6 +33946,7 @@ procedure Vector_Check is
                        Serial_Protocol     => CLI_Env.Serial_Protocol,
                        Out_Views           => Vw,
                        Wing                => False,
+                       Gyros               => CLI_Gyros,
                        Motor_Outputs       => MSP_Motors,
                        Passthrough_Open    => False);
                Adaflight.Stream_Buffers.Init (St, 0, 512);
@@ -34296,7 +34304,7 @@ procedure Vector_Check is
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (3));
          begin
             Adaflight.Config_Codec.Encode (CLI_Config, D);
-            for B of Oracle_Data (D) loop
+            for B of Oracle_Data (D, CLI_Gyros) loop
                Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
             end loop;
             Record_Int ("cli.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
@@ -43855,8 +43863,9 @@ procedure Vector_Check is
                   Check_Config_Codec_Line;
                elsif Kind = "conffix" then
                   Check_Config_Fix_Line;
-               elsif Kind = "cliset" or else Kind = "cliwing" then
+               elsif Kind = "cliset" or else Kind = "cliwing" or else Kind = "cligyro2" then
                   CLI_Wing := Kind = "cliwing";
+                  CLI_Gyros := (if Kind = "cligyro2" then 2 else 1);
                   Check_CLI_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
@@ -44253,6 +44262,8 @@ begin
    Run (Dir & "/cliwingdump.csv", "cliwing");
    Run (Dir & "/cliwingdiff.csv", "cliwing");
    Run (Dir & "/cliwingprof.csv", "cliwing");
+   Run (Dir & "/cligyros.csv", "cliset");
+   Run (Dir & "/cligyro2.csv", "cligyro2");
    Run (Dir & "/cliprof.csv", "cliset");
    Run (Dir & "/cliflag.csv", "cliset");
    Run (Dir & "/cliaux.csv", "cliset");

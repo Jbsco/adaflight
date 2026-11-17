@@ -2631,7 +2631,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
      (S in Gyro_Enabled_Bitmask .. Gyro_2_Enabled | Gyro_2_Bustype .. Gyro_2_I2c_Address);
 
    function In_Build
-     (S : Setting; Wing : Boolean; Gyros : Positive := 1;
+     (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
