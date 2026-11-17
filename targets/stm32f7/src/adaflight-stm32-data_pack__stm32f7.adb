@@ -10,7 +10,7 @@ package body Adaflight.STM32.Data_Pack is
 
    Packed_Start : Character with Import, Convention => C, External_Name => "__packed_start";
    Packed_End   : Character with Import, Convention => C, External_Name => "__packed_end";
-   Boot_Start   : Character with Import, Convention => C, External_Name => "__boot_start";
+   Code_Start   : Character with Import, Convention => C, External_Name => "__ram_text_start";
    Boot_End     : Character with Import, Convention => C, External_Name => "__boot_end";
    Rom_End      : Character with Import, Convention => C, External_Name => "__rom_end";
    Flash_End    : Character with Import, Convention => C, External_Name => "__flash_end";
@@ -89,7 +89,7 @@ package body Adaflight.STM32.Data_Pack is
          if Length > 0 then
             Decode_Into (Source (4 + First .. Source'Last), Packed_Start'Address, Natural (Length));
             Adaflight.STM32.Cache.Sync_Code
-              (Boot_Start'Address, Natural (To_Integer (Boot_End'Address) - To_Integer (Boot_Start'Address)));
+              (Code_Start'Address, Natural (To_Integer (Boot_End'Address) - To_Integer (Code_Start'Address)));
          end if;
       end;
    end Unpack;
