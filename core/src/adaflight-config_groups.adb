@@ -44,6 +44,7 @@ package body Adaflight.Config_Groups with SPARK_Mode is
    I16        : constant Value_Format := (Number, 2, True);
    U32        : constant Value_Format := (Number, 4, False);
    I32        : constant Value_Format := (Number, 4, True);
+   Bits_8     : constant Value_Format := (Bit, 1, False);
    Bits_32    : constant Value_Format := (Bit, 4, False);
    Text_Value : constant Value_Format := (Text, 1, False);
 
@@ -53,7 +54,8 @@ package body Adaflight.Config_Groups with SPARK_Mode is
      (Gyro_Hardware_Lpf => 1, Gyro_Lpf1_Type => 18, Gyro_Lpf1_Static_Hz => 3, Gyro_Lpf2_Type => 19,
       Gyro_Lpf2_Static_Hz => 5, Gyro_Notch1_Hz => 7, Gyro_Notch1_Cutoff => 9, Gyro_Notch2_Hz => 11,
       Gyro_Notch2_Cutoff => 13, Gyro_Calib_Duration => 23, Gyro_Calib_Noise_Limit => 0, Gyro_Offset_Yaw => 15,
-      Gyro_Overflow_Detect => 17, Yaw_Spin_Recovery => 20, Yaw_Spin_Threshold => 21, Dyn_Notch_Count => 6,
+      Gyro_Overflow_Detect => 17, Yaw_Spin_Recovery => 20, Yaw_Spin_Threshold => 21,
+      Gyro_Enabled_Bitmask => 34, Gyro_1_Enabled => 34, Gyro_2_Enabled => 34, Dyn_Notch_Count => 6,
       Dyn_Notch_Q => 4, Dyn_Notch_Min_Hz => 0, Dyn_Notch_Max_Hz => 2, Gyro_Lpf1_Dyn_Min_Hz => 25,
       Gyro_Lpf1_Dyn_Max_Hz => 27, Gyro_Lpf1_Dyn_Expo => 31, Gyro_Filter_Debug_Axis => 29, Acc_Hardware => 2,
       Acc_Lpf_Hz => 0, Acc_Trim_Pitch => 14, Acc_Trim_Roll => 12, Acc_Calibration => 4, Align_Mag => 0,
@@ -245,7 +247,8 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Pinio_Config => 4, Pinio_Box => 0, Usb_Hid_Cdc => 0, Usb_Msc_Pin_Pullup => 2, Flash_Spi_Bus => 1,
       Rcdevice_Init_Dev_Attempts => 0, Rcdevice_Init_Dev_Attempt_Interval => 1,
       Rcdevice_Protocol_Version => 9, Rcdevice_Feature => 5, Rcdevice_Uart => 10, Gyro_1_Bustype => 1,
-      Gyro_1_Spibus => 2, Gyro_1_I2c_Bus => 4, Gyro_1_I2c_Address => 5, I2c1_Pullup => 2,
+      Gyro_1_Spibus => 2, Gyro_1_I2c_Bus => 4, Gyro_1_I2c_Address => 5, Gyro_2_Bustype => 16,
+      Gyro_2_Spibus => 17, Gyro_2_I2c_Bus => 19, Gyro_2_I2c_Address => 20, I2c1_Pullup => 2,
       I2c1_Clockspeed_Khz => 3, I2c2_Pullup => 7, I2c2_Clockspeed_Khz => 8, I2c3_Pullup => 12,
       I2c3_Clockspeed_Khz => 13, Mco2_On_Pc9 => 3, Spektrum_Spi_Protocol => 0, Spektrum_Spi_Mfg_Id => 1,
       Spektrum_Spi_Num_Channels => 5, Expresslrs_Uid => 2, Expresslrs_Domain => 8, Expresslrs_Model_Id => 10,
@@ -284,17 +287,17 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Gyro_Lpf2_Static_Hz => U16, Gyro_Notch1_Hz => U16, Gyro_Notch1_Cutoff => U16, Gyro_Notch2_Hz => U16,
       Gyro_Notch2_Cutoff => U16, Gyro_Calib_Duration => U16, Gyro_Calib_Noise_Limit => U8,
       Gyro_Offset_Yaw => I16, Gyro_Overflow_Detect => U8, Yaw_Spin_Recovery => U8, Yaw_Spin_Threshold => U16,
-      Dyn_Notch_Count => U8, Dyn_Notch_Q => U16, Dyn_Notch_Min_Hz => U16, Dyn_Notch_Max_Hz => U16,
-      Gyro_Lpf1_Dyn_Min_Hz => U16, Gyro_Lpf1_Dyn_Max_Hz => U16, Gyro_Lpf1_Dyn_Expo => U8,
-      Gyro_Filter_Debug_Axis => U8, Acc_Hardware => U8, Acc_Lpf_Hz => U16, Acc_Trim_Pitch => I16,
-      Acc_Trim_Roll => I16, Acc_Calibration => I16, Align_Mag => U8, Mag_Align_Roll => I16,
-      Mag_Align_Pitch => I16, Mag_Align_Yaw => I16, Mag_Bustype => U8, Mag_I2c_Device => U8,
-      Mag_I2c_Address => U8, Mag_Spi_Device => U8, Mag_Hardware => U8, Mag_Calibration => I16,
-      Baro_Bustype => U8, Baro_Spi_Device => U8, Baro_I2c_Device => U8, Baro_I2c_Address => U8,
-      Baro_Hardware => U8, Baro_Drift => I16, Pitot_Bustype => U8, Pitot_I2c_Device => U8,
-      Pitot_I2c_Address => U8, Pitot_Hardware => U8, Mid_Rc => U16, Min_Check => U16, Max_Check => U16,
-      Rssi_Channel => I8, Rssi_Src_Frame_Errors => I8, Rssi_Scale => U8, Rssi_Offset => I8, Rssi_Invert => I8,
-      Rssi_Src_Frame_Lpf_Period => U8, Rssi_Smoothing => U8, Rc_Smoothing => U8,
+      Gyro_Enabled_Bitmask => U8, Gyro_1_Enabled => Bits_8, Gyro_2_Enabled => Bits_8, Dyn_Notch_Count => U8,
+      Dyn_Notch_Q => U16, Dyn_Notch_Min_Hz => U16, Dyn_Notch_Max_Hz => U16, Gyro_Lpf1_Dyn_Min_Hz => U16,
+      Gyro_Lpf1_Dyn_Max_Hz => U16, Gyro_Lpf1_Dyn_Expo => U8, Gyro_Filter_Debug_Axis => U8, Acc_Hardware => U8,
+      Acc_Lpf_Hz => U16, Acc_Trim_Pitch => I16, Acc_Trim_Roll => I16, Acc_Calibration => I16, Align_Mag => U8,
+      Mag_Align_Roll => I16, Mag_Align_Pitch => I16, Mag_Align_Yaw => I16, Mag_Bustype => U8,
+      Mag_I2c_Device => U8, Mag_I2c_Address => U8, Mag_Spi_Device => U8, Mag_Hardware => U8,
+      Mag_Calibration => I16, Baro_Bustype => U8, Baro_Spi_Device => U8, Baro_I2c_Device => U8,
+      Baro_I2c_Address => U8, Baro_Hardware => U8, Baro_Drift => I16, Pitot_Bustype => U8,
+      Pitot_I2c_Device => U8, Pitot_I2c_Address => U8, Pitot_Hardware => U8, Mid_Rc => U16, Min_Check => U16,
+      Max_Check => U16, Rssi_Channel => I8, Rssi_Src_Frame_Errors => I8, Rssi_Scale => U8, Rssi_Offset => I8,
+      Rssi_Invert => I8, Rssi_Src_Frame_Lpf_Period => U8, Rssi_Smoothing => U8, Rc_Smoothing => U8,
       Rc_Smoothing_Auto_Factor => U8, Rc_Smoothing_Auto_Factor_Throttle => U8,
       Rc_Smoothing_Setpoint_Cutoff => U8, Rc_Smoothing_Throttle_Cutoff => U8, Rc_Smoothing_Debug_Axis => U8,
       Fpv_Mix_Degrees => U8, Max_Aux_Channels => U8, Serialrx_Provider => U8, Serialrx_Inverted => U8,
@@ -488,7 +491,8 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Usb_Msc_Pin_Pullup => U8, Flash_Spi_Bus => U8, Rcdevice_Init_Dev_Attempts => U8,
       Rcdevice_Init_Dev_Attempt_Interval => U32, Rcdevice_Protocol_Version => U8, Rcdevice_Feature => U16,
       Rcdevice_Uart => I8, Gyro_1_Bustype => U8, Gyro_1_Spibus => U8, Gyro_1_I2c_Bus => U8,
-      Gyro_1_I2c_Address => U8, I2c1_Pullup => U8, I2c1_Clockspeed_Khz => U16, I2c2_Pullup => U8,
+      Gyro_1_I2c_Address => U8, Gyro_2_Bustype => U8, Gyro_2_Spibus => U8, Gyro_2_I2c_Bus => U8,
+      Gyro_2_I2c_Address => U8, I2c1_Pullup => U8, I2c1_Clockspeed_Khz => U16, I2c2_Pullup => U8,
       I2c2_Clockspeed_Khz => U16, I2c3_Pullup => U8, I2c3_Clockspeed_Khz => U16, Mco2_On_Pc9 => U8,
       Spektrum_Spi_Protocol => U8, Spektrum_Spi_Mfg_Id => U8, Spektrum_Spi_Num_Channels => U8,
       Expresslrs_Uid => U8, Expresslrs_Domain => U8, Expresslrs_Model_Id => U8, Scheduler_Relax_Rx => U16,
@@ -596,30 +600,31 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Gimbal_Yaw_Rc_Gain | Gimbal_Roll_Gain | Gimbal_Roll_Offset | Gimbal_Roll_Limit | Gimbal_Pitch_Gain |
           Gimbal_Pitch_Offset | Gimbal_Pitch_Low_Limit | Gimbal_Pitch_High_Limit | Gimbal_Yaw_Gain | Gimbal_Yaw_Offset
           | Gimbal_Yaw_Limit | Gimbal_Stabilisation | Gimbal_Sensitivity | Gimbal_Uart => -128,
-        when Blackbox_Disable_Pids | Blackbox_Disable_Rc | Blackbox_Disable_Setpoint | Blackbox_Disable_Bat |
-          Blackbox_Disable_Mag | Blackbox_Disable_Alt | Blackbox_Disable_Rssi | Blackbox_Disable_Gyro |
-          Blackbox_Disable_Gyrounfilt | Blackbox_Disable_Acc | Blackbox_Disable_Attitude | Blackbox_Disable_Debug |
-          Blackbox_Disable_Motors | Blackbox_Disable_Servos | Blackbox_Disable_Rpm | Blackbox_Disable_Gps |
-          Blackbox_Disable_Pitot | Use_Vbat_Alerts | Use_Cbat_Alerts | Battery_Continue | Yaw_Motors_Reversed |
-          Crashflip_Auto_Rearm | Rpm_Limit | Gps_Ublox_Use_Galileo | Gps_Ublox_Enable_Ana | Gps_Set_Home_Point_Once |
-          Gps_Use_3d_Speed | Gps_Sbas_Integrity | Yaw_Control_Reversed | Telemetry_Disabled_Voltage |
-          Telemetry_Disabled_Current | Telemetry_Disabled_Fuel | Telemetry_Disabled_Mode | Telemetry_Disabled_Acc_X |
-          Telemetry_Disabled_Acc_Y | Telemetry_Disabled_Acc_Z | Telemetry_Disabled_Pitch | Telemetry_Disabled_Roll |
-          Telemetry_Disabled_Heading | Telemetry_Disabled_Altitude | Telemetry_Disabled_Vario |
-          Telemetry_Disabled_Lat_Long | Telemetry_Disabled_Ground_Speed | Telemetry_Disabled_Distance |
-          Telemetry_Disabled_Esc_Current | Telemetry_Disabled_Esc_Voltage | Telemetry_Disabled_Esc_Rpm |
-          Telemetry_Disabled_Esc_Temperature | Telemetry_Disabled_Temperature | Telemetry_Disabled_Cap_Used |
-          Max7456_Preinit_Opu | Displayport_Max7456_Inv | I2c1_Pullup | I2c2_Pullup | I2c3_Pullup => 0,
+        when Gyro_1_Enabled | Gyro_2_Enabled | Blackbox_Disable_Pids | Blackbox_Disable_Rc |
+          Blackbox_Disable_Setpoint | Blackbox_Disable_Bat | Blackbox_Disable_Mag | Blackbox_Disable_Alt |
+          Blackbox_Disable_Rssi | Blackbox_Disable_Gyro | Blackbox_Disable_Gyrounfilt | Blackbox_Disable_Acc |
+          Blackbox_Disable_Attitude | Blackbox_Disable_Debug | Blackbox_Disable_Motors | Blackbox_Disable_Servos |
+          Blackbox_Disable_Rpm | Blackbox_Disable_Gps | Blackbox_Disable_Pitot | Use_Vbat_Alerts | Use_Cbat_Alerts |
+          Battery_Continue | Yaw_Motors_Reversed | Crashflip_Auto_Rearm | Rpm_Limit | Gps_Ublox_Use_Galileo |
+          Gps_Ublox_Enable_Ana | Gps_Set_Home_Point_Once | Gps_Use_3d_Speed | Gps_Sbas_Integrity |
+          Yaw_Control_Reversed | Telemetry_Disabled_Voltage | Telemetry_Disabled_Current | Telemetry_Disabled_Fuel |
+          Telemetry_Disabled_Mode | Telemetry_Disabled_Acc_X | Telemetry_Disabled_Acc_Y | Telemetry_Disabled_Acc_Z |
+          Telemetry_Disabled_Pitch | Telemetry_Disabled_Roll | Telemetry_Disabled_Heading |
+          Telemetry_Disabled_Altitude | Telemetry_Disabled_Vario | Telemetry_Disabled_Lat_Long |
+          Telemetry_Disabled_Ground_Speed | Telemetry_Disabled_Distance | Telemetry_Disabled_Esc_Current |
+          Telemetry_Disabled_Esc_Voltage | Telemetry_Disabled_Esc_Rpm | Telemetry_Disabled_Esc_Temperature |
+          Telemetry_Disabled_Temperature | Telemetry_Disabled_Cap_Used | Max7456_Preinit_Opu | Displayport_Max7456_Inv
+          | I2c1_Pullup | I2c2_Pullup | I2c3_Pullup => 0,
         when Gyro_Hardware_Lpf | Gyro_Lpf1_Type | Gyro_Lpf2_Type | Gyro_Calib_Noise_Limit | Gyro_Overflow_Detect |
-          Yaw_Spin_Recovery | Dyn_Notch_Count | Gyro_Lpf1_Dyn_Expo | Gyro_Filter_Debug_Axis | Acc_Hardware | Align_Mag
-          | Mag_Bustype | Mag_I2c_Device | Mag_I2c_Address | Mag_Spi_Device | Mag_Hardware | Baro_Bustype |
-          Baro_Spi_Device | Baro_I2c_Device | Baro_I2c_Address | Baro_Hardware | Pitot_Bustype | Pitot_I2c_Device |
-          Pitot_I2c_Address | Pitot_Hardware | Rssi_Scale | Rssi_Src_Frame_Lpf_Period | Rssi_Smoothing | Rc_Smoothing
-          | Rc_Smoothing_Auto_Factor | Rc_Smoothing_Auto_Factor_Throttle | Rc_Smoothing_Setpoint_Cutoff |
-          Rc_Smoothing_Throttle_Cutoff | Rc_Smoothing_Debug_Axis | Fpv_Mix_Degrees | Max_Aux_Channels |
-          Serialrx_Provider | Serialrx_Inverted | Spektrum_Sat_Bind | Spektrum_Sat_Bind_Autoreset | Srxl2_Unit_Id |
-          Srxl2_Baud_Fast | Sbus_Baud_Fast | Crsf_Use_Negotiated_Baud | Airmode_Start_Throttle_Percent |
-          Serialrx_Halfduplex | Msp_Override_Failsafe | Rx_Spi_Protocol | Rx_Spi_Bus | Rx_Spi_Led_Inversion |
+          Yaw_Spin_Recovery | Gyro_Enabled_Bitmask | Dyn_Notch_Count | Gyro_Lpf1_Dyn_Expo | Gyro_Filter_Debug_Axis |
+          Acc_Hardware | Align_Mag | Mag_Bustype | Mag_I2c_Device | Mag_I2c_Address | Mag_Spi_Device | Mag_Hardware |
+          Baro_Bustype | Baro_Spi_Device | Baro_I2c_Device | Baro_I2c_Address | Baro_Hardware | Pitot_Bustype |
+          Pitot_I2c_Device | Pitot_I2c_Address | Pitot_Hardware | Rssi_Scale | Rssi_Src_Frame_Lpf_Period |
+          Rssi_Smoothing | Rc_Smoothing | Rc_Smoothing_Auto_Factor | Rc_Smoothing_Auto_Factor_Throttle |
+          Rc_Smoothing_Setpoint_Cutoff | Rc_Smoothing_Throttle_Cutoff | Rc_Smoothing_Debug_Axis | Fpv_Mix_Degrees |
+          Max_Aux_Channels | Serialrx_Provider | Serialrx_Inverted | Spektrum_Sat_Bind | Spektrum_Sat_Bind_Autoreset |
+          Srxl2_Unit_Id | Srxl2_Baud_Fast | Sbus_Baud_Fast | Crsf_Use_Negotiated_Baud | Airmode_Start_Throttle_Percent
+          | Serialrx_Halfduplex | Msp_Override_Failsafe | Rx_Spi_Protocol | Rx_Spi_Bus | Rx_Spi_Led_Inversion |
           Blackbox_Sample_Rate | Blackbox_Device | Blackbox_Mode | Blackbox_High_Resolution | Blackbox_Baud |
           Dshot_Burst | Dshot_Bidir | Dshot_Edt | Dshot_Bitbang | Dshot_Bitbang_Timer | Use_Unsynced_Pwm |
           Motor_Pwm_Protocol | Motor_Pwm_Inversion | Motor_Poles | Motor_Output_Reordering | Thr_Corr_Value |
@@ -682,16 +687,17 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Camera_Control_Inverted | Rangefinder_Hardware | Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config |
           Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup | Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts |
           Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus | Gyro_1_I2c_Bus | Gyro_1_I2c_Address |
-          Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid |
-          Expresslrs_Domain | Expresslrs_Model_Id | Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud |
-          Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics | Rpm_Filter_Weights | Rpm_Filter_Min_Hz |
-          Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit | Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I |
-          Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F | Ap_Position_P | Ap_Position_I | Ap_Position_D |
-          Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff | Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate |
-          Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode | Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch |
-          Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate | Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable |
-          Ap_Landing_Spiral_Rate | Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate |
-          Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy | Ap_Geofence_Action => 0,
+          Gyro_2_Bustype | Gyro_2_Spibus | Gyro_2_I2c_Bus | Gyro_2_I2c_Address | Mco2_On_Pc9 | Spektrum_Spi_Protocol |
+          Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid | Expresslrs_Domain | Expresslrs_Model_Id |
+          Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud | Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics
+          | Rpm_Filter_Weights | Rpm_Filter_Min_Hz | Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit |
+          Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I | Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F |
+          Ap_Position_P | Ap_Position_I | Ap_Position_D | Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff |
+          Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate | Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode |
+          Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch | Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate |
+          Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable | Ap_Landing_Spiral_Rate |
+          Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate | Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy |
+          Ap_Geofence_Action => 0,
         when Gyro_Lpf1_Static_Hz | Gyro_Lpf2_Static_Hz | Gyro_Notch1_Hz | Gyro_Notch1_Cutoff | Gyro_Notch2_Hz |
           Gyro_Notch2_Cutoff | Gyro_Calib_Duration | Yaw_Spin_Threshold | Dyn_Notch_Q | Dyn_Notch_Min_Hz |
           Dyn_Notch_Max_Hz | Gyro_Lpf1_Dyn_Min_Hz | Gyro_Lpf1_Dyn_Max_Hz | Acc_Lpf_Hz | Mid_Rc | Min_Check | Max_Check
@@ -773,30 +779,31 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Gimbal_Yaw_Rc_Gain | Gimbal_Roll_Gain | Gimbal_Roll_Offset | Gimbal_Roll_Limit | Gimbal_Pitch_Gain |
           Gimbal_Pitch_Offset | Gimbal_Pitch_Low_Limit | Gimbal_Pitch_High_Limit | Gimbal_Yaw_Gain | Gimbal_Yaw_Offset
           | Gimbal_Yaw_Limit | Gimbal_Stabilisation | Gimbal_Sensitivity | Gimbal_Uart => 127,
-        when Blackbox_Disable_Pids | Blackbox_Disable_Rc | Blackbox_Disable_Setpoint | Blackbox_Disable_Bat |
-          Blackbox_Disable_Mag | Blackbox_Disable_Alt | Blackbox_Disable_Rssi | Blackbox_Disable_Gyro |
-          Blackbox_Disable_Gyrounfilt | Blackbox_Disable_Acc | Blackbox_Disable_Attitude | Blackbox_Disable_Debug |
-          Blackbox_Disable_Motors | Blackbox_Disable_Servos | Blackbox_Disable_Rpm | Blackbox_Disable_Gps |
-          Blackbox_Disable_Pitot | Use_Vbat_Alerts | Use_Cbat_Alerts | Battery_Continue | Yaw_Motors_Reversed |
-          Crashflip_Auto_Rearm | Rpm_Limit | Gps_Ublox_Use_Galileo | Gps_Ublox_Enable_Ana | Gps_Set_Home_Point_Once |
-          Gps_Use_3d_Speed | Gps_Sbas_Integrity | Yaw_Control_Reversed | Telemetry_Disabled_Voltage |
-          Telemetry_Disabled_Current | Telemetry_Disabled_Fuel | Telemetry_Disabled_Mode | Telemetry_Disabled_Acc_X |
-          Telemetry_Disabled_Acc_Y | Telemetry_Disabled_Acc_Z | Telemetry_Disabled_Pitch | Telemetry_Disabled_Roll |
-          Telemetry_Disabled_Heading | Telemetry_Disabled_Altitude | Telemetry_Disabled_Vario |
-          Telemetry_Disabled_Lat_Long | Telemetry_Disabled_Ground_Speed | Telemetry_Disabled_Distance |
-          Telemetry_Disabled_Esc_Current | Telemetry_Disabled_Esc_Voltage | Telemetry_Disabled_Esc_Rpm |
-          Telemetry_Disabled_Esc_Temperature | Telemetry_Disabled_Temperature | Telemetry_Disabled_Cap_Used |
-          Max7456_Preinit_Opu | Displayport_Max7456_Inv | I2c1_Pullup | I2c2_Pullup | I2c3_Pullup => 1,
+        when Gyro_1_Enabled | Gyro_2_Enabled | Blackbox_Disable_Pids | Blackbox_Disable_Rc |
+          Blackbox_Disable_Setpoint | Blackbox_Disable_Bat | Blackbox_Disable_Mag | Blackbox_Disable_Alt |
+          Blackbox_Disable_Rssi | Blackbox_Disable_Gyro | Blackbox_Disable_Gyrounfilt | Blackbox_Disable_Acc |
+          Blackbox_Disable_Attitude | Blackbox_Disable_Debug | Blackbox_Disable_Motors | Blackbox_Disable_Servos |
+          Blackbox_Disable_Rpm | Blackbox_Disable_Gps | Blackbox_Disable_Pitot | Use_Vbat_Alerts | Use_Cbat_Alerts |
+          Battery_Continue | Yaw_Motors_Reversed | Crashflip_Auto_Rearm | Rpm_Limit | Gps_Ublox_Use_Galileo |
+          Gps_Ublox_Enable_Ana | Gps_Set_Home_Point_Once | Gps_Use_3d_Speed | Gps_Sbas_Integrity |
+          Yaw_Control_Reversed | Telemetry_Disabled_Voltage | Telemetry_Disabled_Current | Telemetry_Disabled_Fuel |
+          Telemetry_Disabled_Mode | Telemetry_Disabled_Acc_X | Telemetry_Disabled_Acc_Y | Telemetry_Disabled_Acc_Z |
+          Telemetry_Disabled_Pitch | Telemetry_Disabled_Roll | Telemetry_Disabled_Heading |
+          Telemetry_Disabled_Altitude | Telemetry_Disabled_Vario | Telemetry_Disabled_Lat_Long |
+          Telemetry_Disabled_Ground_Speed | Telemetry_Disabled_Distance | Telemetry_Disabled_Esc_Current |
+          Telemetry_Disabled_Esc_Voltage | Telemetry_Disabled_Esc_Rpm | Telemetry_Disabled_Esc_Temperature |
+          Telemetry_Disabled_Temperature | Telemetry_Disabled_Cap_Used | Max7456_Preinit_Opu | Displayport_Max7456_Inv
+          | I2c1_Pullup | I2c2_Pullup | I2c3_Pullup => 1,
         when Gyro_Hardware_Lpf | Gyro_Lpf1_Type | Gyro_Lpf2_Type | Gyro_Calib_Noise_Limit | Gyro_Overflow_Detect |
-          Yaw_Spin_Recovery | Dyn_Notch_Count | Gyro_Lpf1_Dyn_Expo | Gyro_Filter_Debug_Axis | Acc_Hardware | Align_Mag
-          | Mag_Bustype | Mag_I2c_Device | Mag_I2c_Address | Mag_Spi_Device | Mag_Hardware | Baro_Bustype |
-          Baro_Spi_Device | Baro_I2c_Device | Baro_I2c_Address | Baro_Hardware | Pitot_Bustype | Pitot_I2c_Device |
-          Pitot_I2c_Address | Pitot_Hardware | Rssi_Scale | Rssi_Src_Frame_Lpf_Period | Rssi_Smoothing | Rc_Smoothing
-          | Rc_Smoothing_Auto_Factor | Rc_Smoothing_Auto_Factor_Throttle | Rc_Smoothing_Setpoint_Cutoff |
-          Rc_Smoothing_Throttle_Cutoff | Rc_Smoothing_Debug_Axis | Fpv_Mix_Degrees | Max_Aux_Channels |
-          Serialrx_Provider | Serialrx_Inverted | Spektrum_Sat_Bind | Spektrum_Sat_Bind_Autoreset | Srxl2_Unit_Id |
-          Srxl2_Baud_Fast | Sbus_Baud_Fast | Crsf_Use_Negotiated_Baud | Airmode_Start_Throttle_Percent |
-          Serialrx_Halfduplex | Msp_Override_Failsafe | Rx_Spi_Protocol | Rx_Spi_Bus | Rx_Spi_Led_Inversion |
+          Yaw_Spin_Recovery | Gyro_Enabled_Bitmask | Dyn_Notch_Count | Gyro_Lpf1_Dyn_Expo | Gyro_Filter_Debug_Axis |
+          Acc_Hardware | Align_Mag | Mag_Bustype | Mag_I2c_Device | Mag_I2c_Address | Mag_Spi_Device | Mag_Hardware |
+          Baro_Bustype | Baro_Spi_Device | Baro_I2c_Device | Baro_I2c_Address | Baro_Hardware | Pitot_Bustype |
+          Pitot_I2c_Device | Pitot_I2c_Address | Pitot_Hardware | Rssi_Scale | Rssi_Src_Frame_Lpf_Period |
+          Rssi_Smoothing | Rc_Smoothing | Rc_Smoothing_Auto_Factor | Rc_Smoothing_Auto_Factor_Throttle |
+          Rc_Smoothing_Setpoint_Cutoff | Rc_Smoothing_Throttle_Cutoff | Rc_Smoothing_Debug_Axis | Fpv_Mix_Degrees |
+          Max_Aux_Channels | Serialrx_Provider | Serialrx_Inverted | Spektrum_Sat_Bind | Spektrum_Sat_Bind_Autoreset |
+          Srxl2_Unit_Id | Srxl2_Baud_Fast | Sbus_Baud_Fast | Crsf_Use_Negotiated_Baud | Airmode_Start_Throttle_Percent
+          | Serialrx_Halfduplex | Msp_Override_Failsafe | Rx_Spi_Protocol | Rx_Spi_Bus | Rx_Spi_Led_Inversion |
           Blackbox_Sample_Rate | Blackbox_Device | Blackbox_Mode | Blackbox_High_Resolution | Blackbox_Baud |
           Dshot_Burst | Dshot_Bidir | Dshot_Edt | Dshot_Bitbang | Dshot_Bitbang_Timer | Use_Unsynced_Pwm |
           Motor_Pwm_Protocol | Motor_Pwm_Inversion | Motor_Poles | Motor_Output_Reordering | Thr_Corr_Value |
@@ -859,16 +866,17 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Camera_Control_Inverted | Rangefinder_Hardware | Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config |
           Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup | Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts |
           Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus | Gyro_1_I2c_Bus | Gyro_1_I2c_Address |
-          Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid |
-          Expresslrs_Domain | Expresslrs_Model_Id | Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud |
-          Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics | Rpm_Filter_Weights | Rpm_Filter_Min_Hz |
-          Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit | Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I |
-          Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F | Ap_Position_P | Ap_Position_I | Ap_Position_D |
-          Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff | Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate |
-          Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode | Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch |
-          Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate | Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable |
-          Ap_Landing_Spiral_Rate | Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate |
-          Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy | Ap_Geofence_Action => 255,
+          Gyro_2_Bustype | Gyro_2_Spibus | Gyro_2_I2c_Bus | Gyro_2_I2c_Address | Mco2_On_Pc9 | Spektrum_Spi_Protocol |
+          Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid | Expresslrs_Domain | Expresslrs_Model_Id |
+          Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud | Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics
+          | Rpm_Filter_Weights | Rpm_Filter_Min_Hz | Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit |
+          Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I | Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F |
+          Ap_Position_P | Ap_Position_I | Ap_Position_D | Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff |
+          Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate | Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode |
+          Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch | Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate |
+          Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable | Ap_Landing_Spiral_Rate |
+          Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate | Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy |
+          Ap_Geofence_Action => 255,
         when Gyro_Lpf1_Static_Hz | Gyro_Lpf2_Static_Hz | Gyro_Notch1_Hz | Gyro_Notch1_Cutoff | Gyro_Notch2_Hz |
           Gyro_Notch2_Cutoff | Gyro_Calib_Duration | Yaw_Spin_Threshold | Dyn_Notch_Q | Dyn_Notch_Min_Hz |
           Dyn_Notch_Max_Hz | Gyro_Lpf1_Dyn_Min_Hz | Gyro_Lpf1_Dyn_Max_Hz | Acc_Lpf_Hz | Mid_Rc | Min_Check | Max_Check
@@ -1098,5 +1106,13 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Apply_Wing_Groups (C);
       return C;
    end Wing_Defaults;
+
+   procedure Apply_Second_Gyro (C : in out Configuration) is
+   begin
+      C.Gyro_Device_Config := ((Index => 0, Bus_Type => 0, Spi_Bus => 0, Csn_Tag => 0, I2c_Bus => 0, I2c_Address => 0,
+         Exti_Tag => 0, Alignment => 0, Custom_Alignment => (others => 0), Clk_In => 0), (Index => 1, Bus_Type => 0,
+         Spi_Bus => 0, Csn_Tag => 0, I2c_Bus => 0, I2c_Address => 0, Exti_Tag => 0, Alignment => 0, Custom_Alignment
+         => (others => 0), Clk_In => 0));
+   end Apply_Second_Gyro;
 
 end Adaflight.Config_Groups;

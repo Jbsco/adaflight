@@ -15680,3 +15680,22 @@ and 3951.
 A chip's run now repeats once when its rate is outside that band, and a rate still outside fails. With an
 altered task listing, a low rate in a first run alone passes after one repeat, and a low rate in both runs
 fails. Other timing checks of that section have no repeat.
+
+## D792. Settings and device entry of a second gyro (2026-11-16)
+
+A Betaflight build for a board with a second gyro has seven settings that a one gyro build lacks:
+`gyro_enabled_bitmask`, `gyro_1_enabled`, `gyro_2_enabled`, `gyro_2_bustype`, `gyro_2_spibus`, `gyro_2_i2cBus`
+and `gyro_2_i2c_address`. Its gyro device group has an entry per gyro. A settings oracle build with two gyros
+now feeds the generators beside the multirotor and wing builds.
+
+`Settings_Table.In_Build` takes a gyro count and leaves those seven settings out for one gyro. That count
+defaults to one until command line and MSP pass a board's count, so a one gyro board's command line is as it
+was. `Config_Groups` has a gyro device list of two entries. On a one gyro board nothing reads or writes its
+second entry, which stays zero. `Apply_Second_Gyro` writes a two gyro build's defaults over that list.
+
+A stored image is 15 bytes longer on every board. An image stored before this change loads as before: a group
+takes as many stored bytes as its record has, and the second entry keeps its default.
+
+Recorded vector families come from one gyro oracle builds and did not change. The harness leaves the second
+entry's bytes out of a comparison with a one gyro oracle's data. Families from the two gyro oracle check its
+settings list, its defaults, writes with their read back, and the codec with the longer list.

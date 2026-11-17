@@ -498,7 +498,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       end if;
    end Align_From_Standard;
 
-   procedure Align_Gyros (Gyros : in out Gyro_Device_Config_Record_List_1) is
+   procedure Align_Gyros (Gyros : in out Gyro_Device_Config_Record_List_2) is
    begin
       for G of Gyros loop
          Align_From_Standard (G.Custom_Alignment, G.Alignment);

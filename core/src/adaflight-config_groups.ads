@@ -708,7 +708,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Custom_Alignment : Integer_16_List_3;
       Clk_In           : Unsigned_8;
    end record;
-   type Gyro_Device_Config_Record_List_1 is array (0 .. 0) of Gyro_Device_Config_Record;
+   type Gyro_Device_Config_Record_List_2 is array (0 .. 1) of Gyro_Device_Config_Record;
    type Max7456_Config_Record is record
       Clock_Config : Unsigned_8;
       Cs_Tag       : Unsigned_8;
@@ -1200,7 +1200,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Gps_Lap_Timer_Config          : Gps_Lap_Timer_Config_Record;
       Gps_Config                    : Gps_Config_Record;
       Gps_Rescue_Config             : Gps_Rescue_Record;
-      Gyro_Device_Config            : Gyro_Device_Config_Record_List_1;
+      Gyro_Device_Config            : Gyro_Device_Config_Record_List_2;
       Max7456_Config                : Max7456_Config_Record;
       Mco_Config                    : Mco_Config_Record_List_2;
       Motor_Config                  : Motor_Config_Record;
@@ -1264,6 +1264,10 @@ package Adaflight.Config_Groups with SPARK_Mode is
    --  The groups whose defaults the wing build sets otherwise, written over
    --  the multirotor ones in C.
    procedure Apply_Wing_Groups (C : in out Configuration);
+
+   --  The groups whose defaults a board with a second gyro sets otherwise,
+   --  written over the one gyro ones in C.
+   procedure Apply_Second_Gyro (C : in out Configuration);
 
    --  The profiles a setting has: one for a setting outside the profiles.
    function Profile_Count (S : Setting) return Positive is
