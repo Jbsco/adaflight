@@ -15759,3 +15759,14 @@ configuration changes with this entry.
 Oracle `gen_gyrodev` now takes count and mask from the reference's own header lines and has sets of defines
 for two gyros. Family `gyrodev` checks the mask and both entries of a reset configuration, and
 `tools/boardgen-check.py` checks count, mask and each gyro's values against those sets.
+
+## D798. ESC line bytes before a client connects (2026-11-17)
+
+A host image's ESC line is a TCP server. Its listener task accepts a client and then marks the line connected,
+and a link's bytes before that were dropped. Host smoke connects to the line right after a link opens and sends
+at once, and its kernel connection completes before that task runs. PR #867's target job lost the first five
+bytes of `every motor` this way on a hosted runner. With an image's listener threads at the idle scheduling
+class on a core two busy loops hold, eight of eight runs lost every byte.
+
+Bytes for the line now wait in it while no client is connected. A new client gets them before any later byte,
+and a new link starts with none waiting. Under those conditions eight of eight runs pass.

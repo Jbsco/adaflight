@@ -1,7 +1,8 @@
 --  The host's ESC serial port: the ESC's line is a TCP server on port 5769,
 --  one client at a time. The levels the engine writes to the motor's pin are
 --  put back into bytes for the client, and a byte from the client becomes
---  the edges and bit ticks its frame makes on the pin. KISS on every motor
+--  the edges and bit ticks its frame makes on the pin. The bytes for a
+--  client wait in the line until one connects. KISS on every motor
 --  gives the client a level only when every motor's pin has it. The line
 --  has no rate: each of the passthrough's calls runs the frames that wait.
 --  When the environment variable ADAFLIGHT_ESC_SERIAL_LOG names a file, each
@@ -26,20 +27,25 @@ package body Adaflight.STM32.ESC_Serial_Port is
    Ring_Size : constant := 4_096;
    subtype Ring_Index is Natural range 0 .. Ring_Size - 1;
 
-   --  The line's bytes from its client, and the client.
+   --  The line's bytes from its client, the bytes waiting for a client, and
+   --  the client.
    protected Line is
       procedure Push (Data : Byte_Array);
       procedure Pop (B : out Byte; Got : out Boolean);
-      procedure Connect (Client : GNAT.Sockets.Socket_Type);
+      procedure Hold (B : Byte; Connected : out Boolean);
+      procedure Drain (Client : GNAT.Sockets.Socket_Type; Data : out Byte_Array; Count : out Natural);
+      procedure Clear_Held;
       procedure Disconnect;
       function Client return GNAT.Sockets.Socket_Type;
-      function Connected return Boolean;
    private
-      Bytes   : Byte_Array (Ring_Index) := (others => 0);
-      Head    : Ring_Index := 0;
-      Fill    : Natural range 0 .. Ring_Size := 0;
-      Socket  : GNAT.Sockets.Socket_Type := GNAT.Sockets.No_Socket;
-      Present : Boolean := False;
+      Bytes     : Byte_Array (Ring_Index) := (others => 0);
+      Head      : Ring_Index := 0;
+      Fill      : Natural range 0 .. Ring_Size := 0;
+      Held      : Byte_Array (Ring_Index) := (others => 0);
+      Held_Head : Ring_Index := 0;
+      Held_Fill : Natural range 0 .. Ring_Size := 0;
+      Socket    : GNAT.Sockets.Socket_Type := GNAT.Sockets.No_Socket;
+      Present   : Boolean := False;
    end Line;
 
    protected body Line is
@@ -63,11 +69,39 @@ package body Adaflight.STM32.ESC_Serial_Port is
          end if;
       end Pop;
 
-      procedure Connect (Client : GNAT.Sockets.Socket_Type) is
+      --  A byte for the client: the caller sends it when a client is
+      --  connected, and otherwise it waits.
+      procedure Hold (B : Byte; Connected : out Boolean) is
       begin
-         Socket := Client;
-         Present := True;
-      end Connect;
+         Connected := Present;
+         if not Present and then Held_Fill < Ring_Size then
+            Held ((Held_Head + Held_Fill) mod Ring_Size) := B;
+            Held_Fill := Held_Fill + 1;
+         end if;
+      end Hold;
+
+      --  The waiting bytes for a new client, and the client connected once
+      --  none wait, so the caller's bytes come after them.
+      procedure Drain (Client : GNAT.Sockets.Socket_Type; Data : out Byte_Array; Count : out Natural) is
+      begin
+         Data := (others => 0);
+         Count := Natural'Min (Held_Fill, Data'Length);
+         for I in 0 .. Count - 1 loop
+            Data (Data'First + I) := Held (Held_Head);
+            Held_Head := (Held_Head + 1) mod Ring_Size;
+         end loop;
+         Held_Fill := Held_Fill - Count;
+         if Count = 0 then
+            Socket := Client;
+            Present := True;
+         end if;
+      end Drain;
+
+      procedure Clear_Held is
+      begin
+         Held_Head := 0;
+         Held_Fill := 0;
+      end Clear_Held;
 
       procedure Disconnect is
       begin
@@ -76,8 +110,6 @@ package body Adaflight.STM32.ESC_Serial_Port is
       end Disconnect;
 
       function Client return GNAT.Sockets.Socket_Type is (Socket);
-
-      function Connected return Boolean is (Present);
    end Line;
 
    task Listener is
@@ -91,6 +123,8 @@ package body Adaflight.STM32.ESC_Serial_Port is
       Address : Sock_Addr_Type;
       Buffer  : Ada.Streams.Stream_Element_Array (1 .. 256);
       Last    : Ada.Streams.Stream_Element_Offset;
+      Waiting : Byte_Array (0 .. 255);
+      Count   : Natural;
    begin
       select
          accept Start;
@@ -104,7 +138,21 @@ package body Adaflight.STM32.ESC_Serial_Port is
       loop
          Accept_Socket (Server, Client, Address);
          Set_Socket_Option (Client, IP_Protocol_For_TCP_Level, (No_Delay, True));
-         Line.Connect (Client);
+         loop
+            Line.Drain (Client, Waiting, Count);
+            exit when Count = 0;
+            for I in 0 .. Count - 1 loop
+               Buffer (Buffer'First + Ada.Streams.Stream_Element_Offset (I)) :=
+                 Ada.Streams.Stream_Element (Waiting (I));
+            end loop;
+            begin
+               Send_Socket
+                 (Client, Buffer (Buffer'First .. Buffer'First + Ada.Streams.Stream_Element_Offset (Count - 1)), Last);
+            exception
+               when Socket_Error =>
+                  null;
+            end;
+         end loop;
          loop
             begin
                Receive_Socket (Client, Buffer, Last);
@@ -133,8 +181,10 @@ package body Adaflight.STM32.ESC_Serial_Port is
       use Ada.Streams;
       Buffer : constant Stream_Element_Array (1 .. 1) := (1 => Stream_Element (B));
       Last   : Stream_Element_Offset;
+      Ready  : Boolean;
    begin
-      if Line.Connected then
+      Line.Hold (B, Ready);
+      if Ready then
          GNAT.Sockets.Send_Socket (Line.Client, Buffer, Last);
       end if;
    exception
@@ -359,6 +409,7 @@ package body Adaflight.STM32.ESC_Serial_Port is
    begin
       Open := Started;
       Sent := (others => <>);
+      Line.Clear_Held;
       Last_Level := (others => True);
       In_Level := True;
       if Started and then not Listening then
