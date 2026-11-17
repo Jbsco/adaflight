@@ -90,9 +90,9 @@ package Adaflight.QMP6988 with SPARK_Mode is
       Call : Barometer_Task.Device_Call;
       Done : out Boolean);
 
-   --  The pressure in pascal and the temperature as the compensated value
-   --  cut toward zero and divided by 256, each kept when its compensated
-   --  value is zero.
+   --  The pressure in pascal and the temperature in hundredths of a degree,
+   --  the compensated value times 100 over 256 cut toward zero, each kept
+   --  when its compensated value is zero.
    procedure Calculate
      (S : State; Pressure : in out Interfaces.Integer_32; Temperature : in out Interfaces.Integer_32)
      with Global => null;
