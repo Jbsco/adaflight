@@ -120,6 +120,11 @@ package Adaflight.Config_Runtime with SPARK_Mode is
       return Receiver.Settings
      with Pre => Reported_Channels <= Receiver.Channel_Count;
 
+   --  A gyro's placement on its board from its device entry: its standard
+   --  alignment, a code past the last read as the last, and its custom
+   --  angles within a full turn.
+   function Gyro_Placement_Of (Device : Gyro_Device_Config_Record) return Gyro_Filters.Sensor_Placement;
+
    --  The gyro settings from the stored gyro, dynamic notch, RPM filter,
    --  gyro device, board alignment, motor and PID loop groups, with what the
    --  hardware gives: the sample time, whose product with the loop ratio is
@@ -1346,6 +1351,16 @@ private
    function SRXL2_Settings_Of (R : Rx_Config_Record) return SRXL2.Settings is
      (Unit_Id => Natural (R.Srxl2_Unit_Id), Baud_Fast => Natural (R.Srxl2_Baud_Fast));
 
+   function Gyro_Placement_Of (Device : Gyro_Device_Config_Record) return Gyro_Filters.Sensor_Placement is
+     (Alignment     =>
+        Sensor_Alignment.Standard_Alignment'Val
+          (Code (Device.Alignment,
+                 Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))),
+      Custom_Angles =>
+        (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (0)), -3600, 3600)),
+         Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (1)), -3600, 3600)),
+         Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (2)), -3600, 3600))));
+
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
       Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record; Motor : Motor_Config_Record;
@@ -1367,15 +1382,7 @@ private
       Scale              => Scale,
       Enabled            => (0 => True, others => False),
       Sensors            =>
-        (0      =>
-           (Alignment     =>
-              Sensor_Alignment.Standard_Alignment'Val
-                (Code (Device.Alignment,
-                       Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))),
-            Custom_Angles =>
-              (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (0)), -3600, 3600)),
-               Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (1)), -3600, 3600)),
-               Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (2)), -3600, 3600)))),
+        (0      => Gyro_Placement_Of (Device),
          others => (Alignment => Sensor_Alignment.CW0, Custom_Angles => (Roll => 0, Pitch => 0, Yaw => 0))),
       Board              =>
         (Roll  => Held (Integer (Board.Roll_Degrees), -180, 360),

@@ -1,6 +1,6 @@
---  The board's gyro on SPI1: the SPI gyro layer over the bus driver with the
---  MPU6000 and MPU6500 family drivers the board family builds, the data ready
---  line's interrupt, the start at boot, and the readings the main takes.
+--  The board's gyros: the SPI gyro layer over the bus driver with the
+--  drivers the board builds, each gyro's data ready line, its detection and
+--  start at boot, and the readings the main takes.
 with Interfaces;
 with Adaflight.Scheduler;
 with Adaflight.Acc_Detect;
@@ -10,7 +10,7 @@ package Adaflight.STM32.Gyro is
    type Read_Mode is (Interrupt_Init, Interrupt_DMA, Interrupt, No_Interrupt);
    --  The accelerometer's count for one g on most chips.
    Acc_One_G : constant := 2048;
-   --  What the start found: the gyro hardware code and the chip's sensor
+   --  What a gyro's detection and start found: the gyro hardware code and the chip's sensor
    --  code, the scale in degrees per second per count, the sample rates, the
    --  overflow protection of the hardware, whether the initialization read
    --  failed, and the accelerometer hardware with its count for one g.
@@ -27,10 +27,18 @@ package Adaflight.STM32.Gyro is
       Acc_Hardware       : Byte := Acc_Detect.Hardware_None;
       One_G              : Positive := Acc_One_G;
    end record;
-   --  The detection and initialization with the hardware filter setting, the
-   --  high range option and the configured accelerometer hardware.
-   procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report);
-   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean);
+   --  The detection of the gyro at a position with the hardware filter
+   --  setting and the high range option: a gyro the board does not have, or
+   --  has without a bus, is not found.
+   procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report);
+   --  The start of a detected gyro, with the configured accelerometer
+   --  hardware for its accelerometer.
+   procedure Init
+     (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : in out Report);
+   --  The gyro whose accelerometer, read mode, interrupt counts and
+   --  temperature the operations below give: the first enabled one.
+   procedure Set_Active (Position : Natural);
+   procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean);
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean);
    function Mode return Read_Mode;
    --  What the scheduler's gyro lock reads: the interrupt count, the cycle

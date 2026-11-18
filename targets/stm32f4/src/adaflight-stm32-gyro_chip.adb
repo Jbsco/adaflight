@@ -18,18 +18,24 @@ with Adaflight.STM32.Gyro_Clock;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Gyro_Chip is
-   --  The gyro's bus from the board's configuration, SPI1 when it names none.
-   Gyro_Bus : constant SPI.Bus :=
-     (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then SPI.Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1)
-      else SPI.SPI1);
+   --  A gyro's bus from the board's configuration, SPI1 when it names none.
+   function Bus_Of (Device_Number : Natural) return SPI.Bus is
+     (if Device_Number in 1 .. 6 then SPI.Bus'Val (Device_Number - 1) else SPI.SPI1);
+   --  The board's gyros by position.
+   subtype Gyro_Position is Natural range 0 .. Adaflight.Board.Gyro_Count - 1;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Integer_32;
    Read_Bit : constant Byte := 16#80#;
 
-   --  The gyro's SPI device: its select pin, its data ready line, the bytes
-   --  the last transfer brought in, the place in the layer's buffer its
-   --  first byte goes to, and whether an initialization read failed.
+   --  A gyro's SPI device: its position, its bus, its select pin, its data
+   --  ready line and whether the board has that line, the bytes the last
+   --  transfer brought in, the place in the layer's buffer its first byte
+   --  goes to, and whether an initialization read failed. The first gyro's
+   --  values stand until a second gyro's detection sets its own.
    type Device is limited record
+      Index    : Natural := 0;
+      Bus      : SPI.Bus := Bus_Of (Adaflight.Board.Gyro_1_SPI_Device);
+      Has_Line : Boolean := True;
       CS     : Pin := Adaflight.Board.Gyro_1_CS_Pin;
       Line   : Pin := Adaflight.Board.Gyro_1_EXTI_Pin;
       Rx     : Byte_Array (0 .. 15) := (others => 0);
@@ -121,18 +127,30 @@ package body Adaflight.STM32.Gyro_Chip is
    function Is_LSM (Sensor : Byte) return Boolean is
      (Sensor in LSM6DSV.Sensor_LSM6DSV16X | LSM6DSV.Sensor_LSM6DSK320X | LSM6DSV.Sensor_LSM6DSV32X);
 
-   Bus   : Device;
-   State : Layer.State;
-   Latch : LSM6DSV.Sample_Latch;
-   Gyro_Found : Boolean := False;
+   type Device_List is array (Gyro_Position) of Device;
+   type State_List is array (Gyro_Position) of Layer.State;
+   type Latch_List is array (Gyro_Position) of LSM6DSV.Sample_Latch;
+   type Flag_List is array (Gyro_Position) of Boolean;
+   Devices     : Device_List;
+   States      : State_List;
+   Latches     : Latch_List;
+   Found_Gyros : Flag_List := (others => False);
+   --  The first enabled gyro, which gives the accelerometer's readings, the
+   --  read mode, the interrupt counts and the temperature.
+   Active      : Gyro_Position := 0;
    Polled_Temperature : Interfaces.Integer_16 := Interfaces.Integer_16'First;
 
-   --  The data ready line's callback counts and times the sample in the
-   --  layer.
+   --  A data ready line's callback counts and times the sample in the
+   --  layer: one for the first gyro and one for the last of the board's.
    procedure Data_Ready is
    begin
-      Layer.Interrupt (Bus, State);
+      Layer.Interrupt (Devices (0), States (0));
    end Data_Ready;
+
+   procedure Data_Ready_Second is
+   begin
+      Layer.Interrupt (Devices (Gyro_Position'Last), States (Gyro_Position'Last));
+   end Data_Ready_Second;
 
    procedure Select_Chip (D : Device) is
    begin
@@ -179,9 +197,8 @@ package body Adaflight.STM32.Gyro_Chip is
    end Divider;
 
    procedure Set_Divisor (D : in out Device; Divisor : Unsigned_16) is
-      pragma Unreferenced (D);
    begin
-      SPI.Set_Divisor (Gyro_Bus, Divisor);
+      SPI.Set_Divisor (D.Bus, Divisor);
    end Set_Divisor;
 
    procedure Probe_Chip (D : in out Device; Index : Positive; Sensor : out Byte) is
@@ -208,7 +225,7 @@ package body Adaflight.STM32.Gyro_Chip is
             if Adaflight.Board.Gyro_MPU6500 then
                MPU6500.Detect (D, Sensor);
                if Adaflight.Board.Gyro_Clkin and then Adaflight.Board.Gyro_ICM426xx
-                 and then Sensor = ICM426xx.Sensor_ICM42688P
+                 and then Sensor = ICM426xx.Sensor_ICM42688P and then D.Index = 0
                then
                   ICM426xx.Enable_External_Clock (D);
                end if;
@@ -246,9 +263,16 @@ package body Adaflight.STM32.Gyro_Chip is
 
    procedure Enable_Interrupt (D : in out Device) is
    begin
+      if not D.Has_Line then
+         return;
+      end if;
       GPIO.Enable_Port (D.Line.Port);
       GPIO.Set_Input (D.Line);
-      EXTI_Dispatch.Register (D.Line.Number, Data_Ready'Access);
+      if D.Index = 0 then
+         EXTI_Dispatch.Register (D.Line.Number, Data_Ready'Access);
+      else
+         EXTI_Dispatch.Register (D.Line.Number, Data_Ready_Second'Access);
+      end if;
       EXTI.Enable_Rising (D.Line);
    end Enable_Interrupt;
 
@@ -262,7 +286,7 @@ package body Adaflight.STM32.Gyro_Chip is
       pragma Unreferenced (Completion);
    begin
       Select_Chip (D);
-      SPI.Transfer (Gyro_Bus, Data, D.Rx);
+      SPI.Transfer (D.Bus, Data, D.Rx);
       Deselect_Chip (D);
    end Start_Sequence;
 
@@ -295,7 +319,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Rx : Byte_Array (0 .. Data'Length);
    begin
       Select_Chip (D);
-      SPI.Transfer (Gyro_Bus, Tx, Rx);
+      SPI.Transfer (D.Bus, Tx, Rx);
       Deselect_Chip (D);
       Data := Rx (1 .. Data'Length);
       OK := True;
@@ -305,7 +329,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer (Gyro_Bus, (Register, Value), Rx);
+      SPI.Transfer (D.Bus, (Register, Value), Rx);
       Deselect_Chip (D);
    end Write_Register;
 
@@ -313,7 +337,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer (Gyro_Bus, (Register or Read_Bit, 16#FF#), Rx);
+      SPI.Transfer (D.Bus, (Register or Read_Bit, 16#FF#), Rx);
       Deselect_Chip (D);
       Value := Rx (1);
    end Read_Register;
@@ -343,7 +367,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Tx (0) := Register;
       Tx (1 .. Data'Length) := Data;
       Select_Chip (D);
-      SPI.Transfer (Gyro_Bus, Tx, Rx);
+      SPI.Transfer (D.Bus, Tx, Rx);
       Deselect_Chip (D);
    end Write_Buffer;
 
@@ -380,122 +404,185 @@ package body Adaflight.STM32.Gyro_Chip is
    --  The gyro hardware code the detection gives a chip that the ICM20689
    --  driver starts.
    Hardware_ICM20689 : constant Byte := 11;
-   --  The gyro on SPI bus 1 with a select pin.
-   Config : constant Layer.Device_Config := (Index => 0, Bus_Type => 2, SPI_Bus => 1, CS_Tag => 1);
+   --  A gyro on an SPI bus with a select pin.
+   function Device_Config (Position : Gyro_Position) return Layer.Device_Config is
+     (Index => Interfaces.Integer_8 (Position), Bus_Type => 2, SPI_Bus => 1, CS_Tag => 1);
 
-   procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report) is
+   --  Whether the board gives the gyro at a position a bus: the first has
+   --  one, a second needs its SPI instance and select pin.
+   function Configured (Position : Natural) return Boolean is
+     (Position = 0
+      or else (Position in Gyro_Position and then Adaflight.Board.Gyro_2_SPI_Device in 1 .. 6
+               and then Adaflight.Board.Gyro_2_CS_Tag /= 0));
+
+   --  A second gyro's own bus, pins and line.
+   procedure Set_Up (Position : Natural; D : in out Device) is
+   begin
+      D.Index := Position;
+      if Position > 0 then
+         D.Bus := Bus_Of (Adaflight.Board.Gyro_2_SPI_Device);
+         D.CS := Adaflight.Board.Gyro_2_CS_Pin;
+         D.Line := Adaflight.Board.Gyro_2_EXTI_Pin;
+         D.Has_Line := Adaflight.Board.Gyro_2_EXTI_Tag /= 0;
+      end if;
+   end Set_Up;
+
+   procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report) is
       Chip_Found : Boolean;
       Found      : Boolean;
       Hardware   : Byte := Gyro_Detect.Hardware_None;
       Rates      : Gyro_Start.Rates;
    begin
       R := (others => <>);
-      Layer.Preinit (Bus, Config);
-      Layer.Detect (Bus, State, Config, Chip_Found);
-      Gyro_Detect.Detect_Sensor (Build, Chip_Found, State.Sensor, Hardware, Found);
-      if not Found then
+      if Position not in Gyro_Position or else not Configured (Position) then
          return;
       end if;
-      Found := False;
-      if Hardware = Layer.Hardware_MPU6000 then
-         if Adaflight.Board.Gyro_MPU6000 then
-            MPU6000.Gyro_Detect (State, Found, R.Scale);
+      declare
+         D : Device renames Devices (Position);
+         S : Layer.State renames States (Position);
+      begin
+         Set_Up (Position, D);
+         Layer.Preinit (D, Device_Config (Position));
+         Layer.Detect (D, S, Device_Config (Position), Chip_Found);
+         Gyro_Detect.Detect_Sensor (Build, Chip_Found, S.Sensor, Hardware, Found);
+         if not Found then
+            return;
          end if;
-      elsif Hardware = Hardware_ICM20689 then
-         if Adaflight.Board.Gyro_ICM20689 then
-            ICM20689.Gyro_Detect (State, Found, R.Scale);
+         Found := False;
+         if Hardware = Layer.Hardware_MPU6000 then
+            if Adaflight.Board.Gyro_MPU6000 then
+               MPU6000.Gyro_Detect (S, Found, R.Scale);
+            end if;
+         elsif Hardware = Hardware_ICM20689 then
+            if Adaflight.Board.Gyro_ICM20689 then
+               ICM20689.Gyro_Detect (S, Found, R.Scale);
+            end if;
+         elsif LSM_Built and then Is_LSM (S.Sensor) then
+            LSM6DSV.Gyro_Detect (S, Found);
+         elsif Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
+            BMI270.Gyro_Detect (S, Found, R.Scale);
+            D.Offset := 0;
+         elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (S.Sensor) then
+            ICM426xx.Gyro_Detect (S, Found, R.Scale);
+         elsif Adaflight.Board.Gyro_MPU6500 then
+            MPU6500.Gyro_Detect (S, High_Range, Found, R.Scale);
          end if;
-      elsif LSM_Built and then Is_LSM (State.Sensor) then
-         LSM6DSV.Gyro_Detect (State, Found);
-      elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
-         BMI270.Gyro_Detect (State, Found, R.Scale);
-         Bus.Offset := 0;
-      elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
-         ICM426xx.Gyro_Detect (State, Found, R.Scale);
-      elsif Adaflight.Board.Gyro_MPU6500 then
-         MPU6500.Gyro_Detect (State, High_Range, Found, R.Scale);
-      end if;
-      if not Found then
-         return;
-      end if;
-      Gyro_Found := True;
-      State.Interrupt_Pin := True;
-      State.Hardware_LPF := Hardware_LPF;
-      State.Hardware := Hardware;
-      Rates := Gyro_Start.Sample_Rates (State.Sensor, Hardware_LPF);
-      State.Rate_KHz := Rates.Rate_Code;
-      if Hardware = Layer.Hardware_MPU6000 then
-         if Adaflight.Board.Gyro_MPU6000 then
-            MPU6000.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
+         if not Found then
+            return;
          end if;
-      elsif Hardware = Hardware_ICM20689 then
-         if Adaflight.Board.Gyro_ICM20689 then
-            ICM20689.Gyro_Init (Bus, State, Gyro_Start.Divider_Drops);
-         end if;
-      elsif LSM_Built and then Is_LSM (State.Sensor) then
-         LSM6DSV.Gyro_Init (Bus, State, Hardware_LPF, R.Scale);
-      elsif Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
-         BMI270.Gyro_Init (Bus, State);
-      elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
-         ICM426xx.Gyro_Init (Bus, State, Hardware_LPF, Gyro_Start.Divider_Drops);
-      elsif Adaflight.Board.Gyro_MPU6500 then
-         MPU6500.Gyro_Init (Bus, State, High_Range, Gyro_Start.Divider_Drops);
-      end if;
-      R.Found := True;
-      R.Init_Failed := Bus.Failed;
-      R.Hardware := Hardware;
-      R.Sensor := State.Sensor;
-      R.Sample_Rate_Hz := Rates.Gyro_Hz;
-      R.Acc_Sample_Rate_Hz := Rates.Acc_Hz;
-      R.Overflow_Protected := Gyro_Start.Overflow_Protected (Hardware);
-      Acc_Detect.Detect (Acc_Build, Acc_Configured, State.Sensor, R.Acc_Hardware, R.Acc_Found);
-      if R.Acc_Found and then Adaflight.Board.Acc_ICM426xx and then ICM426xx.Is_ICM426xx (State.Sensor) then
-         R.One_G := Positive (ICM426xx.Acc_One_G (State));
-      elsif R.Acc_Found and then LSM_Built and then Is_LSM (State.Sensor) then
-         R.One_G := LSM6DSV.Acc_One_G (State);
-      end if;
-   end Start;
+         Found_Gyros (Position) := True;
+         S.Interrupt_Pin := D.Has_Line;
+         S.Hardware_LPF := Hardware_LPF;
+         S.Hardware := Hardware;
+         Rates := Gyro_Start.Sample_Rates (S.Sensor, Hardware_LPF);
+         S.Rate_KHz := Rates.Rate_Code;
+         R.Found := True;
+         R.Hardware := Hardware;
+         R.Sensor := S.Sensor;
+         R.Sample_Rate_Hz := Rates.Gyro_Hz;
+         R.Acc_Sample_Rate_Hz := Rates.Acc_Hz;
+         R.Overflow_Protected := Gyro_Start.Overflow_Protected (Hardware);
+      end;
+   end Detect;
 
-   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
+   procedure Init
+     (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : in out Report) is
    begin
-      if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
-         BMI270.Read_Gyro (Bus, State, OK);
-      elsif LSM_Built and then Is_LSM (State.Sensor) then
-         LSM6DSV.Read_Gyro (Bus, State, Latch, OK);
-      else
-         Layer.Read_Gyro_SPI (Bus, State, OK);
+      if Position not in Gyro_Position or else not Found_Gyros (Position) then
+         return;
       end if;
-      Raw := (State.Raw (0), State.Raw (1), State.Raw (2));
+      declare
+         D        : Device renames Devices (Position);
+         S        : Layer.State renames States (Position);
+         Hardware : constant Byte := S.Hardware;
+      begin
+         if Hardware = Layer.Hardware_MPU6000 then
+            if Adaflight.Board.Gyro_MPU6000 then
+               MPU6000.Gyro_Init (D, S, Gyro_Start.Divider_Drops);
+            end if;
+         elsif Hardware = Hardware_ICM20689 then
+            if Adaflight.Board.Gyro_ICM20689 then
+               ICM20689.Gyro_Init (D, S, Gyro_Start.Divider_Drops);
+            end if;
+         elsif LSM_Built and then Is_LSM (S.Sensor) then
+            LSM6DSV.Gyro_Init (D, S, Hardware_LPF, R.Scale);
+         elsif Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
+            BMI270.Gyro_Init (D, S);
+         elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (S.Sensor) then
+            ICM426xx.Gyro_Init (D, S, Hardware_LPF, Gyro_Start.Divider_Drops);
+         elsif Adaflight.Board.Gyro_MPU6500 then
+            MPU6500.Gyro_Init (D, S, High_Range, Gyro_Start.Divider_Drops);
+         end if;
+         R.Init_Failed := D.Failed;
+         Acc_Detect.Detect (Acc_Build, Acc_Configured, S.Sensor, R.Acc_Hardware, R.Acc_Found);
+         if R.Acc_Found and then Adaflight.Board.Acc_ICM426xx and then ICM426xx.Is_ICM426xx (S.Sensor) then
+            R.One_G := Positive (ICM426xx.Acc_One_G (S));
+         elsif R.Acc_Found and then LSM_Built and then Is_LSM (S.Sensor) then
+            R.One_G := LSM6DSV.Acc_One_G (S);
+         end if;
+      end;
+   end Init;
+
+   procedure Set_Active (Position : Natural) is
+   begin
+      if Position in Gyro_Position then
+         Active := Position;
+      end if;
+   end Set_Active;
+
+   procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean) is
+   begin
+      Raw := (others => 0);
+      OK := False;
+      if Position not in Gyro_Position then
+         return;
+      end if;
+      declare
+         D : Device renames Devices (Position);
+         S : Layer.State renames States (Position);
+      begin
+         if Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
+            BMI270.Read_Gyro (D, S, OK);
+         elsif LSM_Built and then Is_LSM (S.Sensor) then
+            LSM6DSV.Read_Gyro (D, S, Latches (Position), OK);
+         else
+            Layer.Read_Gyro_SPI (D, S, OK);
+         end if;
+         Raw := (S.Raw (0), S.Raw (1), S.Raw (2));
+      end;
    end Read_Gyro;
 
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean) is
+      D : Device renames Devices (Active);
+      S : Layer.State renames States (Active);
    begin
-      if Adaflight.Board.Gyro_BMI270 and then State.Sensor = BMI270.Sensor_BMI270 then
-         BMI270.Read_Acc (Bus, State, OK);
-      elsif LSM_Built and then Is_LSM (State.Sensor) then
-         LSM6DSV.Read_Acc (Bus, State, Latch, OK);
+      if Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
+         BMI270.Read_Acc (D, S, OK);
+      elsif LSM_Built and then Is_LSM (S.Sensor) then
+         LSM6DSV.Read_Acc (D, S, Latches (Active), OK);
       else
-         Layer.Read_Acc_SPI (Bus, State, OK);
+         Layer.Read_Acc_SPI (D, S, OK);
       end if;
-      Raw := (State.Acc_Raw (0), State.Acc_Raw (1), State.Acc_Raw (2));
+      Raw := (S.Acc_Raw (0), S.Acc_Raw (1), S.Acc_Raw (2));
    end Read_Acc;
 
    function Mode return Read_Mode is
-     (case State.Mode is
+     (case States (Active).Mode is
          when Layer.EXTI_Init    => Interrupt_Init,
          when Layer.EXTI_Int_DMA => Interrupt_DMA,
          when Layer.EXTI_Int     => Interrupt,
          when Layer.EXTI_No_Int  => No_Interrupt);
 
-   function Interrupt_Count return Unsigned_32 is (State.Detected_EXTI);
+   function Interrupt_Count return Unsigned_32 is (States (Active).Detected_EXTI);
 
-   function Sync_Cycles return Unsigned_32 is (State.Sync_EXTI);
+   function Sync_Cycles return Unsigned_32 is (States (Active).Sync_EXTI);
 
-   function Short_Period return Boolean is (State.Short_Period /= 0);
+   function Short_Period return Boolean is (States (Active).Short_Period /= 0);
    procedure Poll_Temperature (Now_Us : Adaflight.Scheduler.Time_Us) is
       pragma Unreferenced (Now_Us);
    begin
-      Polled_Temperature := (if Gyro_Found then State.Temperature else Interfaces.Integer_16'First);
+      Polled_Temperature :=
+        (if Found_Gyros (Active) then States (Active).Temperature else Interfaces.Integer_16'First);
    end Poll_Temperature;
 
    function Temperature return Interfaces.Integer_16 is (Polled_Temperature);
@@ -503,8 +590,8 @@ package body Adaflight.STM32.Gyro_Chip is
    procedure Dump_Register (Position : Natural; Register : Byte; Value : out Byte) is
    begin
       Value := 0;
-      if Position = 0 and then Gyro_Found then
-         Read_Register (Bus, Register, Value);
+      if Position in Gyro_Position and then Found_Gyros (Position) then
+         Read_Register (Devices (Position), Register, Value);
       end if;
    end Dump_Register;
 

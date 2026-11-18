@@ -11,17 +11,19 @@ package body Adaflight.STM32.Gyro is
    Rate_Hz : constant := 1_000;
    Chip    : constant Boolean := Ada.Environment_Variables.Exists ("ADAFLIGHT_GYRO_CHIP");
 
-   procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report) is
-      Build     : constant Gyro_Detect.Driver_Set := (Gyro_Detect.Virtual => True, others => False);
-      Acc_Build : constant Acc_Detect.Driver_Set := (Acc_Detect.Virtual => True, others => False);
-      Hardware  : Byte := Gyro_Detect.Hardware_None;
-      Found     : Boolean;
+   procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report) is
+      Build    : constant Gyro_Detect.Driver_Set := (Gyro_Detect.Virtual => True, others => False);
+      Hardware : Byte := Gyro_Detect.Hardware_None;
+      Found    : Boolean;
    begin
       if Chip then
-         Gyro_Chip.Start (Hardware_LPF, High_Range, Acc_Configured, R);
+         Gyro_Chip.Detect (Position, Hardware_LPF, High_Range, R);
          return;
       end if;
       R := (others => <>);
+      if Position /= 0 then
+         return;
+      end if;
       Gyro_Detect.Detect_Sensor (Build, True, 0, Hardware, Found);
       R.Found := Found;
       R.Hardware := Hardware;
@@ -29,17 +31,40 @@ package body Adaflight.STM32.Gyro is
       R.Sample_Rate_Hz := Rate_Hz;
       R.Acc_Sample_Rate_Hz := Rate_Hz;
       R.Overflow_Protected := True;
-      Acc_Detect.Detect (Acc_Build, Acc_Configured, 0, R.Acc_Hardware, R.Acc_Found);
-   end Start;
+   end Detect;
+
+   procedure Init
+     (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : in out Report)
+   is
+      Acc_Build : constant Acc_Detect.Driver_Set := (Acc_Detect.Virtual => True, others => False);
+   begin
+      if Chip then
+         Gyro_Chip.Init (Position, Hardware_LPF, High_Range, Acc_Configured, R);
+      elsif Position = 0 and then R.Found then
+         Acc_Detect.Detect (Acc_Build, Acc_Configured, 0, R.Acc_Hardware, R.Acc_Found);
+      end if;
+   end Init;
+
+   procedure Set_Active (Position : Natural) is
+   begin
+      if Chip then
+         Gyro_Chip.Set_Active (Position);
+      end if;
+   end Set_Active;
 
    --  A simulator's counts, the accelerometer's 256 a g raised to the chip families' 2048.
    function Scaled (Count : Interfaces.Integer_16) return Interfaces.Integer_16 is
      (Interfaces.Integer_16 (Integer'Max (-32_768, Integer'Min (32_767, Integer (Count) * 8))));
 
-   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
+   procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean) is
    begin
       if Chip then
-         Gyro_Chip.Read_Gyro (Raw, OK);
+         Gyro_Chip.Read_Gyro (Position, Raw, OK);
+         return;
+      end if;
+      if Position /= 0 then
+         Raw := (others => 0);
+         OK := False;
          return;
       end if;
       if Adaflight.Host_Simulator.Enabled then

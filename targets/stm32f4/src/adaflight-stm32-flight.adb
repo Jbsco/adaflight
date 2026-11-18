@@ -273,8 +273,16 @@ package body Adaflight.STM32.Flight is
             Custom_Align =>
               (Adaflight.Board.Gyro_1_Align_Roll, Adaflight.Board.Gyro_1_Align_Pitch,
                Adaflight.Board.Gyro_1_Align_Yaw)),
-         others => <>),
-      Gyros_Enabled    => 1,
+         1      =>
+           (SPI_Device   => (if Adaflight.Board.Gyro_SPI then Adaflight.Board.Gyro_2_SPI_Device else 0),
+            CS_Tag       => Adaflight.Board.Gyro_2_CS_Tag,
+            EXTI_Tag     => Adaflight.Board.Gyro_2_EXTI_Tag,
+            Clkin_Tag    => Adaflight.Board.Gyro_2_Clkin_Tag,
+            Align        => Adaflight.Board.Gyro_2_Align,
+            Custom_Align =>
+              (Adaflight.Board.Gyro_2_Align_Roll, Adaflight.Board.Gyro_2_Align_Pitch,
+               Adaflight.Board.Gyro_2_Align_Yaw))),
+      Gyros_Enabled    => Adaflight.Board.Default_Gyros_Enabled,
       VTX_CS_Tag       => Adaflight.Board.VTX_CS_Tag,
       VTX_Power_Tag    => Adaflight.Board.VTX_Power_Tag,
       VTX_Clock_Tag    => Adaflight.Board.VTX_Clock_Tag,
@@ -336,7 +344,7 @@ package body Adaflight.STM32.Flight is
       LED_Inversion         => Adaflight.Board.LED_Inversion);
 
    --  The gyros the board reads.
-   Gyro_Count : constant Positive := 1;
+   Gyro_Count : constant Positive := Adaflight.Board.Gyro_Count;
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
@@ -415,7 +423,9 @@ package body Adaflight.STM32.Flight is
    MSP_Reboot_Required : Boolean := False;
    Frame    : Adaflight.MSP_Port.Frame_Buffer := (others => 0);
    Frame_Length : Positive := 1;
+   --  The first enabled gyro's report, and that gyro's position.
    Gyro_Report  : Adaflight.STM32.Gyro.Report;
+   Active_Gyro  : Natural range 0 .. Gyro_Count - 1 := 0;
    Selection    : Adaflight.Gyro_Selection.Result;
    --  The running feature mask, from the stored features at the load, and
    --  the hash of each group's stored bytes.
@@ -1134,28 +1144,54 @@ package body Adaflight.STM32.Flight is
       Env.Status.I2C_Devices := I2C_Devices;
    end Count_Bus_Devices;
 
+   --  The gyros' start, in the reference's order: each gyro the selection
+   --  scans is looked for, the detected ones the setting enables are started,
+   --  and the selection then keeps those whose rate and scale agree. The
+   --  first enabled gyro gives the accelerometer and the readings' scale.
    procedure Start_Gyro is
-      Inputs : Adaflight.Gyro_Selection.Inputs;
-      Rate   : Adaflight.Config_Fix.Gyro_Rate;
-      Bus    : constant CLI.Device_Bus := (Kind => CLI.SPI_Bus, Number => 1, Address => 0);
+      Inputs  : Adaflight.Gyro_Selection.Inputs;
+      Rate    : Adaflight.Config_Fix.Gyro_Rate;
+      Bus     : constant CLI.Device_Bus := (Kind => CLI.SPI_Bus, Number => 1, Address => 0);
+      Reports : array (0 .. Gyro_Count - 1) of Adaflight.STM32.Gyro.Report;
+      Scan    : Adaflight.Gyro_Selection.Mask;
    begin
       if Adaflight.Board.Gyro_Clkin then
          Adaflight.STM32.Gyro_Clock.Set_Pin (Config.Gyro_Device_Config (0).Clk_In);
       end if;
-      Adaflight.STM32.Gyro.Start (Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
-                                  Config.Accelerometer_Config.Acc_Hardware, Gyro_Report);
-      if Gyro_Report.Init_Failed then
-         Adaflight.STM32.Failure_Flashes.Mode (Failure_Gyro_Init_Failed);
-      end if;
       Inputs.Count := Gyro_Count;
       Inputs.Stored_Detected := Config.Gyro_Config.Gyros_Detected;
       Inputs.Enabled_Setting := Config.Gyro_Config.Gyro_Enabled_Bitmask;
-      Inputs.Configured (0) := True;
-      Inputs.Present (0) := Gyro_Report.Found;
-      Inputs.Reports (0) := (Sample_Rate_Hz     => Gyro_Report.Sample_Rate_Hz,
-                             Scale              => Gyro_Report.Scale,
-                             Overflow_Protected => Gyro_Report.Overflow_Protected);
+      for G in Reports'Range loop
+         Inputs.Configured (G) := G = 0 or else Config.Gyro_Device_Config (G).Bus_Type /= 0;
+      end loop;
+      Scan := Adaflight.Gyro_Selection.Scanned (Inputs);
+      for G in Reports'Range loop
+         if (Scan and 2 ** G) /= 0 then
+            Adaflight.STM32.Gyro.Detect
+              (G, Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0, Reports (G));
+         end if;
+         Inputs.Present (G) := Reports (G).Found;
+      end loop;
       Adaflight.Gyro_Selection.Choose (Inputs, Selection);
+      for G in Reports'Range loop
+         if (Selection.Enabled and 2 ** G) /= 0 then
+            Adaflight.STM32.Gyro.Init
+              (G, Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
+               Config.Accelerometer_Config.Acc_Hardware, Reports (G));
+            if Reports (G).Init_Failed then
+               Adaflight.STM32.Failure_Flashes.Mode (Failure_Gyro_Init_Failed);
+            end if;
+            Inputs.Reports (G) := (Sample_Rate_Hz     => Reports (G).Sample_Rate_Hz,
+                                   Scale              => Reports (G).Scale,
+                                   Overflow_Protected => Reports (G).Overflow_Protected);
+         end if;
+      end loop;
+      Adaflight.Gyro_Selection.Choose (Inputs, Selection);
+      if Selection.First in Reports'Range then
+         Active_Gyro := Selection.First;
+      end if;
+      Gyro_Report := Reports (Active_Gyro);
+      Adaflight.STM32.Gyro.Set_Active (Active_Gyro);
       if not Selection.Found then
          if Config.System_Config.Configuration_State /= 0 then
             Indicate_Failure (Failure_Missing_Acc, 2);
@@ -1175,10 +1211,12 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.Enabled_Gyros := Selection.Enabled;
       Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Gyro) := Gyro_Report.Hardware;
       Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Acc) := Gyro_Report.Acc_Hardware;
-      Ctx.Out_Views.Hardware.Gyro_Count := 1;
-      Ctx.Out_Views.Hardware.Detected_Gyros (1) := Gyro_Report.Hardware;
-      Env.Gyros (0) := (Hardware => Natural (Gyro_Report.Hardware), Bus => Bus, Mode => CLI.Interrupt_Init,
-                        Bus_Devices => 1);
+      Ctx.Out_Views.Hardware.Gyro_Count := Gyro_Count;
+      for G in Reports'Range loop
+         Ctx.Out_Views.Hardware.Detected_Gyros (G + 1) := Reports (G).Hardware;
+         Env.Gyros (G) := (Hardware => Natural (Reports (G).Hardware), Bus => Bus, Mode => CLI.Interrupt_Init,
+                           Bus_Devices => 1);
+      end loop;
       Env.Gyros_Enabled := Selection.Enabled;
       Env.Acc := (Detected => Gyro_Report.Acc_Found, Hardware => Gyro_Report.Acc_Hardware, Bus => Bus);
    end Start_Gyro;
@@ -1208,6 +1246,13 @@ package body Adaflight.STM32.Flight is
          Device => Config.Gyro_Device_Config (0), Board => Config.Board_Alignment, Motor => Config.Motor_Config,
          Loop_Rate => Config.Pid_Config, Sample_Time_Us => Adaflight.PID_Config.Loop_Time_Us (Sample_Us),
          Scale => Selection.Scale, Motors => Motors, Overflow_Protected => Selection.Overflow_Protected);
+      --  Each of the board's gyros at its own placement, and the enabled ones
+      --  in the readings; the first stays in them when no gyro was found.
+      for G in 0 .. Gyro_Count - 1 loop
+         Gyro_Settings.Sensors (G) := Adaflight.Config_Runtime.Gyro_Placement_Of (Config.Gyro_Device_Config (G));
+         Gyro_Settings.Enabled (G) :=
+           (Selection.Enabled and 2 ** G) /= 0 or else (G = 0 and then Selection.Enabled = 0);
+      end loop;
       Gyro_Settings.Motor_Telemetry := Adaflight.STM32.Motors.Telemetry_Configured (Config);
       --  A wing build has no yaw spin recovery.
       if Adaflight.Build_Features.Wing then
@@ -1220,8 +1265,8 @@ package body Adaflight.STM32.Flight is
          Acc_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       end if;
       Acc_Settings := Adaflight.Config_Runtime.Accelerometer_Settings_Of
-        (A => Config.Accelerometer_Config, Device => Config.Gyro_Device_Config (0), Board => Config.Board_Alignment,
-         Sample_Rate_Hz => Acc_Hz, One_G => Gyro_Report.One_G,
+        (A => Config.Accelerometer_Config, Device => Config.Gyro_Device_Config (Active_Gyro),
+         Board => Config.Board_Alignment, Sample_Rate_Hz => Acc_Hz, One_G => Gyro_Report.One_G,
          Features => Config.Feature_Config.Enabled_Features);
       Adaflight.Accelerometer.Init (Acc_State, Acc_Settings);
       Attitude_Period_Fast_Us :=
@@ -2513,18 +2558,21 @@ package body Adaflight.STM32.Flight is
       Telemetry_Process      => Run_Telemetry,
       Camera_Control_Process => Adaflight.STM32.Camera_Control.Process);
 
-   --  The gyro task: one reading into the gyro filters' accumulation, and
-   --  the core loop's cadence.
+   --  The gyro task: one reading of each enabled gyro into the gyro
+   --  filters' accumulation, and the core loop's cadence.
    procedure Run_Gyro is
       Raw      : Adaflight.STM32.Gyro.Axis_Values;
-      OK       : Boolean;
+      Raws     : Adaflight.Gyro_Filters.Raw_Samples := (others => (0, 0, 0));
+      Read     : Adaflight.Gyro_Filters.Gyro_Flags := (others => False);
       Finished : Boolean;
    begin
-      Adaflight.STM32.Gyro.Read_Gyro (Raw, OK);
-      Adaflight.Gyro_Filters.Accumulate
-        (Gyro_State, Gyro_Settings,
-         (0 => (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), others => (0, 0, 0)),
-         (0 => OK, others => False), Finished);
+      for G in 0 .. Gyro_Count - 1 loop
+         if Gyro_Settings.Enabled (G) then
+            Adaflight.STM32.Gyro.Read_Gyro (G, Raw, Read (G));
+            Raws (G) := (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2)));
+         end if;
+      end loop;
+      Adaflight.Gyro_Filters.Accumulate (Gyro_State, Gyro_Settings, Raws, Read, Finished);
       Adaflight.Gyro_Debug.Record_Calibration (Adaflight.STM32.Debug_Values.State, Gyro_State);
       if Finished then
          Request_Beep (Adaflight.Beeper.Gyro_Calibrated);

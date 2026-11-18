@@ -15778,6 +15778,35 @@ for -1. A `!gyroalign` line sets an entry's alignment, which no setting writes. 
 `cligyro2align` are one input through a one gyro and a two gyro oracle. Recorded families replayed through
 relinked oracles came out unchanged.
 
+## D797. Two gyros on boards (2026-11-17)
+
+Board images now run a board's second gyro. Their start follows Betaflight's order. Each gyro that
+`Gyro_Selection.Scanned` names is looked for. Detected gyros that a setting enables are started. `Choose`
+then keeps those whose rate and scale agree and writes detected and enabled masks back. A first enabled gyro
+gives scale, accelerometer, read mode and temperature.
+
+`Adaflight.STM32.Gyro` has `Detect` and `Init` by position in place of one start, `Read_Gyro` by position and
+`Set_Active`. Its chip unit keeps a device, a layer state and a data ready callback per gyro, sized by a
+board's gyro count, so a one gyro board keeps its RAM. A second gyro needs an SPI instance and a select pin
+from its board and reads without a data ready line where a board names none. Clock input goes to a first gyro
+alone.
+
+Bus and pins come from board constants, as a first gyro's do. `resource` and `gyro_2_spibus` edit configuration
+entries that this driver does not read yet.
+
+Flight code takes gyro count, default enabled mask and a second gyro's defaults from its board. Filter settings
+get a placement and an enabled flag per gyro (`Config_Runtime.Gyro_Placement_Of`), and each gyro task run reads
+every enabled gyro into `Gyro_Filters.Accumulate`, whose mean over enabled gyros gen_gyromulti checks.
+
+On a host image for IFLIGHT_F405_TWING (two ICM-20689, second CW90, both enabled by default) both gyros start
+and rates read (410, 0, -738), a mean of gyro 1 alone (164, 328, -492) and gyro 2 alone (656, -328, -984).
+With gyro 2 alone, acceleration and alignment reply follow it. Host's second chip is its model again behind a
+second select pin, with twice its rates and first acceleration. Both chips share one register set, so a fault
+that starts one chip alone does not show there. No board has run this.
+
+Flash: CLRACINGF7, with two gyros, has 4970 bytes left. A one gyro board pays 843 bytes, which leaves
+ALIENFLIGHTNGF7_RX 191 bytes. A size pass for 512 KB images comes next.
+
 ## D798. ESC line bytes before a client connects (2026-11-17)
 
 A host image's ESC line is a TCP server. Its listener task accepts a client and then marks the line connected,

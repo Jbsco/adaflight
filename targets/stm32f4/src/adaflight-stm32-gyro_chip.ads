@@ -1,4 +1,4 @@
---  The gyro chip on the board's gyro bus: the SPI gyro layer over the bus
+--  The gyro chips on the board's gyro buses, one per gyro the board names: the SPI gyro layer over the bus
 --  driver with the LSM6DSV16X family, ICM20689 family, MPU6000, MPU6500
 --  family, BMI270 and ICM426xx drivers, each built where the board's
 --  configuration names it and probed in that order, the LSM6DSV16X family
@@ -10,15 +10,20 @@
 --  BMI270's received bytes start one
 --  place earlier in the layer's buffer. An ICM-42688-P takes the gyro
 --  clock input where the board has one, and the other ICM426xx chips run
---  from their own clock. The operations are the board gyro unit's, which a
---  board image passes on to these.
+--  from their own clock; the clock goes to the first gyro alone. A second
+--  gyro needs an SPI bus and a select pin from the board, and reads without
+--  its data ready line where the board names none. The operations are the
+--  board gyro unit's, which a board image passes on to these.
 with Interfaces;
 with Adaflight.Scheduler;
 with Adaflight.STM32.Gyro; use Adaflight.STM32.Gyro;
 package Adaflight.STM32.Gyro_Chip is
    subtype Byte is Interfaces.Unsigned_8;
-   procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report);
-   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean);
+   procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report);
+   procedure Init
+     (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : in out Report);
+   procedure Set_Active (Position : Natural);
+   procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean);
    procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean);
    function Mode return Read_Mode;
    function Interrupt_Count return Interfaces.Unsigned_32;
