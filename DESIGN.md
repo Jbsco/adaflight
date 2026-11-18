@@ -15894,3 +15894,19 @@ which it sets only when HD OSD is built. The eight that stopped now generate.
 Oracle `boardpins/run.sh` lists every pin define and timer map entry of each configuration through `cpp -dM`,
 by the board's position. `tools/boardgen-check.py` requires the generator to read the same for every
 configuration.
+
+## D803. ICM456xx gyros on boards (2026-11-17)
+
+Boards that name an ICM-45686 or ICM-45605, SPEDIXF405 and SPEDIXF722 among F4 and F7 boards, built no driver
+for it. `tools/boardgen.py` now sets `Gyro_ICM456xx` and `Acc_ICM456xx` from either define, and `Gyro_Chip`
+probes the chip after the ICM426xx, in Betaflight's table order. It starts the chip with the gyro configuration's
+hardware filter setting, starts its accelerometer once the detection finds one, and reads both little-endian
+through `MPU_Gyro.ICM456xx`, whose core and oracle were already in place.
+
+Host SPI's gyro model is an ICM-45686 or ICM-45605 when `ADAFLIGHT_GYRO_CHIP` names one. It has the chip's
+identity, its soft reset, data registers that wake on its power write, and indirect registers behind its address
+and data registers, which read back what was written. Host smoke runs an ICM-45686 after the IIM-42653 and reads
+its name, gyro task rate of 6.4 kHz, acceleration, tilt and rates. The model checks no indirect register's value,
+so a start that leaves out the accelerometer's filter setting passes it.
+
+Both board images build, SPEDIXF722 with 5986 bytes of flash left. No board has run an ICM456xx.

@@ -189,6 +189,7 @@ MPU6500_ACC = ("USE_ACC_SPI_MPU6500", "USE_ACC_SPI_MPU9250", "USE_ACC_SPI_ICM206
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
 ICM426XX_GYRO = ("USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P") + ICM426XX_SHARED
 ICM426XX_ACC = ("USE_ACC_SPI_ICM42605", "USE_ACC_SPI_ICM42688P") + ICM426XX_SHARED
+ICM456XX = ("USE_ACCGYRO_ICM45686", "USE_ACCGYRO_ICM45605")
 
 
 def find_config(configs: Path, board: str) -> Path:
@@ -381,6 +382,8 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Acc_BMI270", "True" if "USE_ACCGYRO_BMI270" in defines else "False"),
                 ("Gyro_ICM426xx", "True" if any(d in defines for d in ICM426XX_GYRO) else "False"),
                 ("Acc_ICM426xx", "True" if any(d in defines for d in ICM426XX_ACC) else "False"),
+                ("Gyro_ICM456xx", "True" if any(d in defines for d in ICM456XX) else "False"),
+                ("Acc_ICM456xx", "True" if any(d in defines for d in ICM456XX) else "False"),
                 ("Baro_I2C_Device", i2c_device(defines.get("BARO_I2C_INSTANCE", ""))),
                 ("Baro_SPI_Device", spi_device(defines.get("BARO_SPI_INSTANCE", ""))),
                 ("Baro_BMP280", "True" if any(d in defines for d in BMP280_BARO) else "False"),

@@ -3031,7 +3031,7 @@ def menu_live_config_checks(image, work):
 
 def gyro_chip_checks(image, work):
     """The board's gyro code over the host's gyro models, an MPU6000, an LSM6DSK320X, an LSM6DSV32X, an
-    ICM-20689, an ICM-20602, a BMI270, an ICM-42688-P and an IIM-42653 in turn. The LSM6DSV family's two probes
+    ICM-20689, an ICM-20602, a BMI270, an ICM-42688-P, an IIM-42653 and an ICM-45686 in turn. The LSM6DSV family's two probes
     come first, and its start reads back every register it writes. The ICM-20689 driver finds both of its chips, and the
     MPU6500 driver then starts the ICM-20602, as the gyro detection's hardware code says. Each chip is found with
     its accelerometer, a register dump reads its identity where the dump's
@@ -3049,7 +3049,8 @@ def gyro_chip_checks(image, work):
     for chip, identity, rate_hz, rate_text in (("MPU6000", 0x68, 8000, "8 kHz"), ("LSM6DSK320X", None, 8000, "8 kHz"),
                                                ("LSM6DSV32X", None, 8000, "8 kHz"), ("ICM20689", 0x98, 8000, "8 kHz"),
                                                ("ICM20602", 0x12, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
-                                               ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz")):
+                                               ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz"),
+                                               ("ICM45686", None, 6400, "6.4 kHz")):
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
 
         def run():

@@ -1,12 +1,12 @@
 --  The gyro chips on the board's gyro buses, one per gyro the board names: the SPI gyro layer over the bus
 --  driver with the LSM6DSV16X family, ICM20689 family, MPU6000, MPU6500
---  family, BMI270 and ICM426xx drivers, each built where the board's
+--  family, BMI270, ICM426xx and ICM456xx drivers, each built where the board's
 --  configuration names it and probed in that order, the LSM6DSV16X family
 --  with one probe for its LSM6DSV chips and one for the LSM6DSK320X, the
 --  data ready line's interrupt, the start at boot,
 --  and the readings the main takes. The gyro detection's hardware code says
 --  which of the ICM20689 and MPU6500 drivers starts a chip both know. The
---  LSM6DSV16X family and the BMI270 read through their own drivers, and the
+--  LSM6DSV16X family, the BMI270 and the ICM456xx read through their own drivers, and the
 --  BMI270's received bytes start one
 --  place earlier in the layer's buffer. An ICM-42688-P takes the gyro
 --  clock input where the board has one, and the other ICM426xx chips run
