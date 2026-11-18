@@ -73,4 +73,18 @@ package body Adaflight.Gyro_Selection with SPARK_Mode is
       end loop;
    end Choose;
 
+   -------------------
+   -- First_Enabled --
+   -------------------
+
+   function First_Enabled (Enabled : Mask; Count : Gyro_Count) return Gyro_Index is
+   begin
+      for G in 0 .. Count - 1 loop
+         if (Enabled and Bit (G)) /= 0 then
+            return G;
+         end if;
+      end loop;
+      return 0;
+   end First_Enabled;
+
 end Adaflight.Gyro_Selection;

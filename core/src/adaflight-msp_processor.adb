@@ -7,6 +7,7 @@ with Adaflight.MSP_Hardware_In;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.MSP_Peripheral_Out;
+with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_Text_Out;
@@ -106,7 +107,12 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             end if;
          end;
       elsif MSP_Tuning_Out.Handles (Command) then
-         MSP_Tuning_Out.Reply (B, S, Command, MSP_Views.Tuning_View (C, V.Build, V.Detected_Flags));
+         MSP_Tuning_Out.Reply
+           (B, S, Command,
+            MSP_Views.Tuning_View
+              (C, V.Build, V.Detected_Flags,
+               Gyro_Selection.First_Enabled
+                 (V.Enabled_Gyros, Positive'Min (Ctx.Gyros, Gyro_Device_Config_Record_List_2'Length))));
          Acked := True;
       elsif MSP_Receiver_Out.Handles (Command) then
          MSP_Receiver_Out.Reply (B, S, Command, MSP_Views.Receiver_View (C, V.Receiver));

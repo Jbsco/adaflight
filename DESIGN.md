@@ -15760,6 +15760,24 @@ Oracle `gen_gyrodev` now takes count and mask from the reference's own header li
 for two gyros. Family `gyrodev` checks the mask and both entries of a reset configuration, and
 `tools/boardgen-check.py` checks count, mask and each gyro's values against those sets.
 
+## D796. Sensor alignment reply from the first enabled gyro (2026-11-17)
+
+A sensor alignment reply reported its first gyro device entry's alignment. Betaflight reports its first
+enabled gyro's entry, which on a board that runs its second gyro alone is entry 1.
+
+`Gyro_Selection.First_Enabled` gives a board's lowest enabled gyro. MSP views have enabled gyros beside
+detected ones, and `Tuning_View` reads that gyro's entry. Flight code passes whichever gyros its selection
+enabled.
+
+With no gyro enabled, a reply reports entry 0. Betaflight's function returns -1 there and its reply reads an
+entry before entry 0, which is other memory (`docs/upstream/msp-sensor-alignment-no-gyro.md`). That state is
+real: a board without a detected gyro still answers MSP.
+
+Command line oracles now run Betaflight's function, cut from its source, behind a wrapper that answers entry 0
+for -1. A `!gyroalign` line sets an entry's alignment, which no setting writes. Families `cligyroalign` and
+`cligyro2align` are one input through a one gyro and a two gyro oracle. Recorded families replayed through
+relinked oracles came out unchanged.
+
 ## D798. ESC line bytes before a client connects (2026-11-17)
 
 A host image's ESC line is a TCP server. Its listener task accepts a client and then marks the line connected,

@@ -54,4 +54,10 @@ package Adaflight.Gyro_Selection with SPARK_Mode, Pure is
    procedure Choose (I : Inputs; R : out Result)
      with Global => null;
 
+   --  The first enabled gyro of a board with that many, the first gyro when
+   --  none of them is enabled.
+   function First_Enabled (Enabled : Mask; Count : Gyro_Count) return Gyro_Index
+     with Global => null,
+          Post   => First_Enabled'Result < Count;
+
 end Adaflight.Gyro_Selection;
