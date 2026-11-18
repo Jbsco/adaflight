@@ -16020,3 +16020,15 @@ host image leaves the MPU9250 driver out: its probe would reset and poll every c
 SPARKY2 keeps 3,800 bytes of main RAM free and REVONANO 1,680 bytes of RAM and 15,322 bytes of flash. No board
 has run an MPU9250.
 
+## D812. Parallel PWM receiver channels at 15 Hz (2026-11-18)
+
+Betaflight processes a parallel PWM receiver's channels only after a signal loss, since its frame check asks for
+processing only for data driven sources while a signal lasts (F367). A 2022 change to failsafe timing removed the
+15 Hz update that served this receiver. `Adaflight.Receiver` now keeps that deadline in `Next_Update_At`: the frame
+check asks for processing once it passes while a signal without data driven processing lasts, and the channel
+calculation sets it 66,666 microseconds on where it clears the request. Data driven receivers are unchanged.
+
+The receiver oracle compiles Betaflight's receiver with that deadline restored (`RX_F367`, on by default) and runs
+parallel PWM sequences beside the others, whose signal is a level most frames hold. Their vectors check the
+processing and the channels at each step.
+
