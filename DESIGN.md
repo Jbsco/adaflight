@@ -15997,6 +15997,24 @@ check keeps it, and the feature listing names it as available.
 The oracle's settings builds compile Betaflight's feature list with that macro defined. The command line,
 configuration fix and MSP feature vectors come from them. Boards read no parallel PWM receiver until D810.
 
+## D810. Parallel PWM receiver input on boards (2026-11-18)
+
+Boards read no parallel PWM receiver, and Betaflight never starts its input (F366). `Start_PWM` in
+`Adaflight.STM32.RX_Input` now takes the eight PWM pins of the configuration after the motors take their
+timers, in the same start as PPM's. Each pin's timer counts at 1 MHz up to 16#FFFF#, and its channel captures
+the edge that its port's decoder in `Adaflight.RX_PWM` asks for next: a rising edge, then a falling one. The
+input filtering setting adds the input capture filter of 3, as Betaflight sets it. A timer interrupt serves its
+channels' captures from the highest channel down and then its overflow for each of its ports.
+
+The radio unit reports eight channels for a parallel PWM receiver. Its frame status is whether a channel has a
+pulse width, with data driven processing off, and its raw channels are the pulse widths. A PWM pin on TIM5, or
+on a timer that a motor uses, gets no input. On a motor's timer Betaflight sets the timer to 1 MHz under its
+motors (F365, a divergence). PPM and PWM decoder states share storage, since a boot starts one of them.
+
+On the host, `ADAFLIGHT_PWM_INPUT` lists each port's pulse width, sent every 20 ms, and `ADAFLIGHT_PWM_STOP_MS`
+stops them. Host smoke reads the pulses in the RC reply in channel map order without receiver loss. After they
+stop it reads failsafe values, aux channels held, and the receiver loss. No board has run a PWM receiver.
+
 ## D811. MPU9250 gyros on boards (2026-11-18)
 
 Boards that name only the MPU9250 driver, SPARKY2 and REVONANO, started no gyro. Betaflight builds that driver
@@ -16031,4 +16049,3 @@ calculation sets it 66,666 microseconds on where it clears the request. Data dri
 The receiver oracle compiles Betaflight's receiver with that deadline restored (`RX_F367`, on by default) and runs
 parallel PWM sequences beside the others, whose signal is a level most frames hold. Their vectors check the
 processing and the channels at each step.
-
