@@ -15986,6 +15986,17 @@ Before the PPM input of D807, a GEPRCF411 image now keeps 1,944 bytes of RAM fre
 chip and mass storage keeps 2,400 bytes of main RAM. That input overflowed them by 128 and 112 bytes without
 this change.
 
+## D809. Parallel PWM receiver feature offered (2026-11-18)
+
+Betaflight offers the parallel PWM receiver feature only under a macro that no build defines, so its command line
+answers "Unavailable" and its configuration check clears the feature at every load and save (F366). Every
+Betaflight build compiles the PWM receiver input under the macro it meant. `Supported_Features` in
+`Adaflight.Config_Fix` now adds the feature's bit, so `feature RX_PARALLEL_PWM` enables it, the configuration
+check keeps it, and the feature listing names it as available.
+
+The oracle's settings builds compile Betaflight's feature list with that macro defined. The command line,
+configuration fix and MSP feature vectors come from them. Boards read no parallel PWM receiver until D810.
+
 ## D811. MPU9250 gyros on boards (2026-11-18)
 
 Boards that name only the MPU9250 driver, SPARKY2 and REVONANO, started no gyro. Betaflight builds that driver

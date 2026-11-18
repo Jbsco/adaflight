@@ -33,8 +33,9 @@ package Adaflight.Config_Fix with SPARK_Mode is
    Feature_ESC_Sensor      : constant Unsigned_32 := 16#0800_0000#;
    Feature_Anti_Gravity    : constant Unsigned_32 := 16#1000_0000#;
 
-   --  The features of the settings oracle's build.
-   Supported_Features : constant Unsigned_32 := 16#1A77_D7FD#;
+   --  The features this build offers: the settings oracle's and the parallel
+   --  PWM receiver (F366).
+   Supported_Features : constant Unsigned_32 := 16#1A77_F7FD#;
 
    type Timer_Kind is (No_Timer, Normal_Channel, N_Channel);
    type Pin_Timers is array (Unsigned_8) of Timer_Kind;
