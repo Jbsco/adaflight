@@ -3138,8 +3138,8 @@ def arming_flags(sock):
 
 def wired_receiver_run(image, store, setup, env):
     """A wired receiver's run over its own store: the setup lines saved, then a start with the input's
-    environment that reads the first eight RC channels and the arming disable flags 3 s and 9 s in. Returns the
-    setup replies and both readings."""
+    environment that reads the first eight RC channels, the RC reply's length and the arming disable flags 3 s and
+    9 s in. Returns the setup replies and both readings."""
     if os.path.exists(store):
         os.remove(store)
     proc, sock = start(image, store)
@@ -3161,7 +3161,7 @@ def wired_receiver_run(image, store, setup, env):
             time.sleep(max(0.0, began + when - time.time()))
             rc = msp(sock, 105)
             readings.append(([rc[i] | rc[i + 1] << 8 for i in range(0, 16, 2)] if rc and len(rc) >= 16 else None,
-                             arming_flags(sock)))
+                             arming_flags(sock), len(rc) if rc is not None else None))
     finally:
         stop(proc)
         sock.close()
@@ -3180,6 +3180,7 @@ def ppm_checks(image, work):
     check("PPM checks have the PPM receiver feature and a PPM pin",
           "Enabled RX_PPM" in replies[0] and "Resource is set to B14" in replies[1], repr(replies))
     rxloss = 1 << 2
+    check("the RC reply holds the twelve channels of a PPM receiver", readings[0][2] == 24, repr(readings[0]))
     check("the RC reply reads the PPM train's pulse widths in the channel map's order",
           readings[0][0] == [1100, 1200, 1400, 1300, 1500, 1600, 1700, 1800], repr(readings[0]))
     check("arming has no receiver loss while the PPM train runs",
@@ -3205,6 +3206,7 @@ def pwm_checks(image, work):
           "Disabled RX_SERIAL" in replies[0] and "Enabled RX_PARALLEL_PWM" in replies[1]
           and all(f"Resource is set to {pin}" in reply for reply, pin in zip(replies[2:], pins)), repr(replies))
     rxloss = 1 << 2
+    check("the RC reply holds the eight channels of a parallel PWM receiver", readings[0][2] == 16, repr(readings[0]))
     check("the RC reply reads the PWM pulse widths in the channel map's order",
           readings[0][0] == [1100, 1200, 1400, 1300, 1500, 1600, 1700, 1800], repr(readings[0]))
     check("arming has no receiver loss while the PWM pulses run",
