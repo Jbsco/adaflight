@@ -15986,6 +15986,35 @@ Before the PPM input of D807, a GEPRCF411 image now keeps 1,944 bytes of RAM fre
 chip and mass storage keeps 2,400 bytes of main RAM. That input overflowed them by 128 and 112 bytes without
 this change.
 
+## D809. Parallel PWM receiver feature offered (2026-11-18)
+
+Betaflight offers the parallel PWM receiver feature only under a macro that no build defines, so its command line
+answers "Unavailable" and its configuration check clears the feature at every load and save (F366). Every
+Betaflight build compiles the PWM receiver input under the macro it meant. `Supported_Features` in
+`Adaflight.Config_Fix` now adds the feature's bit, so `feature RX_PARALLEL_PWM` enables it, the configuration
+check keeps it, and the feature listing names it as available.
+
+The oracle's settings builds compile Betaflight's feature list with that macro defined. The command line,
+configuration fix and MSP feature vectors come from them. Boards read no parallel PWM receiver until D810.
+
+## D810. Parallel PWM receiver input on boards (2026-11-18)
+
+Boards read no parallel PWM receiver, and Betaflight never starts its input (F366). `Start_PWM` in
+`Adaflight.STM32.RX_Input` now takes the eight PWM pins of the configuration after the motors take their
+timers, in the same start as PPM's. Each pin's timer counts at 1 MHz up to 16#FFFF#, and its channel captures
+the edge that its port's decoder in `Adaflight.RX_PWM` asks for next: a rising edge, then a falling one. The
+input filtering setting adds the input capture filter of 3, as Betaflight sets it. A timer interrupt serves its
+channels' captures from the highest channel down and then its overflow for each of its ports.
+
+The radio unit reports eight channels for a parallel PWM receiver. Its frame status is whether a channel has a
+pulse width, with data driven processing off, and its raw channels are the pulse widths. A PWM pin on TIM5, or
+on a timer that a motor uses, gets no input. On a motor's timer Betaflight sets the timer to 1 MHz under its
+motors (F365, a divergence). PPM and PWM decoder states share storage, since a boot starts one of them.
+
+On the host, `ADAFLIGHT_PWM_INPUT` lists each port's pulse width, sent every 20 ms, and `ADAFLIGHT_PWM_STOP_MS`
+stops them. Host smoke reads the pulses in the RC reply in channel map order without receiver loss. After they
+stop it reads failsafe values, aux channels held, and the receiver loss. No board has run a PWM receiver.
+
 ## D811. MPU9250 gyros on boards (2026-11-18)
 
 Boards that name only the MPU9250 driver, SPARKY2 and REVONANO, started no gyro. Betaflight builds that driver
@@ -16009,3 +16038,14 @@ host image leaves the MPU9250 driver out: its probe would reset and poll every c
 SPARKY2 keeps 3,800 bytes of main RAM free and REVONANO 1,680 bytes of RAM and 15,322 bytes of flash. No board
 has run an MPU9250.
 
+## D812. Parallel PWM receiver channels at 15 Hz (2026-11-18)
+
+Betaflight processes a parallel PWM receiver's channels only after a signal loss, since its frame check asks for
+processing only for data driven sources while a signal lasts (F367). A 2022 change to failsafe timing removed the
+15 Hz update that served this receiver. `Adaflight.Receiver` now keeps that deadline in `Next_Update_At`: the frame
+check asks for processing once it passes while a signal without data driven processing lasts, and the channel
+calculation sets it 66,666 microseconds on where it clears the request. Data driven receivers are unchanged.
+
+The receiver oracle compiles Betaflight's receiver with that deadline restored (`RX_F367`, on by default) and runs
+parallel PWM sequences beside the others, whose signal is a level most frames hold. Their vectors check the
+processing and the channels at each step.

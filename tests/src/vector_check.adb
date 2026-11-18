@@ -3644,6 +3644,8 @@ procedure Vector_Check is
    --  The frame the driver holds until a frame check that is not skipped
    --  for a running task consumes it.
    Rx_Frame    : Adaflight.Receiver.Frame_Report;
+   --  A parallel PWM receiver's signal, a level its frames set.
+   Rx_PWM_Level : Boolean := False;
    --  The UDP provider's store and the channel count of the packet an
    --  event fed, none when the step fed no packet.
    Rx_Udp       : Adaflight.UDP_Receiver.State;
@@ -3725,6 +3727,7 @@ procedure Vector_Check is
             end if;
             Rx_Raw := (others => 1500.0);
             Rx_Frame := (others => False);
+            Rx_PWM_Level := False;
             Expect_Next ("channels", Integer_64 (Rx_State.Channels));
             Expect_Next ("rssi_source", RSSI_Source'Pos (Rx_State.RSSI_From));
             for Ch in Channel loop
@@ -3784,6 +3787,8 @@ procedure Vector_Check is
                                   PPM_Received => False, PWM_Received => False);
                   elsif Kind = "p" then
                      Rx_Frame.PPM_Received := True;
+                  elsif Kind = "w" then
+                     Rx_PWM_Level := A1 /= 0;
                   elsif Kind = "r" then
                      Set_RSSI (Rx_State, A1, RSSI_Source'Val (A2));
                   elsif Kind = "d" then
@@ -3849,6 +3854,7 @@ procedure Vector_Check is
                   Rx_Raw (Ch) := Adaflight.UDP_Receiver.Read_Raw (Rx_Udp, Ch);
                end loop;
             end if;
+            Rx_Frame.PWM_Received := Rx_PWM_Level;
             Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame, Rx_Override);
             Adaflight.Receiver_Debug.Record_Frame_Check (Rx_Dbg, Rx_State, Delta_Us);
             if not Task_In_Progress then

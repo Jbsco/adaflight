@@ -5691,7 +5691,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init
         (Config, Adaflight.STM32.Control.Motor_Count, (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0);
-      Adaflight.STM32.Radio.Start_PPM_Input (Config);
+      Adaflight.STM32.Radio.Start_Input (Config);
       Adaflight.STM32.Camera_Control.Init (Config);
       Start_ADC_Scan;
       Adaflight.STM32.DShot_Output.Init (Config);

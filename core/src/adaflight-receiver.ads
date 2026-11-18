@@ -142,6 +142,9 @@ package Adaflight.Receiver with SPARK_Mode is
       Flight_Valid        : Boolean := False;
       Channels            : Natural range 0 .. Channel_Count := 0;
       Need_Signal_Before  : Time_Us := 0;
+      --  When a receiver without data driven processing next gets its
+      --  channels processed while its signal lasts.
+      Next_Update_At      : Time_Us := 0;
       Suspend_Until       : Time_Us := 0;
       Skip_Samples        : Natural range 0 .. 255 := 0;
       Sample_Index        : Natural range 0 .. 255 := 0;

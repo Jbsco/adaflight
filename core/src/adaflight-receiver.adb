@@ -6,6 +6,7 @@ package body Adaflight.Receiver with SPARK_Mode is
    Hold_Time_Ms         : constant := 300;
    Loss_Trigger_Us      : constant := 150_000;
    Recheck_Interval_Us  : constant := 50_000;
+   Update_Interval_Us   : constant := 1_000_000 / 15;
    Suspend_Delay_Us     : constant := 1_500_000;
    Skip_On_Resume       : constant := 2;
    RSSI_Update_Interval : constant := 20_000;
@@ -324,7 +325,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       if Received then
          S.Need_Signal_Before := Now_Us + Loss_Trigger_Us;
          S.Signal_Received := True;
-         if Data_Driven then
+         if Data_Driven or else Clock.Elapsed (Now_Us, S.Next_Update_At) > 0 then
             S.Processing_Required := True;
          end if;
       elsif Clock.Elapsed (Now_Us, S.Need_Signal_Before) > 0 then
@@ -527,6 +528,7 @@ package body Adaflight.Receiver with SPARK_Mode is
          return;
       end if;
       S.Processing_Required := False;
+      S.Next_Update_At := Now_Us + Update_Interval_Us;
       if S.Skip_Samples > 0 or else Now_Us <= S.Suspend_Until then
          if Now_Us > S.Suspend_Until then
             S.Skip_Samples := S.Skip_Samples - 1;

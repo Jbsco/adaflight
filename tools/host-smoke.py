@@ -3127,12 +3127,19 @@ def gyro_chip_checks(image, work, chips=GYRO_CHIPS, turn=lambda v: v):
               repr(turning))
 
 
-def ppm_checks(image, work):
-    """A PPM receiver over the host's PPM train: the receiver feature and a PPM pin saved, then a start whose
-    train of eight channels stops after 6 s. While it runs the RC reply reads its pulse widths in the channel
-    map's order and arming has no receiver loss; after it stops the RC reply reads the failsafe values, the aux
-    channels held, and the status names the receiver loss. Over a store of its own."""
-    store = os.path.join(work, "ppm-eeprom.bin")
+def arming_flags(sock):
+    """The arming disable flags of the MSP status reply, none without a whole reply."""
+    status = msp(sock, 150)
+    if status is None or len(status) < 21 + status[15]:
+        return None
+    at = 16 + status[15]
+    return int.from_bytes(status[at + 1:at + 5], "little")
+
+
+def wired_receiver_run(image, store, setup, env):
+    """A wired receiver's run over its own store: the setup lines saved, then a start with the input's
+    environment that reads the first eight RC channels, the RC reply's length and the arming disable flags 3 s and
+    9 s in. Returns the setup replies and both readings."""
     if os.path.exists(store):
         os.remove(store)
     proc, sock = start(image, store)
@@ -3140,25 +3147,13 @@ def ppm_checks(image, work):
         time.sleep(2.0)
         sock.sendall(b"#")
         read_all(sock, 0.8)
-        replies = [cli(sock, line) for line in ("feature RX_PPM", "resource PPM 1 B14")]
+        replies = [cli(sock, line) for line in setup]
         cli(sock, "save", wait=2.0)
         proc.wait(timeout=10)
     finally:
         stop(proc)
         sock.close()
-    check("PPM checks have the PPM receiver feature and a PPM pin",
-          "Enabled RX_PPM" in replies[0] and "Resource is set to B14" in replies[1], repr(replies))
-    pulses = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]
-
-    def arming_flags(sock):
-        """The arming disable flags of the MSP status reply, none without a whole reply."""
-        status = msp(sock, 150)
-        if status is None or len(status) < 21 + status[15]:
-            return None
-        at = 16 + status[15]
-        return int.from_bytes(status[at + 1:at + 5], "little")
-
-    proc, sock = start(image, store, {"ADAFLIGHT_PPM": ",".join(map(str, pulses)), "ADAFLIGHT_PPM_STOP_MS": "6000"})
+    proc, sock = start(image, store, env)
     readings = []
     try:
         began = time.time()
@@ -3166,11 +3161,26 @@ def ppm_checks(image, work):
             time.sleep(max(0.0, began + when - time.time()))
             rc = msp(sock, 105)
             readings.append(([rc[i] | rc[i + 1] << 8 for i in range(0, 16, 2)] if rc and len(rc) >= 16 else None,
-                             arming_flags(sock)))
+                             arming_flags(sock), len(rc) if rc is not None else None))
     finally:
         stop(proc)
         sock.close()
+    return replies, readings
+
+
+def ppm_checks(image, work):
+    """A PPM receiver over the host's PPM train: the receiver feature and a PPM pin saved, then a start whose
+    train of eight channels stops after 6 s. While it runs the RC reply reads its pulse widths in the channel
+    map's order and arming has no receiver loss; after it stops the RC reply reads the failsafe values, the aux
+    channels held, and the status names the receiver loss. Over a store of its own."""
+    pulses = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]
+    replies, readings = wired_receiver_run(
+        image, os.path.join(work, "ppm-eeprom.bin"), ("feature RX_PPM", "resource PPM 1 B14"),
+        {"ADAFLIGHT_PPM": ",".join(map(str, pulses)), "ADAFLIGHT_PPM_STOP_MS": "6000"})
+    check("PPM checks have the PPM receiver feature and a PPM pin",
+          "Enabled RX_PPM" in replies[0] and "Resource is set to B14" in replies[1], repr(replies))
     rxloss = 1 << 2
+    check("the RC reply holds the twelve channels of a PPM receiver", readings[0][2] == 24, repr(readings[0]))
     check("the RC reply reads the PPM train's pulse widths in the channel map's order",
           readings[0][0] == [1100, 1200, 1400, 1300, 1500, 1600, 1700, 1800], repr(readings[0]))
     check("arming has no receiver loss while the PPM train runs",
@@ -3178,6 +3188,32 @@ def ppm_checks(image, work):
     check("after the PPM train stops the RC reply reads the failsafe values with the aux channels held",
           readings[1][0] == [1500, 1500, 1500, 885, 1500, 1600, 1700, 1800], repr(readings[1]))
     check("after the PPM train stops arming names the receiver loss",
+          readings[1][1] is not None and readings[1][1] & rxloss != 0, repr(readings[1]))
+
+
+def pwm_checks(image, work):
+    """A parallel PWM receiver over the host's PWM pulses: the serial receiver feature off, the parallel PWM one on
+    and eight PWM pins saved, then a start whose pulses stop after 6 s. While they run the RC reply reads their
+    widths in the channel map's order and arming has no receiver loss; after they stop the RC reply reads the
+    failsafe values, the aux channels held, and the status names the receiver loss. Over a store of its own."""
+    pins = ["A08", "B06", "B14", "B15", "C06", "C07", "C08", "C09"]
+    widths = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]
+    replies, readings = wired_receiver_run(
+        image, os.path.join(work, "pwm-eeprom.bin"),
+        ["feature -RX_SERIAL", "feature RX_PARALLEL_PWM"] + [f"resource PWM {n} {pin}" for n, pin in enumerate(pins, 1)],
+        {"ADAFLIGHT_PWM_INPUT": ",".join(map(str, widths)), "ADAFLIGHT_PWM_STOP_MS": "6000"})
+    check("PWM checks have the parallel PWM receiver feature in place of the serial one and eight PWM pins",
+          "Disabled RX_SERIAL" in replies[0] and "Enabled RX_PARALLEL_PWM" in replies[1]
+          and all(f"Resource is set to {pin}" in reply for reply, pin in zip(replies[2:], pins)), repr(replies))
+    rxloss = 1 << 2
+    check("the RC reply holds the eight channels of a parallel PWM receiver", readings[0][2] == 16, repr(readings[0]))
+    check("the RC reply reads the PWM pulse widths in the channel map's order",
+          readings[0][0] == [1100, 1200, 1400, 1300, 1500, 1600, 1700, 1800], repr(readings[0]))
+    check("arming has no receiver loss while the PWM pulses run",
+          readings[0][1] is not None and readings[0][1] & rxloss == 0, repr(readings[0]))
+    check("after the PWM pulses stop the RC reply reads the failsafe values with the aux channels held",
+          readings[1][0] == [1500, 1500, 1500, 885, 1500, 1600, 1700, 1800], repr(readings[1]))
+    check("after the PWM pulses stop arming names the receiver loss",
           readings[1][1] is not None and readings[1][1] & rxloss != 0, repr(readings[1]))
 
 
@@ -6313,6 +6349,7 @@ def main():
         gyro_chip_checks(image, work)
         board_gyro_checks(image, work)
         ppm_checks(image, work)
+        pwm_checks(image, work)
         gyro_clock_checks(image, work)
         baro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
