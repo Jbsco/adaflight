@@ -30,7 +30,7 @@
 --  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
 --  its value names one, with their five register banks, a BMI270 where it
 --  names that, an ICM-20602 or ICM-20689 with the MPU6000's register
---  layout, an LSM6DSV16X, LSM6DSV32X or LSM6DSK320X with a register store
+--  layout, an LSM6DSV16X, LSM6DSV32X, LSM6DSK320X or LSM6DSO with a register store
 --  that reads back what was written, an ICM-45686 or ICM-45605 with its
 --  indirect registers, and an MPU6000 otherwise. A model has
 --  its identity, a
@@ -646,7 +646,7 @@ package body Adaflight.STM32.SPI is
    --  ICM426xx where its value names one, an MPU6000 for any other value.
    type Gyro_Kind is
      (No_Model, MPU6000, ICM20602, ICM20689, BMI270, ICM42605, ICM42688P, IIM42653, LSM6DSV16X, LSM6DSV32X,
-      LSM6DSK320X, ICM45605, ICM45686);
+      LSM6DSK320X, ICM45605, ICM45686, LSM6DSO);
    function Gyro_Kind_Of_Environment return Gyro_Kind is
       Name : constant String := "ADAFLIGHT_GYRO_CHIP";
    begin
@@ -668,6 +668,7 @@ package body Adaflight.STM32.SPI is
             elsif Value = "IIM42653" then IIM42653
             elsif Value = "ICM45605" then ICM45605
             elsif Value = "ICM45686" then ICM45686
+            elsif Value = "LSM6DSO" then LSM6DSO
             else MPU6000);
       end;
    end Gyro_Kind_Of_Environment;
@@ -675,7 +676,7 @@ package body Adaflight.STM32.SPI is
    Gyro_Model     : constant Gyro_Kind := Gyro_Kind_Of_Environment;
    --  The chips with the MPU6000's register layout.
    MPU_Layout     : constant Boolean := Gyro_Model in MPU6000 | ICM20602 | ICM20689;
-   LSM_Layout     : constant Boolean := Gyro_Model in LSM6DSV16X | LSM6DSV32X | LSM6DSK320X;
+   LSM_Layout     : constant Boolean := Gyro_Model in LSM6DSV16X | LSM6DSV32X | LSM6DSK320X | LSM6DSO;
    Gyro_Model_Bus : constant Bus :=
      (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
    --  A board's second gyro is the same model behind its own select pin.
@@ -692,7 +693,7 @@ package body Adaflight.STM32.SPI is
    Gyro_Reset     : constant Gyro_Banks :=
      (0      => (16#6B# => (if MPU_Layout then Gyro_Sleep else 0),
                  16#7C# => (if Gyro_Model = BMI270 then 3 else 0),
-                 16#12# => (if LSM_Layout then 16#44# else 0),
+                 16#12# => (if Gyro_Model = LSM6DSO then 16#04# elsif LSM_Layout then 16#44# else 0),
                  16#17# => (if Gyro_Model = LSM6DSV32X then 16#04# else 0),
                  others => 0),
       others => (others => 0));
@@ -729,6 +730,8 @@ package body Adaflight.STM32.SPI is
             when LSM6DSV16X | LSM6DSV32X | LSM6DSK320X =>
                (Gyro_Registers (0) (16#10#) and 16#0F#) /= 0 and then (Gyro_Registers (0) (16#11#) and 16#0F#) /= 0,
             when ICM45605 | ICM45686 => (Gyro_Registers (0) (16#10#) and 16#0F#) = 16#0F#,
+            when LSM6DSO =>
+               (Gyro_Registers (0) (16#10#) and 16#F0#) /= 0 and then (Gyro_Registers (0) (16#11#) and 16#F0#) /= 0,
             when others => (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
    begin
       if not Awake then
@@ -866,7 +869,7 @@ package body Adaflight.STM32.SPI is
    --  The LSM6DSV chips' registers: the identity at 16#0F#, rates from
    --  16#22# and accelerations from 16#28#, each with its low byte first.
    function LSM_Read (R : Natural) return Byte is
-     (if R = 16#0F# then (if Gyro_Model = LSM6DSK320X then 16#75# else 16#70#)
+     (if R = 16#0F# then (case Gyro_Model is when LSM6DSK320X => 16#75#, when LSM6DSO => 16#6C#, when others => 16#70#)
       elsif R in 16#22# .. 16#27# then Gyro_Reading_Byte (4 + (R - 16#22#) / 2, (R - 16#22#) mod 2 = 0)
       elsif R in 16#28# .. 16#2D# then Gyro_Reading_Byte ((R - 16#28#) / 2, (R - 16#28#) mod 2 = 0)
       else Gyro_Registers (0) (R mod 128));

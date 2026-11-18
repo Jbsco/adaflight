@@ -15910,3 +15910,19 @@ its name, gyro task rate of 6.4 kHz, acceleration, tilt and rates. The model che
 so a start that leaves out the accelerometer's filter setting passes it.
 
 Both board images build, SPEDIXF722 with 5986 bytes of flash left. No board has run an ICM456xx.
+
+## D804. LSM6DSO gyros on boards (2026-11-17)
+
+Boards that name an LSM6DSO built no driver for it. `tools/boardgen.py` now sets `Gyro_LSM6DSO` and
+`Acc_LSM6DSO` from `USE_ACCGYRO_LSM6DSO`, and `Gyro_Chip` probes the chip after the MPU6500 family, in Betaflight's
+table order. It starts and reads the chip through `MPU_Gyro.LSM6DSO`, whose core and oracle were already in
+place. That driver enables its own data ready interrupt, and on an LSM6DSO the line only marks data ready, as
+Betaflight's handler for the chip does. Its interrupts are not counted, so the gyro task does not sync to them.
+
+Host SPI's LSM6DSV model is also an LSM6DSO when `ADAFLIGHT_GYRO_CHIP` names one: identity `16#6C#`, its data
+rate fields in each control register's high half, and the control register value after a reset. Host smoke runs
+an LSM6DSO after the ICM-45686 and reads its name, gyro task rate of 6.66 kHz, acceleration, tilt and rates.
+
+The two F4 boards that name one, DARWINF4SX1280HD and GEPRCF411SX1280, are F411 boards with an SX1280 receiver.
+Neither image links, with or without this change. The first overflows main RAM by 7 KB, and the second stops
+the linker on a relaxation error as its read-only data grows past its region. No board has run an LSM6DSO.

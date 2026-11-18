@@ -8,6 +8,7 @@ with Adaflight.MPU_Gyro.BMI270;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.ICM456xx;
+with Adaflight.MPU_Gyro.LSM6DSO;
 with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
@@ -71,7 +72,7 @@ package body Adaflight.STM32.Gyro_Chip is
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 8,
+      Chip_Count       => 9,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -109,6 +110,9 @@ package body Adaflight.STM32.Gyro_Chip is
       Read_Register      => Read_Register,
       Bus_Write_Register => Write_Register,
       Delay_Us           => Delay_Us);
+   package LSM6DSO is new Layer.LSM6DSO
+     (Write_Register => Write_Register,
+      Delay_Us       => Delay_Us);
    package BMI270 is new Layer.BMI270
      (Read_Masked    => Read_Registers,
       Write_Register => Write_Register,
@@ -152,12 +156,20 @@ package body Adaflight.STM32.Gyro_Chip is
    --  layer: one for the first gyro and one for the last of the board's.
    procedure Data_Ready is
    begin
-      Layer.Interrupt (Devices (0), States (0));
+      if Adaflight.Board.Gyro_LSM6DSO and then States (0).Sensor = LSM6DSO.Sensor_LSM6DSO then
+         LSM6DSO.Interrupt (States (0));
+      else
+         Layer.Interrupt (Devices (0), States (0));
+      end if;
    end Data_Ready;
 
    procedure Data_Ready_Second is
    begin
-      Layer.Interrupt (Devices (Gyro_Position'Last), States (Gyro_Position'Last));
+      if Adaflight.Board.Gyro_LSM6DSO and then States (Gyro_Position'Last).Sensor = LSM6DSO.Sensor_LSM6DSO then
+         LSM6DSO.Interrupt (States (Gyro_Position'Last));
+      else
+         Layer.Interrupt (Devices (Gyro_Position'Last), States (Gyro_Position'Last));
+      end if;
    end Data_Ready_Second;
 
    procedure Select_Chip (D : Device) is
@@ -239,14 +251,18 @@ package body Adaflight.STM32.Gyro_Chip is
                end if;
             end if;
          when 6 =>
+            if Adaflight.Board.Gyro_LSM6DSO then
+               LSM6DSO.Detect (D, Sensor);
+            end if;
+         when 7 =>
             if Adaflight.Board.Gyro_BMI270 then
                BMI270.Detect (D, Sensor);
             end if;
-         when 7 =>
+         when 8 =>
             if Adaflight.Board.Gyro_ICM426xx then
                ICM426xx.Detect (D, Sensor);
             end if;
-         when 8 =>
+         when 9 =>
             if Adaflight.Board.Gyro_ICM456xx then
                ICM456xx.Detect (D, Sensor);
             end if;
@@ -400,6 +416,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Gyro_Detect.ICM20689    => Adaflight.Board.Gyro_ICM20689,
       Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
+      Gyro_Detect.LSM6DSO     => Adaflight.Board.Gyro_LSM6DSO,
       Gyro_Detect.BMI270      => Adaflight.Board.Gyro_BMI270,
       Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
       Gyro_Detect.ICM456xx    => Adaflight.Board.Gyro_ICM456xx,
@@ -411,6 +428,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Acc_Detect.ICM20689    => Adaflight.Board.Acc_ICM20689,
       Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
+      Acc_Detect.LSM6DSO     => Adaflight.Board.Acc_LSM6DSO,
       Acc_Detect.BMI270      => Adaflight.Board.Acc_BMI270,
       Acc_Detect.ICM426xx    => Adaflight.Board.Acc_ICM426xx,
       Acc_Detect.ICM456xx    => Adaflight.Board.Acc_ICM456xx,
@@ -473,6 +491,8 @@ package body Adaflight.STM32.Gyro_Chip is
             end if;
          elsif LSM_Built and then Is_LSM (S.Sensor) then
             LSM6DSV.Gyro_Detect (S, Found);
+         elsif Adaflight.Board.Gyro_LSM6DSO and then S.Sensor = LSM6DSO.Sensor_LSM6DSO then
+            LSM6DSO.Gyro_Detect (S, Found, R.Scale);
          elsif Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
             BMI270.Gyro_Detect (S, Found, R.Scale);
             D.Offset := 0;
@@ -522,6 +542,8 @@ package body Adaflight.STM32.Gyro_Chip is
             end if;
          elsif LSM_Built and then Is_LSM (S.Sensor) then
             LSM6DSV.Gyro_Init (D, S, Hardware_LPF, R.Scale);
+         elsif Adaflight.Board.Gyro_LSM6DSO and then S.Sensor = LSM6DSO.Sensor_LSM6DSO then
+            LSM6DSO.Gyro_Init (D, S);
          elsif Adaflight.Board.Gyro_BMI270 and then S.Sensor = BMI270.Sensor_BMI270 then
             BMI270.Gyro_Init (D, S);
          elsif Adaflight.Board.Gyro_ICM426xx and then ICM426xx.Is_ICM426xx (S.Sensor) then
@@ -540,6 +562,8 @@ package body Adaflight.STM32.Gyro_Chip is
             R.One_G := ICM456xx.Acc_One_G;
          elsif R.Acc_Found and then LSM_Built and then Is_LSM (S.Sensor) then
             R.One_G := LSM6DSV.Acc_One_G (S);
+         elsif R.Acc_Found and then Adaflight.Board.Acc_LSM6DSO and then S.Sensor = LSM6DSO.Sensor_LSM6DSO then
+            R.One_G := LSM6DSO.Acc_One_G;
          end if;
       end;
    end Init;
@@ -568,6 +592,8 @@ package body Adaflight.STM32.Gyro_Chip is
             LSM6DSV.Read_Gyro (D, S, Latches (Position), OK);
          elsif Adaflight.Board.Gyro_ICM456xx and then ICM456xx.Is_ICM456xx (S.Sensor) then
             ICM456xx.Read_Gyro (D, S, OK);
+         elsif Adaflight.Board.Gyro_LSM6DSO and then S.Sensor = LSM6DSO.Sensor_LSM6DSO then
+            LSM6DSO.Read_Gyro (D, S, OK);
          else
             Layer.Read_Gyro_SPI (D, S, OK);
          end if;
@@ -585,6 +611,8 @@ package body Adaflight.STM32.Gyro_Chip is
          LSM6DSV.Read_Acc (D, S, Latches (Active), OK);
       elsif Adaflight.Board.Gyro_ICM456xx and then ICM456xx.Is_ICM456xx (S.Sensor) then
          ICM456xx.Read_Acc (D, S, OK);
+      elsif Adaflight.Board.Gyro_LSM6DSO and then S.Sensor = LSM6DSO.Sensor_LSM6DSO then
+         LSM6DSO.Read_Acc (D, S, OK);
       else
          Layer.Read_Acc_SPI (D, S, OK);
       end if;
