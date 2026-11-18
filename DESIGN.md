@@ -16049,3 +16049,22 @@ calculation sets it 66,666 microseconds on where it clears the request. Data dri
 The receiver oracle compiles Betaflight's receiver with that deadline restored (`RX_F367`, on by default) and runs
 parallel PWM sequences beside the others, whose signal is a level most frames hold. Their vectors check the
 processing and the channels at each step.
+
+## D813. Serial and SX1280 receiver state share storage (2026-11-18)
+
+A serial receiver's state now overlays SX1280 receiver's state in one unchecked union in
+`Adaflight.STM32.Receiver_Storage`. Its serial side contains CRSF's decoder, telemetry output and display port
+screen, MSP frames, tunnel and answer, port bytes with their arrival times, UART arrival stamps, and FPORT and SRXL
+telemetry streams. Its SX1280 side contains that receiver's decoder, pin operations and MSP tunnel and answer. A boot
+uses one side: a serial receiver's port opens only with serial receiver feature, and SX1280 receiver starts only
+with SPI one.
+
+Every read of serial side sits behind an open port and its protocol, and every call into SX1280 side behind its
+start and ExpressLRS selection. Writes that ran whatever port opened now run under that check: CRSF screen's
+start, and FPORT and SRXL streams' resets. Serial side's objects are set when its port opens, UART stamps when a
+port keeps arrival times, and SX1280 side's objects when its start runs.
+
+A build without SX1280 receiver keeps no room for that side, so CLRACINGF4 keeps 3,208 bytes of main RAM free,
+against 3,200 before. DARWINF4SX1280HD's RAM shortfall of 5,496 bytes becomes 48 bytes free; its image still
+overflows flash by 2,893 bytes. No test boots an SX1280 receiver, since host builds leave it out, so these
+checks rest on the audit of every read and write above.

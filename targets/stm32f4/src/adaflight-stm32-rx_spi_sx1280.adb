@@ -13,6 +13,7 @@ with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.Receiver_Storage;
 with Adaflight.STM32.RX_SPI_Device;
 with Adaflight.STM32.Time;
 with System;
@@ -171,7 +172,7 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
    --  The receiver, its settings and the last channel payload, shared by the
    --  radio's interrupt chain, the timer and the receiver task as the
    --  reference shares them.
-   Receiver : ER.Receiver;
+   Receiver : ER.Receiver with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.SPI_State.Receiver'Address;
    Settings : ER.Settings;
    Payload  : ER.Packet := (others => 0);
    --  The telemetry's payload schedule and the readings its frames send.
@@ -496,7 +497,7 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
    Bind_Pin   : Pin := (Port_A, 0);
    Pins       : SR.Pins;
    Pin_Radio  : SR.Radio;
-   Pin_Ops    : SR.Output;
+   Pin_Ops    : SR.Output with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.SPI_State.Pin_Ops'Address;
    Channels_N : constant := ER.Channel_Count;
 
    function Has_Tag (Tag : Byte) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
@@ -518,6 +519,9 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       Pin_Ops := (others => <>);
    end Run_Pin_Ops;
 
+   --  The MSP tunnel and its answer buffer at their starting values.
+   procedure Reset_MSP;
+
    procedure ExpressLRS_Init
      (Spi  : Adaflight.Config_Groups.Rx_Spi_Config_Record;
       ELRS : Adaflight.Config_Groups.Rx_Express_Lrs_Spi_Config_Record;
@@ -528,6 +532,9 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       Ok := False;
       Channels := 0;
       Claim_RSSI := False;
+      --  The SPI side of the receiver storage, which no default sets.
+      Pin_Ops := (others => <>);
+      Reset_MSP;
       if not RX_SPI_Device.Exti_Configured then
          return;
       end if;
@@ -631,10 +638,17 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
 
    --  The MSP over the link: the tunnel, the processor's answer, and whether
    --  a reply has chunks left to send.
-   Tunnel      : Adaflight.MSP_Telemetry.Tunnel;
-   MSP_Answer  : Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) := (others => 0);
+   Tunnel      : Adaflight.MSP_Telemetry.Tunnel with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.SPI_State.Tunnel'Address;
+   MSP_Answer  : Adaflight.STM32.Receiver_Storage.Answer_Bytes
+     with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.SPI_State.MSP_Answer'Address;
    Chunks_Left : Boolean := False;
    MSP_Ack     : constant := 1;
+
+   procedure Reset_MSP is
+   begin
+      Tunnel := (others => <>);
+      MSP_Answer := (others => 0);
+   end Reset_MSP;
 
    procedure Serve_MSP is
       use type Adaflight.MSP_Telemetry.Outcome;
