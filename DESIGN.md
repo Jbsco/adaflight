@@ -15926,3 +15926,13 @@ an LSM6DSO after the ICM-45686 and reads its name, gyro task rate of 6.66 kHz, a
 The two F4 boards that name one, DARWINF4SX1280HD and GEPRCF411SX1280, are F411 boards with an SX1280 receiver.
 Neither image links, with or without this change. The first overflows main RAM by 7 KB, and the second stops
 the linker on a relaxation error as its read-only data grows past its region. No board has run an LSM6DSO.
+
+## D805. Arming flash check with a receiver present (2026-11-17)
+
+Host smoke's first status LED check reads LED 1 while its MSP receiver has no frames. A receiver loss beep then
+sets that LED every 500 ms by itself, so an image whose arming status never flashed it still passed.
+
+A new check ends that section. Its stream stops for 1.5 s and comes back with the arm switch on, which keeps
+arming off by that switch alone while frames arrive. Over its last 2.5 s, LED 1 must change every 450 to 700 ms
+with arming off. An image whose arming status disables LED 1 where it should flash it fails this check and
+passes the older one.
