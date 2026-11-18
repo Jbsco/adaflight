@@ -2112,6 +2112,14 @@ def status_led_checks(image, work):
         armed, angle, late, levels = stream(sock, (arm_on, 25), (rest, 200))
         check("the first LED is off again after a disarm",
               armed is False and late[0] == [] and levels[0] == 1, repr((armed, late[0], levels)))
+        # A link that comes back with the arm switch on keeps arming off by that switch alone. The receiver is
+        # present, so no receiver loss beep drives the first LED, and its flashes are the arming status's.
+        time.sleep(1.5)
+        armed, angle, late, levels = stream(sock, (arm_on, 250))
+        flashes = [b[0] - a[0] for a, b in zip(late[0], late[0][1:])]
+        check("the first LED flashes each 500 ms while the arm switch alone keeps arming off",
+              armed is False and len(flashes) >= 3 and all(450 <= g <= 700 for g in flashes),
+              repr((armed, late[0])))
     finally:
         stop(proc)
         sock.close()
