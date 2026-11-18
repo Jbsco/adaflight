@@ -12,6 +12,7 @@ with Adaflight.MPU_Gyro.LSM6DSO;
 with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.MPU6500;
+with Adaflight.MPU_Gyro.MPU9250;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
@@ -72,7 +73,7 @@ package body Adaflight.STM32.Gyro_Chip is
 
    package Layer is new Adaflight.MPU_Gyro
      (SPI_Device       => Device,
-      Chip_Count       => 9,
+      Chip_Count       => 10,
       Preinit_CS       => Preinit_CS,
       Attach_Bus       => Attach_Bus,
       Prepare_CS       => Prepare_CS,
@@ -110,6 +111,12 @@ package body Adaflight.STM32.Gyro_Chip is
       Read_Register      => Read_Register,
       Bus_Write_Register => Write_Register,
       Delay_Us           => Delay_Us);
+   package MPU9250 is new Layer.MPU9250
+     (Write_Buffer  => Write_Register,
+      Read_Buffer   => Read_Register,
+      Read_Register => Read_Register,
+      Delay_Us      => Delay_Us,
+      Failure       => Failure);
    package LSM6DSO is new Layer.LSM6DSO
      (Write_Register => Write_Register,
       Delay_Us       => Delay_Us);
@@ -251,18 +258,22 @@ package body Adaflight.STM32.Gyro_Chip is
                end if;
             end if;
          when 6 =>
+            if Adaflight.Board.Gyro_MPU9250 then
+               MPU9250.Detect (D, Sensor);
+            end if;
+         when 7 =>
             if Adaflight.Board.Gyro_LSM6DSO then
                LSM6DSO.Detect (D, Sensor);
             end if;
-         when 7 =>
+         when 8 =>
             if Adaflight.Board.Gyro_BMI270 then
                BMI270.Detect (D, Sensor);
             end if;
-         when 8 =>
+         when 9 =>
             if Adaflight.Board.Gyro_ICM426xx then
                ICM426xx.Detect (D, Sensor);
             end if;
-         when 9 =>
+         when 10 =>
             if Adaflight.Board.Gyro_ICM456xx then
                ICM456xx.Detect (D, Sensor);
             end if;
@@ -416,6 +427,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Gyro_Detect.ICM20689    => Adaflight.Board.Gyro_ICM20689,
       Gyro_Detect.MPU6000     => Adaflight.Board.Gyro_MPU6000,
       Gyro_Detect.MPU6500_SPI => Adaflight.Board.Gyro_MPU6500,
+      Gyro_Detect.MPU9250     => Adaflight.Board.Gyro_MPU9250,
       Gyro_Detect.LSM6DSO     => Adaflight.Board.Gyro_LSM6DSO,
       Gyro_Detect.BMI270      => Adaflight.Board.Gyro_BMI270,
       Gyro_Detect.ICM426xx    => Adaflight.Board.Gyro_ICM426xx,
@@ -428,6 +440,7 @@ package body Adaflight.STM32.Gyro_Chip is
       Acc_Detect.ICM20689    => Adaflight.Board.Acc_ICM20689,
       Acc_Detect.MPU6000     => Adaflight.Board.Acc_MPU6000,
       Acc_Detect.MPU6500_SPI => Adaflight.Board.Acc_MPU6500,
+      Acc_Detect.MPU9250     => Adaflight.Board.Acc_MPU9250,
       Acc_Detect.LSM6DSO     => Adaflight.Board.Acc_LSM6DSO,
       Acc_Detect.BMI270      => Adaflight.Board.Acc_BMI270,
       Acc_Detect.ICM426xx    => Adaflight.Board.Acc_ICM426xx,
@@ -500,8 +513,11 @@ package body Adaflight.STM32.Gyro_Chip is
             ICM426xx.Gyro_Detect (S, Found, R.Scale);
          elsif Adaflight.Board.Gyro_ICM456xx and then ICM456xx.Is_ICM456xx (S.Sensor) then
             ICM456xx.Gyro_Detect (S, Found);
-         elsif Adaflight.Board.Gyro_MPU6500 then
+         elsif Adaflight.Board.Gyro_MPU6500 and then MPU6500.Acc_Detect (S) then
             MPU6500.Gyro_Detect (S, High_Range, Found, R.Scale);
+         elsif Adaflight.Board.Gyro_MPU9250 and then MPU9250.Gyro_Detect (S) then
+            Found := True;
+            R.Scale := MPU9250.Gyro_Scale;
          end if;
          if not Found then
             return;
@@ -550,8 +566,10 @@ package body Adaflight.STM32.Gyro_Chip is
             ICM426xx.Gyro_Init (D, S, Hardware_LPF, Gyro_Start.Divider_Drops);
          elsif Adaflight.Board.Gyro_ICM456xx and then ICM456xx.Is_ICM456xx (S.Sensor) then
             ICM456xx.Gyro_Init (D, S, Hardware_LPF, False, R.Scale);
-         elsif Adaflight.Board.Gyro_MPU6500 then
+         elsif Adaflight.Board.Gyro_MPU6500 and then MPU6500.Acc_Detect (S) then
             MPU6500.Gyro_Init (D, S, High_Range, Gyro_Start.Divider_Drops);
+         elsif Adaflight.Board.Gyro_MPU9250 and then MPU9250.Gyro_Detect (S) then
+            MPU9250.Gyro_Init (D, S, Gyro_Start.Divider_Drops);
          end if;
          R.Init_Failed := D.Failed;
          Acc_Detect.Detect (Acc_Build, Acc_Configured, S.Sensor, R.Acc_Hardware, R.Acc_Found);

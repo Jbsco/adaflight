@@ -29,7 +29,7 @@
 --  gyro bus carries a gyro model while the environment variable
 --  ADAFLIGHT_GYRO_CHIP is set: an ICM-42605, ICM-42688-P or IIM-42653 where
 --  its value names one, with their five register banks, a BMI270 where it
---  names that, an ICM-20602 or ICM-20689 with the MPU6000's register
+--  names that, an ICM-20602, ICM-20689 or MPU9250 with the MPU6000's register
 --  layout, an LSM6DSV16X, LSM6DSV32X, LSM6DSK320X or LSM6DSO with a register store
 --  that reads back what was written, an ICM-45686 or ICM-45605 with its
 --  indirect registers, and an MPU6000 otherwise. A model has
@@ -645,7 +645,7 @@ package body Adaflight.STM32.SPI is
    --  The chip the gyro model is: none without the environment variable, an
    --  ICM426xx where its value names one, an MPU6000 for any other value.
    type Gyro_Kind is
-     (No_Model, MPU6000, ICM20602, ICM20689, BMI270, ICM42605, ICM42688P, IIM42653, LSM6DSV16X, LSM6DSV32X,
+     (No_Model, MPU6000, ICM20602, ICM20689, MPU9250, BMI270, ICM42605, ICM42688P, IIM42653, LSM6DSV16X, LSM6DSV32X,
       LSM6DSK320X, ICM45605, ICM45686, LSM6DSO);
    function Gyro_Kind_Of_Environment return Gyro_Kind is
       Name : constant String := "ADAFLIGHT_GYRO_CHIP";
@@ -660,6 +660,7 @@ package body Adaflight.STM32.SPI is
            (if Value = "BMI270" then BMI270
             elsif Value = "ICM20602" then ICM20602
             elsif Value = "ICM20689" then ICM20689
+            elsif Value = "MPU9250" then MPU9250
             elsif Value = "LSM6DSV16X" then LSM6DSV16X
             elsif Value = "LSM6DSV32X" then LSM6DSV32X
             elsif Value = "LSM6DSK320X" then LSM6DSK320X
@@ -675,7 +676,7 @@ package body Adaflight.STM32.SPI is
 
    Gyro_Model     : constant Gyro_Kind := Gyro_Kind_Of_Environment;
    --  The chips with the MPU6000's register layout.
-   MPU_Layout     : constant Boolean := Gyro_Model in MPU6000 | ICM20602 | ICM20689;
+   MPU_Layout     : constant Boolean := Gyro_Model in MPU6000 | ICM20602 | ICM20689 | MPU9250;
    LSM_Layout     : constant Boolean := Gyro_Model in LSM6DSV16X | LSM6DSV32X | LSM6DSK320X | LSM6DSO;
    Gyro_Model_Bus : constant Bus :=
      (if Adaflight.Board.Gyro_1_SPI_Device in 1 .. 6 then Bus'Val (Adaflight.Board.Gyro_1_SPI_Device - 1) else SPI1);
@@ -725,7 +726,7 @@ package body Adaflight.STM32.SPI is
          else (164, 328, -492));
       Awake : constant Boolean :=
         (case Gyro_Model is
-            when MPU6000 | ICM20602 | ICM20689 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
+            when MPU6000 | ICM20602 | ICM20689 | MPU9250 => (Gyro_Registers (0) (16#6B#) and Gyro_Sleep) = 0,
             when BMI270 => BMI_Loaded and then (Gyro_Registers (0) (16#7D#) and 16#06#) = 16#06#,
             when LSM6DSV16X | LSM6DSV32X | LSM6DSK320X =>
                (Gyro_Registers (0) (16#10#) and 16#0F#) /= 0 and then (Gyro_Registers (0) (16#11#) and 16#0F#) /= 0,
@@ -771,7 +772,9 @@ package body Adaflight.STM32.SPI is
       if MPU_Layout then
          return
            (if R in 16#3B# .. 16#48# then Gyro_Reading_Byte ((R - 16#3B#) / 2, (R - 16#3B#) mod 2 = 1)
-            elsif R = 16#75# then (case Gyro_Model is when ICM20602 => 16#12#, when ICM20689 => 16#98#, when others => 16#68#)
+            elsif R = 16#75# then
+              (case Gyro_Model is
+                  when ICM20602 => 16#12#, when ICM20689 => 16#98#, when MPU9250 => 16#71#, when others => 16#68#)
             elsif R = 16#0C# and then Gyro_Model = MPU6000 then 16#14#
             else Gyro_Registers (0) (R));
       elsif R = 16#76# then

@@ -15985,3 +15985,27 @@ serial port, the value each state's default gave.
 Before the PPM input of D807, a GEPRCF411 image now keeps 1,944 bytes of RAM free, and an F405 image with flash
 chip and mass storage keeps 2,400 bytes of main RAM. That input overflowed them by 128 and 112 bytes without
 this change.
+
+## D811. MPU9250 gyros on boards (2026-11-18)
+
+Boards that name only the MPU9250 driver, SPARKY2 and REVONANO, started no gyro. Betaflight builds that driver
+for them and its MPU6500 driver for boards that name both, whose detection takes the chip first.
+`Adaflight.MPU_Gyro.MPU9250` now ports the driver.
+
+Detection resets the chip and reads its identity up to 21 times, 150 ms apart. The start resets the chip, then
+writes its clock, ranges, filter, sample rate divider and interrupt settings. It reads each back up to 21 times
+and writes it again while it differs. A first gyro read whose low bytes are both 0xFF marks the start failed.
+
+The oracle runs Betaflight's driver over a chip that ignores a drawn number of writes per register and misses its
+identity a drawn number of times. Its vectors check every bus operation. `tools/boardgen.py` sets
+`Gyro_MPU9250` and `Acc_MPU9250` from the board's defines, and `Gyro_Chip` probes the chip right after the MPU6500,
+in Betaflight's table order.
+
+Host SPI's MPU9250 model answers with identity 0x71 in the MPU6000's register layout. The default host image
+starts it through the MPU6500 driver, as CLRACINGF4 names both drivers. The wing host gate builds a SPARKY2 host
+image and runs the model through the MPU9250 driver, its readings turned by the board's alignment. The default
+host image leaves the MPU9250 driver out: its probe would reset and poll every chip probed after it for 3.15 s.
+
+SPARKY2 keeps 3,800 bytes of main RAM free and REVONANO 1,680 bytes of RAM and 15,322 bytes of flash. No board
+has run an MPU9250.
+
