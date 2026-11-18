@@ -15853,3 +15853,23 @@ DTCM on ALIENFLIGHTNGF7_RX and about 3.5 KB of main RAM on CLRACINGF7.
 Under Renode both images unpack a range equal to their sections and reach `Flight.Init`. ALIENFLIGHTNGF7_RX runs 32.38 million instructions before
 `main`, against 25.86 million without that code: about 30 ms more start-up at 216 MHz. A packer that leaves the
 code out of its stream gives a range that differs from the sections.
+
+## D801. MPU6500 driver for ICM2060x boards (2026-11-17)
+
+Betaflight builds its SPI MPU6500 gyro driver for a board that names an ICM20601, ICM20602 or ICM20608G gyro,
+and its accelerometer driver for those and an MPU9250. `tools/boardgen.py` set
+`Gyro_MPU6500` and `Acc_MPU6500` from the MPU6500 defines alone. Eight F4 and F7 boards name an ICM20602 gyro
+without them, so their images could not detect that chip. Three of them, MATEKF405STD, CKFLIGHTF4 and
+SIRMIXALOT, name no other gyro and built no gyro driver at all. TMOTORF4, STELLARF7 and three more had only
+their MPU6000 or BMI270 drivers.
+
+The generator now takes either flag from any of those defines. `MPU_Gyro.MPU6500` already detects each of those
+chips by its identity, so nothing else changes. A host build adds the drivers of its chip models, the ICM20689
+one among them, which also answers to an ICM20602. A MATEKF405STD host image with its ICM20602 model reported
+an ICM20689 before and reports an ICM20602 now, as Betaflight does with both drivers built.
+
+Oracle `boarddrv/run.sh` runs every board configuration through Betaflight's lines that imply those drivers,
+cut from its common target header, with the C preprocessor. Its vectors list both flags for each board, and
+`tools/boardgen-check.py` compares the generator's flags with them. A vector names its board by position in the
+byte-ordered list of configuration paths, since two of those paths carry another project's name. CI's test job
+checks out no submodules, so there the check reports these lines as not checked, and the local gates check them.
