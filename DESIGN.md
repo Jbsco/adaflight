@@ -15873,3 +15873,24 @@ cut from its common target header, with the C preprocessor. Its vectors list bot
 `tools/boardgen-check.py` compares the generator's flags with them. A vector names its board by position in the
 byte-ordered list of configuration paths, since two of those paths carry another project's name. CI's test job
 checks out no submodules, so there the check reports these lines as not checked, and the local gates check them.
+
+## D802. Board configurations read as the preprocessor reads them (2026-11-17)
+
+`tools/boardgen.py` read a board configuration's defines line by line, with comments kept in their values and
+conditional blocks ignored. Sixty configurations put a comment after a define's value. A pin with one became
+absent without a message, and eight configurations, DOLPHINRC_F722 among them, stopped the generator on a timer
+map pin.
+
+The generator now joins continued lines and drops comments. It decides `#if`, `#ifdef`, `#ifndef`, `#elif` and
+`#else` blocks with the names defined above them and applies `#undef`, as a Betaflight build without extra
+options reads the file before any common header. Timer map entries come from the joined `TIMER_PIN_MAPPING`
+define.
+
+Generated board packages change for 100 configurations, 31 of them F4 and F7 boards, and for none of the gate
+boards. Most gain pins: motors, servos, UART and SPI pins, LEDs, gyro select and interrupt pins. PRINCIPIOTF7's
+barometer moves to I2C, since its SPI barometer lines sit in a comment. WARPF7 loses its MSP display port,
+which it sets only when HD OSD is built. The eight that stopped now generate.
+
+Oracle `boardpins/run.sh` lists every pin define and timer map entry of each configuration through `cpp -dM`,
+by the board's position. `tools/boardgen-check.py` requires the generator to read the same for every
+configuration.
