@@ -182,6 +182,10 @@ QMP6988_BARO = ("USE_BARO_QMP6988", "USE_BARO_SPI_QMP6988")
 BMP085_BARO = ("USE_BARO_BMP085",)
 DPS310_BARO = ("USE_BARO_DPS310", "USE_BARO_SPI_DPS310", "USE_BARO_SPA06_003")
 W25N_FLASH = ("USE_FLASH_W25N01G", "USE_FLASH_W25N02K")
+# The sensors the MPU6500 driver detects: a board naming one builds that driver.
+MPU6500_GYRO = ("USE_GYRO_SPI_MPU6500", "USE_GYRO_SPI_ICM20601", "USE_GYRO_SPI_ICM20602", "USE_GYRO_SPI_ICM20608G")
+MPU6500_ACC = ("USE_ACC_SPI_MPU6500", "USE_ACC_SPI_MPU9250", "USE_ACC_SPI_ICM20601", "USE_ACC_SPI_ICM20602",
+               "USE_ACC_SPI_ICM20608G")
 ICM426XX_SHARED = ("USE_ACCGYRO_ICM42622P", "USE_ACCGYRO_ICM42686P", "USE_ACCGYRO_IIM42652", "USE_ACCGYRO_IIM42653")
 ICM426XX_GYRO = ("USE_GYRO_SPI_ICM42605", "USE_GYRO_SPI_ICM42688P") + ICM426XX_SHARED
 ICM426XX_ACC = ("USE_ACC_SPI_ICM42605", "USE_ACC_SPI_ICM42688P") + ICM426XX_SHARED
@@ -194,11 +198,22 @@ def find_config(configs: Path, board: str) -> Path:
     return hits[0]
 
 
-def generate(config: Path, overrides: dict) -> str:
-    text = config.read_text()
+def config_defines(text: str) -> dict:
+    """A board configuration file's defines and their values."""
     defines = {}
     for m in re.finditer(r"^#define\s+(\w+)(?:[ \t]+([^\n\\]*?))?[ \t]*$", text, re.M):
         defines[m.group(1)] = (m.group(2) or "").strip()
+    return defines
+
+
+def mpu6500_drivers(defines: dict) -> tuple:
+    """Whether a board builds the SPI MPU6500 gyro driver, and the accelerometer one."""
+    return any(d in defines for d in MPU6500_GYRO), any(d in defines for d in MPU6500_ACC)
+
+
+def generate(config: Path, overrides: dict) -> str:
+    text = config.read_text()
+    defines = config_defines(text)
     defines.update(overrides)
     fixed = [f"UART{n}_{d}_PIN" for n in range(1, 7) for d in ("TX", "RX")] \
         + [f"SPI{n}_{d}_PIN" for n in range(1, 7) for d in ("SCK", "SDI", "SDO")] \
@@ -303,9 +318,9 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Gyro_2_Align_Pitch", gyro_alignment(defines, 2)[1][1]),
                 ("Gyro_2_Align_Yaw", gyro_alignment(defines, 2)[1][2]),
                 ("Gyro_MPU6000", "True" if "USE_GYRO_SPI_MPU6000" in defines else "False"),
-                ("Gyro_MPU6500", "True" if "USE_GYRO_SPI_MPU6500" in defines else "False"),
+                ("Gyro_MPU6500", str(mpu6500_drivers(defines)[0])),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),
-                ("Acc_MPU6500", "True" if "USE_ACC_SPI_MPU6500" in defines else "False"),
+                ("Acc_MPU6500", str(mpu6500_drivers(defines)[1])),
                 ("Gyro_LSM6DSV16X", "True" if "USE_ACCGYRO_LSM6DSV16X" in defines else "False"),
                 ("Gyro_LSM6DSV32X", "True" if "USE_ACCGYRO_LSM6DSV32X" in defines else "False"),
                 ("Gyro_LSM6DSK320X", "True" if "USE_ACCGYRO_LSM6DSK320X" in defines else "False"),

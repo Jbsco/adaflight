@@ -20,5 +20,6 @@ alr -n build >/dev/null 2>&1 || { alr -n build; exit 1; }
 ./bin/msp_check || exit 1
 cd ../../.. || exit 1
 python3 tools/boardgen-check.py tests/vectors/gyrodev.csv || exit 1
+python3 tools/boardgen-check.py tests/vectors/boarddrv.csv || exit 1
 [ -n "${3:-}" ] && touch "$3"
 exit 0
