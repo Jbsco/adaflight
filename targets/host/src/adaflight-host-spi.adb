@@ -31,7 +31,8 @@
 --  its value names one, with their five register banks, a BMI270 where it
 --  names that, an ICM-20602 or ICM-20689 with the MPU6000's register
 --  layout, an LSM6DSV16X, LSM6DSV32X or LSM6DSK320X with a register store
---  that reads back what was written, and an MPU6000 otherwise. A model has
+--  that reads back what was written, an ICM-45686 or ICM-45605 with its
+--  indirect registers, and an MPU6000 otherwise. A model has
 --  its identity, a
 --  register store that a device reset clears, and its data registers, which
 --  read zeros until its start wakes its sensors. They then read a
@@ -645,7 +646,7 @@ package body Adaflight.STM32.SPI is
    --  ICM426xx where its value names one, an MPU6000 for any other value.
    type Gyro_Kind is
      (No_Model, MPU6000, ICM20602, ICM20689, BMI270, ICM42605, ICM42688P, IIM42653, LSM6DSV16X, LSM6DSV32X,
-      LSM6DSK320X);
+      LSM6DSK320X, ICM45605, ICM45686);
    function Gyro_Kind_Of_Environment return Gyro_Kind is
       Name : constant String := "ADAFLIGHT_GYRO_CHIP";
    begin
@@ -665,6 +666,8 @@ package body Adaflight.STM32.SPI is
             elsif Value = "ICM42605" then ICM42605
             elsif Value = "ICM42688P" then ICM42688P
             elsif Value = "IIM42653" then IIM42653
+            elsif Value = "ICM45605" then ICM45605
+            elsif Value = "ICM45686" then ICM45686
             else MPU6000);
       end;
    end Gyro_Kind_Of_Environment;
@@ -725,6 +728,7 @@ package body Adaflight.STM32.SPI is
             when BMI270 => BMI_Loaded and then (Gyro_Registers (0) (16#7D#) and 16#06#) = 16#06#,
             when LSM6DSV16X | LSM6DSV32X | LSM6DSK320X =>
                (Gyro_Registers (0) (16#10#) and 16#0F#) /= 0 and then (Gyro_Registers (0) (16#11#) and 16#0F#) /= 0,
+            when ICM45605 | ICM45686 => (Gyro_Registers (0) (16#10#) and 16#0F#) = 16#0F#,
             when others => (Gyro_Registers (0) (16#4E#) and 16#0F#) = 16#0F#);
    begin
       if not Awake then
@@ -887,6 +891,56 @@ package body Adaflight.STM32.SPI is
       end if;
    end LSM_Frame;
 
+   --  The ICM456xx's indirect registers, behind its address at 16#7C# and
+   --  16#7D# and its data at 16#7E#.
+   ICM_Indirect_Address : Natural range 0 .. 16#FFFF# := 0;
+   ICM_Indirect         : Byte_Array (0 .. 16#FFFF#) := (others => 0);
+
+   --  The ICM456xx's registers: accelerations from 16#00# and rates from
+   --  16#06#, each with its low byte first, the identity at 16#72#, the
+   --  indirect data, and its MISC2 register with the indirect access done
+   --  and no reset pending.
+   function ICM_Read (R : Natural) return Byte is
+     (if R in 16#00# .. 16#05# then Gyro_Reading_Byte (R / 2, R mod 2 = 0)
+      elsif R in 16#06# .. 16#0B# then Gyro_Reading_Byte (4 + (R - 16#06#) / 2, (R - 16#06#) mod 2 = 0)
+      elsif R = 16#72# then (if Gyro_Model = ICM45605 then 16#E5# else 16#E9#)
+      elsif R = 16#7E# then ICM_Indirect (ICM_Indirect_Address)
+      elsif R = 16#7F# then 16#01#
+      else Gyro_Registers (0) (R mod 128));
+
+   --  A register write: the soft reset in MISC2 clears every register, and
+   --  the indirect address and data registers reach the indirect ones.
+   procedure ICM_Write (R : Natural; Value : Byte) is
+   begin
+      if R = 16#7F# and then (Value and 16#02#) /= 0 then
+         Gyro_Registers := Gyro_Reset;
+         ICM_Indirect := (others => 0);
+      elsif R = 16#7C# then
+         ICM_Indirect_Address := Natural (Value) * 256 + ICM_Indirect_Address mod 256;
+      elsif R = 16#7D# then
+         ICM_Indirect_Address := ICM_Indirect_Address / 256 * 256 + Natural (Value);
+      elsif R = 16#7E# then
+         ICM_Indirect (ICM_Indirect_Address) := Value;
+      else
+         Gyro_Registers (0) (R) := Value;
+      end if;
+   end ICM_Write;
+
+   --  One selection of an ICM456xx: a read or a write that runs on over the
+   --  next registers.
+   procedure ICM_Frame (Tx : Byte_Array; Rx : out Byte_Array) is
+      Register : constant Natural := Natural (Tx (Tx'First) and 16#7F#);
+   begin
+      Rx := (others => 16#FF#);
+      for K in 1 .. Tx'Length - 1 loop
+         if (Tx (Tx'First) and 16#80#) /= 0 then
+            Rx (Rx'First + K) := ICM_Read ((Register + K - 1) mod 128);
+         else
+            ICM_Write ((Register + K - 1) mod 128, Tx (Tx'First + K));
+         end if;
+      end loop;
+   end ICM_Frame;
+
    --  One selection: a register read that runs on over the next registers,
    --  or a register write.
    procedure Gyro_Frame (Tx : Byte_Array; Rx : out Byte_Array) is
@@ -897,6 +951,9 @@ package body Adaflight.STM32.SPI is
          return;
       elsif LSM_Layout then
          LSM_Frame (Tx, Rx);
+         return;
+      elsif Gyro_Model in ICM45605 | ICM45686 then
+         ICM_Frame (Tx, Rx);
          return;
       end if;
       Rx := (others => 16#FF#);
