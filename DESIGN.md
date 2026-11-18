@@ -15936,3 +15936,17 @@ A new check ends that section. Its stream stops for 1.5 s and comes back with th
 arming off by that switch alone while frames arrive. Over its last 2.5 s, LED 1 must change every 450 to 700 ms
 with arming off. An image whose arming status disables LED 1 where it should flash it fails this check and
 passes the older one.
+
+## D806. Board PPM and PWM input pins in the configuration (2026-11-18)
+
+Betaflight builds PPM and parallel PWM receiver input into every image, and its resets take a board's
+`RX_PPM_PIN` and its `RX_PWM1_PIN` to `RX_PWM4_PIN`. Of the board configurations, 339 name a PPM pin and 84
+name PWM input pins. A configuration reset here left both resources empty.
+
+`tools/boardgen.py` now exports a PPM tag and four PWM input tags, `Board_Info.Hardware_Defaults` has them,
+and `Reset_Config` writes them into the PPM and PWM configuration groups. A fifth or sixth PWM pin stays out,
+as in Betaflight. `tools/boardgen-check.py` compares each board's exported tags with the pins that the board pin
+oracle reads through the C preprocessor, for every configuration. A LUXF4OSD host image lists PPM on B14 and
+PWM inputs 1 to 4 on B14, B15, C06 and C07 in `resource`.
+
+Boards still read neither input. Capture of PPM and PWM pulses on boards is the next step.

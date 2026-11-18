@@ -336,6 +336,7 @@ def generate(config: Path, overrides: dict) -> str:
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
+        + [("PPM_Tag", "RX_PPM_PIN")] + [(f"PWM{i}_Tag", f"RX_PWM{i}_PIN") for i in range(1, 5)] \
         + [("LED_Strip_Tag", "LED_STRIP_PIN"), ("Camera_Control_Tag", "CAMERA_CONTROL_PIN"),
            ("ESC_Serial_Tag", "ESCSERIAL_PIN"), ("RX_SPI_CS_Tag", "RX_SPI_CS_PIN"),
            ("RX_SPI_EXTI_Tag", "RX_SPI_EXTI_PIN"), ("RX_SPI_Bind_Tag", "RX_SPI_BIND_PIN"),
