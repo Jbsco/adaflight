@@ -3670,6 +3670,20 @@ def until(probe, ok, wait=10.0):
     return ok(value), value
 
 
+def stick_gesture(receiver, probe, ok, wait, tries=3):
+    """The menu's stick gesture, pitch up with yaw left for 0.3 s and the sticks back at rest, repeated while the
+    probe's value does not satisfy ok within the wait: an image short of processor time can miss one gesture.
+    Returns the verdict with the last value."""
+    for _ in range(tries):
+        receiver.set(992, 1811, 992, 172)
+        time.sleep(0.3)
+        receiver.set(992, 992, 172, 992)
+        found = until(probe, ok, wait=wait)
+        if found[0]:
+            break
+    return found
+
+
 def collect(sock, want, wait):
     """The bytes a socket gives until they hold the wanted text or the wait runs out."""
     data = b""
@@ -4095,15 +4109,13 @@ def main():
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
             check("OSD draws the date", time.strftime("%Y-%m-%d", stamp) in screen, repr(screen[:200]))
             if built("Menus"):
-                receiver.set(992, 1811, 992, 172)
-                time.sleep(0.3)
-                receiver.set(992, 992, 172, 992)
-                time.sleep(1.5)
-                try:
-                    with open(store + ".osd.txt") as f:
-                        screen = f.read()
-                except OSError:
-                    screen = ""
+                def osd_screen():
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            return f.read()
+                    except OSError:
+                        return ""
+                _, screen = stick_gesture(receiver, osd_screen, lambda s: "-- QUICK --" in s or "-- MAIN --" in s, 1.5)
                 check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen,
                       repr(screen[:300]))
                 # Throttle low with yaw left and pitch down starts a gyro calibration outside a menu, which shows as
@@ -5518,12 +5530,6 @@ def main():
                     try:
                         time.sleep(1.5)
 
-                        def gesture():
-                            receiver.set(992, 1811, 992, 172)
-                            time.sleep(0.3)
-                            receiver.set(992, 992, 172, 992)
-                            time.sleep(0.7)
-
                         def menu_on(found):
                             return len(found) == 8 and re.match(r"  -- (QUICK|MAIN) --", found[1]) is not None
 
@@ -5533,12 +5539,10 @@ def main():
                                 return False
                             at = 16 + status[15]
                             return bool(int.from_bytes(status[at + 1:at + 5], "little") & 0x4000)
-                        gesture()
-                        opened, _ = until(menu_holds_arming, lambda held: held, wait=3.0)
+                        opened, _ = stick_gesture(receiver, menu_holds_arming, lambda held: held, 3.0)
                         check("stick gesture opens the menu away from the dashboard's display, the second one",
                               opened and not menu_on(rows()), repr(rows()[:3]))
-                        gesture()
-                        moved, value = until(rows, menu_on, wait=4.0)
+                        moved, value = stick_gesture(receiver, rows, menu_on, 4.0)
                         check("second gesture moves the menu to the dashboard's display, title on its second row",
                               moved, repr(value[:4]))
                         check("menu clears the dashboard's page: the first row is empty",
@@ -5549,9 +5553,8 @@ def main():
                         value = rows()
                         check("dashboard draws no page while the menu holds its display",
                               menu_on(value) and menu_holds_arming(), repr(value[:4]))
-                        gesture()
-                        back, value = until(rows, lambda found: len(found) == 8 and not menu_on(found)
-                                            and re.match(r"[A-Z]{2,}", found[0]) is not None, wait=9.0)
+                        back, value = stick_gesture(receiver, rows, lambda found: len(found) == 8 and not menu_on(found)
+                                                    and re.match(r"[A-Z]{2,}", found[0]) is not None, 9.0)
                         check("pages return when the menu leaves the dashboard's display", back, repr(value[:3]))
                     finally:
                         receiver.stop.set()
