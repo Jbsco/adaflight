@@ -3037,11 +3037,17 @@ def menu_live_config_checks(image, work):
           "small_angle = 33" in angle and "craft_name = LIVENAME" in name, repr((angle[:60], name[:60])))
 
 
-def gyro_chip_checks(image, work):
+GYRO_CHIPS = (("MPU6000", 0x68, 8000, "8 kHz"), ("LSM6DSK320X", None, 8000, "8 kHz"), ("LSM6DSV32X", None, 8000, "8 kHz"),
+              ("ICM20689", 0x98, 8000, "8 kHz"), ("ICM20602", 0x12, 8000, "8 kHz"), ("MPU9250", 0x71, 8000, "8 kHz"),
+              ("BMI270", None, 3200, "3.2 kHz"), ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz"),
+              ("ICM45686", None, 6400, "6.4 kHz"), ("LSM6DSO", None, 6664, "6.66 kHz"))
+
+
+def gyro_chip_checks(image, work, chips=GYRO_CHIPS, turn=lambda v: v):
     """The board's gyro code over the host's gyro models, an MPU6000, an LSM6DSK320X, an LSM6DSV32X, an
-    ICM-20689, an ICM-20602, a BMI270, an ICM-42688-P, an IIM-42653, an ICM-45686 and an LSM6DSO in turn. The LSM6DSV family's two probes
+    ICM-20689, an ICM-20602, an MPU9250, a BMI270, an ICM-42688-P, an IIM-42653, an ICM-45686 and an LSM6DSO in turn. The LSM6DSV family's two probes
     come first, and its start reads back every register it writes. The ICM-20689 driver finds both of its chips, and the
-    MPU6500 driver then starts the ICM-20602, as the gyro detection's hardware code says. Each chip is found with
+    MPU6500 driver then starts the ICM-20602 and the MPU9250, as the gyro detection's hardware code says. Each chip is found with
     its accelerometer, a register dump reads its identity where the dump's
     register holds one, the gyro task runs at the chip's rate, and the raw IMU reply reads the model's
     acceleration and, 8 s after the start, its rates. The attitude reply shows that acceleration's tilt. A
@@ -3049,16 +3055,18 @@ def gyro_chip_checks(image, work):
     pin's rise after a reset and its whole configuration file. The IIM-42653 and the LSM6DSV32X count 1024 for
     one g where the others count 2048, so the same acceleration and tilt from each show both. A chip's run is
     repeated once when its gyro task's rate is outside its band, since an image short of processor time runs
-    that task slower. Over configuration stores of their own."""
+    that task slower. A board's gyro alignment turns the expected readings, and the tilt follows the turned
+    acceleration. Over configuration stores of their own."""
 
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
 
-    for chip, identity, rate_hz, rate_text in (("MPU6000", 0x68, 8000, "8 kHz"), ("LSM6DSK320X", None, 8000, "8 kHz"),
-                                               ("LSM6DSV32X", None, 8000, "8 kHz"), ("ICM20689", 0x98, 8000, "8 kHz"),
-                                               ("ICM20602", 0x12, 8000, "8 kHz"), ("BMI270", None, 3200, "3.2 kHz"),
-                                               ("ICM42688P", 0x47, 8000, "8 kHz"), ("IIM42653", 0x56, 8000, "8 kHz"),
-                                               ("ICM45686", None, 6400, "6.4 kHz"), ("LSM6DSO", None, 6664, "6.66 kHz")):
+    acc_wanted = turn((32, -64, 510))
+    rates_wanted = turn((164, 328, -492))
+    tilt_wanted = (round(10 * math.degrees(math.atan2(acc_wanted[1], acc_wanted[2]))),
+                   round(-10 * math.degrees(math.atan2(acc_wanted[0], math.hypot(acc_wanted[1], acc_wanted[2])))))
+
+    for chip, identity, rate_hz, rate_text in chips:
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
 
         def run():
@@ -3106,16 +3114,16 @@ def gyro_chip_checks(image, work):
         if identity is not None:
             check(f"a register dump reads the {chip}'s identity",
                   re.search(rf"WHO_AM_I\s+0x{identity:x}\b", registers, re.I) is not None, repr(registers[:200]))
-        if chip in ("MPU6000", "ICM20689", "ICM20602"):
+        if chip in ("MPU6000", "ICM20689", "ICM20602", "MPU9250"):
             check(f"its start writes the gyro's range to the {chip}",
                   re.search(r"GYRO_CONFIG\s+0x18\b", registers) is not None, repr(registers[:200]))
         check(f"the gyro task runs at the {chip}'s {rate_text}", in_band(rates[-1]), repr((rates, tasks[:200])))
         check(f"the raw IMU reply reads the {chip} model's acceleration with no rates at first",
-              still is not None and near(still[:3], (32, -64, 510)) and near(still[3:6], (0, 0, 0)), repr(still))
+              still is not None and near(still[:3], acc_wanted) and near(still[3:6], (0, 0, 0)), repr(still))
         check(f"the attitude reply shows the tilt of the {chip} model's acceleration",
-              tilt is not None and all(abs(a - b) <= 4 for a, b in zip(tilt, (-72, -36))), repr(tilt))
+              tilt is not None and all(abs(a - b) <= 4 for a, b in zip(tilt, tilt_wanted)), repr(tilt))
         check(f"the raw IMU reply reads the {chip} model's rates after their step",
-              turning is not None and near(turning[:3], (32, -64, 510)) and near(turning[3:6], (164, 328, -492)),
+              turning is not None and near(turning[:3], acc_wanted) and near(turning[3:6], rates_wanted),
               repr(turning))
 
 

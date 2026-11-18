@@ -256,6 +256,7 @@ with Adaflight.SD_Card_Bus;
 with Adaflight.SD_Card_Types;
 with Adaflight.SD_Card_SDIO;
 with Adaflight.MPU_Gyro.MPU6500;
+with Adaflight.MPU_Gyro.MPU9250;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
@@ -25731,6 +25732,184 @@ procedure Vector_Check is
       end if;
    end Check_MPU6500_Line;
 
+   --  The MPU9250 oracle's chip over the MPU gyro oracle's device: start
+   --  registers that ignore a number of writes, and identity reads that miss,
+   --  reading zero, before the identity shows.
+   M9_Ignored         : array (0 .. 127) of Natural := (others => 0);
+   M9_Identity_Misses : Natural := 0;
+
+   function M9_Hex (Value : Byte) return String is
+      use type Interfaces.Unsigned_8;
+      Digits_Of : constant String := "0123456789abcdef";
+   begin
+      return Digits_Of (Natural (Value / 16) + 1) & Digits_Of (Natural (Value mod 16) + 1);
+   end M9_Hex;
+
+   procedure M9_Chip_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      if M9_Ignored (Address) > 0 then
+         M9_Ignored (Address) := M9_Ignored (Address) - 1;
+      elsif Address not in 16#3B# .. 16#48# then
+         D.Regs (Address) := Value;
+      end if;
+   end M9_Chip_Write;
+
+   procedure M9_Write_Buffer (D : in out MG_Bus; Register : Byte; Value : Byte) is
+   begin
+      MX_Op ("wbuf," & BMP_Num (Integer_64 (Register)) & ",1," & M9_Hex (Value));
+      M9_Chip_Write (D, Register, Value);
+   end M9_Write_Buffer;
+
+   procedure M9_Read_Buffer (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+   begin
+      Value := D.Regs (Natural (Register and 16#7F#));
+      MX_Op ("rbuf," & BMP_Num (Integer_64 (Register)) & ",1," & M9_Hex (Value));
+   end M9_Read_Buffer;
+
+   procedure M9_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+   begin
+      Value := D.Regs (Natural (Register and 16#7F#));
+      if (Register and 16#7F#) = 16#75# and then M9_Identity_Misses > 0 then
+         M9_Identity_Misses := M9_Identity_Misses - 1;
+         Value := 0;
+      end if;
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end M9_Read_Register;
+
+   procedure M9_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package M9_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => M9_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package M9_Chip is new M9_Layer.MPU9250
+     (Write_Buffer  => M9_Write_Buffer,
+      Read_Buffer   => M9_Read_Buffer,
+      Read_Register => M9_Read_Register,
+      Delay_Us      => MG_Delay_Us,
+      Failure       => MG_Failure);
+
+   procedure M9_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      M9_Chip.Detect (D, Sensor);
+   end M9_Probe;
+
+   M9_State : M9_Layer.State;
+   M9_Found : Boolean := False;
+   M9_Drops : Byte := 0;
+
+   procedure Check_MPU9250_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "m9init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (6) /= 0;
+         MG_Device.Regs (16#75#) := Byte (Int (7));
+         M9_Identity_Misses := Natural (Int (8));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (9));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (10));
+         MG_Device.Use_DMA := Int (11) /= 0;
+         MG_Device.Read_Ack := Int (16) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (17));
+         MG_Set_Registers (18);
+         M9_Ignored := (others => 0);
+         declare
+            Counts    : constant String := Str (19) & ":";
+            Verified  : constant array (1 .. 7) of Natural := (16#6B#, 16#1B#, 16#1A#, 16#19#, 16#1C#, 16#37#, 16#38#);
+            K         : Positive := 1;
+            Value     : Natural := 0;
+         begin
+            for C of Counts loop
+               if C = ':' then
+                  M9_Ignored (Verified (K)) := Value;
+                  K := K + 1;
+                  Value := 0;
+               else
+                  Value := Value * 10 + (Character'Pos (C) - Character'Pos ('0'));
+               end if;
+            end loop;
+         end;
+         M9_State := (others => <>);
+         M9_State.Interrupt_Pin := Int (12) /= 0;
+         M9_Drops := Byte (Int (13));
+         M9_State.Hardware_LPF := Byte (Int (14));
+         M9_State.Rate_KHz := Byte (Int (15));
+         declare
+            C : constant M9_Layer.Device_Config :=
+              (Index => Interfaces.Integer_8 (Int (3)), Bus_Type => 2, SPI_Bus => Byte (Int (4)),
+               CS_Tag => Byte (Int (5)));
+         begin
+            M9_Layer.Preinit (MG_Device, C);
+            M9_Layer.Detect (MG_Device, M9_State, C, M9_Found);
+         end;
+      elsif Name = "m9op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("mpu9250.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("mpu9250.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "m9det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("mpu9250.found", Int (3), Boolean'Pos (M9_Found));
+         Record_Int ("mpu9250.sensor", Int (4), Integer_64 (M9_State.Sensor));
+         Record_Int ("mpu9250.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "m9chip" then
+         declare
+            Gyro_Found : constant Boolean := M9_Chip.Gyro_Detect (M9_State);
+         begin
+            Record_Int ("mpu9250.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("mpu9250.acc_found", Int (4), Boolean'Pos (M9_Chip.Acc_Detect (M9_State)));
+            Record_Int ("mpu9250.scale", Int_Hex (5),
+                        Integer_64 (To_Bits (if Gyro_Found then M9_Chip.Gyro_Scale else 0.0)));
+            Record_Int ("mpu9250.short_period", Int (6), Integer_64 (M9_State.Short_Period));
+            if Gyro_Found then
+               M9_Chip.Gyro_Init (MG_Device, M9_State, M9_Drops);
+            end if;
+         end;
+      elsif Name = "m9ready" then
+         MX_Expect_No_Ops ("initialization");
+         for K in 0 .. 2 loop
+            Record_Int ("mpu9250.gyro", Int (3 + K), Integer_64 (M9_State.Raw (K)));
+         end loop;
+         Record_Int ("mpu9250.temp_scale", Int_Hex (6), Integer_64 (To_Bits (M9_State.Temp_Scale)));
+         Record_Int ("mpu9250.temp_zero", Int_Hex (7), Integer_64 (To_Bits (M9_State.Temp_Zero)));
+         Record_Int ("mpu9250.acc_one_g", Int (8), M9_Chip.Acc_One_G);
+      end if;
+   end Check_MPU9250_Line;
+
    --  The ICM20689 oracle's chip over the MPU gyro oracle's device.
    procedure I2_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
 
@@ -43822,6 +44001,8 @@ procedure Vector_Check is
                   Check_SDIO_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
+               elsif Kind = "mpu9250" then
+                  Check_MPU9250_Line;
                elsif Kind = "icm20689" then
                   Check_ICM20689_Line;
                elsif Kind = "m25p16" then
@@ -44255,6 +44436,7 @@ begin
    Run (Dir & "/sdcard.csv", "sdcard");
    Run (Dir & "/sdio.csv", "sdio");
    Run (Dir & "/mpu6500.csv", "mpu6500");
+   Run (Dir & "/mpu9250.csv", "mpu9250");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/w25q128fv.csv", "w25q128fv");

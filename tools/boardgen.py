@@ -374,6 +374,8 @@ def generate(config: Path, overrides: dict) -> str:
                 ("Gyro_MPU6500", str(mpu6500_drivers(defines)[0])),
                 ("Acc_MPU6000", "True" if "USE_ACC_SPI_MPU6000" in defines else "False"),
                 ("Acc_MPU6500", str(mpu6500_drivers(defines)[1])),
+                ("Gyro_MPU9250", "True" if "USE_GYRO_SPI_MPU9250" in defines else "False"),
+                ("Acc_MPU9250", "True" if "USE_ACC_SPI_MPU9250" in defines else "False"),
                 ("Gyro_LSM6DSV16X", "True" if "USE_ACCGYRO_LSM6DSV16X" in defines else "False"),
                 ("Gyro_LSM6DSV32X", "True" if "USE_ACCGYRO_LSM6DSV32X" in defines else "False"),
                 ("Gyro_LSM6DSK320X", "True" if "USE_ACCGYRO_LSM6DSK320X" in defines else "False"),
