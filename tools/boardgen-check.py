@@ -81,6 +81,15 @@ for position in range(len(boards)) if pins or timers else ():
         defines = boardgen.config_defines(config.read())
     got = {k: v for k, v in defines.items() if k.endswith("_PIN")}
     entries = boardgen.timer_entries(defines)
+    # The receiver input pins' tags the generated board package gives the configuration reset.
+    text = boardgen.generate(boardgen.Path(os.path.join(configs, board, "config.h")), {})
+    values = dict(re.findall(r"^   (\w+) +: constant(?: Boolean)? := (-?\w+);", text, re.M))
+    for name, define in [("PPM_Tag", "RX_PPM_PIN")] + [(f"PWM{i}_Tag", f"RX_PWM{i}_PIN") for i in range(1, 5)]:
+        if int(values[name]) != boardgen.pin_tag(pins.get(position, {}).get(define, "")):
+            failures += 1
+            if failures <= 10:
+                print(f"boardgen-check: {board}: {name} {values[name]}, the vectors' {define} is "
+                      f"{pins.get(position, {}).get(define)}")
     if got != pins.get(position, {}) or entries != timers.get(position, []):
         failures += 1
         if failures <= 10:

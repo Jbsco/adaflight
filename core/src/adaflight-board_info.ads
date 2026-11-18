@@ -61,6 +61,7 @@ package Adaflight.Board_Info with SPARK_Mode is
    --  this hardware.
    type PINIO_Bytes is array (0 .. 3) of Interfaces.Unsigned_8;
    type Motor_Bytes is array (0 .. 7) of Interfaces.Unsigned_8;
+   type PWM_Input_Bytes is array (0 .. 3) of Interfaces.Unsigned_8;
 
    --  A serial port identifier as the MSP slots take one, -1 for none.
    subtype Serial_Port is Integer range -1 .. 79;
@@ -94,6 +95,8 @@ package Adaflight.Board_Info with SPARK_Mode is
       PINIO_Boxes      : PINIO_Bytes := (others => 255);
       Motor_Tags       : Motor_Bytes := (others => 0);
       LED_Strip_Tag    : Interfaces.Unsigned_8 := 0;
+      PPM_Tag          : Interfaces.Unsigned_8 := 0;
+      PWM_Tags         : PWM_Input_Bytes := (others => 0);
       --  The barometer's bus: SPI when the board names one, else I2C when
       --  it names one, else none with the hardware set to none, with the
       --  bus's device, the chip select or the address, and the conversion

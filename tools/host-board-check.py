@@ -44,6 +44,10 @@ def main() -> int:
             text = hs.cli(sock, "resource")
             hs.check("resource lists the board's gyro pins",
                      "resource GYRO_EXTI 1 C04" in text and "resource GYRO_CS 1 A04" in text, text[-300:])
+            hs.check("resource lists the board's PPM pin and its first four PWM input pins alone",
+                     "resource PPM 1 B14" in text and "resource PWM 1 B14" in text and "resource PWM 2 B15" in text
+                     and "resource PWM 3 C06" in text and "resource PWM 4 C07" in text
+                     and "resource PWM 5 C08" not in text and "resource PWM 6 C09" not in text, text[-600:])
         finally:
             hs.stop(proc)
             sock.close()
