@@ -15950,3 +15950,18 @@ oracle reads through the C preprocessor, for every configuration. A LUXF4OSD hos
 PWM inputs 1 to 4 on B14, B15, C06 and C07 in `resource`.
 
 Boards still read neither input. Capture of PPM and PWM pulses on boards is the next step.
+
+## D808. Serial receiver decoders share storage (2026-11-18)
+
+The radio unit kept a state for each serial receiver protocol it decodes, though a boot opens one port with one
+protocol. The states of SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPORT, Ghost, Jeti EX Bus and SRXL2 now overlay
+one unchecked union in core coupled memory, sized for the largest. CRSF's state stays apart, since its
+telemetry and baud rate steps read it outside the port's byte handling.
+
+Each protocol's start fills its state through an `out` parameter before the port's first byte, and every other
+read sits behind a check that the port is open with that protocol. The last frame time reads 0 without an open
+serial port, the value each state's default gave.
+
+Before the PPM input of D807, a GEPRCF411 image now keeps 1,944 bytes of RAM free, and an F405 image with flash
+chip and mass storage keeps 2,400 bytes of main RAM. That input overflowed them by 128 and 112 bytes without
+this change.
