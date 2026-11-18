@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Pack a packed image's initialized data and elaboration code, with an STM32F7's tables and ITCM code, after
-the link.
+"""Pack a packed image's initialized data and elaboration code, with an STM32F7's tables, RAM code and ITCM code,
+after the link.
 
 usage: datapack.py <elf>
 
@@ -53,9 +53,10 @@ EARLY_CODE = ("adaflight_data_pack_unpack", "adaflight__stm32__data_pack__", "ad
               "adaflight__stm32__cache__")
 
 
-def early_references(elf: Path, start: int, end: int, boot: int) -> list:
+def early_references(elf: Path, start: int, end: int, code: int) -> list:
     """The addresses past start and before end that the code running before the unpacking loads, from its literal
-    pools and its movw and movt pairs; start itself is the unpacking's target and boot the code it syncs."""
+    pools and its movw and movt pairs; start itself is the unpacking's target and code the start of the code it
+    syncs."""
     found = []
     functions = sorted({p[2] for p in (line.split() for line in run("arm-eabi-nm", str(elf)).splitlines())
                         if len(p) == 3 and p[1] in "Tt" and p[2].startswith(EARLY_CODE)})
@@ -63,7 +64,7 @@ def early_references(elf: Path, start: int, end: int, boot: int) -> list:
         low = {}
         for line in run("arm-eabi-objdump", "-d", f"--disassemble={name}", str(elf)).splitlines():
             m = re.search(r"\.word\s+0x([0-9a-f]{8})", line)
-            if m and start < int(m.group(1), 16) < end and int(m.group(1), 16) != boot:
+            if m and start < int(m.group(1), 16) < end and int(m.group(1), 16) != code:
                 found.append((name, int(m.group(1), 16)))
             m = re.search(r"\bmovw\s+(r\d+), #(\d+)", line)
             if m:
@@ -71,7 +72,7 @@ def early_references(elf: Path, start: int, end: int, boot: int) -> list:
             m = re.search(r"\bmovt\s+(r\d+), #(\d+)", line)
             if m and m.group(1) in low:
                 value = (int(m.group(2)) << 16) | low[m.group(1)]
-                if start < value < end and value != boot:
+                if start < value < end and value != code:
                     found.append((name, value))
     return found
 
@@ -140,10 +141,11 @@ def main() -> None:
     if ".boot_code" not in secs:
         raise SystemExit("datapack: the image has no boot code section; it is a plain build")
     secs.setdefault(".packed_tables", (0, syms["__packed_start"], 0))
+    secs.setdefault(".ram_text", (0, syms["__packed_start"], 0))
     if secs.get(".ccmdata", (0, 0, 0))[0]:
         raise SystemExit("datapack: a packed image cannot hold .ccmdata, which the run-time library copies")
     start, end = syms["__packed_start"], syms["__packed_end"]
-    early = early_references(elf, start, end, syms["__boot_start"])
+    early = early_references(elf, start, end, syms.get("__ram_text_start", syms["__boot_start"]))
     if early:
         raise SystemExit("datapack: code that runs before the unpacking reads packed data: "
                          + ", ".join(f"{name} {address:#010x}" for name, address in early))
@@ -153,7 +155,7 @@ def main() -> None:
         raise SystemExit("datapack: the elaboration's code is reached from outside main's call of adainit: "
                          + ", ".join(f"{name} {address:#010x}" for name, address in boot))
     raw = bytearray(end - start)
-    for name in (".packed_tables", ".data", ".boot_code"):
+    for name in (".packed_tables", ".ram_text", ".data", ".boot_code"):
         size, vma, _ = secs[name]
         if size:
             raw[vma - start:vma - start + size] = section_bytes(elf, name, scratch)
@@ -178,19 +180,19 @@ def main() -> None:
             raise SystemExit("datapack: the ITCM code's stream does not decode back")
         print(f"datapack: ITCM code {itcm_size} -> stream {len(first)} bytes")
         stream = len(first).to_bytes(4, "little") + first + stream
-    print(f"datapack: tables {secs['.packed_tables'][0]}, data {secs['.data'][0]} and boot code "
-          f"{secs['.boot_code'][0]} bytes, "
+    print(f"datapack: tables {secs['.packed_tables'][0]}, data {secs['.data'][0]}, RAM code "
+          f"{secs['.ram_text'][0]} and boot code {secs['.boot_code'][0]} bytes, "
           f"range {len(raw)} -> {len(stream)} bytes after the code; {room - len(stream)} bytes of flash left")
     if len(stream) > room:
         raise SystemExit(f"datapack: the streams overflow the flash region by {len(stream) - room} bytes")
     run("arm-eabi-objcopy", "-O", "binary", "--only-section=.vectors", "--only-section=.text0", str(elf),
         str(elf.parent / "sector0.bin"))
-    remove = [f"--remove-section={n}" for n in (".vectors", ".text0", ".packed_tables", ".data", ".ccmdata",
-                                                 ".boot_code") + ((".itcm_text",) if staged else ())]
+    remove = [f"--remove-section={n}" for n in (".vectors", ".text0", ".packed_tables", ".ram_text", ".data",
+                                                 ".ccmdata", ".boot_code") + ((".itcm_text",) if staged else ())]
     run("arm-eabi-objcopy", "-O", "binary", *remove, str(elf), str(scratch))
     code = scratch.read_bytes()
     code_start = min(lma for name, (size, _, lma) in secs.items()
-                     if size and name not in (".vectors", ".text0", ".packed_tables", ".data", ".ccmdata")
+                     if size and name not in (".vectors", ".text0", ".packed_tables", ".ram_text", ".data", ".ccmdata")
                      and 0x08000000 <= lma < 0x08200000)
     if code_start + len(code) != rom_end:
         raise SystemExit(f"datapack: the code ends at {code_start + len(code):#x}, not at __rom_end {rom_end:#x}")

@@ -15829,3 +15829,27 @@ Hosted runners and a busy workstation showed this as gaps of 4 to 7 ms and 10 ms
 window, and the check read its last four gaps. Two changes within 50 ms are now left out before the gaps are
 read. With an image stopped for 40 ms in every 130 ms, three of eight 8 second windows failed the old reading.
 None fails the new one, and neither do the three failing logs.
+
+## D800. Command line printing code in RAM on packed STM32F7 images (2026-11-17)
+
+With two gyros on boards, ALIENFLIGHTNGF7_RX had 191 bytes of flash left. A packed STM32F7 image now runs
+the command line's printing procedures, `.text.adaflight__stm32__console__cli__put_*`, from its main RAM. Their
+section loads from the staging region inside the packed range, so `tools/datapack.py` stores it compressed with
+the tables and start-up unpacks it there. Unpacking now syncs caches from that code's start to the boot code's
+end. Calls between flash and that code go through the linker's long branch veneers. Veneers into flash sit in
+the RAM code's section and are packed with it.
+
+More zeroed state objects move to the DTCM to make room in the main RAM. From the flight unit they are its
+command line environment and adjustment ranges, and from the other units pilot and control state, the ESC
+serial port, the blackbox recorder and its inputs, and OSD chip, task and trail. CC2500 and SX1280 receiver
+state and operation lists move too, with the MSP tunnels of SmartPort and the radio link. We read each
+declaration, and none is a DMA target. The CC2500 bus has no DMA,
+and neither has the SX1280 unit or the OSD chip.
+
+The printing code is 22376 bytes in RAM and about 13.8 KB in the stream, so flash left grows by 7.7 KB on
+ALIENFLIGHTNGF7_RX (191 to 7889 bytes) and on CLRACINGF7 (4970 to 12558). The least room left is 3696 bytes of
+DTCM on ALIENFLIGHTNGF7_RX and about 3.5 KB of main RAM on CLRACINGF7.
+
+Under Renode both images unpack a range equal to their sections and reach `Flight.Init`. ALIENFLIGHTNGF7_RX runs 32.38 million instructions before
+`main`, against 25.86 million without that code: about 30 ms more start-up at 216 MHz. A packer that leaves the
+code out of its stream gives a range that differs from the sections.
