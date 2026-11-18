@@ -15951,6 +15951,26 @@ PWM inputs 1 to 4 on B14, B15, C06 and C07 in `resource`.
 
 Boards still read neither input. Capture of PPM and PWM pulses on boards is the next step.
 
+## D807. PPM receiver input on boards (2026-11-18)
+
+Boards read no PPM receiver, though Betaflight builds PPM input into every image and 339 board configurations
+name a PPM pin. `Adaflight.STM32.RX_Input` now starts one after the motors take their timers, as Betaflight's
+start does. The PPM pin's timer counts at 1 MHz up to 16#FFFF#, and its channel captures rising edges without
+a filter. Timer interrupt dispatch gives each capture, then each overflow, to the core's PPM decoder,
+`Adaflight.RX_PWM`. Betaflight never filters a PPM capture, since only its parallel PWM input reads the input
+filtering setting.
+
+The radio unit reports twelve channels for a PPM receiver. It takes its frame status from the decoder's
+received flag and its raw channels from the decoder's pulse widths. A PPM pin on TIM5, the ExpressLRS timer, or
+on a timer that a motor uses gets no input. On a motor's timer Betaflight divides counts by the motor timer's
+rate in Hz kept modulo 256, 0 on a DShot600 timer, and then sets that timer to 1 MHz under its motors (F364, a
+divergence).
+
+On the host, `ADAFLIGHT_PPM` lists a train's pulse widths and `ADAFLIGHT_PPM_STOP_MS` stops it. A 1 MHz counter
+of 16 bits gives the decoder each edge's count and each overflow. Host smoke reads the train in the RC reply in
+channel map order without receiver loss. After the train stops it reads failsafe values, aux channels held,
+and the receiver loss. No board has run a PPM receiver. Parallel PWM input comes next.
+
 ## D808. Serial receiver decoders share storage (2026-11-18)
 
 The radio unit kept a state for each serial receiver protocol it decodes, though a boot opens one port with one

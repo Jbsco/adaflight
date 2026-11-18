@@ -32,6 +32,7 @@ with Adaflight.Plan_Build;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.RX_Input;
 with Adaflight.STM32.RX_SPI;
 with Adaflight.UDP_Receiver;
 with Adaflight.STM32.Time;
@@ -352,6 +353,9 @@ package body Adaflight.STM32.Radio is
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.MSP then
          Rx_Settings.Reported_Channels := Adaflight.MSP_Receiver.Channel_Count;
+      end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         Rx_Settings.Reported_Channels := Adaflight.STM32.RX_Input.PPM_Channel_Count;
       end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of
         (Config.Failsafe_Config, Config.Autopilot_Config,
@@ -802,6 +806,14 @@ package body Adaflight.STM32.Radio is
 
    function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
 
+   procedure Start_PPM_Input (Config : Adaflight.Config_Groups.Configuration) is
+      Started : Boolean;
+   begin
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         Adaflight.STM32.RX_Input.Start_PPM (Config.Ppm_Config.Io_Tag, Started);
+      end if;
+   end Start_PPM_Input;
+
    procedure Set_Protocol_Link
      (RSSI     : Interfaces.Unsigned_16; RSSI_Dbm : Interfaces.Integer_16; RSNR : Interfaces.Integer_16;
       LQ       : Interfaces.Unsigned_16; Uplink_mW : Interfaces.Unsigned_16; Connected : Boolean)
@@ -1085,6 +1097,9 @@ package body Adaflight.STM32.Radio is
       if Rx_Settings.Source in Adaflight.Receiver.MSP and then not Task_In_Progress then
          Adaflight.MSP_Receiver.Frame_Status (MSP_Rx, Now_Us, Status);
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM and then not Task_In_Progress then
+         Adaflight.STM32.RX_Input.Take_Received (Status.PPM_Received);
+      end if;
       Override.Box := MSP_Override;
       if not Task_In_Progress and then Adaflight.Receiver.Override_Polled (Rx_Settings, MSP_Override) then
          Adaflight.MSP_Receiver.Override_Frame_Status (MSP_Rx, Override.Complete);
@@ -1316,6 +1331,11 @@ package body Adaflight.STM32.Radio is
       if Rx_Settings.Source in Adaflight.Receiver.MSP then
          for Ch in Adaflight.MSP_Receiver.Channel loop
             Raw (Ch) := Adaflight.MSP_Receiver.Read_Raw (MSP_Rx, Ch);
+         end loop;
+      end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         for Ch in Adaflight.Receiver.Channel loop
+            Raw (Ch) := Float (Adaflight.STM32.RX_Input.Channel_Value (Ch));
          end loop;
       end if;
       Override.Box := MSP_Override;
