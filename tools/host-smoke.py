@@ -3119,6 +3119,60 @@ def gyro_chip_checks(image, work):
               repr(turning))
 
 
+def ppm_checks(image, work):
+    """A PPM receiver over the host's PPM train: the receiver feature and a PPM pin saved, then a start whose
+    train of eight channels stops after 6 s. While it runs the RC reply reads its pulse widths in the channel
+    map's order and arming has no receiver loss; after it stops the RC reply reads the failsafe values, the aux
+    channels held, and the status names the receiver loss. Over a store of its own."""
+    store = os.path.join(work, "ppm-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.0)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("feature RX_PPM", "resource PPM 1 B14")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("PPM checks have the PPM receiver feature and a PPM pin",
+          "Enabled RX_PPM" in replies[0] and "Resource is set to B14" in replies[1], repr(replies))
+    pulses = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800]
+
+    def arming_flags(sock):
+        """The arming disable flags of the MSP status reply, none without a whole reply."""
+        status = msp(sock, 150)
+        if status is None or len(status) < 21 + status[15]:
+            return None
+        at = 16 + status[15]
+        return int.from_bytes(status[at + 1:at + 5], "little")
+
+    proc, sock = start(image, store, {"ADAFLIGHT_PPM": ",".join(map(str, pulses)), "ADAFLIGHT_PPM_STOP_MS": "6000"})
+    readings = []
+    try:
+        began = time.time()
+        for when in (3.0, 9.0):
+            time.sleep(max(0.0, began + when - time.time()))
+            rc = msp(sock, 105)
+            readings.append(([rc[i] | rc[i + 1] << 8 for i in range(0, 16, 2)] if rc and len(rc) >= 16 else None,
+                             arming_flags(sock)))
+    finally:
+        stop(proc)
+        sock.close()
+    rxloss = 1 << 2
+    check("the RC reply reads the PPM train's pulse widths in the channel map's order",
+          readings[0][0] == [1100, 1200, 1400, 1300, 1500, 1600, 1700, 1800], repr(readings[0]))
+    check("arming has no receiver loss while the PPM train runs",
+          readings[0][1] is not None and readings[0][1] & rxloss == 0, repr(readings[0]))
+    check("after the PPM train stops the RC reply reads the failsafe values with the aux channels held",
+          readings[1][0] == [1500, 1500, 1500, 885, 1500, 1600, 1700, 1800], repr(readings[1]))
+    check("after the PPM train stops arming names the receiver loss",
+          readings[1][1] is not None and readings[1][1] & rxloss != 0, repr(readings[1]))
+
+
 def board_gyro_checks(image, work):
     """The board's gyro as a fresh configuration has it: the SPI bus and the select and interrupt pins of the
     board the host stands in for, and its alignment, which is the first standard one where a board names none."""
@@ -6250,6 +6304,7 @@ def main():
         menu_live_config_checks(image, work)
         gyro_chip_checks(image, work)
         board_gyro_checks(image, work)
+        ppm_checks(image, work)
         gyro_clock_checks(image, work)
         baro_chip_checks(image, work)
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})

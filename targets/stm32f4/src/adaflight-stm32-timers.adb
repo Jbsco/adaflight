@@ -30,6 +30,21 @@ package body Adaflight.STM32.Timers is
 
    function Owners return Adaflight.CLI_Resources.Timer_Owner_List is (Table.Owners);
    function Allocation return Adaflight.Timer_Allocation.Table is (Table);
+
+   function Held_By (T : Timer_Name; Who : Adaflight.CLI_Resources.Owner) return Boolean is
+      use type Adaflight.CLI_Resources.Owner;
+      K : Adaflight.Timer_Allocation.Channel_Index;
+   begin
+      for S in Adaflight.Timer_Allocation.Slot loop
+         if Table.Owners (S).Held and then Table.Owners (S).Owner = Who then
+            K := Adaflight.Timer_Allocation.Channel_Of (Table, S);
+            if K /= 0 and then Name_Of (Adaflight.Timer_Tables.Channels (K).Timer) = T then
+               return True;
+            end if;
+         end if;
+      end loop;
+      return False;
+   end Held_By;
    function Option_Of (Slot : Adaflight.Timer_Allocation.Slot) return Integer is
      (Integer (Adaflight.Timer_Allocation.Option_Of (Table, Slot)));
 

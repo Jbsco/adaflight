@@ -32,6 +32,7 @@ with Adaflight.Plan_Build;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.RX_Input;
 with Adaflight.STM32.RX_SPI;
 with Adaflight.UDP_Receiver;
 with Adaflight.STM32.Time;
@@ -78,22 +79,51 @@ package body Adaflight.STM32.Radio is
    type Provider is (CRSF, SBUS, IBUS, SUMD, SUMH, Spektrum, XBUS, FPort, GHST, Jeti, MAVLink, SRXL2);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
-   SBUS_State  : Adaflight.SBUS.State;
-   IBUS_State  : Adaflight.IBUS.State;
-   SUMD_State  : Adaflight.SUMD.State;
-   SUMH_State  : Adaflight.SUMH.State with Linker_Section => ".bss.ccm", Suppress_Initialization;
-   SRXL2_State : Adaflight.SRXL2.State with Linker_Section => ".bss.ccm", Suppress_Initialization;
+   --  The storage of the one serial protocol a boot opens. Its start fills
+   --  the state before the port's first byte.
+   type Serial_States (Which : Provider := CRSF) is record
+      case Which is
+         when SBUS =>
+            SBUS : Adaflight.SBUS.State;
+         when IBUS =>
+            IBUS : Adaflight.IBUS.State;
+         when SUMD =>
+            SUMD : Adaflight.SUMD.State;
+         when SUMH =>
+            SUMH : Adaflight.SUMH.State;
+         when Spektrum =>
+            Spektrum : Adaflight.Spektrum.State;
+         when XBUS =>
+            XBUS : Adaflight.XBUS.State;
+         when FPort =>
+            FPort : Adaflight.FPort.State;
+         when GHST =>
+            GHST : Adaflight.GHST.State;
+         when Jeti =>
+            Jeti : Adaflight.Jeti_Ex_Bus.State;
+         when SRXL2 =>
+            SRXL2 : Adaflight.SRXL2.State;
+         when CRSF | MAVLink =>
+            null;
+      end case;
+   end record with Unchecked_Union;
+   Serial_Storage : Serial_States with Linker_Section => ".bss.ccm", Suppress_Initialization;
+   SBUS_State  : Adaflight.SBUS.State with Import, Address => Serial_Storage'Address;
+   IBUS_State  : Adaflight.IBUS.State with Import, Address => Serial_Storage'Address;
+   SUMD_State  : Adaflight.SUMD.State with Import, Address => Serial_Storage'Address;
+   SUMH_State  : Adaflight.SUMH.State with Import, Address => Serial_Storage'Address;
+   SRXL2_State : Adaflight.SRXL2.State with Import, Address => Serial_Storage'Address;
    --  The SRXL2 port's rate, the last byte's arrival time, and whether
    --  bytes since the last idle wait for one.
    SRXL2_Rate    : Adaflight.SRXL2.Baud_Rate := Adaflight.SRXL2.Default_Rate;
    SRXL2_Last_Us : Time_Us := 0;
    SRXL2_Bytes   : Boolean := False;
-   Spek_State  : Adaflight.Spektrum.State;
-   XBUS_State  : Adaflight.XBUS.State;
-   FPort_State : Adaflight.FPort.State;
+   Spek_State  : Adaflight.Spektrum.State with Import, Address => Serial_Storage'Address;
+   XBUS_State  : Adaflight.XBUS.State with Import, Address => Serial_Storage'Address;
+   FPort_State : Adaflight.FPort.State with Import, Address => Serial_Storage'Address;
    --  The SmartPort telemetry an FPORT receiver answers with.
    FP_Stream   : Adaflight.SmartPort_Telemetry.Stream;
-   GHST_State  : Adaflight.GHST.State;
+   GHST_State  : Adaflight.GHST.State with Import, Address => Serial_Storage'Address;
    --  The Ghost telemetry: its schedule, whether it runs, and the frame that
    --  waits for the receiver's quiet window.
    GHST_Tlm     : Adaflight.GHST_Telemetry.Link;
@@ -101,7 +131,7 @@ package body Adaflight.STM32.Radio is
    GHST_Tlm_On  : Boolean := False;
    GHST_Reply   : Adaflight.GHST_Telemetry.Frame := (others => 0);
    GHST_Length  : Natural range 0 .. Adaflight.GHST_Telemetry.Frame_Size := 0;
-   Jeti_State  : Adaflight.Jeti_Ex_Bus.State;
+   Jeti_State  : Adaflight.Jeti_Ex_Bus.State with Import, Address => Serial_Storage'Address;
    --  The EX Bus telemetry: its sensors and whether it runs.
    Jeti_Tlm     : Adaflight.Jeti_Telemetry.State;
    Jeti_Tlm_Set : Adaflight.Jeti_Telemetry.Settings;
@@ -323,6 +353,9 @@ package body Adaflight.STM32.Radio is
       end if;
       if Rx_Settings.Source in Adaflight.Receiver.MSP then
          Rx_Settings.Reported_Channels := Adaflight.MSP_Receiver.Channel_Count;
+      end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         Rx_Settings.Reported_Channels := Adaflight.STM32.RX_Input.PPM_Channel_Count;
       end if;
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of
         (Config.Failsafe_Config, Config.Autopilot_Config,
@@ -773,6 +806,14 @@ package body Adaflight.STM32.Radio is
 
    function Source return Adaflight.Receiver.Provider is (Rx_Settings.Source);
 
+   procedure Start_PPM_Input (Config : Adaflight.Config_Groups.Configuration) is
+      Started : Boolean;
+   begin
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         Adaflight.STM32.RX_Input.Start_PPM (Config.Ppm_Config.Io_Tag, Started);
+      end if;
+   end Start_PPM_Input;
+
    procedure Set_Protocol_Link
      (RSSI     : Interfaces.Unsigned_16; RSSI_Dbm : Interfaces.Integer_16; RSNR : Interfaces.Integer_16;
       LQ       : Interfaces.Unsigned_16; Uplink_mW : Interfaces.Unsigned_16; Connected : Boolean)
@@ -1056,6 +1097,9 @@ package body Adaflight.STM32.Radio is
       if Rx_Settings.Source in Adaflight.Receiver.MSP and then not Task_In_Progress then
          Adaflight.MSP_Receiver.Frame_Status (MSP_Rx, Now_Us, Status);
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM and then not Task_In_Progress then
+         Adaflight.STM32.RX_Input.Take_Received (Status.PPM_Received);
+      end if;
       Override.Box := MSP_Override;
       if not Task_In_Progress and then Adaflight.Receiver.Override_Polled (Rx_Settings, MSP_Override) then
          Adaflight.MSP_Receiver.Override_Frame_Status (MSP_Rx, Override.Complete);
@@ -1289,6 +1333,11 @@ package body Adaflight.STM32.Radio is
             Raw (Ch) := Adaflight.MSP_Receiver.Read_Raw (MSP_Rx, Ch);
          end loop;
       end if;
+      if Rx_Settings.Source in Adaflight.Receiver.PPM then
+         for Ch in Adaflight.Receiver.Channel loop
+            Raw (Ch) := Float (Adaflight.STM32.RX_Input.Channel_Value (Ch));
+         end loop;
+      end if;
       Override.Box := MSP_Override;
       for Ch in Adaflight.MSP_Receiver.Channel loop
          Override.Raw (Ch) := Adaflight.MSP_Receiver.Read_Raw (MSP_Rx, Ch);
@@ -1338,7 +1387,7 @@ package body Adaflight.STM32.Radio is
 
    function Failsafe_Monitoring return Boolean is (FS.Monitoring);
 
-   function Last_Frame_Us return Time_Us is
+   function Open_Frame_Us return Time_Us is
      (case Kind is
          when CRSF => Proto.Last_Frame_Us,
          when SBUS => SBUS_State.Last_Frame_Time_Us,
@@ -1352,6 +1401,8 @@ package body Adaflight.STM32.Radio is
          when Jeti => Jeti_State.Last_Frame_Time_Us,
          when MAVLink => (if Adaflight.Build_Features.MAVLink_Receiver then ML.Slot (1).Last_Frame_Time_Us else 0),
          when SRXL2 => SRXL2_State.Last_Frame_Time_Us);
+
+   function Last_Frame_Us return Time_Us is (if Open then Open_Frame_Us else 0);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
 

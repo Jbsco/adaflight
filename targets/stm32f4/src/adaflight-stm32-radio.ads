@@ -34,6 +34,10 @@ package Adaflight.STM32.Radio is
    --  A bind request from the CLI or MSP: a CRSF receiver gets its bind frame
    --  at once, an SRXL2 receiver its bind information at the next reply.
    procedure Bind (B : Adaflight.RX_Bind.Bind);
+   --  A PPM receiver's input on the configuration's PPM pin, after the
+   --  motors took their timers.
+   procedure Start_PPM_Input (Config : Adaflight.Config_Groups.Configuration);
+
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
    --  One run of the telemetry task: the negotiation, then the next chunk of
