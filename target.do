@@ -30,6 +30,9 @@ export ADAFLIGHT_LED_STRIP
 ADAFLIGHT_GPS="$(python3 ../../tools/featuregen.py --feature GPS ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_GPS
+ADAFLIGHT_SD_CARD="$(python3 ../../tools/featuregen.py --feature SD_Card ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_SD_CARD
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
@@ -51,6 +54,11 @@ fi
 if [ "$ADAFLIGHT_GPS" = off ] \
     && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "gpspassthrough_command\|put_status_gps"; then
     echo "target: GPS command code in an image built without the GPS"
+    exit 1
+fi
+if [ "$ADAFLIGHT_SD_CARD" = off ] \
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "sd_info_command"; then
+    echo "target: SD card command code in an image built without the SD card"
     exit 1
 fi
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \

@@ -12,6 +12,7 @@ with Adaflight.Modes;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.Plan_Build;
+with Adaflight.SD_Build;
 with Adaflight.Servo_Build;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
@@ -5369,6 +5370,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      or else (Command_Name (P) /= "led" and then Command_Name (P) /= "color"
                               and then Command_Name (P) /= "mode_color"))
            and then (Adaflight.GPS_Build.Enabled or else Command_Name (P) /= "gpspassthrough")
+           and then (Adaflight.SD_Build.Enabled or else Command_Name (P) /= "sd_info")
          then
             Help_Entry
               (Into, Search, Command_Name (P),
@@ -6460,7 +6462,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, ")");
       end if;
       Put (Into, CRLF);
-      SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+      if Adaflight.SD_Build.Enabled then
+         SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+      end if;
       if Env.Flash.JEDEC_Id /= 0 then
          Put (Into, "FLASH: JEDEC ID=0x");
          Put_Hex_Text (Into, Env.Flash.JEDEC_Id, 8);
@@ -8332,6 +8336,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
         or else (Kind in Led_Command_Word | Color_Command_Word | Mode_Color_Command_Word
                  and then not Adaflight.LED_Build.Enabled)
         or else (Kind = Gpspassthrough_Command_Word and then not Adaflight.GPS_Build.Enabled)
+        or else (Kind = Sd_Info_Command_Word and then not Adaflight.SD_Build.Enabled)
       then
          Kind := No_Command;
       end if;
@@ -8446,7 +8451,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Env_Command_Word =>
                Env_Command (Into, C, Board, Env, Sched, Args);
             when Sd_Info_Command_Word =>
-               SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+               if Adaflight.SD_Build.Enabled then
+                  SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+               end if;
             when Bootloader_Command_Word =>
                Bootloader_Command (Into, Args, Changes);
             when MSC_Command_Word =>

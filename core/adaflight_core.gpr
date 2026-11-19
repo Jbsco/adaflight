@@ -15,14 +15,15 @@ project Adaflight_Core is
    for Library_Kind use Library_Type;
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
-   --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip or the GPS
-   --  the servo, LED or GPS build spec.
+   --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS or
+   --  the SD card the servo, LED, GPS or SD build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
    Servos       : Switch := external ("ADAFLIGHT_SERVOS", "on");
    LED_Strip    : Switch := external ("ADAFLIGHT_LED_STRIP", "on");
    GPS          : Switch := external ("ADAFLIGHT_GPS", "on");
+   SD_Card      : Switch := external ("ADAFLIGHT_SD_CARD", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -53,6 +54,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-gps_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-gps_build.ads");
+   end case;
+   case SD_Card is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-sd_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-sd_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -86,6 +93,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.GPS_Build") use "adaflight-gps_build__off.ads";
+      end case;
+      case SD_Card is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.SD_Build") use "adaflight-sd_build__off.ads";
       end case;
    end Naming;
 
