@@ -30,6 +30,9 @@ package Adaflight.Scheduler with SPARK_Mode is
 
    Task_Count : constant := Task_Id'Pos (Task_Id'Last) + 1;
 
+   --  The tasks a build has; the reference's task list leaves out the others.
+   type Task_Set is array (Task_Id) of Boolean;
+
    --  The static priorities; the realtime tasks run outside the queue's logic.
    Realtime    : constant := -1;
    Lowest      : constant := 1;
@@ -227,6 +230,7 @@ package Adaflight.Scheduler with SPARK_Mode is
       Last_Gyro_Sync        : Cycles := 0;
       Debug                 : Debug_Values := (others => 0);
       Pass                  : Pass_State;
+      Built                 : Task_Set := (others => True);
    end record;
 
    --  What the gyro driver reports: whether it interrupts, how many
@@ -251,6 +255,13 @@ package Adaflight.Scheduler with SPARK_Mode is
    procedure Set_Task_Enabled (S : in out State; Id : Task_Id; Enabled : Boolean);
 
    function Enabled (S : State; Id : Task_Id) return Boolean;
+
+   procedure Set_Built (S : in out State; Built : Task_Set);
+
+   --  A task's number in the build's task list: the tasks the build has
+   --  before it.
+   function Build_Number (S : State; Id : Task_Id) return Natural
+     with Post => Build_Number'Result <= Task_Id'Pos (Id);
 
    procedure Reschedule (S : in out State; C : Settings; Id : Task_Id; New_Period_Us : Time_Delta);
 

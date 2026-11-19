@@ -430,7 +430,7 @@ package body Adaflight.Dashboard with SPARK_Mode is
          pragma Loop_Invariant (Row in 2 .. Rows);
          if R.Tasks (Id).Enabled and then Id /= Scheduler.Serial then
             L := (others => <>);
-            Append_Field (L, Integer_64 (Scheduler.Task_Id'Pos (Id)), 2);
+            Append_Field (L, Integer_64 (R.Tasks (Id).Number), 2);
             Append_Field (L, As_Signed (R.Tasks (Id).Max_Exec_Us), 6);
             Append_Field (L, As_Signed (R.Tasks (Id).Average_Exec_10th / 10), 5);
             Append_Field (L, As_Signed (R.Tasks (Id).Max_Load_10th / 10), 4);

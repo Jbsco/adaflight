@@ -19,13 +19,24 @@ package body Adaflight.Task_Init with SPARK_Mode is
       end if;
    end Update_Mode_Gated_Enables;
 
+   function Built_Tasks (O : Options) return Adaflight.Scheduler.Task_Set is
+     ((Beeper => O.Beeper, GPS => O.GPS, GPS_Rescue => O.GPS_Rescue, Alt_Hold => O.Alt_Hold, Pos_Hold => O.Pos_Hold,
+       Mag_Hold | Compass => O.Mag, Baro => O.Baro, Rangefinder => O.Rangefinder, Optical_Flow => O.Optical_Flow,
+       Pitot => O.Pitot, Position => O.Baro or else O.GPS or else O.Rangefinder or else O.Optical_Flow,
+       Dashboard => O.Dashboard, Telemetry => O.Telemetry, LED_Strip => O.LED_Strip, Transponder => O.Transponder,
+       Stack_Check => O.Stack_Check, OSD => O.OSD, BST_Master => O.BST, ESC_Sensor => O.ESC_Sensor, CMS => O.CMS,
+       VTX_Control => O.VTX_Control, Camera_Control => O.Camera_Control, RC_Device => O.RC_Device,
+       ADC_Internal => O.ADC_Internal, PINIO_Box => O.PINIO_Box, Speed_Negotiation => O.CRSF_V3,
+       RC_Stats => O.RC_Stats, Gimbal => O.Gimbal, OSD_Custom_Text => O.OSD_Custom_Text, DroneCAN => O.DroneCAN,
+       others => True));
+
    ----------
    -- Init --
    ----------
 
    procedure Init
      (S : out Adaflight.Scheduler.State; C : Adaflight.Scheduler.Settings; Now_Cycles : Adaflight.Scheduler.Cycles;
-      O : Options; I : Inputs)
+      O : Options; I : Inputs; Build : Options := (others => <>))
    is
       Use_Voltage : constant Boolean := I.Voltage_Meter;
       Use_Current : constant Boolean := I.Current_Meter;
@@ -154,6 +165,7 @@ package body Adaflight.Task_Init with SPARK_Mode is
       if O.DroneCAN then
          Set_Task_Enabled (S, DroneCAN, I.DroneCAN_Initialised);
       end if;
+      Adaflight.Scheduler.Set_Built (S, Built_Tasks (Build));
    end Init;
 
 end Adaflight.Task_Init;

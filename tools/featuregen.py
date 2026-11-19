@@ -118,7 +118,8 @@ def generate(board: str, mcu: str, flash_kb: int, chosen: dict) -> str:
     for name, _, what in FEATURES:
         out.append(f"   --  {what}")
         out.append(f"   {name.ljust(column)} : constant Boolean := {chosen[name]};")
-    out += ["", "end Adaflight.Build_Features;", ""]
+    out += ["", "   --  The flash size the features follow.", f"   Flash_KB : constant := {flash_kb};",
+            "", "end Adaflight.Build_Features;", ""]
     return "\n".join(out)
 
 
