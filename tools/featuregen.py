@@ -86,7 +86,12 @@ BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",), "Flash_Chi
                  "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
 
-def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu: str = "") -> dict:
+# Features a board leaves out although its configuration turns them on, as the user ruled for a board short of
+# flash: GEPRCF411SX1280 leaves its flight log out, and its flash chip code, which only the log used (2026-11-19).
+BOARD_OMITS = {"GEPRCF411SX1280": ("Blackbox", "Flash_Chip")}
+
+
+def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu: str = "", board: str = "") -> dict:
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
               or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
@@ -95,6 +100,8 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     if mcu == "STM32F411":
         chosen["Servos"] = False
         chosen["GPS"] = False
+    for name in BOARD_OMITS.get(board, ()):
+        chosen[name] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
         if not token:
@@ -405,7 +412,7 @@ def board_selection(configs: Path, board: str, changes: str) -> tuple:
     else:
         raise SystemExit(f"featuregen: no flash size for the MCU {mcu or 'of ' + board}; set FLASH_KB")
     defines = frozenset(re.findall(r"^#define\s+(\w+)", text, re.M))
-    return mcu, flash_kb, selection(flash_kb, changes, defines, mcu)
+    return mcu, flash_kb, selection(flash_kb, changes, defines, mcu, board)
 
 
 def describe(board: str, mcu: str, flash_kb: int, default: dict, chosen: dict) -> str:
