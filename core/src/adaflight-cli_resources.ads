@@ -3,6 +3,7 @@
 --  where the configuration keeps each one's pin.
 with Interfaces; use Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
+with Adaflight.Servo_Build;
 
 package Adaflight.CLI_Resources with SPARK_Mode is
 
@@ -14,6 +15,10 @@ package Adaflight.CLI_Resources with SPARK_Mode is
       RX_SPI_EXTI, RX_SPI_Bind, RX_SPI_LED, RX_SPI_CC2500_TX_EN, RX_SPI_CC2500_LNA_EN, RX_SPI_CC2500_Ant_Sel,
       RX_SPI_ExpressLRS_Reset, RX_SPI_ExpressLRS_Busy, Gyro_EXTI, Gyro_CS, Gyro_Clkin, USB_Detect, VTX_Power, VTX_CS,
       VTX_Data, VTX_CLK, Pullup, Pulldown);
+
+   --  Whether the build's resource table has an owner: servos only with
+   --  servos.
+   function In_Build (O : Owner) return Boolean is (O /= Servo or else Adaflight.Servo_Build.Enabled);
 
    --  The owner's name as the command line prints and reads it.
    function Name (O : Owner) return String

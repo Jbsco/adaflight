@@ -15,10 +15,11 @@ project Adaflight_Core is
    for Library_Kind use Library_Type;
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
-   --  flight plan the plan build spec that turns it off.
+   --  flight plan the plan build spec that turns it off, and a build without servos the servo build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
+   Servos       : Switch := external ("ADAFLIGHT_SERVOS", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -31,6 +32,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-plan_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-plan_build.ads");
+   end case;
+   case Servos is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-servo_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-servo_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -46,6 +53,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Plan_Build") use "adaflight-plan_build__off.ads";
+      end case;
+      case Servos is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Servo_Build") use "adaflight-servo_build__off.ads";
       end case;
    end Naming;
 

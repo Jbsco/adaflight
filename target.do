@@ -21,12 +21,20 @@ export ADAFLIGHT_DEBUG_VALUES
 ADAFLIGHT_FLIGHT_PLAN="$(python3 ../../tools/featuregen.py --feature Flight_Plan ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_FLIGHT_PLAN
+ADAFLIGHT_SERVOS="$(python3 ../../tools/featuregen.py --feature Servos ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_SERVOS
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
 if [ "$ADAFLIGHT_FLIGHT_PLAN" = off ] \
     && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "waypoint_command\|osd_nav_map__\|flight_plan_nav__\|mavlink_mission__"; then
     echo "target: flight plan code in an image built without it"
+    exit 1
+fi
+if [ "$ADAFLIGHT_SERVOS" = off ] \
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "servo_mix_command\|cli__servo_command\|put_servo_rules"; then
+    echo "target: servo command code in an image built without servos"
     exit 1
 fi
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \

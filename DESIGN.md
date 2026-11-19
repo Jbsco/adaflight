@@ -16068,3 +16068,39 @@ A build without SX1280 receiver keeps no room for that side, so CLRACINGF4 keeps
 against 3,200 before. DARWINF4SX1280HD's RAM shortfall of 5,496 bytes becomes 48 bytes free; its image still
 overflows flash by 2,893 bytes. No test boots an SX1280 receiver, since host builds leave it out, so these
 checks rest on the audit of every read and write above.
+
+## D814. Servo commands only with servos (2026-11-18)
+
+A Betaflight build without servos has no `servo` or `smix` command, no servo sections in `dump` and `diff`, and no
+servo pins in its resource table. An STM32F411 build leaves servos out (D667), but its command line kept those
+commands, since core code had no view of that build feature. Command line now answers them as unknown, leaves them
+out of `help` and dumps, and neither lists nor takes a servo pin.
+
+Core project takes a servo build switch, as it does for the flight plan (D728), and `target.do` sets it from the
+board's features. `target.do` refuses an image built without servos that still links servo command code, and
+`hostwing.do` checks those commands on a host image built without servos.
+
+DARWINF4SX1280HD goes from 2,893 bytes over its flash to 679 bytes free.
+
+## D815. Servo settings only with servos (2026-11-18)
+
+A Betaflight build without servos lists seven settings fewer: `servo_center_pulse`, `servo_pwm_rate`,
+`servo_lowpass_hz`, `tri_unarmed_servo`, `channel_forwarding_start`, `gimbal_mode` and `blackbox_disable_servos`.
+It also has no gimbal mode lookup table, and its command line answers those names as unknown.
+
+Settings table now marks them, read from a settings oracle built without servos. Its build tests take a servo flag
+whose default is an image's servo switch (D814), so `get`, `set`, `dump`, `diff` and MSP setting messages by name
+follow that switch. Stored values keep their place in configuration, and every wing build has servos.
+
+## D816. MSP servo writes without servos (2026-11-18)
+
+A Betaflight build without servos accepts a servo configuration write or a servo rule write and changes nothing,
+whatever its fields. Servo replies here already followed a board's servo feature (D667). Both writes now follow the
+servo switch (D814) too, so such a build accepts a write past its servos or rules where a build with servos refuses
+it.
+
+## D817. Custom airplane fallback only with servos (2026-11-18)
+
+Configuration fix turns a mixer mode that uses servos but has no servo rules into custom airplane mode. A Betaflight
+build without servos skips that step, so such a mode stays. Fix hardware now names whether a build has servos, from
+the servo switch (D814), and fix vectors add cases from a fix oracle built without servos.

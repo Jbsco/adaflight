@@ -1,14 +1,15 @@
 #!/bin/bash
-# Gate: a multirotor build of the host image without the flight plan leaves out its boxes, its build option and its
-# command, a wing build answers with the wing's boxes, build options and settings, a build for a board that
-# names a gyro alignment reads its gyro turned by it, a build for a board with two gyros runs both, and a build
-# for a board that builds only the MPU9250 driver starts its gyro with it.
+# Gate: a multirotor build of the host image without the flight plan and servos leaves out the flight plan's boxes,
+# build option and command and the servo commands, a wing build answers with the wing's boxes, build options and
+# settings, a build for a board that names a gyro alignment reads its gyro turned by it, a build for a board with
+# two gyros runs both, and a build for a board that builds only the MPU9250 driver starts its gyro with it.
 set -e
 cd "$(dirname "$0")/targets/host"
 # Neither build has the flight plan, so the core project leaves it out here.
 export ADAFLIGHT_FLIGHT_PLAN=off
-FEATURES=+flash_chip alr -n build
+ADAFLIGHT_SERVOS=off FEATURES=+flash_chip,-servos alr -n build
 python3 ../../tools/host-plan-off-check.py bin/adaflight_host
+python3 ../../tools/host-servo-off-check.py bin/adaflight_host
 FEATURES=+wing,+flash_chip alr -n build
 python3 ../../tools/host-wing-check.py bin/adaflight_host
 BOARD=LUXF4OSD FEATURES=+wing,+flash_chip alr -n build

@@ -10,6 +10,7 @@ with Adaflight.MSP_Peripheral_Out;
 with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Simplified_Tuning;
+with Adaflight.Servo_Build;
 with Adaflight.MSP_Text_Out;
 
 package body Adaflight.MSP_Processor with SPARK_Mode is
@@ -457,12 +458,17 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             R := (if MR = MSP_Motor_In.Ack then Ack else Error);
          end;
       elsif MSP_Servo_In.Handles (Command) then
-         declare
-            SR : MSP_Servo_In.Result;
-         begin
-            MSP_Servo_In.Process (C, Command, Request, SR, E.Servo);
-            R := (if SR = MSP_Servo_In.Ack then Ack else Error);
-         end;
+         --  A build without servos takes either write and changes nothing.
+         if Adaflight.Servo_Build.Enabled then
+            declare
+               SR : MSP_Servo_In.Result;
+            begin
+               MSP_Servo_In.Process (C, Command, Request, SR, E.Servo);
+               R := (if SR = MSP_Servo_In.Ack then Ack else Error);
+            end;
+         else
+            R := Ack;
+         end if;
       elsif MSP_Blackbox_In.Handles (Command) then
          declare
             LR : MSP_Blackbox_In.Result;

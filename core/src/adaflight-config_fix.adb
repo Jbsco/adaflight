@@ -62,10 +62,10 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       end if;
    end Limit_Filter;
 
-   --  A mode with motors but no motor table becomes the custom mode, and one
-   --  with servos but no servo rules the custom airplane. A mode past the
-   --  mixer table stays as it is.
-   procedure Fix_Mixer_Mode (Mode : in out Unsigned_8) is
+   --  A mode with motors but no motor table becomes the custom mode, and in
+   --  a build with servos one with servos but no servo rules the custom
+   --  airplane. A mode past the mixer table stays as it is.
+   procedure Fix_Mixer_Mode (Mode : in out Unsigned_8; Servos : Boolean) is
       use Adaflight.Mixer_Init;
       Mixers : constant Mixer_Init.Options := (others => <>);
       function Has_Servo_Rules (M : Mixer_Mode) return Boolean is
@@ -78,7 +78,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
             if Motor_Count_Of (M) > 0 and then not Has_Table (Mixers, M) then
                Mode := Mixer_Custom;
             end if;
-            if Uses_Servos (M) and then not Has_Servo_Rules (M) then
+            if Servos and then Uses_Servos (M) and then not Has_Servo_Rules (M) then
                Mode := Mixer_Custom_Airplane;
             end if;
          end;
@@ -922,7 +922,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
    is
    begin
       R := (others => <>);
-      Fix_Mixer_Mode (C.Mixer_Config.Mixer_Mode);
+      Fix_Mixer_Mode (C.Mixer_Config.Mixer_Mode, H.Servos);
       Validate_Providers (C.Telemetry_Config.Providers);
       Fix_Serial
         (C.Msp_Config, C.Gps_Config, C.Rx_Config, C.Blackbox_Config, C.Esc_Sensor_Config, C.Rcdevice_Config,
