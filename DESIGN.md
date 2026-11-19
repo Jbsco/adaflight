@@ -16204,3 +16204,11 @@ main RAM fitting (D824), its image still overflowed flash by 24,694 bytes.
 By the user's ruling it now leaves its flight log out, about 22 KB, and its flash chip code, about 11 KB, which only
 that log used. `featuregen.py` names such per-board omissions, which a build's `FEATURES` can still turn back on.
 It fits with 8,363 bytes of flash and 5,832 bytes of main RAM free. Betaflight builds both into this target.
+
+## D829. msc command only with flight log (2026-11-19)
+
+A Betaflight build without flight log has no SD card and no flash chip, since either one turns its flight log back
+on. It has no USB mass storage mode either: no `msc` command and no mass storage pin in its resource table.
+`featuregen.py` now leaves SD card, flash chip and mass storage out of a build without flight log, and command line
+follows a flight log build switch, as it follows SD card (D826). `hostwing.do` checks it on its host image built
+without GPS and flight log.

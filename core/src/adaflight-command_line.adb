@@ -13,6 +13,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.Plan_Build;
 with Adaflight.SD_Build;
+with Adaflight.Blackbox_Build;
 with Adaflight.Servo_Build;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
@@ -5371,6 +5372,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                               and then Command_Name (P) /= "mode_color"))
            and then (Adaflight.GPS_Build.Enabled or else Command_Name (P) /= "gpspassthrough")
            and then (Adaflight.SD_Build.Enabled or else Command_Name (P) /= "sd_info")
+           and then (Adaflight.Blackbox_Build.Enabled or else Command_Name (P) /= "msc")
          then
             Help_Entry
               (Into, Search, Command_Name (P),
@@ -8337,6 +8339,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                  and then not Adaflight.LED_Build.Enabled)
         or else (Kind = Gpspassthrough_Command_Word and then not Adaflight.GPS_Build.Enabled)
         or else (Kind = Sd_Info_Command_Word and then not Adaflight.SD_Build.Enabled)
+        or else (Kind = MSC_Command_Word and then not Adaflight.Blackbox_Build.Enabled)
       then
          Kind := No_Command;
       end if;
@@ -8457,7 +8460,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Bootloader_Command_Word =>
                Bootloader_Command (Into, Args, Changes);
             when MSC_Command_Word =>
-               MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Args, Changes);
+               if Adaflight.Blackbox_Build.Enabled then
+                  MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Args, Changes);
+               end if;
             when Flash_Info_Command_Word =>
                Flash_Info_Command (Into, Env.Flash);
             when Flash_Erase_Command_Word =>

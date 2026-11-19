@@ -112,6 +112,10 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
             raise SystemExit(f"featuregen: unknown feature {token}; the features are "
                              + ", ".join(name for name, _, _ in FEATURES))
         chosen[by_key[key]] = on
+    # A build without the flight log has no log storage and no mass storage mode over it.
+    if not chosen["Blackbox"]:
+        for name in ("SD_Card", "Flash_Chip", "Mass_Storage"):
+            chosen[name] = False
     return chosen
 
 
