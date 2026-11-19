@@ -16091,3 +16091,10 @@ It also has no gimbal mode lookup table, and its command line answers those name
 Settings table now marks them, read from a settings oracle built without servos. Its build tests take a servo flag
 whose default is an image's servo switch (D814), so `get`, `set`, `dump`, `diff` and MSP setting messages by name
 follow that switch. Stored values keep their place in configuration, and every wing build has servos.
+
+## D816. MSP servo writes without servos (2026-11-18)
+
+A Betaflight build without servos accepts a servo configuration write or a servo rule write and changes nothing,
+whatever its fields. Servo replies here already followed a board's servo feature (D667). Both writes now follow the
+servo switch (D814) too, so such a build accepts a write past its servos or rules where a build with servos refuses
+it.

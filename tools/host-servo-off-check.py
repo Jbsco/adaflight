@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without servos over its UART1 TCP port: the command line knows no servo or
 servo mixer command, its help lists neither, its dumps have no servo sections, its settings have no servo setting,
-its resource command neither lists nor takes a servo pin, and MSP has no servo reply.
+its resource command neither lists nor takes a servo pin, MSP has no servo reply, and MSP servo writes change
+nothing.
 
 usage: host-servo-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +30,10 @@ def main() -> int:
             hs.check("motor reply still answers there", hs.msp(sock, 104) is not None)
             for command in (103, 120, 241):
                 hs.check(f"MSP {command} has no servo reply there", hs.msp(sock, command) is None)
+            hs.check("servo configuration write past the servos is taken without effect there",
+                     hs.msp(sock, 212, bytes([200]) + bytes(12)) == b"")
+            hs.check("servo rule write past the rules is taken without effect there",
+                     hs.msp(sock, 242, bytes([200]) + bytes(8)) == b"")
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             for word in ("servo", "smix", "smix reset"):
