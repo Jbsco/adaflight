@@ -32,6 +32,7 @@ with Adaflight.Plan_Build;
 with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.Receiver_Storage;
 with Adaflight.STM32.RX_Input;
 with Adaflight.STM32.RX_SPI;
 with Adaflight.UDP_Receiver;
@@ -122,7 +123,7 @@ package body Adaflight.STM32.Radio is
    XBUS_State  : Adaflight.XBUS.State with Import, Address => Serial_Storage'Address;
    FPort_State : Adaflight.FPort.State with Import, Address => Serial_Storage'Address;
    --  The SmartPort telemetry an FPORT receiver answers with.
-   FP_Stream   : Adaflight.SmartPort_Telemetry.Stream;
+   FP_Stream   : Adaflight.SmartPort_Telemetry.Stream with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.FP_Stream'Address;
    GHST_State  : Adaflight.GHST.State with Import, Address => Serial_Storage'Address;
    --  The Ghost telemetry: its schedule, whether it runs, and the frame that
    --  waits for the receiver's quiet window.
@@ -138,7 +139,7 @@ package body Adaflight.STM32.Radio is
    Jeti_Tlm_On  : Boolean := False;
    --  The SRXL telemetry: its schedule, its settings, and the frame queued
    --  as the receiver's reply.
-   SRXL_Tlm     : Adaflight.SRXL_Telemetry.Stream;
+   SRXL_Tlm     : Adaflight.SRXL_Telemetry.Stream with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.SRXL_Tlm'Address;
    SRXL_Tlm_Set : Adaflight.SRXL_Telemetry.Settings;
    SRXL_Reply   : Adaflight.Bytes.Byte_Array (0 .. Adaflight.Spektrum.Telemetry_Max - 1) := (others => 0);
    SRXL_Screen  : Adaflight.SRXL_Display_Port.Display;
@@ -155,34 +156,35 @@ package body Adaflight.STM32.Radio is
    MSP_Override : Boolean := False;
    Box_Failsafe : Boolean := False;
    Box_3D       : Boolean := False;
-   Proto       : Adaflight.CRSF.State;
+   Proto       : Adaflight.CRSF.State with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Proto'Address;
    FS          : Adaflight.Failsafe.State;
    FS_Settings : Adaflight.Failsafe.Settings;
-   Input       : Adaflight.Bytes.Byte_Array (0 .. 63);
-   Times       : USART.Time_Array (0 .. 63);
+   Input       : Adaflight.Bytes.Byte_Array (0 .. 63) with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Input'Address;
+   Times       : USART.Time_Array (0 .. 63) with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Times'Address;
    --  The telemetry with its display port screen, the display port command
    --  a frame left with whether it waits, the menu's state the transfer
    --  waits on, and the frames of one run.
    Tlm         : Adaflight.CRSF_Telemetry.Telemetry;
-   Screen      : Adaflight.CRSF_Display_Port.Screen;
+   Screen      : Adaflight.CRSF_Display_Port.Screen with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Screen'Address;
    Display_Cmd : Adaflight.Bytes.Byte_Array (0 .. 2) := (others => 0);
    Commanded   : Boolean := False;
    Menu_Open   : Boolean := False;
    Menu_Here   : Boolean := False;
-   Out_Bytes   : Adaflight.Bytes.Byte_Array (0 .. 1_023);
-   Out_Stream  : Adaflight.Stream_Buffers.Stream;
+   Out_Bytes   : Adaflight.Bytes.Byte_Array (0 .. 1_023) with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Out_Bytes'Address;
+   Out_Stream  : Adaflight.Stream_Buffers.Stream with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Out_Stream'Address;
    Port        : USART.Port;
    --  The MSP requests over the CRSF link: the frames waiting, each behind
    --  its length, the origin the reply goes back to, whether a reply is due,
    --  the tunnel with whether its reply has chunks left, and the processor's
    --  reply.
-   MSP_Buffer_Size : constant := 96;
+   MSP_Buffer_Size : constant := Adaflight.STM32.Receiver_Storage.MSP_Buffer_Size;
    MSP_Ack         : constant := 1;
-   MSP_Frames      : Adaflight.Bytes.Byte_Array (0 .. MSP_Buffer_Size - 1) := (others => 0);
+   MSP_Frames      : Adaflight.Bytes.Byte_Array (0 .. MSP_Buffer_Size - 1)
+     with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.MSP_Frames'Address;
    MSP_Waiting     : Natural range 0 .. MSP_Buffer_Size := 0;
    MSP_Origin      : Adaflight.Bytes.Byte := 0;
    MSP_Pending     : Boolean := False;
-   MSP_Link        : Adaflight.MSP_Telemetry.Tunnel;
+   MSP_Link        : Adaflight.MSP_Telemetry.Tunnel with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.MSP_Link'Address;
    MSP_Chunks_Left : Boolean := False;
    --  Whether an MSP reply is due over the Ghost link, the size of the
    --  chunks its frames take, and the response frame's address and type.
@@ -190,8 +192,8 @@ package body Adaflight.STM32.Radio is
    GHST_MSP_Chunk        : constant := 6;
    GHST_Receiver_Address : constant Adaflight.Bytes.Byte := 16#89#;
    GHST_MSP_Response     : constant Adaflight.Bytes.Byte := 16#28#;
-   MSP_Answer      : Adaflight.Bytes.Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) :=
-     (others => 0);
+   MSP_Answer      : Adaflight.STM32.Receiver_Storage.Answer_Bytes
+     with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.MSP_Answer'Address;
 
    --  The port at a new rate, with the receiver's timing told.
    procedure Set_Rate (Rate : Interfaces.Unsigned_32) is
@@ -433,6 +435,13 @@ package body Adaflight.STM32.Radio is
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
          else USART.Full_Duplex);
       if Open then
+         --  The serial side of the receiver storage, which no default sets.
+         Out_Stream := (others => <>);
+         MSP_Frames := (others => 0);
+         MSP_Link := (others => <>);
+         MSP_Answer := (others => 0);
+         FP_Stream := (others => <>);
+         SRXL_Tlm := (others => <>);
          case Kind is
             when CRSF =>
                Adaflight.CRSF.Init (Proto, Rx_Settings.Mid_RC);
@@ -514,7 +523,9 @@ package body Adaflight.STM32.Radio is
          Port.Which := Link;
       end if;
       Adaflight.CRSF_Telemetry.Init (Tlm, Telemetry, Active => Open and then Kind = CRSF);
-      Adaflight.CRSF_Display_Port.Init (Screen, Now_Ms);
+      if Open then
+         Adaflight.CRSF_Display_Port.Init (Screen, Now_Ms);
+      end if;
       MSP_Waiting := 0;
       MSP_Pending := False;
       MSP_Chunks_Left := False;
@@ -733,8 +744,8 @@ package body Adaflight.STM32.Radio is
    procedure Init_SRXL_Telemetry (Settings : Adaflight.SRXL_Telemetry.Settings) is
    begin
       SRXL_Tlm_Set := Settings;
-      SRXL_Tlm := (others => <>);
       if SRXL_Telemetry_On then
+         SRXL_Tlm := (others => <>);
          Adaflight.SRXL_Display_Port.Register (SRXL_Screen, SRXL_Tlm, Firmware_Name);
       end if;
    end Init_SRXL_Telemetry;
@@ -911,8 +922,8 @@ package body Adaflight.STM32.Radio is
 
    procedure Init_FPort_Telemetry (Sensors : Adaflight.SmartPort_Telemetry.Build_Inputs) is
    begin
-      FP_Stream := (others => <>);
       if Open and then Kind = FPort then
+         FP_Stream := (others => <>);
          Adaflight.SmartPort_Telemetry.Build (FP_Stream, Sensors);
       end if;
    end Init_FPort_Telemetry;

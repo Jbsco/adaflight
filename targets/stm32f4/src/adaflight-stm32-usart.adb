@@ -5,6 +5,7 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Receiver_Storage;
 package body Adaflight.STM32.USART is
    use type Interfaces.Unsigned_32;
    type Registers is record
@@ -101,6 +102,11 @@ package body Adaflight.STM32.USART is
    Timed_On   : Boolean := False with Atomic;
    Timed_Port : Hardware := UART1 with Atomic;
 
+   --  The arrival times of the bytes in the timed UART's ring, in the serial
+   --  side of the receiver storage, since only a serial receiver's port keeps
+   --  them.
+   Stamps : Time_Array (Ring_Index) with Import, Address => Adaflight.STM32.Receiver_Storage.Shared.Serial_State.Stamps'Address;
+
    protected Receivers with Interrupt_Priority => System.Interrupt_Priority'First is
       procedure Take (N : Hardware; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
       procedure Queue (N : Hardware; Data : Byte_Array; Taken : out Natural);
@@ -117,8 +123,6 @@ package body Adaflight.STM32.USART is
       procedure Handler_6 with Attach_Handler => Ada.Interrupts.Names.USART6_Interrupt;
       Queues : Rings;
       Sends  : Send_Rings;
-      --  The arrival times of the bytes in the timed UART's ring.
-      Stamps : Time_Array (Ring_Index) := (others => 0);
    end Receivers;
 
    protected body Receivers is
@@ -448,6 +452,7 @@ package body Adaflight.STM32.USART is
 
    procedure Keep_Times (N : Hardware) is
    begin
+      Stamps := (others => 0);
       Timed_Port := N;
       Timed_On := True;
    end Keep_Times;
