@@ -9,6 +9,7 @@ with Adaflight.MSP_OSD_Out;
 with Adaflight.MSP_Peripheral_Out;
 with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Receiver_Out;
+with Adaflight.GPS_Build;
 with Adaflight.LED_Build;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Servo_Build;
@@ -423,7 +424,10 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          E.Tuning.ESC_Endpoints := E.Profile.PID_Profile;
          E.Tuning.Mixer_Profile := E.Profile.PID_Profile;
          E.Tuning.RC_Init := E.Profile.Rate_Profile;
-      elsif MSP_Runtime_In.Handles (Command) then
+      elsif MSP_Runtime_In.Handles (Command)
+        and then (Command not in MSP_Runtime_In.Set_Raw_GPS_Command | MSP_Runtime_In.Sensor_GPS_Command
+                  or else Adaflight.GPS_Build.Enabled)
+      then
          declare
             RR : MSP_Runtime_In.Result;
          begin
@@ -444,7 +448,11 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             MSP_Receiver_In.Process (C, Command, Request, RR, E.Receiver);
             R := (if RR = MSP_Receiver_In.Ack then Ack else Error);
          end;
-      elsif MSP_Hardware_In.Handles (Command) then
+      elsif MSP_Hardware_In.Handles (Command)
+        and then (Command not in MSP_Hardware_In.Set_GPS_Config_Command | MSP_Hardware_In.Set_GPS_Rescue_Command
+                    | MSP_Hardware_In.Set_GPS_Rescue_PIDs_Command
+                  or else Adaflight.GPS_Build.Enabled)
+      then
          declare
             HR : MSP_Hardware_In.Result;
          begin

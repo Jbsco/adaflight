@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the GPS over its UART1 TCP port: the command line knows no
-gpspassthrough command and its help lists none, status and env print no GPS lines, and its settings have no GPS,
-rescue or hold setting.
+gpspassthrough command and its help lists none, status and env print no GPS lines, its settings have no GPS,
+rescue or hold setting, MSP has no GPS reply, and MSP refuses GPS writes as unknown.
 
 usage: host-gps-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +29,14 @@ def main() -> int:
             hs.check("setting outside the GPS reads by name over MSP there",
                      kept is not None and kept.startswith(b"motor_pwm_protocol = "), repr(kept))
             hs.check("GPS setting has no name over MSP there", hs.msp2(sock, 0x3010, b"gps_provider") is None)
+            hs.check("motor reply still answers there", hs.msp(sock, 104) is not None)
+            for command in (106, 107, 132, 135, 136, 164):
+                hs.check(f"MSP {command} has no GPS reply there", hs.msp(sock, command) is None)
+            # The rescue write range-checks its fields: a build with the GPS takes its own rescue reply back.
+            rescue = hs.msp(sock, 135) or bytes(19)
+            for command, payload in ((201, bytes(14)), (223, bytes(5)), (225, rescue), (226, bytes(9))):
+                hs.check(f"MSP {command} GPS write is refused as unknown there",
+                         hs.msp(sock, command, payload) is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             text = hs.cli(sock, "gpspassthrough")

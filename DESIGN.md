@@ -16145,3 +16145,9 @@ built without GPS.
 `scheduler_debug_task` stops at 37 there, four tasks fewer, and at 36 in a build without LED strip as well. Its
 generator now gives a setting's maximum one fall per feature a build leaves out and sums them, and it checks that sum
 against a settings oracle built without both. This replaces LED strip's single override (D819).
+
+## D823. MSP GPS messages only with GPS (2026-11-19)
+
+A Betaflight build without GPS answers its raw GPS, home and satellite replies and its GPS, rescue and sensor
+writes as unknown commands. GPS configuration and rescue replies here already followed a board's features, and
+other GPS replies and writes now follow GPS switch (D821).
