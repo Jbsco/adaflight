@@ -10,6 +10,7 @@ with Adaflight.Modes;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.Plan_Build;
+with Adaflight.Servo_Build;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
@@ -4351,13 +4352,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, CRLF & "mmix reset" & CRLF & CRLF);
       end if;
       Put_Motor_Mix (Into, C.Custom_Motor_Mixer, Mode => Mode, Heading => (if Pending then "mixer" else ""));
-      Put_Servos (Into, C.Servo_Params, Mode => Mode, Heading => "servo");
-      if not Mode.Diff or else C.Custom_Servo_Mixers (0).Rate /= 0 then
-         Put_Hash_Line (Into, "servo mixer");
-         Put (Into, "smix reset" & CRLF & CRLF);
-         Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode);
-      else
-         Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode, Heading => "servo mixer");
+      if Adaflight.Servo_Build.Enabled then
+         Put_Servos (Into, C.Servo_Params, Mode => Mode, Heading => "servo");
+         if not Mode.Diff or else C.Custom_Servo_Mixers (0).Rate /= 0 then
+            Put_Hash_Line (Into, "servo mixer");
+            Put (Into, "smix reset" & CRLF & CRLF);
+            Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode);
+         else
+            Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode, Heading => "servo mixer");
+         end if;
       end if;
       Put_Beeper_Dump
         (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Defaults.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed,
@@ -5355,7 +5358,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Any : Boolean := False;
    begin
       for P in Command_Position loop
-         if Adaflight.Plan_Build.Enabled or else Command_Name (P) /= "waypoint" then
+         if (Adaflight.Plan_Build.Enabled or else Command_Name (P) /= "waypoint")
+           and then (Adaflight.Servo_Build.Enabled
+                     or else (Command_Name (P) /= "servo" and then Command_Name (P) /= "smix"))
+         then
             Help_Entry
               (Into, Search, Command_Name (P),
                Help_Text (Natural (Description_Starts (P)) + 1
@@ -6975,7 +6981,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       for O in R.Owner loop
          pragma Loop_Invariant (True);
-         for I in 0 .. R.Count (O, Gyros) - 1 loop
+         for I in 0 .. (if R.In_Build (O) then R.Count (O, Gyros) else 0) - 1 loop
             pragma Loop_Invariant (True);
             declare
                Tag     : constant Unsigned_8 := R.Tag (C, O, I);
@@ -7020,7 +7026,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       for O in R.Owner loop
          pragma Loop_Invariant (True);
-         for I in 0 .. R.Count (O, Gyros) - 1 loop
+         for I in 0 .. (if R.In_Build (O) then R.Count (O, Gyros) else 0) - 1 loop
             pragma Loop_Invariant (True);
             if R.Tag (C, O, I) = New_Tag and then not (O = Set_Owner and then I = Set_Index) then
                Put (Into, CRLF & "NOTE: ");
@@ -7926,7 +7932,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          return;
       end if;
       for O in R.Owner loop
-         if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), R.Name (O)) then
+         if R.In_Build (O) and then CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), R.Name (O)) then
             Owner := O;
             Found := True;
             exit;
@@ -8307,7 +8313,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Buffer (Length + 1) := ASCII.NUL;
       Find_Command (Buffer, Kind, Arguments);
-      if Kind = Waypoint_Command_Word and then not Adaflight.Plan_Build.Enabled then
+      if (Kind = Waypoint_Command_Word and then not Adaflight.Plan_Build.Enabled)
+        or else (Kind in Servo_Command_Word | Servo_Mix_Command_Word and then not Adaflight.Servo_Build.Enabled)
+      then
          Kind := No_Command;
       end if;
       declare
@@ -8433,9 +8441,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Rx_Range_Command =>
                Range_Command (Into, C, Args);
             when Servo_Command_Word =>
-               Servo_Command (Into, C.Servo_Params, Args);
+               if Adaflight.Servo_Build.Enabled then
+                  Servo_Command (Into, C.Servo_Params, Args);
+               end if;
             when Servo_Mix_Command_Word =>
-               Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Args);
+               if Adaflight.Servo_Build.Enabled then
+                  Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Args);
+               end if;
             when Save_Command_Word =>
                Save_Command (Into, C, Board, Args, Changes);
             when Serial_Command_Word =>

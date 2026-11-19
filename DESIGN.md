@@ -16068,3 +16068,16 @@ A build without SX1280 receiver keeps no room for that side, so CLRACINGF4 keeps
 against 3,200 before. DARWINF4SX1280HD's RAM shortfall of 5,496 bytes becomes 48 bytes free; its image still
 overflows flash by 2,893 bytes. No test boots an SX1280 receiver, since host builds leave it out, so these
 checks rest on the audit of every read and write above.
+
+## D814. Servo commands only with servos (2026-11-18)
+
+A Betaflight build without servos has no `servo` or `smix` command, no servo sections in `dump` and `diff`, and no
+servo pins in its resource table. An STM32F411 build leaves servos out (D667), but its command line kept those
+commands, since core code had no view of that build feature. Command line now answers them as unknown, leaves them
+out of `help` and dumps, and neither lists nor takes a servo pin.
+
+Core project takes a servo build switch, as it does for the flight plan (D728), and `target.do` sets it from the
+board's features. `target.do` refuses an image built without servos that still links servo command code, and
+`hostwing.do` checks those commands on a host image built without servos.
+
+DARWINF4SX1280HD goes from 2,893 bytes over its flash to 679 bytes free.
