@@ -16127,3 +16127,10 @@ barometer tasks in builds without them. A build view of task numbers stays open.
 A Betaflight build without LED strip knows no LED color, LED strip, mode color or LED strip value write, and
 answers each as an unknown command. LED replies here already followed a board's LED strip feature. Those four
 writes now follow LED strip switch (D818) too.
+
+## D821. GPS command and lines only with GPS (2026-11-19)
+
+A Betaflight build without GPS, as an STM32F411 target that names none is, has no `gpspassthrough` command and
+prints no GPS lines in `status` and `env`. An STM32F411 build leaves GPS out (D668), but its command line kept them.
+Command line now follows a GPS build switch, as it follows servos and LED strip (D814, D818), and `hostwing.do`
+checks it on a host image built without GPS, since its build without flight plan runs GPS rescue checks.
