@@ -16104,3 +16104,10 @@ it.
 Configuration fix turns a mixer mode that uses servos but has no servo rules into custom airplane mode. A Betaflight
 build without servos skips that step, so such a mode stays. Fix hardware now names whether a build has servos, from
 the servo switch (D814), and fix vectors add cases from a fix oracle built without servos.
+
+## D818. LED strip commands only with LED strip (2026-11-18)
+
+A Betaflight build without LED strip, as every 512 KB local build is, has no `led`, `color` or `mode_color` command,
+no LED sections in `dump` and `diff`, and no LED strip pin in its resource table. Such builds here kept those
+commands. Command line now follows an LED strip build switch, as it follows servos (D814), and `hostwing.do` checks
+them on a host image built without LED strip.

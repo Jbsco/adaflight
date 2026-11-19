@@ -3,6 +3,7 @@
 --  where the configuration keeps each one's pin.
 with Interfaces; use Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
+with Adaflight.LED_Build;
 with Adaflight.Servo_Build;
 
 package Adaflight.CLI_Resources with SPARK_Mode is
@@ -17,8 +18,12 @@ package Adaflight.CLI_Resources with SPARK_Mode is
       VTX_Data, VTX_CLK, Pullup, Pulldown);
 
    --  Whether the build's resource table has an owner: servos only with
-   --  servos.
-   function In_Build (O : Owner) return Boolean is (O /= Servo or else Adaflight.Servo_Build.Enabled);
+   --  servos, and the LED strip only with it.
+   function In_Build (O : Owner) return Boolean is
+     (case O is
+         when Servo     => Adaflight.Servo_Build.Enabled,
+         when LED_Strip => Adaflight.LED_Build.Enabled,
+         when others    => True);
 
    --  The owner's name as the command line prints and reads it.
    function Name (O : Owner) return String

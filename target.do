@@ -24,6 +24,9 @@ export ADAFLIGHT_FLIGHT_PLAN
 ADAFLIGHT_SERVOS="$(python3 ../../tools/featuregen.py --feature Servos ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_SERVOS
+ADAFLIGHT_LED_STRIP="$(python3 ../../tools/featuregen.py --feature LED_Strip ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_LED_STRIP
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
@@ -35,6 +38,11 @@ fi
 if [ "$ADAFLIGHT_SERVOS" = off ] \
     && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "servo_mix_command\|cli__servo_command\|put_servo_rules"; then
     echo "target: servo command code in an image built without servos"
+    exit 1
+fi
+if [ "$ADAFLIGHT_LED_STRIP" = off ] \
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "cli__led_command\|mode_color_command\|put_mode_colors"; then
+    echo "target: LED strip command code in an image built without the LED strip"
     exit 1
 fi
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \

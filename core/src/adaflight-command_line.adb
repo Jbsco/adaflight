@@ -3,6 +3,7 @@ with Adaflight.Adjustments;
 with Adaflight.Timer_Tables;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Reset;
+with Adaflight.LED_Build;
 with Adaflight.LED_Strip;
 with Adaflight.Maths;
 with Adaflight.Mixer_Init;
@@ -4369,9 +4370,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
         (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Defaults.Beeper_Config.Dshot_Beacon_Off_Flags,
          Beacon_Allowed, Mode, "beacon");
       Put_Map (Into, C.Rx_Config.Rcmap, Defaults.Rx_Config.Rcmap, Mode, "map");
-      Put_Leds (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Mode => Mode, Heading => "led");
-      Put_Colors (Into, C.Led_Strip_Status_Mode_Config.Colors, Mode => Mode, Heading => "color");
-      Put_Mode_Colors (Into, C.Led_Strip_Status_Mode_Config, Mode => Mode, Heading => "mode_color");
+      if Adaflight.LED_Build.Enabled then
+         Put_Leds (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Mode => Mode, Heading => "led");
+         Put_Colors (Into, C.Led_Strip_Status_Mode_Config.Colors, Mode => Mode, Heading => "color");
+         Put_Mode_Colors (Into, C.Led_Strip_Status_Mode_Config, Mode => Mode, Heading => "mode_color");
+      end if;
       Put_Conditions (Into, C.Mode_Activation_Conditions, Mode => Mode, Heading => "aux");
       Put_Adjustment_Ranges (Into, C.Adjustment_Ranges, Mode => Mode, Heading => "adjrange");
       Put_Ranges (Into, C.Rx_Channel_Range_Configs, Mode => Mode, Heading => "rxrange");
@@ -5361,6 +5364,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if (Adaflight.Plan_Build.Enabled or else Command_Name (P) /= "waypoint")
            and then (Adaflight.Servo_Build.Enabled
                      or else (Command_Name (P) /= "servo" and then Command_Name (P) /= "smix"))
+           and then (Adaflight.LED_Build.Enabled
+                     or else (Command_Name (P) /= "led" and then Command_Name (P) /= "color"
+                              and then Command_Name (P) /= "mode_color"))
          then
             Help_Entry
               (Into, Search, Command_Name (P),
@@ -8315,6 +8321,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Find_Command (Buffer, Kind, Arguments);
       if (Kind = Waypoint_Command_Word and then not Adaflight.Plan_Build.Enabled)
         or else (Kind in Servo_Command_Word | Servo_Mix_Command_Word and then not Adaflight.Servo_Build.Enabled)
+        or else (Kind in Led_Command_Word | Color_Command_Word | Mode_Color_Command_Word
+                 and then not Adaflight.LED_Build.Enabled)
       then
          Kind := No_Command;
       end if;
@@ -8373,11 +8381,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Help_Command_Word =>
                Help_Command (Into, Args);
             when Color_Command_Word =>
-               Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Args);
+               if Adaflight.LED_Build.Enabled then
+                  Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Args);
+               end if;
             when Led_Command_Word =>
-               Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Args, Changes);
+               if Adaflight.LED_Build.Enabled then
+                  Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Args, Changes);
+               end if;
             when Mode_Color_Command_Word =>
-               Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Args);
+               if Adaflight.LED_Build.Enabled then
+                  Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Args);
+               end if;
             when Map_Command_Word =>
                Map_Command (Into, C, Args);
             when MCU_Id_Command_Word =>
