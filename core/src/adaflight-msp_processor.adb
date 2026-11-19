@@ -9,6 +9,7 @@ with Adaflight.MSP_OSD_Out;
 with Adaflight.MSP_Peripheral_Out;
 with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Receiver_Out;
+with Adaflight.LED_Build;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Servo_Build;
 with Adaflight.MSP_Text_Out;
@@ -491,7 +492,9 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             MSP_Feature_In.Process (C, Command, Request, FR);
             R := (if FR = MSP_Feature_In.Ack then Ack else Error);
          end;
-      elsif MSP_Text_In.Handles (Command) then
+      elsif MSP_Text_In.Handles (Command)
+        and then (Command /= MSP_Text_In.Set_LED_Strip_Values_Command or else Adaflight.LED_Build.Enabled)
+      then
          declare
             TR : MSP_Text_In.Result;
          begin
@@ -499,12 +502,17 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
             R := (if TR = MSP_Text_In.Ack then Ack else Error);
          end;
       elsif MSP_LED_In.Handles (Command) then
-         declare
-            LR : MSP_LED_In.Result;
-         begin
-            MSP_LED_In.Process (C, Command, Request, LR, E.LED);
-            R := (if LR = MSP_LED_In.Ack then Ack else Error);
-         end;
+         --  A build without the LED strip knows none of these writes.
+         if Adaflight.LED_Build.Enabled then
+            declare
+               LR : MSP_LED_In.Result;
+            begin
+               MSP_LED_In.Process (C, Command, Request, LR, E.LED);
+               R := (if LR = MSP_LED_In.Ack then Ack else Error);
+            end;
+         else
+            Handled := False;
+         end if;
       elsif RX_Bind.Handles (Command) then
          E.Bind := RX_Bind.Bind_For (Ctx.Receiver_Source, Ctx.Serial_Protocol,
                                      Natural (C.Rx_Spi_Config.Rx_Spi_Protocol));

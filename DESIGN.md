@@ -16104,3 +16104,26 @@ it.
 Configuration fix turns a mixer mode that uses servos but has no servo rules into custom airplane mode. A Betaflight
 build without servos skips that step, so such a mode stays. Fix hardware now names whether a build has servos, from
 the servo switch (D814), and fix vectors add cases from a fix oracle built without servos.
+
+## D818. LED strip commands only with LED strip (2026-11-18)
+
+A Betaflight build without LED strip, as every 512 KB local build is, has no `led`, `color` or `mode_color` command,
+no LED sections in `dump` and `diff`, and no LED strip pin in its resource table. Such builds here kept those
+commands. Command line now follows an LED strip build switch, as it follows servos (D814), and `hostwing.do` checks
+them on a host image built without LED strip.
+
+## D819. LED strip settings only with LED strip (2026-11-18)
+
+A Betaflight build without LED strip lists twelve `ledstrip_*` settings fewer and three lookup tables fewer, and its
+`scheduler_debug_task` stops at 40, since it has no LED strip task. Settings table marks those settings and tables
+from a settings oracle built without LED strip, and that build's limit comes through `Describe`, as wing limits
+do. Its generator now reads a list of builds that each leave one feature out.
+
+Task numbers that `scheduler_debug_task` selects still count an LED strip task, as they count GPS, compass and
+barometer tasks in builds without them. A build view of task numbers stays open.
+
+## D820. MSP LED writes unknown without LED strip (2026-11-18)
+
+A Betaflight build without LED strip knows no LED color, LED strip, mode color or LED strip value write, and
+answers each as an unknown command. LED replies here already followed a board's LED strip feature. Those four
+writes now follow LED strip switch (D818) too.
