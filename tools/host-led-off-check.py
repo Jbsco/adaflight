@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the LED strip over its UART1 TCP port: the command line knows no led,
 color or mode_color command, its help lists none, its dumps have no LED sections, its settings have no LED strip
-setting, its resource command neither lists nor takes an LED strip pin, and MSP has no LED reply.
+setting, its resource command neither lists nor takes an LED strip pin, MSP has no LED reply, and MSP refuses
+LED writes as unknown.
 
 usage: host-led-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +30,12 @@ def main() -> int:
             hs.check("motor reply still answers there", hs.msp(sock, 104) is not None)
             for command in (46, 48, 127):
                 hs.check(f"MSP {command} has no LED reply there", hs.msp(sock, command) is None)
+            hs.check("LED color write is refused as unknown there", hs.msp(sock, 47, bytes(64)) is None)
+            hs.check("LED strip write is refused as unknown there", hs.msp(sock, 49, bytes(5)) is None)
+            hs.check("LED mode color write is refused as unknown there", hs.msp(sock, 221, bytes(3)) is None)
+            values = bytes([50]) + (10).to_bytes(2, "little") + (120).to_bytes(2, "little")
+            hs.check("LED strip value write is refused as unknown there", hs.msp2(sock, 0x3009, values) is None)
+            hs.check("LED strip values have no reply there", hs.msp2(sock, 0x3008) is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             for word in ("led", "color", "mode_color"):

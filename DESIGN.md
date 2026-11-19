@@ -16121,3 +16121,9 @@ do. Its generator now reads a list of builds that each leave one feature out.
 
 Task numbers that `scheduler_debug_task` selects still count an LED strip task, as they count GPS, compass and
 barometer tasks in builds without them. A build view of task numbers stays open.
+
+## D820. MSP LED writes unknown without LED strip (2026-11-18)
+
+A Betaflight build without LED strip knows no LED color, LED strip, mode color or LED strip value write, and
+answers each as an unknown command. LED replies here already followed a board's LED strip feature. Those four
+writes now follow LED strip switch (D818) too.
