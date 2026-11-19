@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the LED strip over its UART1 TCP port: the command line knows no led,
-color or mode_color command, its help lists none, its dumps have no LED sections, and its resource command neither
-lists nor takes an LED strip pin.
+color or mode_color command, its help lists none, its dumps have no LED sections, its settings have no LED strip
+setting, its resource command neither lists nor takes an LED strip pin, and MSP has no LED reply.
 
 usage: host-led-off-check.py <host image>"""
 import importlib.util
@@ -22,6 +22,13 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "ledoff.bin"))
         try:
             hs.time.sleep(2.5)
+            kept = hs.msp2(sock, 0x3010, b"motor_pwm_protocol")
+            hs.check("setting outside the LED strip reads by name over MSP there",
+                     kept is not None and kept.startswith(b"motor_pwm_protocol = "), repr(kept))
+            hs.check("LED strip setting has no name over MSP there", hs.msp2(sock, 0x3010, b"ledstrip_profile") is None)
+            hs.check("motor reply still answers there", hs.msp(sock, 104) is not None)
+            for command in (46, 48, 127):
+                hs.check(f"MSP {command} has no LED reply there", hs.msp(sock, command) is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             for word in ("led", "color", "mode_color"):
@@ -38,6 +45,14 @@ def main() -> int:
             hs.check("dump has no LED strip pin there",
                      any(line.startswith("resource MOTOR ") for line in lines)
                      and not any(line.startswith(("resource LED_STRIP ", "#resource LED_STRIP ")) for line in lines))
+            names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
+            hs.check("dump has no LED strip settings there",
+                     "motor_pwm_protocol" in names and not any(n.startswith("ledstrip_") for n in names),
+                     repr([n for n in names if n.startswith("ledstrip_")][:4]))
+            text = hs.cli(sock, "get ledstrip_profile")
+            hs.check("get finds no LED strip setting there", "INVALID NAME" in text, text[-120:])
+            text = hs.cli(sock, "set ledstrip_brightness = 50")
+            hs.check("set refuses an LED strip setting there", "INVALID NAME" in text, text[-120:])
             text = hs.cli(sock, "resource LED_STRIP A01")
             hs.check("resource takes no LED strip pin there", "INVALID RESOURCE NAME" in text, text[-120:])
         finally:
