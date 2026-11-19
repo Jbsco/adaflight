@@ -10,7 +10,7 @@ A build without a feature leaves it out of command line, settings and MSP:
 - LED strip: no `led`, `color` or `mode_color` command, no LED strip setting and no LED strip pin, and MSP answers LED writes as unknown.
 - GPS: no `gpspassthrough` command, no GPS lines in `status` and `env`, no GPS, rescue or hold setting, and MSP answers GPS messages as unknown.
 - SD card: no `sd_info` command, no SD card line in `status`, no SD card setting and no SD card pin.
-- Flight log: no SD card, flash chip or mass storage mode, no `msc` command, no flight log, storage or mass storage setting and no mass storage pin.
+- Flight log: no SD card, flash chip or mass storage mode. Its command line has no `msc` command, no flight log, storage or mass storage setting and no mass storage pin. MSP answers flight log writes and flash erase as unknown.
 
 No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its settings, its mode boxes, its OSD map and its MAVLink mission protocol. Without it the GPS rescue is a flight mode of its own.
 

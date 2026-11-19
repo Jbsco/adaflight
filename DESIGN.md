@@ -16219,3 +16219,9 @@ A Betaflight build without flight log lists 29 settings and four lookup tables f
 and flash bus settings, log status element's position and mass storage pin's pull-up. Settings table marks them from
 a settings oracle built without flight log, SD card and flash chip. A setting or table that SD card's view marks as
 well needs both features. Its task list and limits do not change.
+
+## D831. Flight log MSP writes only with flight log (2026-11-19)
+
+A Betaflight build without flight log answers its flight log write and its flash erase as unknown. Its flight log
+reply here already reported no flight log from a board flag. Both writes now follow flight log switch (D829).
+Betaflight also needs a flash chip for flash erase. Here it still follows flight log alone.

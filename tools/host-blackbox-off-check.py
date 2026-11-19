@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the flight log over its UART1 TCP port: the command line knows no msc
-command and its help lists none, its settings have no flight log, SD card, flash or mass storage setting, and its
-resource command neither lists nor takes the mass storage pin.
+command and its help lists none, its settings have no flight log, SD card, flash or mass storage setting, its
+resource command neither lists nor takes the mass storage pin, and MSP reports no flight log and answers its write
+and the flash erase as unknown.
 
 usage: host-blackbox-off-check.py <host image>"""
 import importlib.util
@@ -26,6 +27,12 @@ def main() -> int:
             hs.check("setting outside the flight log reads by name over MSP there",
                      kept is not None and kept.startswith(b"motor_pwm_protocol = "), repr(kept))
             hs.check("flight log setting has no name over MSP there", hs.msp2(sock, 0x3010, b"blackbox_device") is None)
+            reply = hs.msp(sock, 80)
+            hs.check("flight log reply reports none there", reply == bytes(11), repr(reply))
+            # The write range-checks its fields: a build with the flight log takes its own reply back.
+            hs.check("flight log write is refused as unknown there",
+                     hs.msp(sock, 81, (reply or bytes(11))[1:11]) is None)
+            hs.check("flash erase is refused as unknown there", hs.msp(sock, 72) is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             text = hs.cli(sock, "msc")

@@ -10,6 +10,7 @@ with Adaflight.MSP_Peripheral_Out;
 with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.GPS_Build;
+with Adaflight.Blackbox_Build;
 with Adaflight.LED_Build;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Servo_Build;
@@ -371,7 +372,9 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
    begin
       Handled := True;
       R := Error;
-      if MSP_Control_In.Handles (Command) then
+      if MSP_Control_In.Handles (Command)
+        and then (Command /= MSP_Control_In.Erase_Flash_Command or else Adaflight.Blackbox_Build.Enabled)
+      then
          declare
             CR : MSP_Control_In.Result;
          begin
@@ -478,7 +481,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
          else
             R := Ack;
          end if;
-      elsif MSP_Blackbox_In.Handles (Command) then
+      elsif MSP_Blackbox_In.Handles (Command) and then Adaflight.Blackbox_Build.Enabled then
          declare
             LR : MSP_Blackbox_In.Result;
          begin
