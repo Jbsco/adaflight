@@ -175,8 +175,13 @@ STACK = """   __stack_start = .;
 # A packed build keeps this much heap below the unpacked data, for the allocations of elaboration.
 HEAP_RESERVE = 4096
 
-# The main stack a packed build keeps above the elaboration's code for the elaboration itself.
+# The main stack a packed build keeps above the elaboration's code for the elaboration itself, and above the
+# unpacking's model for the unpacking's frames; less on an STM32F411, whose main RAM is short, whose elaboration's
+# deepest path is about 6 KB and whose unpacking's is under 1 KB.
 BOOT_STACK = 16384
+BOOT_STACK_F411 = 8192
+UNPACK_FRAMES = 8192
+UNPACK_FRAMES_F411 = 2048
 
 # Zeroed objects a packed build moves from the main RAM to the core coupled memory, for the main RAM the packed
 # data and code take. None of them is a DMA target.
@@ -297,9 +302,11 @@ def ram_early(chosen: dict, mcu: str = "") -> str:
   } > sram_da
 
   /* The unpacking's model, in the main stack between the boot code and the start-up's frames. */
-  __unpack_scratch = __stack_end - 8192 - UNPACK_SCRATCH;
+  __unpack_scratch = __stack_end - UNPACK_FRAMES - UNPACK_SCRATCH;
   ASSERT (__unpack_scratch >= __boot_end, "no room for the unpack model")
-""".replace("UNPACK_SCRATCH", str(UNPACK_SCRATCH)).replace("BOOT_STACK", str(BOOT_STACK)))
+""".replace("UNPACK_SCRATCH", str(UNPACK_SCRATCH))
+       .replace("BOOT_STACK", str(BOOT_STACK_F411 if mcu == "STM32F411" else BOOT_STACK))
+       .replace("UNPACK_FRAMES", str(UNPACK_FRAMES_F411 if mcu == "STM32F411" else UNPACK_FRAMES)))
 
 
 def ram_late(chosen: dict, mcu: str = "") -> str:
