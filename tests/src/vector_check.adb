@@ -32654,6 +32654,7 @@ procedure Vector_Check is
       if Str (1) = "fixrx" then
          H.Default_RX_Feature := Fix.Feature_RX_SPI;
       end if;
+      H.Servos := Str (1) /= "fixns";
       for T in H.Timers'Range loop
          H.Timers (T) := Fix.Timer_Kind'Val (Natural (T) mod 3);
       end loop;

@@ -11,6 +11,7 @@
 with Interfaces; use Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.Servo_Build;
 
 package Adaflight.Config_Fix with SPARK_Mode is
 
@@ -45,14 +46,16 @@ package Adaflight.Config_Fix with SPARK_Mode is
    subtype Gyro_Rate is Unsigned_32 range 0 .. 32_000;
 
    --  The hardware the fix reads: the gyro's sample rate, zero before the
-   --  gyro starts, the motors in use, the timer behind each pin, and the
-   --  receiver feature the fix sets when none is.
+   --  gyro starts, the motors in use, the timer behind each pin, the
+   --  receiver feature the fix sets when none is, and whether the build has
+   --  servos.
    type Hardware is record
       Gyro_Sample_Rate_Hz : Gyro_Rate := 0;
       Motors              : Motor_Count := 0;
       Timers              : Pin_Timers := (others => No_Timer);
       UDP_Receiver        : Boolean := False;
       Default_RX_Feature  : Unsigned_32 := Feature_RX_Serial;
+      Servos              : Boolean := Adaflight.Servo_Build.Enabled;
    end record;
 
    --  A port setting outside the serial map's identifiers stands for this

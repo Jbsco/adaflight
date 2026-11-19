@@ -16098,3 +16098,9 @@ A Betaflight build without servos accepts a servo configuration write or a servo
 whatever its fields. Servo replies here already followed a board's servo feature (D667). Both writes now follow the
 servo switch (D814) too, so such a build accepts a write past its servos or rules where a build with servos refuses
 it.
+
+## D817. Custom airplane fallback only with servos (2026-11-18)
+
+Configuration fix turns a mixer mode that uses servos but has no servo rules into custom airplane mode. A Betaflight
+build without servos skips that step, so such a mode stays. Fix hardware now names whether a build has servos, from
+the servo switch (D814), and fix vectors add cases from a fix oracle built without servos.
