@@ -16151,3 +16151,18 @@ against a settings oracle built without both. This replaces LED strip's single o
 A Betaflight build without GPS answers its raw GPS, home and satellite replies and its GPS, rescue and sensor
 writes as unknown commands. GPS configuration and rescue replies here already followed a board's features, and
 other GPS replies and writes now follow GPS switch (D821).
+
+## D824. Smaller start-up reserves on STM32F411 (2026-11-19)
+
+A packed build runs its elaboration code from the bottom of its main stack. It keeps 16 KB above that code for
+elaboration's frames, and 8 KB above unpacking's model for unpacking's frames (D638). On an STM32F411 those reserves
+set main stack size: boot code plus 16 KB passed its 32 KB stack by 6,328 bytes on GEPRCF411SX1280, which then
+overflowed main RAM by 4,136 bytes.
+
+An STM32F411 build now keeps 8 KB for elaboration and 2 KB for unpacking. In Renode, elaboration on
+GEPRCF411SX1280 used 5,876 bytes of stack from start, as much as `stackdepth.py` gives its deepest path, whose
+largest frame is configuration reset's 5,024 bytes. Unpacking's path takes 280 bytes. `stackdepth.py` still checks
+both paths against their room, with its margin, on every build.
+
+GEPRCF411SX1280 now has 2,192 bytes of main RAM free, and DARWINF4SX1280HD 5,896 bytes, against 48. Start path
+keeps its 32 KB stack, with 4 bytes to spare past its margin on GEPRCF411SX1280.
