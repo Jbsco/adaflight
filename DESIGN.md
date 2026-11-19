@@ -16212,3 +16212,10 @@ on. It has no USB mass storage mode either: no `msc` command and no mass storage
 `featuregen.py` now leaves SD card, flash chip and mass storage out of a build without flight log, and command line
 follows a flight log build switch, as it follows SD card (D826). `hostwing.do` checks it on its host image built
 without GPS and flight log.
+
+## D830. Flight log settings only with flight log (2026-11-19)
+
+A Betaflight build without flight log lists 29 settings and four lookup tables fewer: `blackbox_*` settings, SD card
+and flash bus settings, log status element's position and mass storage pin's pull-up. Settings table marks them from
+a settings oracle built without flight log, SD card and flash chip. A setting or table that SD card's view marks as
+well needs both features. Its task list and limits do not change.

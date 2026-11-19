@@ -2651,27 +2651,35 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_SD_Card (S : Setting) return Boolean is
      (S in Sdcard_Detect_Inverted .. Sdcard_Spi_Bus);
 
+   --  Whether a setting exists only in a build with the flight log.
+   function Needs_Blackbox (S : Setting) return Boolean is
+     (S in Blackbox_Sample_Rate .. Blackbox_Baud | Sdcard_Detect_Inverted .. Sdcard_Spi_Bus | Osd_Log_Status_Pos
+        | Usb_Msc_Pin_Pullup .. Flash_Spi_Bus);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
-      SD_Card : Boolean := Adaflight.SD_Build.Enabled) return Boolean is
+      SD_Card : Boolean := Adaflight.SD_Build.Enabled;
+      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
       and then (Servos or else not Needs_Servos (S))
       and then (LED_Strip or else not Needs_LED_Strip (S))
       and then (GPS or else not Needs_GPS (S))
-      and then (SD_Card or else not Needs_SD_Card (S)));
+      and then (SD_Card or else not Needs_SD_Card (S))
+      and then (Blackbox or else not Needs_Blackbox (S)));
 
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
-      SD_Card : Boolean := Adaflight.SD_Build.Enabled) return Boolean is
+      SD_Card : Boolean := Adaflight.SD_Build.Enabled;
+      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled) return Boolean is
      (case T is
          when Table_Ap_Yaw_Mode | Table_Ap_Rx_Loss_Policy | Table_Ap_Geofence_Action
            | Table_Launch_Control_Mode => not Wing,
@@ -2681,7 +2689,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
          when Table_Gps_Provider | Table_Gps_Sbas_Mode | Table_Gps_Ublox_Models
            | Table_Gps_Ublox_Utc_Standard | Table_Gps_Rescue_Sanity_Check
            | Table_Gps_Rescue_Alt_Mode | Table_Poshold_Source => GPS,
-         when Table_Sdcard_Mode => SD_Card,
+         when Table_Sdcard_Mode => SD_Card and then Blackbox,
+         when Table_Blackbox_Device | Table_Blackbox_Mode | Table_Blackbox_Sample_Rate => Blackbox,
          when others => True);
 
    function Describe
