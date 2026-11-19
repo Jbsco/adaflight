@@ -16225,3 +16225,9 @@ well needs both features. Its task list and limits do not change.
 A Betaflight build without flight log answers its flight log write and its flash erase as unknown. Its flight log
 reply here already reported no flight log from a board flag. Both writes now follow flight log switch (D829).
 Betaflight also needs a flash chip for flash erase. Here it still follows flight log alone.
+
+## D832. Flight log modes only with flight log (2026-11-19)
+
+A Betaflight build without flight log offers neither BLACKBOX nor BLACKBOX ERASE mode. A board here offered both in
+every build, and now offers them only with its flight log. Betaflight also needs a flash chip for BLACKBOX ERASE.
+Here it still follows flight log alone.

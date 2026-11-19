@@ -944,8 +944,8 @@ package body Adaflight.STM32.Flight is
       M (Adaflight.Modes.Beeper_On) := True;
       M (Adaflight.Modes.Beeper_Mute) := True;
       M (Adaflight.Modes.LED_Low) := On (Adaflight.Config_Fix.Feature_LED_Strip);
-      M (Adaflight.Modes.Blackbox) := True;
-      M (Adaflight.Modes.Blackbox_Erase) := True;
+      M (Adaflight.Modes.Blackbox) := Adaflight.Build_Features.Blackbox;
+      M (Adaflight.Modes.Blackbox_Erase) := Adaflight.Build_Features.Blackbox;
       M (Adaflight.Modes.Three_D) := On (Adaflight.Config_Fix.Feature_3D);
       M (Adaflight.Modes.Crash_Flip) := Config.Motor_Config.Dev.Motor_Protocol in 5 .. 8;
       M (Adaflight.Modes.Cam_Stab) := On (Servo_Tilt);

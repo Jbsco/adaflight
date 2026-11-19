@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the flight log over its UART1 TCP port: the command line knows no msc
 command and its help lists none, its settings have no flight log, SD card, flash or mass storage setting, its
-resource command neither lists nor takes the mass storage pin, and MSP reports no flight log and answers its write
-and the flash erase as unknown.
+resource command neither lists nor takes the mass storage pin, MSP reports no flight log, answers its write and the
+flash erase as unknown, and offers neither flight log mode.
 
 usage: host-blackbox-off-check.py <host image>"""
 import importlib.util
@@ -33,6 +33,9 @@ def main() -> int:
             hs.check("flight log write is refused as unknown there",
                      hs.msp(sock, 81, (reply or bytes(11))[1:11]) is None)
             hs.check("flash erase is refused as unknown there", hs.msp(sock, 72) is None)
+            names = hs.msp(sock, 116) or b""
+            hs.check("box names offer no flight log mode there",
+                     b"ARM;" in names and b"BLACKBOX" not in names, repr(names[:80]))
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             text = hs.cli(sock, "msc")
