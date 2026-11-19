@@ -32311,11 +32311,13 @@ procedure Vector_Check is
    Settings_Servos : Boolean := True;
    Settings_LED : Boolean := True;
    Settings_GPS : Boolean := True;
+   Settings_SD : Boolean := True;
    Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
    Settings_No_Servo_Count : Natural := 0;
    Settings_No_LED_Count : Natural := 0;
    Settings_No_GPS_Count : Natural := 0;
    Settings_No_LED_GPS_Count : Natural := 0;
+   Settings_No_SD_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
    Oracle_Gyros : Positive range 1 .. 2 := 1;
@@ -32378,7 +32380,7 @@ procedure Vector_Check is
       N : Natural := 0;
    begin
       for T in Lookup_Table loop
-         if Table_In_Build (T, Settings_Wing, Settings_Servos, Settings_LED, Settings_GPS) then
+         if Table_In_Build (T, Settings_Wing, Settings_Servos, Settings_LED, Settings_GPS, Settings_SD) then
             if N = K then
                return T;
             end if;
@@ -32393,7 +32395,9 @@ procedure Vector_Check is
       N : Natural := 0;
    begin
       for U in Lookup_Table'First .. T loop
-         if U /= T and then Table_In_Build (U, Settings_Wing, Settings_Servos, Settings_LED, Settings_GPS) then
+         if U /= T
+           and then Table_In_Build (U, Settings_Wing, Settings_Servos, Settings_LED, Settings_GPS, Settings_SD)
+         then
             N := N + 1;
          end if;
       end loop;
@@ -32416,7 +32420,7 @@ procedure Vector_Check is
          while Settings_Seen <= Setting'Pos (Setting'Last)
            and then not In_Build
              (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan, Settings_Servos, Settings_LED,
-              Settings_GPS)
+              Settings_GPS, Settings_SD)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32431,7 +32435,9 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            if not Settings_Servos then
+            if not Settings_SD then
+               Settings_No_SD_Count := Settings_No_SD_Count + 1;
+            elsif not Settings_Servos then
                Settings_No_Servo_Count := Settings_No_Servo_Count + 1;
             elsif not Settings_LED and then not Settings_GPS then
                Settings_No_LED_GPS_Count := Settings_No_LED_GPS_Count + 1;
@@ -44156,11 +44162,13 @@ procedure Vector_Check is
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
                  or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2" or else Kind = "settingsnoservo"
                  or else Kind = "settingsnoled" or else Kind = "settingsnogps" or else Kind = "settingsnoledgps"
+                 or else Kind = "settingsnosd"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
                   Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
                     or else Kind = "settingsnoservo" or else Kind = "settingsnoled" or else Kind = "settingsnogps"
-                    or else Kind = "settingsnoledgps";
+                    or else Kind = "settingsnoledgps" or else Kind = "settingsnosd";
+                  Settings_SD := Kind /= "settingsnosd";
                   Settings_Servos := Kind /= "settingsnoservo";
                   Settings_LED := Kind /= "settingsnoled" and then Kind /= "settingsnoledgps";
                   Settings_GPS := Kind /= "settingsnogps" and then Kind /= "settingsnoledgps";
@@ -44580,6 +44588,9 @@ begin
    Run (Dir & "/settings-noledgps.csv", "settingsnoledgps");
    Settings_LED := True;
    Settings_GPS := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-nosd.csv", "settingsnosd");
+   Settings_SD := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44671,7 +44682,7 @@ begin
                begin
                   for S in Adaflight.Settings_Table.Setting loop
                      if Adaflight.Settings_Table.In_Build
-                       (S, W, G, P, Servos => True, LED_Strip => True, GPS => True)
+                       (S, W, G, P, Servos => True, LED_Strip => True, GPS => True, SD_Card => True)
                      then
                         Expected := Expected + 1;
                      end if;
@@ -44691,7 +44702,9 @@ begin
       Expected : Natural := 0;
    begin
       for S in Adaflight.Settings_Table.Setting loop
-         if Adaflight.Settings_Table.In_Build (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True) then
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True, SD_Card => True)
+         then
             Expected := Expected + 1;
          end if;
       end loop;
@@ -44705,7 +44718,9 @@ begin
       Expected : Natural := 0;
    begin
       for S in Adaflight.Settings_Table.Setting loop
-         if Adaflight.Settings_Table.In_Build (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True) then
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True, SD_Card => True)
+         then
             Expected := Expected + 1;
          end if;
       end loop;
@@ -44722,7 +44737,7 @@ begin
       begin
          for S in Adaflight.Settings_Table.Setting loop
             if Adaflight.Settings_Table.In_Build
-              (S, False, 1, True, Servos => True, LED_Strip => not Both, GPS => False)
+              (S, False, 1, True, Servos => True, LED_Strip => not Both, GPS => False, SD_Card => True)
             then
                Expected := Expected + 1;
             end if;
@@ -44733,6 +44748,22 @@ begin
          end if;
       end;
    end loop;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => False)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_SD_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_SD_Count'Image & " settings without the SD card of"
+                   & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fatcache.csv", "fatcache");

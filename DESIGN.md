@@ -16188,3 +16188,9 @@ A Betaflight build without SD card, as every 512 KB local build is, has no `sd_i
 in `status`, and has no SD card pins in its resource table. Command line now follows an SD card build switch, as it
 follows servos, LED strip and GPS (D814, D818, D821). `hostwing.do` checks it on its host image built without
 servos, LED strip and SD card.
+
+## D827. SD card settings only with SD card (2026-11-19)
+
+A Betaflight build without SD card also lists three `sdcard_*` settings and SD card mode's lookup table fewer.
+Settings table marks them from a settings oracle built without SD card, through its list of builds that each leave
+one feature out (D819). Its task list and limits do not change.

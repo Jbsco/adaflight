@@ -2647,24 +2647,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         Osd_Gps_Lap_Best3_Pos | Osd_Pos_Hold_Ready_Pos | Osd_Wp_Number_Pos .. Osd_Nav_Map_Min_Scale_M |
         Ap_Waypoint_Arrival_Radius .. Ap_Geofence_Action);
 
+   --  Whether a setting exists only in a build with the SD card.
+   function Needs_SD_Card (S : Setting) return Boolean is
+     (S in Sdcard_Detect_Inverted .. Sdcard_Spi_Bus);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
-      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean is
+      GPS : Boolean := Adaflight.GPS_Build.Enabled;
+      SD_Card : Boolean := Adaflight.SD_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
       and then (Servos or else not Needs_Servos (S))
       and then (LED_Strip or else not Needs_LED_Strip (S))
-      and then (GPS or else not Needs_GPS (S)));
+      and then (GPS or else not Needs_GPS (S))
+      and then (SD_Card or else not Needs_SD_Card (S)));
 
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
-      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean is
+      GPS : Boolean := Adaflight.GPS_Build.Enabled;
+      SD_Card : Boolean := Adaflight.SD_Build.Enabled) return Boolean is
      (case T is
          when Table_Ap_Yaw_Mode | Table_Ap_Rx_Loss_Policy | Table_Ap_Geofence_Action
            | Table_Launch_Control_Mode => not Wing,
@@ -2674,6 +2681,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
          when Table_Gps_Provider | Table_Gps_Sbas_Mode | Table_Gps_Ublox_Models
            | Table_Gps_Ublox_Utc_Standard | Table_Gps_Rescue_Sanity_Check
            | Table_Gps_Rescue_Alt_Mode | Table_Poshold_Source => GPS,
+         when Table_Sdcard_Mode => SD_Card,
          when others => True);
 
    function Describe
