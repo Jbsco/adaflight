@@ -3,6 +3,7 @@ with Adaflight.Adjustments;
 with Adaflight.Timer_Tables;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Reset;
+with Adaflight.GPS_Build;
 with Adaflight.LED_Build;
 with Adaflight.LED_Strip;
 with Adaflight.Maths;
@@ -5367,6 +5368,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
            and then (Adaflight.LED_Build.Enabled
                      or else (Command_Name (P) /= "led" and then Command_Name (P) /= "color"
                               and then Command_Name (P) /= "mode_color"))
+           and then (Adaflight.GPS_Build.Enabled or else Command_Name (P) /= "gpspassthrough")
          then
             Help_Entry
               (Into, Search, Command_Name (P),
@@ -6539,7 +6541,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       Put_Status_Board (Into, C, Env.Status);
       Put_Status_Sensors (Into, C, Env);
-      Put_Status_GPS (Into, C, Ports, Env.GPS_Enabled, Env.GPS);
+      if Adaflight.GPS_Build.Enabled then
+         Put_Status_GPS (Into, C, Ports, Env.GPS_Enabled, Env.GPS);
+      end if;
       Put_Status_Run (Into, C, Env, Sched);
    end Status_Command;
 
@@ -6703,11 +6707,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
          end;
       end loop;
-      Put_Name_Value (Into, Filter, "GPS_ENABLED", (if Env.GPS_Enabled then "ON" else "OFF"));
-      if Env.GPS_Enabled then
-         Put_Name_Value (Into, Filter, "GPS_CONNECTED", (if Env.GPS.State >= GPS_Link.Configure then "ON" else "OFF"));
-         Put_Name_Value (Into, Filter, "GPS_CONFIGURED", (if Env.GPS.State > GPS_Link.Configure then "ON" else "OFF"));
-         Put_Name_Value (Into, Filter, "GPS_VERSION", GPS_Platform_Name (Env.GPS.Platform));
+      if Adaflight.GPS_Build.Enabled then
+         Put_Name_Value (Into, Filter, "GPS_ENABLED", (if Env.GPS_Enabled then "ON" else "OFF"));
+         if Env.GPS_Enabled then
+            Put_Name_Value
+              (Into, Filter, "GPS_CONNECTED", (if Env.GPS.State >= GPS_Link.Configure then "ON" else "OFF"));
+            Put_Name_Value
+              (Into, Filter, "GPS_CONFIGURED", (if Env.GPS.State > GPS_Link.Configure then "ON" else "OFF"));
+            Put_Name_Value (Into, Filter, "GPS_VERSION", GPS_Platform_Name (Env.GPS.Platform));
+         end if;
       end if;
    end Put_Env_Sensors;
 
@@ -8323,6 +8331,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
         or else (Kind in Servo_Command_Word | Servo_Mix_Command_Word and then not Adaflight.Servo_Build.Enabled)
         or else (Kind in Led_Command_Word | Color_Command_Word | Mode_Color_Command_Word
                  and then not Adaflight.LED_Build.Enabled)
+        or else (Kind = Gpspassthrough_Command_Word and then not Adaflight.GPS_Build.Enabled)
       then
          Kind := No_Command;
       end if;
@@ -8421,7 +8430,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             when Escprog_Command_Word =>
                Escprog_Command (Into, Env, Args);
             when Gpspassthrough_Command_Word =>
-               Gpspassthrough_Command (Into);
+               if Adaflight.GPS_Build.Enabled then
+                  Gpspassthrough_Command (Into);
+               end if;
             when Serialpassthrough_Command_Word =>
                Serialpassthrough_Command (Into, C, Args, Ports, Env);
             when Gyroregisters_Command_Word =>

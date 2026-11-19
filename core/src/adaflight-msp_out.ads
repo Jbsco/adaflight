@@ -11,6 +11,7 @@
 --  battery readings and GPS altitude saturate.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.GPS_Build;
 with Adaflight.Stream_Buffers;
 with Adaflight.MSP_Box;
 with Adaflight.Arming;
@@ -254,10 +255,13 @@ package Adaflight.MSP_Out with SPARK_Mode is
                | Pitot_Command | TX_Info_Command | RTC_Command);
 
    --  Whether the reply exists for this state: the ESC data needs the ESC
-   --  sensor or the DShot telemetry. An unsupported reply is an error.
+   --  sensor or the DShot telemetry, and the GPS replies a build with the
+   --  GPS. An unsupported reply is an error.
    function Supported (Command : Unsigned_16; V : Snapshot) return Boolean is
      (Handles (Command)
-      and then (Command /= ESC_Sensor_Data_Command or else V.ESC.ESC_Sensor or else V.ESC.DShot_Telemetry));
+      and then (Command /= ESC_Sensor_Data_Command or else V.ESC.ESC_Sensor or else V.ESC.DShot_Telemetry)
+      and then (Command not in Raw_GPS_Command | Comp_GPS_Command | GPS_SV_Info_Command
+                or else Adaflight.GPS_Build.Enabled));
 
    --  The reply to one of these out messages; any other command, or one not
    --  supported, writes nothing.

@@ -16127,3 +16127,27 @@ barometer tasks in builds without them. A build view of task numbers stays open.
 A Betaflight build without LED strip knows no LED color, LED strip, mode color or LED strip value write, and
 answers each as an unknown command. LED replies here already followed a board's LED strip feature. Those four
 writes now follow LED strip switch (D818) too.
+
+## D821. GPS command and lines only with GPS (2026-11-19)
+
+A Betaflight build without GPS, as an STM32F411 target that names none is, has no `gpspassthrough` command and
+prints no GPS lines in `status` and `env`. An STM32F411 build leaves GPS out (D668), but its command line kept them.
+Command line now follows a GPS build switch, as it follows servos and LED strip (D814, D818), and `hostwing.do`
+checks it on a host image built without GPS, since its build without flight plan runs GPS rescue checks.
+
+## D822. GPS settings only with GPS (2026-11-19)
+
+A Betaflight build without GPS also has no rescue, altitude hold, position hold, plus codes, lap timer or flight
+plan. It lists 93 settings and seven lookup tables fewer: GPS, rescue and hold settings, lap timer and hold
+readiness element positions, and FrSky GPS telemetry settings. Settings table marks them from a settings oracle
+built without GPS.
+
+`scheduler_debug_task` stops at 37 there, four tasks fewer, and at 36 in a build without LED strip as well. Its
+generator now gives a setting's maximum one fall per feature a build leaves out and sums them, and it checks that sum
+against a settings oracle built without both. This replaces LED strip's single override (D819).
+
+## D823. MSP GPS messages only with GPS (2026-11-19)
+
+A Betaflight build without GPS answers its raw GPS, home and satellite replies and its GPS, rescue and sensor
+writes as unknown commands. GPS configuration and rescue replies here already followed a board's features, and
+other GPS replies and writes now follow GPS switch (D821).

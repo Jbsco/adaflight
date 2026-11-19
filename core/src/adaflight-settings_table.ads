@@ -5,6 +5,7 @@ with Interfaces;
 with Adaflight.Plan_Build;
 with Adaflight.Servo_Build;
 with Adaflight.LED_Build;
+with Adaflight.GPS_Build;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
@@ -232,22 +233,26 @@ package Adaflight.Settings_Table with SPARK_Mode is
 
    function Describe
      (S : Setting; Wing : Boolean := False;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Info;
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Info;
 
    --  Whether the multirotor or the wing build has a setting, with the flight plan or without it,
-   --  with servos or without them, with the LED strip or without it, on a board with that many gyros.
+   --  with servos or without them, with the LED strip or without it, with the GPS or without it, on a board with
+   --  that many gyros.
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Boolean;
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table, with servos or without them, with the LED strip
-   --  or without it.
+   --  or without it, with the GPS or without it.
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Boolean;
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean;
 
    --  The longest setting name and the longest value name.
    Max_Name_Length  : constant := 43;

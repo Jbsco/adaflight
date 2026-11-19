@@ -7,7 +7,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       Max : Limit;
    end record with Pack;
 
-   type Limit_Index is range 0 .. 163;
+   type Limit_Index is range 0 .. 165;
    type Group_Index is range 0 .. 82;
 
    Limit_Pairs : constant array (Limit_Index) of Limit_Pair :=
@@ -22,37 +22,37 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       (Min => 0, Max => 3), (Min => 0, Max => 5), (Min => 0, Max => 7), (Min => 0, Max => 8), (Min => 0, Max => 10),
       (Min => 0, Max => 12), (Min => 0, Max => 14), (Min => 0, Max => 15), (Min => 0, Max => 18),
       (Min => 0, Max => 20), (Min => 0, Max => 24), (Min => 0, Max => 30), (Min => 0, Max => 32),
-      (Min => 0, Max => 40), (Min => 0, Max => 41), (Min => 0, Max => 45), (Min => 0, Max => 50),
-      (Min => 0, Max => 60), (Min => 0, Max => 70), (Min => 0, Max => 75), (Min => 0, Max => 80),
-      (Min => 0, Max => 90), (Min => 0, Max => 95), (Min => 0, Max => 100), (Min => 0, Max => 119),
-      (Min => 0, Max => 120), (Min => 0, Max => 150), (Min => 0, Max => 180), (Min => 0, Max => 200),
-      (Min => 0, Max => 250), (Min => 0, Max => 255), (Min => 0, Max => 300), (Min => 0, Max => 359),
-      (Min => 0, Max => 400), (Min => 0, Max => 500), (Min => 0, Max => 1000), (Min => 0, Max => 1700),
-      (Min => 0, Max => 2000), (Min => 0, Max => 3000), (Min => 0, Max => 5000), (Min => 0, Max => 5999),
-      (Min => 0, Max => 10000), (Min => 0, Max => 16000), (Min => 0, Max => 20000), (Min => 0, Max => 30000),
-      (Min => 0, Max => 32000), (Min => 0, Max => 32767), (Min => 0, Max => 60000), (Min => 0, Max => 65535),
-      (Min => 0, Max => 262143), (Min => 0, Max => 4294967295), (Min => 1, Max => 3), (Min => 1, Max => 4),
-      (Min => 1, Max => 5), (Min => 1, Max => 9), (Min => 1, Max => 16), (Min => 1, Max => 18), (Min => 1, Max => 20),
-      (Min => 1, Max => 45), (Min => 1, Max => 50), (Min => 1, Max => 60), (Min => 1, Max => 90),
-      (Min => 1, Max => 100), (Min => 1, Max => 200), (Min => 1, Max => 250), (Min => 1, Max => 255),
-      (Min => 1, Max => 900), (Min => 1, Max => 1000), (Min => 1, Max => 2000), (Min => 1, Max => 10000),
-      (Min => 1, Max => 40000), (Min => 1, Max => 65535), (Min => 2, Max => 16), (Min => 2, Max => 30),
-      (Min => 2, Max => 40), (Min => 2, Max => 50), (Min => 4, Max => 18), (Min => 4, Max => 255),
-      (Min => 5, Max => 30), (Min => 5, Max => 50), (Min => 5, Max => 80), (Min => 5, Max => 100),
-      (Min => 5, Max => 500), (Min => 5, Max => 1000), (Min => 8, Max => 119), (Min => 10, Max => 50),
-      (Min => 10, Max => 70), (Min => 10, Max => 80), (Min => 10, Max => 200), (Min => 10, Max => 250),
-      (Min => 10, Max => 255), (Min => 10, Max => 500), (Min => 10, Max => 1000), (Min => 10, Max => 2000),
-      (Min => 10, Max => 5000), (Min => 20, Max => 100), (Min => 20, Max => 250), (Min => 20, Max => 1000),
-      (Min => 20, Max => 5000), (Min => 25, Max => 100), (Min => 25, Max => 255), (Min => 25, Max => 500),
-      (Min => 30, Max => 200), (Min => 48, Max => 126), (Min => 50, Max => 255), (Min => 50, Max => 498),
-      (Min => 50, Max => 1000), (Min => 50, Max => 2000), (Min => 50, Max => 2500), (Min => 50, Max => 3000),
-      (Min => 50, Max => 10000), (Min => 100, Max => 500), (Min => 100, Max => 1000), (Min => 100, Max => 1300),
-      (Min => 100, Max => 2000), (Min => 100, Max => 4000), (Min => 100, Max => 5000), (Min => 200, Max => 400),
-      (Min => 200, Max => 1000), (Min => 200, Max => 1998), (Min => 200, Max => 32000), (Min => 250, Max => 3000),
-      (Min => 300, Max => 5000), (Min => 500, Max => 1950), (Min => 500, Max => 5000), (Min => 500, Max => 10000),
-      (Min => 600, Max => 6000), (Min => 750, Max => 1500), (Min => 750, Max => 2250), (Min => 1000, Max => 2000),
-      (Min => 1000, Max => 50000), (Min => 1050, Max => 1400), (Min => 1200, Max => 1700), (Min => 1400, Max => 2000),
-      (Min => 1500, Max => 2250));
+      (Min => 0, Max => 36), (Min => 0, Max => 37), (Min => 0, Max => 40), (Min => 0, Max => 41),
+      (Min => 0, Max => 45), (Min => 0, Max => 50), (Min => 0, Max => 60), (Min => 0, Max => 70),
+      (Min => 0, Max => 75), (Min => 0, Max => 80), (Min => 0, Max => 90), (Min => 0, Max => 95),
+      (Min => 0, Max => 100), (Min => 0, Max => 119), (Min => 0, Max => 120), (Min => 0, Max => 150),
+      (Min => 0, Max => 180), (Min => 0, Max => 200), (Min => 0, Max => 250), (Min => 0, Max => 255),
+      (Min => 0, Max => 300), (Min => 0, Max => 359), (Min => 0, Max => 400), (Min => 0, Max => 500),
+      (Min => 0, Max => 1000), (Min => 0, Max => 1700), (Min => 0, Max => 2000), (Min => 0, Max => 3000),
+      (Min => 0, Max => 5000), (Min => 0, Max => 5999), (Min => 0, Max => 10000), (Min => 0, Max => 16000),
+      (Min => 0, Max => 20000), (Min => 0, Max => 30000), (Min => 0, Max => 32000), (Min => 0, Max => 32767),
+      (Min => 0, Max => 60000), (Min => 0, Max => 65535), (Min => 0, Max => 262143), (Min => 0, Max => 4294967295),
+      (Min => 1, Max => 3), (Min => 1, Max => 4), (Min => 1, Max => 5), (Min => 1, Max => 9), (Min => 1, Max => 16),
+      (Min => 1, Max => 18), (Min => 1, Max => 20), (Min => 1, Max => 45), (Min => 1, Max => 50),
+      (Min => 1, Max => 60), (Min => 1, Max => 90), (Min => 1, Max => 100), (Min => 1, Max => 200),
+      (Min => 1, Max => 250), (Min => 1, Max => 255), (Min => 1, Max => 900), (Min => 1, Max => 1000),
+      (Min => 1, Max => 2000), (Min => 1, Max => 10000), (Min => 1, Max => 40000), (Min => 1, Max => 65535),
+      (Min => 2, Max => 16), (Min => 2, Max => 30), (Min => 2, Max => 40), (Min => 2, Max => 50),
+      (Min => 4, Max => 18), (Min => 4, Max => 255), (Min => 5, Max => 30), (Min => 5, Max => 50),
+      (Min => 5, Max => 80), (Min => 5, Max => 100), (Min => 5, Max => 500), (Min => 5, Max => 1000),
+      (Min => 8, Max => 119), (Min => 10, Max => 50), (Min => 10, Max => 70), (Min => 10, Max => 80),
+      (Min => 10, Max => 200), (Min => 10, Max => 250), (Min => 10, Max => 255), (Min => 10, Max => 500),
+      (Min => 10, Max => 1000), (Min => 10, Max => 2000), (Min => 10, Max => 5000), (Min => 20, Max => 100),
+      (Min => 20, Max => 250), (Min => 20, Max => 1000), (Min => 20, Max => 5000), (Min => 25, Max => 100),
+      (Min => 25, Max => 255), (Min => 25, Max => 500), (Min => 30, Max => 200), (Min => 48, Max => 126),
+      (Min => 50, Max => 255), (Min => 50, Max => 498), (Min => 50, Max => 1000), (Min => 50, Max => 2000),
+      (Min => 50, Max => 2500), (Min => 50, Max => 3000), (Min => 50, Max => 10000), (Min => 100, Max => 500),
+      (Min => 100, Max => 1000), (Min => 100, Max => 1300), (Min => 100, Max => 2000), (Min => 100, Max => 4000),
+      (Min => 100, Max => 5000), (Min => 200, Max => 400), (Min => 200, Max => 1000), (Min => 200, Max => 1998),
+      (Min => 200, Max => 32000), (Min => 250, Max => 3000), (Min => 300, Max => 5000), (Min => 500, Max => 1950),
+      (Min => 500, Max => 5000), (Min => 500, Max => 10000), (Min => 600, Max => 6000), (Min => 750, Max => 1500),
+      (Min => 750, Max => 2250), (Min => 1000, Max => 2000), (Min => 1000, Max => 50000), (Min => 1050, Max => 1400),
+      (Min => 1200, Max => 1700), (Min => 1400, Max => 2000), (Min => 1500, Max => 2250));
 
    Group_Numbers : constant array (Group_Index) of Group_Number :=
      (1, 2, 3, 5, 6, 10, 11, 12, 13, 14, 16, 17, 18, 20, 22, 24, 25, 26, 27, 30, 31, 35, 38, 39, 40, 47, 52, 55, 56,
@@ -82,31 +82,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gyro_Lpf_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf1_Static_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf2_Type =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gyro_Lpf_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf2_Static_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Notch1_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Notch1_Cutoff =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Notch2_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Notch2_Cutoff =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Calib_Duration =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 138, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Calib_Noise_Limit =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Offset_Yaw =>
         (Kind => I16, Where => Master, How => Direct, Limits => 8, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -118,7 +118,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On_Auto, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => False),
       Yaw_Spin_Threshold =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 152, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 154, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => False),
       Gyro_Enabled_Bitmask =>
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -133,19 +133,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Direct, Limits => 31, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 71, In_Multirotor => True, In_Wing => True),
       Dyn_Notch_Q =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 98, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 71, In_Multirotor => True, In_Wing => True),
       Dyn_Notch_Min_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 125, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 127, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 71, In_Multirotor => True, In_Wing => True),
       Dyn_Notch_Max_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 147, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 149, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 71, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf1_Dyn_Min_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf1_Dyn_Max_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Gyro_Lpf1_Dyn_Expo =>
         (Kind => U8, Where => Master, How => Direct, Limits => 33, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -157,7 +157,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Acc_Hardware, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 21, In_Multirotor => True, In_Wing => True),
       Acc_Lpf_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 21, In_Multirotor => True, In_Wing => True),
       Acc_Trim_Pitch =>
         (Kind => I16, Where => Master, How => Direct, Limits => 12, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -187,7 +187,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 24, In_Multirotor => True, In_Wing => True),
       Mag_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 24, In_Multirotor => True, In_Wing => True),
       Mag_Spi_Device =>
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -208,7 +208,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 30, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 22, In_Multirotor => True, In_Wing => True),
       Baro_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 22, In_Multirotor => True, In_Wing => True),
       Baro_Hardware =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Baro_Hardware, Count => 0,
@@ -223,19 +223,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 30, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 79, In_Multirotor => True, In_Wing => True),
       Pitot_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 79, In_Multirotor => True, In_Wing => True),
       Pitot_Hardware =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Pitot_Hardware, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 79, In_Multirotor => True, In_Wing => True),
       Mid_Rc =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 161, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 163, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Min_Check =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Max_Check =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rssi_Channel =>
         (Kind => I8, Where => Master, How => Direct, Limits => 37, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -244,7 +244,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rssi_Scale =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rssi_Offset =>
         (Kind => I8, Where => Master, How => Direct, Limits => 17, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -253,31 +253,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rssi_Src_Frame_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rssi_Smoothing =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing_Auto_Factor =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing_Auto_Factor_Throttle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing_Setpoint_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing_Throttle_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rc_Smoothing_Debug_Axis =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Rc_Smoothing_Debug, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Fpv_Mix_Degrees =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Max_Aux_Channels =>
         (Kind => U8, Where => Master, How => Direct, Limits => 35, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -307,13 +307,13 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Airmode_Start_Throttle_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rx_Min_Usec =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Rx_Max_Usec =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Serialrx_Halfduplex =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -322,7 +322,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Msp_Override_Channels_Mask =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 78, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 80, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 15, In_Multirotor => True, In_Wing => True),
       Msp_Override_Failsafe =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -340,13 +340,13 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 45, In_Multirotor => True, In_Wing => True),
       Adc_Vrefint_Calibration =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 45, In_Multirotor => True, In_Wing => True),
       Adc_Tempsensor_Calibration30 =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 45, In_Multirotor => True, In_Wing => True),
       Adc_Tempsensor_Calibration110 =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 45, In_Multirotor => True, In_Wing => True),
       Input_Filtering_Mode =>
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -421,16 +421,16 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Baud_Rate, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 3, In_Multirotor => True, In_Wing => True),
       Max_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Min_Command =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Kv =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 99, Table => Table_Off_On, Count => 0, Min_Length =>
-         0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 101, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Idle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Dshot_Burst =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On_Auto, Count => 0,
@@ -454,46 +454,46 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Motor_Pwm_Protocol, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Pwm_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 149, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 151, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Pwm_Inversion =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Poles =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 106, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Motor_Output_Reordering =>
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 8, Min_Length => 0,
          Write_Once => False, Group => 4, In_Multirotor => True, In_Wing => True),
       Thr_Corr_Value =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 23, In_Multirotor => True, In_Wing => True),
       Thr_Corr_Angle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 95, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 97, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 23, In_Multirotor => True, In_Wing => True),
       Failsafe_Delay =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 92, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Landing_Time =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Switch_Mode =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Failsafe_Switch_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Throttle_Low_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 62, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Procedure =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Failsafe, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Recovery_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 92, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Failsafe_Stick_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 0, In_Multirotor => True, In_Wing => True),
       Align_Board_Roll =>
         (Kind => I16, Where => Master, How => Direct, Limits => 13, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -511,28 +511,28 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Battery_Profile, How => Text, Limits => 27, Table => Table_Off_On, Count => 8,
          Min_Length => 1, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Bat_Capacity =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 72, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 74, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Vbat_Max_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Vbat_Full_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Vbat_Min_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Vbat_Warning_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Battery_Profile, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Cbat_Alert_Percent =>
-        (Kind => U8, Where => Battery_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0,
+        (Kind => U8, Where => Battery_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Force_Battery_Cell_Count =>
         (Kind => U8, Where => Battery_Profile, How => Direct, Limits => 39, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 77, In_Multirotor => True, In_Wing => True),
       Vbat_Hysteresis =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Current_Meter =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Current_Meter, Count => 0,
@@ -541,7 +541,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Voltage_Meter, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Detect_Cell_Voltage =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Use_Vbat_Alerts =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -550,31 +550,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Cutoff_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Display_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Sag_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Ibat_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Duration_For_Warning =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Duration_For_Critical =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 6, In_Multirotor => True, In_Wing => True),
       Vbat_Scale =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 36, In_Multirotor => True, In_Wing => True),
       Vbat_Divider =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 36, In_Multirotor => True, In_Wing => True),
       Vbat_Multiplier =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 36, In_Multirotor => True, In_Wing => True),
       Ibata_Scale =>
         (Kind => I16, Where => Hardware, How => Direct, Limits => 5, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -586,7 +586,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I16, Where => Master, How => Direct, Limits => 5, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 35, In_Multirotor => True, In_Wing => True),
       Ibatv_Offset =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 71, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 73, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 35, In_Multirotor => True, In_Wing => True),
       Battery_Continue =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -598,10 +598,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 40, In_Multirotor => True, In_Wing => True),
       Beeper_Frequency =>
-        (Kind => I16, Where => Hardware, How => Direct, Limits => 71, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => I16, Where => Hardware, How => Direct, Limits => 73, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 40, In_Multirotor => True, In_Wing => True),
       Beeper_Dshot_Beacon_Tone =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 82, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 84, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 39, In_Multirotor => True, In_Wing => True),
       Yaw_Motors_Reversed =>
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -610,10 +610,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Mixer_Type, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Crashflip_Motor_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Crashflip_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Crashflip_Auto_Rearm =>
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -622,64 +622,64 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Rpm_Limit_P =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Rpm_Limit_I =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Rpm_Limit_D =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Rpm_Limit_Value =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 13, In_Multirotor => True, In_Wing => True),
       Three_D_Deadband_Low =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 156, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 158, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Deadband_High =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 163, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 165, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Neutral =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Deadband_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 91, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Limit_Low =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 156, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 158, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Limit_High =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 163, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 165, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Three_D_Switched_Mode =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 17, In_Multirotor => True, In_Wing => True),
       Servo_Center_Pulse =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 26, In_Multirotor => True, In_Wing => True),
       Servo_Pwm_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 134, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 136, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 26, In_Multirotor => True, In_Wing => True),
       Servo_Lowpass_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 62, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 26, In_Multirotor => True, In_Wing => True),
       Tri_Unarmed_Servo =>
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 26, In_Multirotor => True, In_Wing => True),
       Channel_Forwarding_Start =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 105, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 107, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 26, In_Multirotor => True, In_Wing => True),
       Rateprofile_Name =>
         (Kind => U8, Where => Rate_Profile, How => Text, Limits => 27, Table => Table_Off_On, Count => 8, Min_Length
          => 1, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Thr_Mid =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Thr_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Thr_Hover =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Rates_Type =>
         (Kind => U8, Where => Rate_Profile, How => Lookup, Limits => 27, Table => Table_Rates_Type, Count => 0,
@@ -688,70 +688,70 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Rate_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Roll_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Pitch_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Yaw_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Roll_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Pitch_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Yaw_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Roll_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Pitch_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Yaw_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Throttle_Limit_Type =>
         (Kind => U8, Where => Rate_Profile, How => Lookup, Limits => 27, Table => Table_Throttle_Limit_Type, Count =>
          0, Min_Length => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Throttle_Limit_Percent =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 128, Table => Table_Off_On, Count => 0,
+        (Kind => U8, Where => Rate_Profile, How => Direct, Limits => 130, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Roll_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 148, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 150, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Pitch_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 148, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 150, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Yaw_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 148, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => Rate_Profile, How => Direct, Limits => 150, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 7, In_Multirotor => True, In_Wing => True),
       Reboot_Character =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 132, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 134, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 8, In_Multirotor => True, In_Wing => True),
       Serial_Update_Rate_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 145, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 8, In_Multirotor => True, In_Wing => True),
       Imu_Dcm_Kp =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 74, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 76, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 14, In_Multirotor => True, In_Wing => True),
       Imu_Dcm_Ki =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 74, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 76, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 14, In_Multirotor => True, In_Wing => True),
       Small_Angle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 56, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 14, In_Multirotor => True, In_Wing => True),
       Imu_Process_Denom =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 83, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 14, In_Multirotor => True, In_Wing => True),
       Mag_Declination =>
         (Kind => I16, Where => Master, How => Direct, Limits => 12, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 14, In_Multirotor => True, In_Wing => True),
       Auto_Disarm_Delay =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 46, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 48, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 10, In_Multirotor => True, In_Wing => True),
       Gyro_Cal_On_First_Arm =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -778,7 +778,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gps_Ublox_Models, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 19, In_Multirotor => True, In_Wing => True),
       Gps_Update_Rate_Hz =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 86, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 88, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 19, In_Multirotor => True, In_Wing => True),
       Gps_Ublox_Utc_Standard =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gps_Ublox_Utc_Standard, Count => 0,
@@ -808,40 +808,40 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Baud_Rate, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 19, In_Multirotor => True, In_Wing => True),
       Gps_Rescue_Min_Start_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 107, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 109, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Alt_Mode =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gps_Rescue_Alt_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Initial_Climb =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Ascend_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 137, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 139, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Return_Alt =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 112, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 114, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Ground_Speed =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 67, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 69, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Descent_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 111, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 113, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Descend_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 130, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 132, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Sanity_Checks =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Gps_Rescue_Sanity_Check, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Min_Sats =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Allow_Arming_Without_Fix =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Rescue_Yaw_P =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 27, In_Multirotor => True, In_Wing => False),
       Gps_Lap_Timer_Gate_Lat =>
         (Kind => I32, Where => Master, How => Direct, Limits => 1, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -850,106 +850,106 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I32, Where => Master, How => Direct, Limits => 0, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 30, In_Multirotor => True, In_Wing => True),
       Gps_Lap_Timer_Min_Lap_Time_S =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 67, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 69, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 30, In_Multirotor => True, In_Wing => True),
       Gps_Lap_Timer_Gate_Tolerance_M =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 91, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 30, In_Multirotor => True, In_Wing => True),
       Deadband =>
         (Kind => U8, Where => Master, How => Direct, Limits => 41, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 16, In_Multirotor => True, In_Wing => True),
       Yaw_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 16, In_Multirotor => True, In_Wing => True),
       Yaw_Control_Reversed =>
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 16, In_Multirotor => True, In_Wing => True),
       Alt_Hold_Climb_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 31, In_Multirotor => True, In_Wing => False),
       Alt_Hold_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 49, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 31, In_Multirotor => True, In_Wing => False),
       Pos_Hold_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 33, In_Multirotor => True, In_Wing => False),
       Poshold_Position_Source =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Poshold_Source, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 33, In_Multirotor => True, In_Wing => False),
       Poshold_Opticalflow_Quality_Min =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 33, In_Multirotor => True, In_Wing => False),
       Poshold_Opticalflow_Max_Range =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 135, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 137, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 33, In_Multirotor => True, In_Wing => False),
       Launch_Climb_Angle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 44, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 46, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Max_Angle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 109, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 111, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Detect_Accel =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Detect_Velocity =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 141, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Detect_Time =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 121, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 123, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Idle_Throttle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Idle_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 76, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 78, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Throttle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Motor_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 70, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Spinup_Time =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Min_Time =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 76, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 78, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Timeout =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 76, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 78, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Max_Altitude =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_End_Time =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 70, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Abort_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Launch_Abort_Angle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 80, In_Multirotor => False, In_Wing => True),
       Pid_Process_Denom =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 84, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 86, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 41, In_Multirotor => True, In_Wing => True),
       Runaway_Takeoff_Prevention =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 41, In_Multirotor => True, In_Wing => False),
       Runaway_Takeoff_Deactivate_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 141, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 41, In_Multirotor => True, In_Wing => False),
       Runaway_Takeoff_Deactivate_Throttle_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 41, In_Multirotor => True, In_Wing => False),
       Profile_Name =>
         (Kind => U8, Where => PID_Profile, How => Text, Limits => 27, Table => Table_Off_On, Count => 8, Min_Length =>
          1, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf1_Dyn_Min_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf1_Dyn_Max_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf1_Dyn_Expo =>
         (Kind => U8, Where => PID_Profile, How => Direct, Limits => 33, Table => Table_Off_On, Count => 0, Min_Length
@@ -958,64 +958,64 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Dterm_Lpf_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf1_Static_Hz =>
-        (Kind => I16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => I16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf2_Type =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Dterm_Lpf_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Lpf2_Static_Hz =>
-        (Kind => I16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => I16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Notch_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dterm_Notch_Cutoff =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Vbat_Sag_Compensation =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Pid_At_Min_Throttle =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Anti_Gravity_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Anti_Gravity_Cutoff_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 104, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 106, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Anti_Gravity_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acc_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acc_Limit =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Dthreshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 122, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 124, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Gthreshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0,
-         Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
-      Crash_Setpoint_Threshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 136, Table => Table_Off_On, Count => 0,
-         Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
-      Crash_Time =>
         (Kind => U16, Where => PID_Profile, How => Direct, Limits => 145, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
+      Crash_Setpoint_Threshold =>
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 138, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
+      Crash_Time =>
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 147, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Delay =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Recovery_Angle =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 107, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 109, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Recovery_Rate =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 133, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 135, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Crash_Recovery =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Crash_Recovery, Count => 0,
@@ -1030,157 +1030,157 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Iterm_Relax_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Iterm_Relax_Cutoff =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 88, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 90, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Iterm_Windup =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 124, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 126, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Pidsum_Limit =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 141, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Pidsum_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 141, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 143, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Yaw_Lowpass_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Throttle_Boost =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Throttle_Boost_Cutoff =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acro_Trainer_Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 116, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acro_Trainer_Lookahead_Ms =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acro_Trainer_Debug_Axis =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Acro_Trainer_Debug, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Acro_Trainer_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 129, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 131, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       P_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       I_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       F_Pitch =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       P_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       I_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       F_Roll =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       P_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       I_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       F_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       S_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       S_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       S_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Angle_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Angle_Feedforward =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Angle_Feedforward_Smoothing_Ms =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 116, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Angle_Earth_Ref =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Horizon_Level_Strength =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Horizon_Limit_Sticks =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Horizon_Limit_Degrees =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Horizon_Ignore_Sticks =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Horizon_Delay_Ms =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 123, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 125, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Lag_Freq_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Lead_Freq_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Amplitude_Roll =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Amplitude_Pitch =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Amplitude_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Frequency_Start_Deci_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length
-         => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
-      Chirp_Frequency_End_Deci_Hz =>
         (Kind => U16, Where => PID_Profile, How => Direct, Limits => 98, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
+      Chirp_Frequency_End_Deci_Hz =>
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Time_Seconds =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 94, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Chirp_Repeat =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 83, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 85, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Max_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Max_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Max_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Max_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       D_Max_Advance =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Motor_Output_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 91, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Auto_Profile_Cell_Count =>
         (Kind => I8, Where => PID_Profile, How => Direct, Limits => 24, Table => Table_Off_On, Count => 0, Min_Length
@@ -1192,55 +1192,55 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => False),
       Launch_Trigger_Throttle_Percent =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => False),
       Launch_Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 49, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 51, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => False),
       Launch_Control_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => False),
       Thrust_Linear =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Transition =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Averaging =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Feedforward_Averaging, Count =>
          0, Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Smooth_Factor =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 51, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Jitter_Factor =>
         (Kind => U8, Where => PID_Profile, How => Direct, Limits => 38, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Boost =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Max_Rate_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Yaw_Hold_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Feedforward_Yaw_Hold_Time =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dyn_Idle_Min_Rpm =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dyn_Idle_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 95, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dyn_Idle_I_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 95, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dyn_Idle_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Dyn_Idle_Max_Increase =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 121, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Level_Race_Mode =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
@@ -1249,55 +1249,55 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Simplified_Tuning_Pids_Mode,
          Count => 0, Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Master_Multiplier =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_I_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Pi_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_D_Max_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Feedforward_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Pitch_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Pitch_Pi_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Dterm_Filter =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Dterm_Filter_Multiplier =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Simplified_Gyro_Filter =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Simplified_Gyro_Filter_Multiplier =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 5, In_Multirotor => True, In_Wing => True),
       Tpa_Mode =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Tpa_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Tpa_Rate =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Tpa_Breakpoint =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 158, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 160, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Tpa_Low_Rate =>
-        (Kind => I8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => I8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Tpa_Low_Breakpoint =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 158, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 160, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Tpa_Low_Always =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
@@ -1306,25 +1306,25 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Tpa_Speed_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Basic_Delay =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Basic_Gravity =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Adv_Prop_Pitch =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Adv_Mass =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Adv_Drag_K =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Adv_Thrust =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 100, Table => Table_Off_On, Count => 0,
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Max_Voltage =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Speed_Pitch_Offset =>
         (Kind => I16, Where => PID_Profile, How => Direct, Limits => 2, Table => Table_Off_On, Count => 0, Min_Length
@@ -1333,52 +1333,52 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Tpa_Curve_Type, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Curve_Stall_Throttle =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Curve_Pid_Thr0 =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Curve_Pid_Thr100 =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Tpa_Curve_Expo =>
         (Kind => I8, Where => PID_Profile, How => Direct, Limits => 17, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Ez_Landing_Threshold =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Ez_Landing_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 48, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Ez_Landing_Speed =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Landing_Disarm_Threshold =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 58, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U8, Where => PID_Profile, How => Direct, Limits => 60, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => True, In_Wing => True),
       Spa_Roll_Center =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Roll_Width =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Roll_Mode =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Spa_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Pitch_Center =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Pitch_Width =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Pitch_Mode =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Spa_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Yaw_Center =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Yaw_Width =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => PID_Profile, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 9, In_Multirotor => False, In_Wing => True),
       Spa_Yaw_Mode =>
         (Kind => U8, Where => PID_Profile, How => Lookup, Limits => 27, Table => Table_Spa_Mode, Count => 0,
@@ -1441,7 +1441,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Direct, Limits => 28, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Hott_Alarm_Int =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 56, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Pid_In_Tlm =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -1453,28 +1453,28 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 15, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Mah_As_Heading_Divisor =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 73, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 75, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Min_Txbuff =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 91, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 93, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Ext_Status_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Rc_Chan_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Pos_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Extra1_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Extra2_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Mavlink_Extra3_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 20, In_Multirotor => True, In_Wing => True),
       Telemetry_Disabled_Voltage =>
         (Kind => U32, Where => Master, How => Bitset, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -1558,22 +1558,22 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Ledstrip_Color, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Beacon_Period_Ms =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 139, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 141, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Beacon_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Beacon_Armed_Only =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Brightness =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 112, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Rainbow_Delta =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Ledstrip_Rainbow_Freq =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 97, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 99, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 18, In_Multirotor => True, In_Wing => True),
       Transponder_Provider =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Transponder_Provider, Count => 0,
@@ -1594,13 +1594,13 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Unit, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Warn_Bitmask =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Rssi_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Link_Quality_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Rssi_Dbm_Alarm =>
         (Kind => I16, Where => Master, How => Direct, Limits => 14, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -1609,16 +1609,16 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I16, Where => Master, How => Direct, Limits => 19, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Cap_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 72, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 74, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Alt_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 70, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 72, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Distance_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Esc_Temp_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Esc_Rpm_Alarm =>
         (Kind => I16, Where => Master, How => Direct, Limits => 26, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -1627,13 +1627,13 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I16, Where => Master, How => Direct, Limits => 26, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Core_Temp_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Ah_Max_Pit =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Ah_Max_Rol =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Ah_Invert =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -1642,7 +1642,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Osd_Logo_On_Arming, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Logo_On_Arming_Duration =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Arming_Logo =>
         (Kind => U8, Where => Master, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -1654,268 +1654,268 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Tim1 =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 75, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Tim2 =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 75, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Vbat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rssi_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Link_Quality_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Link_Tx_Power_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rssi_Dbm_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rsnr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Tim_1_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Tim_2_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Remaining_Time_Estimate_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Flymode_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Anti_Gravity_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_G_Force_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Throttle_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Vtx_Channel_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Crosshairs_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Ah_Sbar_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Ah_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Current_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Mah_Drawn_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wh_Drawn_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Motor_Diag_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Craft_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pilot_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Speed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Lon_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Lat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Lap_Curr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Lap_Prev_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Lap_Best3_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Gps_Sats_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Home_Dir_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Home_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Flight_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Compass_Bar_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Altitude_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pid_Roll_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pid_Pitch_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pid_Yaw_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Debug_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Debug2_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Power_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pidrate_Profile_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Warnings_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Avg_Cell_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pit_Ang_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rol_Ang_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Battery_Usage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Disarmed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Nheading_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Up_Down_Reference_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Ready_Mode_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pos_Hold_Ready_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Nvario_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Esc_Tmp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Esc_Rpm_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Esc_Rpm_Freq_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rtc_Date_Time_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Adjustment_Range_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Flip_Arrow_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Core_Temp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Log_Status_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Stick_Overlay_Left_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Stick_Overlay_Right_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Stick_Overlay_Radio_Mode =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 83, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Rate_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Pid_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Battery_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Rcchannels_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Camera_Frame_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Efficiency_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Total_Flights_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Aux_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Goggle_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Vtx_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Bitrate_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Delay_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Distance_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Lq_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Goggle_Dvr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Vtx_Dvr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Warnings_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Vtx_Temp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Sys_Fan_Speed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Stat_Bitmask =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Profile =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 80, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 82, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Profile_1_Name =>
         (Kind => U8, Where => Master, How => Text, Limits => 27, Table => Table_Off_On, Count => 16, Min_Length => 1,
@@ -1939,37 +1939,37 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 4, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Camera_Frame_Width =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 102, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 104, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Camera_Frame_Height =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 101, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 103, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Stat_Avg_Cell_Value =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Framerate_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 89, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 91, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Menu_Background =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Cms_Background, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Aux_Channel =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 85, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 87, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Aux_Scale =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 96, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 98, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Aux_Symbol =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Craftname_Msgs =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Lidar_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Custom_Serial_Text_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Custom_Serial_Text_Terminator =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Osd_Custom_Text_Terminator, Count =>
@@ -1981,31 +1981,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Baud_Rate, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 38, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Number_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Current_Lat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Current_Lon_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Current_Alt_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Distance_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Direction_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Next_Number_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Wp_Eta_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       Osd_Nav_Map_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => False),
       Osd_Nav_Map_Mode =>
         (Kind => U8, Where => Master, How => Direct, Limits => 28, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -2014,10 +2014,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Direct, Limits => 28, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 78, In_Multirotor => True, In_Wing => False),
       Osd_Nav_Map_Min_Scale_M =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 127, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 129, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 78, In_Multirotor => True, In_Wing => False),
       Osd_Airspeed =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 82, In_Multirotor => True, In_Wing => True),
       System_Hse_Mhz =>
         (Kind => U8, Where => Hardware, How => Direct, Limits => 40, Table => Table_Off_On, Count => 0, Min_Length =>
@@ -2062,10 +2062,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 37, In_Multirotor => True, In_Wing => True),
       Vtx_Freq =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 69, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 71, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 37, In_Multirotor => True, In_Wing => True),
       Vtx_Pit_Mode_Freq =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 69, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 71, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 37, In_Multirotor => True, In_Wing => True),
       Vtx_Halfduplex =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -2122,7 +2122,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 51, In_Multirotor => True, In_Wing => True),
       Esc_Sensor_Current_Offset =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 71, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 73, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 51, In_Multirotor => True, In_Wing => True),
       Esc_Sensor_Uart =>
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
@@ -2140,7 +2140,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 50, Min_Length => 0,
          Write_Once => False, Group => 55, In_Multirotor => True, In_Wing => True),
       Frsky_X_Rx_Num =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 55, In_Multirotor => True, In_Wing => True),
       Frsky_Spi_A1_Source =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Rx_Frsky_Spi_A1_Source, Count => 0,
@@ -2155,19 +2155,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 53, In_Multirotor => True, In_Wing => True),
       Dashboard_I2c_Addr =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 113, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 115, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 53, In_Multirotor => True, In_Wing => True),
       Camera_Control_Mode =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Camera_Control_Mode, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 54, In_Multirotor => True, In_Wing => True),
       Camera_Control_Ref_Voltage =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 146, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 148, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 54, In_Multirotor => True, In_Wing => True),
       Camera_Control_Key_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 54, In_Multirotor => True, In_Wing => True),
       Camera_Control_Internal_Resistance =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 121, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 123, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 54, In_Multirotor => True, In_Wing => True),
       Camera_Control_Button_Resistance =>
         (Kind => U16, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 5, Min_Length => 0,
@@ -2188,7 +2188,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 76, In_Multirotor => True, In_Wing => True),
       Opticalflow_Rotation =>
-        (Kind => I16, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => I16, Where => Master, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 76, In_Multirotor => True, In_Wing => True),
       Opticalflow_Flip_X =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -2212,13 +2212,13 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Direct, Limits => 33, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 64, In_Multirotor => True, In_Wing => True),
       Rcdevice_Init_Dev_Attempt_Interval =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 68, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 70, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 64, In_Multirotor => True, In_Wing => True),
       Rcdevice_Protocol_Version =>
         (Kind => U8, Where => Master, How => Direct, Limits => 28, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 64, In_Multirotor => True, In_Wing => True),
       Rcdevice_Feature =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 77, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 64, In_Multirotor => True, In_Wing => True),
       Rcdevice_Uart =>
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
@@ -2233,7 +2233,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 65, In_Multirotor => True, In_Wing => True),
       Gyro_1_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 65, In_Multirotor => True, In_Wing => True),
       Gyro_2_Bustype =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Bus_Type, Count => 0, Min_Length
@@ -2245,31 +2245,31 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Hardware, How => Direct, Limits => 29, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 65, In_Multirotor => True, In_Wing => True),
       Gyro_2_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Limits => 53, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Hardware, How => Direct, Limits => 55, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 65, In_Multirotor => True, In_Wing => True),
       I2c1_Pullup =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       I2c1_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 144, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       I2c2_Pullup =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       I2c2_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 144, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       I2c3_Pullup =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       I2c3_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0, Min_Length
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 144, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 52, In_Multirotor => True, In_Wing => True),
       Mco2_On_Pc9 =>
         (Kind => U8, Where => Hardware, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 66, In_Multirotor => True, In_Wing => True),
       Spektrum_Spi_Protocol =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 67, In_Multirotor => True, In_Wing => True),
       Spektrum_Spi_Mfg_Id =>
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 4, Min_Length => 0,
@@ -2284,19 +2284,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Freq_Domain, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 72, In_Multirotor => True, In_Wing => True),
       Expresslrs_Model_Id =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 72, In_Multirotor => True, In_Wing => True),
       Scheduler_Relax_Rx =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 73, In_Multirotor => True, In_Wing => True),
       Scheduler_Relax_Osd =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 73, In_Multirotor => True, In_Wing => True),
       Scheduler_Debug_Task =>
-        (Kind => U16, Where => Hardware, How => Direct, Limits => 43, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Hardware, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 73, In_Multirotor => True, In_Wing => True),
       Cpu_Late_Limit_Permille =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 73, In_Multirotor => True, In_Wing => True),
       Serialmsp_Halfduplex =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
@@ -2329,19 +2329,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 3, Min_Length => 0,
          Write_Once => False, Group => 68, In_Multirotor => True, In_Wing => True),
       Rpm_Filter_Q =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 150, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 152, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 68, In_Multirotor => True, In_Wing => True),
       Rpm_Filter_Min_Hz =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 131, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 133, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 68, In_Multirotor => True, In_Wing => True),
       Rpm_Filter_Fade_Range_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 64, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 66, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 68, In_Multirotor => True, In_Wing => True),
       Rpm_Filter_Lpf_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 140, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 142, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 68, In_Multirotor => True, In_Wing => True),
       Flysky_Spi_Tx_Id =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 57, In_Multirotor => True, In_Wing => True),
       Flysky_Spi_Rf_Channels =>
         (Kind => U8, Where => Master, How => List, Limits => 27, Table => Table_Off_On, Count => 16, Min_Length => 0,
@@ -2350,19 +2350,19 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Direct, Limits => 25, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Stats_Total_Flights =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Stats_Total_Time_S =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Stats_Total_Dist_M =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Stats_Save_Move_Limit =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 61, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Stats_Mah_Used =>
-        (Kind => U32, Where => Master, How => Direct, Limits => 79, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U32, Where => Master, How => Direct, Limits => 81, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 69, In_Multirotor => True, In_Wing => True),
       Craft_Name =>
         (Kind => U8, Where => Master, How => Text, Limits => 27, Table => Table_Off_On, Count => 16, Min_Length => 1,
@@ -2374,178 +2374,178 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Lookup, Limits => 27, Table => Table_Position_Alt_Source, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 28, In_Multirotor => True, In_Wing => True),
       Altitude_Prefer_Baro =>
-        (Kind => I8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => I8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 28, In_Multirotor => True, In_Wing => True),
       Altitude_Lpf =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 123, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 125, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 28, In_Multirotor => True, In_Wing => True),
       Rangefinder_Max_Range_Cm =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 135, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 137, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 28, In_Multirotor => True, In_Wing => True),
       Altitude_D_Lpf =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 123, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 125, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 28, In_Multirotor => True, In_Wing => True),
       Ap_Landing_Altitude_M =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Hover_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 67, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Throttle_Min =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 160, Table => Table_Off_On, Count => 0, Min_Length =>
-         0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
-      Ap_Throttle_Max =>
         (Kind => U16, Where => Master, How => Direct, Limits => 162, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
+      Ap_Throttle_Max =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 164, Table => Table_Off_On, Count => 0, Min_Length =>
+         0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Altitude_P =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Altitude_I =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Altitude_D =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Altitude_A =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Altitude_F =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_P =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_I =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_D =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_A =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_F =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Position_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 114, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 116, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Stop_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Max_Angle =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 115, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Max_Yaw_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 118, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Yaw_P =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 57, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 59, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Velocity_Drag_Coeff =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 54, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Max_Velocity =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 145, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 147, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Waypoint_Arrival_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 145, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 147, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Waypoint_Hold_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 135, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 137, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Stick_Deadband =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Throttle_Deadband =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 63, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 65, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Yaw_Mode =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Ap_Yaw_Mode, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Min_Forward_Velocity =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 122, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Corner_Speed =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 136, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 138, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Corner_Delta_V =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 144, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 146, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Decel =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 126, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 128, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Accel =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 126, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 128, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Carrot_Lead_Time =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 103, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 105, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Carrot_Lead_Max =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 155, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 157, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Nav_Preturn_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 153, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 155, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Velocity_Buildup_Max_Pitch =>
         (Kind => U8, Where => Master, How => Direct, Limits => 38, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Max_Turn_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 90, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 92, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Hold_Orbit_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 151, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 153, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Hold_Figure8_Width =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 154, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 156, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Descent_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Detection_Time =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 108, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Spiral_Enable =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Spiral_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 136, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 138, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Spiral_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 87, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 89, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Velocity_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 117, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U8, Where => Master, How => Direct, Limits => 119, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Landing_Throttle_Threshold =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 120, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 122, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Enable =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Period =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 110, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 112, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Min_Lookahead =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 145, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 147, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Max_Lookahead =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 161, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Max_Cross_Track_Error =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 159, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 161, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_L1_Turn_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 50, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 52, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Min_Nav_Altitude_M =>
-        (Kind => U8, Where => Master, How => Direct, Limits => 45, Table => Table_Off_On, Count => 0, Min_Length => 0,
+        (Kind => U8, Where => Master, How => Direct, Limits => 47, Table => Table_Off_On, Count => 0, Min_Length => 0,
          Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Rx_Loss_Policy =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Ap_Rx_Loss_Policy, Count => 0,
          Min_Length => 0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Max_Distance_From_Home =>
-        (Kind => U16, Where => Master, How => Direct, Limits => 70, Table => Table_Off_On, Count => 0, Min_Length =>
+        (Kind => U16, Where => Master, How => Direct, Limits => 72, Table => Table_Off_On, Count => 0, Min_Length =>
          0, Write_Once => False, Group => 32, In_Multirotor => True, In_Wing => False),
       Ap_Geofence_Action =>
         (Kind => U8, Where => Master, How => Lookup, Limits => 27, Table => Table_Ap_Geofence_Action, Count => 0,
@@ -2617,9 +2617,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         (Kind => I8, Where => Master, How => Identifier, Limits => 27, Table => Table_Off_On, Count => 0, Min_Length
          => 0, Write_Once => False, Group => 75, In_Multirotor => True, In_Wing => True));
 
-   --  The limits of a setting in a build, where the wing build and a build without the LED strip have others.
-   function Limits_Of (S : Setting; Wing : Boolean; LED_Strip : Boolean) return Limit_Index is
-     (if not LED_Strip and then S = Scheduler_Debug_Task then 42
+   --  The limits of a setting in a build, where the wing build and a build without the LED strip or the GPS have
+   --  others.
+   function Limits_Of (S : Setting; Wing : Boolean; LED_Strip : Boolean; GPS : Boolean) return Limit_Index is
+     (if S = Scheduler_Debug_Task then (if LED_Strip then (if GPS then 45 else 43) else (if GPS then 44 else 42))
       elsif Wing then (case S is when Tpa_Low_Rate => 15, when others => Infos (S).Limits)
       else Infos (S).Limits);
 
@@ -2639,34 +2640,49 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_LED_Strip (S : Setting) return Boolean is
      (S in Ledstrip_Visual_Beeper .. Ledstrip_Rainbow_Freq);
 
+   --  Whether a setting exists only in a build with the GPS.
+   function Needs_GPS (S : Setting) return Boolean is
+     (S in Blackbox_Disable_Gps | Gps_Provider .. Gps_Lap_Timer_Gate_Tolerance_M | Alt_Hold_Climb_Rate ..
+        Poshold_Opticalflow_Max_Range | Frsky_Default_Lat .. Frsky_Unit | Osd_Gps_Lap_Curr_Pos ..
+        Osd_Gps_Lap_Best3_Pos | Osd_Pos_Hold_Ready_Pos | Osd_Wp_Number_Pos .. Osd_Nav_Map_Min_Scale_M |
+        Ap_Waypoint_Arrival_Radius .. Ap_Geofence_Action);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Boolean is
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
       and then (Servos or else not Needs_Servos (S))
-      and then (LED_Strip or else not Needs_LED_Strip (S)));
+      and then (LED_Strip or else not Needs_LED_Strip (S))
+      and then (GPS or else not Needs_GPS (S)));
 
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Boolean is
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Boolean is
      (case T is
          when Table_Ap_Yaw_Mode | Table_Ap_Rx_Loss_Policy | Table_Ap_Geofence_Action
            | Table_Launch_Control_Mode => not Wing,
          when Table_Tpa_Curve_Type | Table_Tpa_Speed_Type | Table_Yaw_Type => Wing,
          when Table_Gimbal_Mode => Servos,
          when Table_Rgb_Grb | Table_Led_Profile | Table_Ledstrip_Color => LED_Strip,
+         when Table_Gps_Provider | Table_Gps_Sbas_Mode | Table_Gps_Ublox_Models
+           | Table_Gps_Ublox_Utc_Standard | Table_Gps_Rescue_Sanity_Check
+           | Table_Gps_Rescue_Alt_Mode | Table_Poshold_Source => GPS,
          when others => True);
 
    function Describe
      (S : Setting; Wing : Boolean := False;
-      LED_Strip : Boolean := Adaflight.LED_Build.Enabled) return Info is
+      LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
+      GPS : Boolean := Adaflight.GPS_Build.Enabled) return Info is
      (Kind => Infos (S).Kind, Where => Infos (S).Where, How => Infos (S).How,
-      Min => Limit_Pairs (Limits_Of (S, Wing, LED_Strip)).Min, Max => Limit_Pairs (Limits_Of (S, Wing, LED_Strip)).Max,
+      Min => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS)).Min,
+      Max => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS)).Max,
       Table => Infos (S).Table, Count => Infos (S).Count, Min_Length => Infos (S).Min_Length,
       Write_Once => Infos (S).Write_Once, Group => Group_Numbers (Infos (S).Group));
 
