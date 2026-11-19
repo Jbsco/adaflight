@@ -16081,3 +16081,13 @@ board's features. `target.do` refuses an image built without servos that still l
 `hostwing.do` checks those commands on a host image built without servos.
 
 DARWINF4SX1280HD goes from 2,893 bytes over its flash to 679 bytes free.
+
+## D815. Servo settings only with servos (2026-11-18)
+
+A Betaflight build without servos lists seven settings fewer: `servo_center_pulse`, `servo_pwm_rate`,
+`servo_lowpass_hz`, `tri_unarmed_servo`, `channel_forwarding_start`, `gimbal_mode` and `blackbox_disable_servos`.
+It also has no gimbal mode lookup table, and its command line answers those names as unknown.
+
+Settings table now marks them, read from a settings oracle built without servos. Its build tests take a servo flag
+whose default is an image's servo switch (D814), so `get`, `set`, `dump`, `diff` and MSP setting messages by name
+follow that switch. Stored values keep their place in configuration, and every wing build has servos.

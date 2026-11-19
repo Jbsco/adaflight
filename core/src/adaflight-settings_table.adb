@@ -2630,18 +2630,26 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_Second_Gyro (S : Setting) return Boolean is
      (S in Gyro_Enabled_Bitmask .. Gyro_2_Enabled | Gyro_2_Bustype .. Gyro_2_I2c_Address);
 
+   --  Whether a setting exists only in a build with servos.
+   function Needs_Servos (S : Setting) return Boolean is
+     (S in Blackbox_Disable_Servos | Gimbal_Mode | Servo_Center_Pulse .. Channel_Forwarding_Start);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
-      Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled) return Boolean is
+      Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
+      Servos : Boolean := Adaflight.Servo_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
-      and then (Gyros > 1 or else not Needs_Second_Gyro (S)));
+      and then (Gyros > 1 or else not Needs_Second_Gyro (S))
+      and then (Servos or else not Needs_Servos (S)));
 
-   function Table_In_Build (T : Lookup_Table; Wing : Boolean) return Boolean is
+   function Table_In_Build
+     (T : Lookup_Table; Wing : Boolean; Servos : Boolean := Adaflight.Servo_Build.Enabled) return Boolean is
      (case T is
          when Table_Ap_Yaw_Mode | Table_Ap_Rx_Loss_Policy | Table_Ap_Geofence_Action
            | Table_Launch_Control_Mode => not Wing,
          when Table_Tpa_Curve_Type | Table_Tpa_Speed_Type | Table_Yaw_Type => Wing,
+         when Table_Gimbal_Mode => Servos,
          when others => True);
 
    function Describe (S : Setting; Wing : Boolean := False) return Info is

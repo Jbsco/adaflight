@@ -32268,7 +32268,9 @@ procedure Vector_Check is
    --  build's file listed.
    Settings_Wing  : Boolean := False;
    Settings_Plan  : Boolean := True;
+   Settings_Servos : Boolean := True;
    Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
+   Settings_No_Servo_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
    Oracle_Gyros : Positive range 1 .. 2 := 1;
@@ -32331,7 +32333,7 @@ procedure Vector_Check is
       N : Natural := 0;
    begin
       for T in Lookup_Table loop
-         if Table_In_Build (T, Settings_Wing) then
+         if Table_In_Build (T, Settings_Wing, Settings_Servos) then
             if N = K then
                return T;
             end if;
@@ -32346,7 +32348,7 @@ procedure Vector_Check is
       N : Natural := 0;
    begin
       for U in Lookup_Table'First .. T loop
-         if U /= T and then Table_In_Build (U, Settings_Wing) then
+         if U /= T and then Table_In_Build (U, Settings_Wing, Settings_Servos) then
             N := N + 1;
          end if;
       end loop;
@@ -32367,7 +32369,8 @@ procedure Vector_Check is
    begin
       if Str (1) = "setting" then
          while Settings_Seen <= Setting'Pos (Setting'Last)
-           and then not In_Build (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan)
+           and then not In_Build
+             (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan, Settings_Servos)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32382,8 +32385,12 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) :=
-              Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) + 1;
+            if Settings_Servos then
+               Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) :=
+                 Settings_Count (Settings_Wing, Settings_Plan, Oracle_Gyros) + 1;
+            else
+               Settings_No_Servo_Count := Settings_No_Servo_Count + 1;
+            end if;
             Record_Text ("settings.name", Str (2), Name (S));
             Record_Text ("settings.type", Str (3), Trim (Kind_Names (D.Kind)));
             Record_Text ("settings.scope", Str (4), Trim (Scope_Names (D.Where)));
@@ -44092,10 +44099,12 @@ procedure Vector_Check is
                elsif Kind = "gyrodev" then
                   Check_Gyro_Device_Line;
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
-                 or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2"
+                 or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2" or else Kind = "settingsnoservo"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
-                  Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2";
+                  Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
+                    or else Kind = "settingsnoservo";
+                  Settings_Servos := Kind /= "settingsnoservo";
                   Oracle_Gyros := (if Kind = "settingsgyro2" then 2 else 1);
                   Check_Settings_Line;
                elsif Kind = "confgroups" or else Kind = "confgroupswing" or else Kind = "confgroupsgyro2" then
@@ -44500,6 +44509,9 @@ begin
    Defaults_Seen := 0;
    Run (Dir & "/settings-gyro2.csv", "settingsgyro2");
    Run (Dir & "/confgroups-gyro2.csv", "confgroupsgyro2");
+   Settings_Seen := 0;
+   Run (Dir & "/settings-noservo.csv", "settingsnoservo");
+   Settings_Servos := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44590,7 +44602,7 @@ begin
                   Expected : Natural := 0;
                begin
                   for S in Adaflight.Settings_Table.Setting loop
-                     if Adaflight.Settings_Table.In_Build (S, W, G, P) then
+                     if Adaflight.Settings_Table.In_Build (S, W, G, P, Servos => True) then
                         Expected := Expected + 1;
                      end if;
                   end loop;
@@ -44605,6 +44617,20 @@ begin
          end loop;
       end loop;
    end loop;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build (S, False, 1, True, Servos => False) then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_Servo_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_Servo_Count'Image & " settings without servos of"
+                   & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fatcache.csv", "fatcache");
