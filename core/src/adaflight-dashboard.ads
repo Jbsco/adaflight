@@ -58,9 +58,14 @@ package Adaflight.Dashboard with SPARK_Mode is
    subtype Packet_Log is String (1 .. Log_Length);
    type Debug_Values is array (0 .. 3) of Integer_16;
 
-   --  A task's statistics as the tasks page prints them.
+   --  A task's number in the build's task list, in the byte after its
+   --  enabled flag, so a row keeps its size.
+   type Task_Number is range 0 .. Scheduler.Task_Count with Size => 8;
+
+   --  A task's statistics as the tasks page prints them, with its number.
    type Task_Row is record
       Enabled           : Boolean := False;
+      Number            : Task_Number := 0;
       Max_Exec_Us       : Unsigned_32 := 0;
       Average_Exec_10th : Unsigned_32 := 0;
       Max_Load_10th     : Unsigned_32 := 0;

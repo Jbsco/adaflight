@@ -16166,3 +16166,18 @@ both paths against their room, with its margin, on every build.
 
 GEPRCF411SX1280 now has 2,192 bytes of main RAM free, and DARWINF4SX1280HD 5,896 bytes, against 48. Start path
 keeps its 32 KB stack, with 4 bytes to spare past its margin on GEPRCF411SX1280.
+
+## D825. Task numbers by build (2026-11-19)
+
+Betaflight's task list names a task only when a build has its feature, so a task's number follows a build's
+features. Its `tasks` command prints that number, and scheduler debug matches it against `scheduler_debug_task`.
+Core numbered all 44 tasks in one fixed order, which matched an oracle built with every task but no board build. A
+local Betaflight build has no BST, stack check or DroneCAN task, and a 512 KB build has fewer tasks again.
+
+Task start-up now derives a build's task set from build options alone, and scheduler numbers a task by the built
+tasks before it, for `tasks`, scheduler and determinism debug and dashboard's task page. A board passes options
+that Betaflight's defines give it: features it builds, altitude and position hold at 1024 KB or with GPS on a multirotor, RC stats at
+1024 KB, camera control with a pin, menus for CMS. Vectors read task lists from settings oracle builds with every
+task, a local feature set, and without LED strip, GPS or both.
+
+`scheduler_debug_task`'s maximum still follows only LED strip's and GPS's falls (D822), not other features' tasks.

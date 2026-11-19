@@ -32263,6 +32263,46 @@ procedure Vector_Check is
       end loop;
    end Check_Gyro_Device_Line;
 
+   --  Task numbers by build: the options of the build a line names, the
+   --  tasks they build, and each task's number among them.
+   Task_Build_Options : Adaflight.Task_Init.Options;
+   Task_Build_State   : Adaflight.Scheduler.State;
+
+   procedure Check_Task_Number_Line is
+      use Adaflight.Scheduler;
+      function B (I : Positive) return Boolean is (Int (I) /= 0);
+   begin
+      if Str (1) = "taskopts" then
+         Task_Build_Options :=
+           (Accel => B (3), Beeper => B (4), GPS => B (5), GPS_Rescue => B (6), Alt_Hold => B (7), Pos_Hold => B (8),
+            Mag => B (9), Baro => B (10), Rangefinder => B (11), Optical_Flow => B (12), Pitot => B (13),
+            Dashboard => B (14), Telemetry => B (15), LED_Strip => B (16), Transponder => B (17),
+            Stack_Check => B (18), OSD => B (19), BST => B (20), ESC_Sensor => B (21), CMS => B (22),
+            VTX_Control => B (23), Camera_Control => B (24), RC_Device => B (25), ADC_Internal => B (26),
+            PINIO_Box => B (27), CRSF_V3 => B (28), RC_Stats => B (29), Gimbal => B (30), OSD_Custom_Text => B (31),
+            DroneCAN => B (32), Sag_Compensation => B (33), MSP_Display_Port => B (34), VTX_Driver => B (35));
+         Set_Built (Task_Build_State, Adaflight.Task_Init.Built_Tasks (Task_Build_Options));
+      elsif Str (1) = "tasknum" then
+         declare
+            T : constant Task_Id := Task_Id'Value (Str (3));
+         begin
+            Record_Int ("tasknum.built", 1, (if Task_Build_State.Built (T) then 1 else 0));
+            Record_Int ("tasknum.number", Int (4), Integer_64 (Build_Number (Task_Build_State, T)));
+         end;
+      elsif Str (1) = "taskcount" then
+         declare
+            N : Natural := 0;
+         begin
+            for T in Task_Id loop
+               if Task_Build_State.Built (T) then
+                  N := N + 1;
+               end if;
+            end loop;
+            Record_Int ("tasknum.count", Int (3), Integer_64 (N));
+         end;
+      end if;
+   end Check_Task_Number_Line;
+
    Settings_Seen  : Natural := 0;
    --  The build the settings and defaults files name, and the settings each
    --  build's file listed.
@@ -34819,8 +34859,8 @@ procedure Vector_Check is
          R.Yaw := Interfaces.Integer_16 (Int (14));
       elsif Name = "dtask" then
          R.Tasks (Adaflight.Scheduler.Task_Id'Val (Int (3))) :=
-           (Enabled => Int (4) /= 0, Max_Exec_Us => U32 (5), Average_Exec_10th => U32 (6),
-            Max_Load_10th => U32 (7), Average_Load_10th => U32 (8));
+           (Enabled => Int (4) /= 0, Number => Adaflight.Dashboard.Task_Number (Int (3)), Max_Exec_Us => U32 (5),
+            Average_Exec_10th => U32 (6), Max_Load_10th => U32 (7), Average_Load_10th => U32 (8));
       elsif Name = "dbb" then
          R.Blackbox_Working := Int (3) /= 0;
          R.Blackbox_Device := Interfaces.Unsigned_8 (Int (4));
@@ -44109,6 +44149,8 @@ procedure Vector_Check is
                   Check_CX10_Line;
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
+               elsif Kind = "tasknum" then
+                  Check_Task_Number_Line;
                elsif Kind = "gyrodev" then
                   Check_Gyro_Device_Line;
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
@@ -44510,6 +44552,7 @@ begin
    Run (Dir & "/cx10.csv", "cx10");
    Run (Dir & "/ackrx.csv", "ackrx");
    Run (Dir & "/gyrodev.csv", "gyrodev");
+   Run (Dir & "/tasknum.csv", "tasknum");
    Run (Dir & "/settings.csv", "settings");
    Run (Dir & "/confgroups.csv", "confgroups");
    Settings_Seen := 0;

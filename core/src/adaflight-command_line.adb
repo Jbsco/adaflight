@@ -8212,7 +8212,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      Frequency := Integer_64 (Maths.Round_Half_Even (1.0e7 / Float (T.Average_Delta_10th)));
                   end if;
                   Load_Sum := Load_Sum + Average_Load;
-                  Put (Into, Two_Digits (Scheduler.Task_Id'Pos (Id)));
+                  Put (Into, Two_Digits (Scheduler.Build_Number (Sched, Id)));
                   Put (Into, " - (");
                   Put (Into, CLI_Text.Right_Justified (Scheduler.Name (Id), 15));
                   Put (Into, ") ");

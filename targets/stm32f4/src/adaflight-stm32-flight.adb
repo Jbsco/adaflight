@@ -1331,6 +1331,22 @@ package body Adaflight.STM32.Flight is
          Dashboard => Adaflight.Build_Features.Dashboard,
          Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0,
          Stack_Check => Adaflight.Build_Features.Stack_Check, others => False);
+      --  The options the build has, as the reference's defines give them for
+      --  this board, which number the tasks.
+      Holds : constant Boolean :=
+        Adaflight.Build_Features.Flash_KB >= 1024
+        or else (Adaflight.Build_Features.GPS
+                 and then (Adaflight.Build_Features.Flight_Plan or else not Adaflight.Build_Features.Wing));
+      Build   : constant Adaflight.Task_Init.Options :=
+        (GPS | GPS_Rescue => Adaflight.Build_Features.GPS, Alt_Hold | Pos_Hold => Holds,
+         Mag => Adaflight.Build_Features.Compass, Baro => Adaflight.Build_Features.Barometer,
+         Rangefinder => Adaflight.Build_Features.Rangefinder, Optical_Flow => Adaflight.Build_Features.Optical_Flow,
+         Pitot => Adaflight.Build_Features.Pitot, Dashboard => Adaflight.Build_Features.Dashboard,
+         LED_Strip => Adaflight.Build_Features.LED_Strip, Transponder => Adaflight.Build_Features.Transponder,
+         Stack_Check => Adaflight.Build_Features.Stack_Check, CMS => Adaflight.Build_Features.Menus,
+         Camera_Control => Adaflight.Board.Camera_Control_Tag /= 0,
+         RC_Stats => Adaflight.Build_Features.Flash_KB >= 1024,
+         Gimbal => Adaflight.Build_Features.Gimbal, BST | DroneCAN => False, others => True);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
       Feature_Optical_Flow : constant Unsigned_32 := 16#0000_0100#;
@@ -1380,7 +1396,7 @@ package body Adaflight.STM32.Flight is
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
-      Adaflight.Task_Init.Init (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Options, Inputs);
+      Adaflight.Task_Init.Init (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Options, Inputs, Build);
       if Adaflight.STM32.Rangefinder.Detected then
          Scheduler.Reschedule
            (Sched, Sched_Settings, Scheduler.Rangefinder,
@@ -4568,7 +4584,8 @@ package body Adaflight.STM32.Flight is
             Info : constant Scheduler.Task_Info := Scheduler.Info (Sched, Id);
          begin
             R.Tasks (Id) :=
-              (Enabled => Info.Enabled, Max_Exec_Us => Info.Max_Exec_Us, Average_Exec_10th => Info.Average_Exec_10th,
+              (Enabled => Info.Enabled, Number => Adaflight.Dashboard.Task_Number (Scheduler.Build_Number (Sched, Id)),
+               Max_Exec_Us => Info.Max_Exec_Us, Average_Exec_10th => Info.Average_Exec_10th,
                Max_Load_10th => Info.Max_Load_10th, Average_Load_10th => Info.Average_Load_10th);
          end;
       end loop;

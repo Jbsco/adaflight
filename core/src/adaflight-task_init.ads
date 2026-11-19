@@ -93,8 +93,15 @@ package Adaflight.Task_Init with SPARK_Mode is
 
    --  The scheduler started, then each task enabled and its period set as
    --  the build, the features, the sensors and the settings call for.
+   --  The tasks a build with these options has, as the reference's task
+   --  list names them: the position task with a barometer, GPS, rangefinder
+   --  or optical flow, both magnetometer tasks with the magnetometer, and the
+   --  speed negotiation task with CRSF version 3.
+   function Built_Tasks (O : Options) return Adaflight.Scheduler.Task_Set;
+
+   --  Build gives the options the build has, which number the tasks.
    procedure Init
      (S : out Adaflight.Scheduler.State; C : Adaflight.Scheduler.Settings; Now_Cycles : Adaflight.Scheduler.Cycles;
-      O : Options; I : Inputs);
+      O : Options; I : Inputs; Build : Options := (others => <>));
 
 end Adaflight.Task_Init;

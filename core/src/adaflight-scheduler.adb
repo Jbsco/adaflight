@@ -164,6 +164,24 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- Info --
    ----------
 
+   procedure Set_Built (S : in out State; Built : Task_Set) is
+   begin
+      S.Built := Built;
+   end Set_Built;
+
+   function Build_Number (S : State; Id : Task_Id) return Natural is
+      N : Natural := 0;
+   begin
+      for T in Task_Id'First .. Id loop
+         pragma Loop_Invariant (N <= Task_Id'Pos (T));
+         exit when T = Id;
+         if S.Built (T) then
+            N := N + 1;
+         end if;
+      end loop;
+      return N;
+   end Build_Number;
+
    function Info (S : State; Id : Task_Id) return Task_Info is
       T             : Task_State renames S.Tasks (Id);
       Average_Delta : constant Unsigned_32 := T.Moving_Sum_Delta / Moving_Sum_Count;
@@ -437,7 +455,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
       end if;
       S.Tasks (Id).Total_Exec_Us := S.Tasks (Id).Total_Exec_Us + Duration;
       S.Tasks (Id).Run_Count := S.Tasks (Id).Run_Count + 1;
-      if Task_Id'Pos (Id) = Natural (C.Debug_Task) then
+      if Build_Number (S, Id) = Natural (C.Debug_Task) then
          declare
             Average_Delta : constant Unsigned_32 := S.Tasks (Id).Moving_Sum_Delta / Moving_Sum_Count;
             Estimated     : constant Unsigned_32 := S.Tasks (Id).Exec_Time_Us;
@@ -747,7 +765,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
       Overdue : constant Integer_32 := Clock.Elapsed (Now_Cycles, S.Pass.Anticipated_End);
    begin
       if Overdue > 0 and then S.Current /= Serial then
-         Set_Debug (S, C, Determinism_Debug, 1, Interfaces.Integer_64 (Task_Id'Pos (S.Current)));
+         Set_Debug (S, C, Determinism_Debug, 1, Interfaces.Integer_64 (Build_Number (S, S.Current)));
          Set_Debug (S, C, Determinism_Debug, 2, Interfaces.Integer_64 (Tenths_Us (C, Overdue)));
          S.Tasks (S.Current).Late_Count := S.Tasks (S.Current).Late_Count + 1;
          S.Late_Task_Count := S.Late_Task_Count + 1;
