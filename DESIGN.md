@@ -16363,3 +16363,10 @@ A Betaflight build without race transponder, as a 512 KB build is, has no transp
 build here left the transponder out at 512 KB (D622), but its command line kept that pin. Command line now follows a
 transponder build switch, as it follows rangefinders (D844). `hostwing.do` checks it on its host image built without
 GPS.
+
+## D852. Transponder settings only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder lists `transponder_provider`, `transponder_data` and the provider lookup
+table no more, and runs one task fewer, so `scheduler_debug_task` stops one lower. Settings table marks them from a
+settings oracle built without transponder, and that maximum's falls (D850) now take its one. Settings generator now
+wraps the limits in a setting's description when they take that many features.

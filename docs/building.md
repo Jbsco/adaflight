@@ -15,7 +15,7 @@ A build without a feature leaves it out of command line, settings and MSP:
 - Compass: no compass line in `peripherals`, no compass setting and no compass pin. MSP answers compass configuration writes and compass calibration as unknown, and sensor writes pass over compass fields. It offers no MAG mode.
 - Barometer: no barometer line in `peripherals`, no barometer setting and no barometer pin. MSP sensor writes pass over barometer fields.
 - OLED dashboard: no dashboard setting.
-- Race transponder: no transponder pin.
+- Race transponder: no transponder setting and no transponder pin.
 - Pitot sensor: no pitot setting, and MSP sensor writes pass over its hardware field.
 - Rangefinders: no optical flow, no rangefinder or optical flow setting and no sonar pin. MSP sensor writes pass over rangefinder and optical flow fields. Without barometer as well, no `blackbox_disable_alt`.
 
