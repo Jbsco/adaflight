@@ -39,6 +39,9 @@ export ADAFLIGHT_BLACKBOX
 ADAFLIGHT_FLASH_CHIP="$(python3 ../../tools/featuregen.py --feature Flash_Chip ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_FLASH_CHIP
+ADAFLIGHT_COMPASS="$(python3 ../../tools/featuregen.py --feature Compass ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_COMPASS
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

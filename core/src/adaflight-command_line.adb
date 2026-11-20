@@ -15,6 +15,7 @@ with Adaflight.Plan_Build;
 with Adaflight.SD_Build;
 with Adaflight.Blackbox_Build;
 with Adaflight.Flash_Build;
+with Adaflight.Compass_Build;
 with Adaflight.Servo_Build;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
@@ -5945,7 +5946,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Put_Sensor_Peripheral (Into, "acc", Acc_Sensor, C.Accelerometer_Config.Acc_Hardware, Env.Acc);
       Put_Sensor_Peripheral (Into, "baro", Baro_Sensor, C.Barometer_Config.Baro_Hardware, Env.Baro);
-      Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
+      if Adaflight.Compass_Build.Enabled then
+         Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
+      end if;
    end Peripherals_Command;
 
    --  flash_erase: when the board has a flash file system, the whole erase,

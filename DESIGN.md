@@ -16255,3 +16255,11 @@ card. Flash erase here followed flight log alone (D831), and now also needs flas
 A Betaflight build without flash chip offers BLACKBOX mode but no BLACKBOX ERASE mode, also when it keeps its flight
 log on an SD card. A board here offered both with its flight log (D832), and now offers BLACKBOX ERASE only with its
 flash chip as well.
+
+## D837. Compass line and pins only with compass (2026-11-19)
+
+A Betaflight build without compass, as for a board whose configuration names none, prints no compass line in
+`peripherals` and has no compass pins in its resource table. A build here leaves compass code out the same way
+(D622), but its command line still printed a configured compass as not detected and kept its pins. Command line now
+follows a compass build switch, as it follows flash chip (D833). `hostwing.do` checks it on its host image built
+without servos, LED strip, SD card, flash chip and compass.
