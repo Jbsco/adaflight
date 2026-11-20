@@ -37,6 +37,7 @@ project Adaflight_Core is
    Transponder  : Switch := external ("ADAFLIGHT_TRANSPONDER", "on");
    Gimbal       : Switch := external ("ADAFLIGHT_GIMBAL", "on");
    Soft_Serial  : Switch := external ("ADAFLIGHT_SOFT_SERIAL", "on");
+   IBus_Telemetry : Switch := external ("ADAFLIGHT_IBUS_TELEMETRY", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -133,6 +134,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-soft_serial_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-soft_serial_build.ads");
+   end case;
+   case IBus_Telemetry is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-ibus_telemetry_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-ibus_telemetry_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -232,6 +239,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Soft_Serial_Build") use "adaflight-soft_serial_build__off.ads";
+      end case;
+      case IBus_Telemetry is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.IBus_Telemetry_Build") use "adaflight-ibus_telemetry_build__off.ads";
       end case;
    end Naming;
 

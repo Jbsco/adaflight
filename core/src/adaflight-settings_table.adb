@@ -3048,6 +3048,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_Gimbal (S : Setting) return Boolean is
      (S in Gimbal_Roll_Rc_Gain .. Gimbal_Uart);
 
+   --  Whether a setting exists only in a build with the iBus telemetry.
+   function Needs_IBus_Telemetry (S : Setting) return Boolean is
+     (S in Ibus_Sensor);
+
    --  Whether a setting exists only in a build with the barometer or the rangefinders.
    function Needs_Barometer_Or_Rangefinder (S : Setting) return Boolean is
      (S in Blackbox_Disable_Alt);
@@ -3067,7 +3071,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       Pitot : Boolean := Adaflight.Pitot_Build.Enabled;
       Dashboard : Boolean := Adaflight.Dashboard_Build.Enabled;
       Transponder : Boolean := Adaflight.Transponder_Build.Enabled;
-      Gimbal : Boolean := Adaflight.Gimbal_Build.Enabled) return Boolean is
+      Gimbal : Boolean := Adaflight.Gimbal_Build.Enabled;
+      IBus_Telemetry : Boolean := Adaflight.IBus_Telemetry_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
@@ -3084,6 +3089,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       and then (Dashboard or else not Needs_Dashboard (S))
       and then (Transponder or else not Needs_Transponder (S))
       and then (Gimbal or else not Needs_Gimbal (S))
+      and then (IBus_Telemetry or else not Needs_IBus_Telemetry (S))
       and then (Barometer or else Rangefinder or else not Needs_Barometer_Or_Rangefinder (S)));
 
    function Table_In_Build

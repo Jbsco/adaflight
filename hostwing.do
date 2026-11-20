@@ -23,8 +23,8 @@ python3 ../../tools/host-compass-off-check.py bin/adaflight_host
 python3 ../../tools/host-baro-off-check.py bin/adaflight_host
 python3 ../../tools/host-rangefinder-off-check.py bin/adaflight_host
 ADAFLIGHT_GPS=off ADAFLIGHT_SD_CARD=off ADAFLIGHT_BLACKBOX=off ADAFLIGHT_PITOT=off ADAFLIGHT_DASHBOARD=off \
-    ADAFLIGHT_TRANSPONDER=off ADAFLIGHT_GIMBAL=off ADAFLIGHT_SOFT_SERIAL=off \
-    FEATURES=-gps,-blackbox,-pitot,-dashboard,-transponder,-gimbal,-soft_serial alr -n build
+    ADAFLIGHT_TRANSPONDER=off ADAFLIGHT_GIMBAL=off ADAFLIGHT_SOFT_SERIAL=off ADAFLIGHT_IBUS_TELEMETRY=off \
+    FEATURES=-gps,-blackbox,-pitot,-dashboard,-transponder,-gimbal,-soft_serial,-ibus_telemetry alr -n build
 python3 ../../tools/host-gps-off-check.py bin/adaflight_host
 python3 ../../tools/host-blackbox-off-check.py bin/adaflight_host
 python3 ../../tools/host-pitot-off-check.py bin/adaflight_host
@@ -32,6 +32,7 @@ python3 ../../tools/host-dashboard-off-check.py bin/adaflight_host
 python3 ../../tools/host-transponder-off-check.py bin/adaflight_host
 python3 ../../tools/host-gimbal-off-check.py bin/adaflight_host
 python3 ../../tools/host-soft-serial-off-check.py bin/adaflight_host
+python3 ../../tools/host-ibus-telemetry-off-check.py bin/adaflight_host
 FEATURES=+wing,+flash_chip alr -n build
 python3 ../../tools/host-wing-check.py bin/adaflight_host
 BOARD=LUXF4OSD FEATURES=+wing,+flash_chip alr -n build
