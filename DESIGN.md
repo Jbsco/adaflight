@@ -16231,3 +16231,10 @@ Betaflight also needs a flash chip for flash erase. Here it still follows flight
 A Betaflight build without flight log offers neither BLACKBOX nor BLACKBOX ERASE mode. A board here offered both in
 every build, and now offers them only with its flight log. Betaflight also needs a flash chip for BLACKBOX ERASE.
 Here it still follows flight log alone.
+
+## D833. Flash commands only with flash chip (2026-11-19)
+
+A Betaflight build without flash chip, as for a board whose configuration names none, has no `flash_*` commands and
+no flash chip pin in its resource table. A build here leaves flash chip code out the same way (D665), but its command
+line kept them: `flash_info` printed a zero geometry, `flash_erase` nothing and `flash_scan` an error. Command line
+now follows a flash chip build switch, as it follows SD card (D826). `hostwing.do` checks it on its host image built without servos, LED strip, SD card and flash chip.
