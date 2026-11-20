@@ -16,8 +16,8 @@ project Adaflight_Core is
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
-   --  the SD card, the flight log, the flash chip, the compass or the barometer the servo, LED, GPS, SD, flight
-   --  log, flash, compass or barometer build spec.
+   --  the SD card, the flight log, the flash chip, the compass, the barometer or the rangefinders the servo, LED,
+   --  GPS, SD, flight log, flash, compass, barometer or rangefinder build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -29,6 +29,7 @@ project Adaflight_Core is
    Flash_Chip   : Switch := external ("ADAFLIGHT_FLASH_CHIP", "on");
    Compass      : Switch := external ("ADAFLIGHT_COMPASS", "on");
    Barometer    : Switch := external ("ADAFLIGHT_BAROMETER", "on");
+   Rangefinder  : Switch := external ("ADAFLIGHT_RANGEFINDER", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -89,6 +90,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-baro_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-baro_build.ads");
+   end case;
+   case Rangefinder is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-rangefinder_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-rangefinder_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -152,6 +159,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Baro_Build") use "adaflight-baro_build__off.ads";
+      end case;
+      case Rangefinder is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Rangefinder_Build") use "adaflight-rangefinder_build__off.ads";
       end case;
    end Naming;
 

@@ -16306,3 +16306,11 @@ build switch of its own.
 A Betaflight build without barometer reads its sensor configuration write's barometer hardware field and drops it,
 so an out of range value changes nothing and is no error. That write here now passes over the field without
 barometer switch (D841), as it does over compass hardware (D839).
+
+## D844. Sonar pins only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders, as a 512 KB local build is, has no sonar pins in its resource table and no
+optical flow, since each optical flow sensor brings a rangefinder. A build here left both out at 512 KB (D622), but
+its command line kept those pins. Command line now follows a rangefinder build switch, as it follows barometer
+(D841), and `featuregen.py` leaves optical flow out of a build without rangefinders. `hostwing.do` checks it on its
+host image built without rangefinders.
