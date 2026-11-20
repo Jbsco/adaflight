@@ -16263,3 +16263,10 @@ A Betaflight build without compass, as for a board whose configuration names non
 (D622), but its command line still printed a configured compass as not detected and kept its pins. Command line now
 follows a compass build switch, as it follows flash chip (D833). `hostwing.do` checks it on its host image built
 without servos, LED strip, SD card, flash chip and compass.
+
+## D838. Compass settings only with compass (2026-11-19)
+
+A Betaflight build without compass lists 12 settings and compass hardware's lookup table fewer: `mag_*` settings,
+`align_mag` and `blackbox_disable_mag`. It also runs two tasks fewer, so `scheduler_debug_task` stops two lower.
+Settings table marks them from a settings oracle built without compass, and that maximum's falls (D822) now take
+compass's two.

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the compass over its UART1 TCP port: peripherals prints no compass line
-for a configured compass, and its resource command neither lists nor takes a compass pin.
+for a configured compass, its settings have no compass setting, and its resource command neither lists nor
+takes a compass pin.
 
 usage: host-compass-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +30,13 @@ def main() -> int:
             hs.check("peripherals prints no compass line there",
                      "peripherals" in text and "UNKNOWN COMMAND" not in text and "mag:" not in text, text[-200:])
             lines = hs.cli(sock, "dump all", 4.0).splitlines()
+            names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
+            gone = ("mag_", "align_mag", "blackbox_disable_mag")
+            hs.check("dump has no compass settings there",
+                     "baro_hardware" in names and not any(n.startswith(gone) for n in names),
+                     repr([n for n in names if n.startswith(gone)]))
+            text = hs.cli(sock, "get mag_declination")
+            hs.check("get finds no compass setting there", "INVALID NAME" in text, text[-120:])
             hs.check("dump has no compass pins there",
                      any(line.startswith("resource MOTOR ") for line in lines)
                      and not any("COMPASS_" in line for line in lines if "resource" in line))
