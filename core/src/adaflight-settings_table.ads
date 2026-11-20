@@ -12,6 +12,7 @@ with Adaflight.Flash_Build;
 with Adaflight.Compass_Build;
 with Adaflight.Baro_Build;
 with Adaflight.Rangefinder_Build;
+with Adaflight.Pitot_Build;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
@@ -243,13 +244,14 @@ package Adaflight.Settings_Table with SPARK_Mode is
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Info;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Info;
 
    --  Whether the multirotor or the wing build has a setting, with the flight plan or without it,
    --  with servos or without them, with the LED strip or without it, with the GPS or without it, with the SD card
    --  or without it, with the flight log or without it, with the flash chip or without it, with the compass or
-   --  without it, with the barometer or without it, with the rangefinders or without them, on a board with that
-   --  many gyros.
+   --  without it, with the barometer or without it, with the rangefinders or without them, with the pitot sensor or
+   --  without it, on a board with that many gyros.
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
@@ -261,11 +263,13 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Flash_Chip : Boolean := Adaflight.Flash_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Boolean;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table, with servos or without them, with the LED strip
    --  or without it, with the GPS or without it, with the SD card or without it, with the flight log or without it,
-   --  with the compass or without it, with the barometer or without it, with the rangefinders or without them.
+   --  with the compass or without it, with the barometer or without it, with the rangefinders or without them, with
+   --  the pitot sensor or without it.
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
@@ -275,7 +279,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Boolean;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Boolean;
 
    --  The longest setting name and the longest value name.
    Max_Name_Length  : constant := 43;

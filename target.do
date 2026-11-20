@@ -48,6 +48,9 @@ export ADAFLIGHT_BAROMETER
 ADAFLIGHT_RANGEFINDER="$(python3 ../../tools/featuregen.py --feature Rangefinder \
     ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_RANGEFINDER
+ADAFLIGHT_PITOT="$(python3 ../../tools/featuregen.py --feature Pitot ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_PITOT
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

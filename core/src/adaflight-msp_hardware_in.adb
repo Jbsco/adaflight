@@ -4,6 +4,7 @@ with Adaflight.Mixer_Init;
 with Adaflight.Compass_Build;
 with Adaflight.Baro_Build;
 with Adaflight.Rangefinder_Build;
+with Adaflight.Pitot_Build;
 
 package body Adaflight.MSP_Hardware_In with SPARK_Mode is
    use type Interfaces.Integer_64;
@@ -79,7 +80,7 @@ package body Adaflight.MSP_Hardware_In with SPARK_Mode is
                end if;
                Offset := Offset + 1;
             end if;
-            if Length - Offset >= 1 then
+            if Length - Offset >= 1 and then Adaflight.Pitot_Build.Enabled then
                Add (P, Pitot_Hardware, U8 (Request, Offset), 0);
             end if;
             Set_Fields (C, P, R);

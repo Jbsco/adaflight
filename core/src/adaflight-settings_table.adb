@@ -2620,27 +2620,43 @@ package body Adaflight.Settings_Table with SPARK_Mode is
          => 0, Write_Once => False, Group => 75, In_Multirotor => True, In_Wing => True));
 
    --  The limits of a setting in a build, where the wing build and a build without the LED strip or the GPS or the
-   --  compass or the barometer or the rangefinders have others.
+   --  compass or the barometer or the rangefinders or the pitot sensor have others.
    function Limits_Of
      (S : Setting; Wing : Boolean; LED_Strip : Boolean; GPS : Boolean; Compass : Boolean; Barometer : Boolean;
-      Rangefinder : Boolean)
+      Rangefinder : Boolean; Pitot : Boolean)
       return Limit_Index is
      (if S = Scheduler_Debug_Task then
         (if LED_Strip then
           (if GPS then
             (if Compass then
-              (if Barometer then (if Rangefinder then 51 else 49) else (if Rangefinder then 50 else 48))
-             else (if Barometer then (if Rangefinder then 49 else 47) else (if Rangefinder then 48 else 46)))
+              (if Barometer then
+                (if Rangefinder then (if Pitot then 51 else 50) else (if Pitot then 49 else 48))
+               else (if Rangefinder then (if Pitot then 50 else 49) else (if Pitot then 48 else 47)))
+             else (if Barometer then
+                    (if Rangefinder then (if Pitot then 49 else 48) else (if Pitot then 47 else 46))
+                   else (if Rangefinder then (if Pitot then 48 else 47) else (if Pitot then 46 else 45))))
            else (if Compass then
-                  (if Barometer then (if Rangefinder then 47 else 45) else (if Rangefinder then 46 else 44))
-                 else (if Barometer then (if Rangefinder then 45 else 43) else (if Rangefinder then 44 else 42))))
+                  (if Barometer then
+                    (if Rangefinder then (if Pitot then 47 else 46) else (if Pitot then 45 else 44))
+                   else (if Rangefinder then (if Pitot then 46 else 45) else (if Pitot then 44 else 43)))
+                 else (if Barometer then
+                        (if Rangefinder then (if Pitot then 45 else 44) else (if Pitot then 43 else 42))
+                       else (if Rangefinder then (if Pitot then 44 else 43) else (if Pitot then 42 else 41)))))
          else (if GPS then
                 (if Compass then
-                  (if Barometer then (if Rangefinder then 50 else 48) else (if Rangefinder then 49 else 47))
-                 else (if Barometer then (if Rangefinder then 48 else 46) else (if Rangefinder then 47 else 45)))
+                  (if Barometer then
+                    (if Rangefinder then (if Pitot then 50 else 49) else (if Pitot then 48 else 47))
+                   else (if Rangefinder then (if Pitot then 49 else 48) else (if Pitot then 47 else 46)))
+                 else (if Barometer then
+                        (if Rangefinder then (if Pitot then 48 else 47) else (if Pitot then 46 else 45))
+                       else (if Rangefinder then (if Pitot then 47 else 46) else (if Pitot then 45 else 44))))
                else (if Compass then
-                      (if Barometer then (if Rangefinder then 46 else 44) else (if Rangefinder then 45 else 43))
-                     else (if Barometer then (if Rangefinder then 44 else 42) else (if Rangefinder then 43 else 41)))))
+                      (if Barometer then
+                        (if Rangefinder then (if Pitot then 46 else 45) else (if Pitot then 44 else 43))
+                       else (if Rangefinder then (if Pitot then 45 else 44) else (if Pitot then 43 else 42)))
+                     else (if Barometer then
+                            (if Rangefinder then (if Pitot then 44 else 43) else (if Pitot then 42 else 41))
+                           else (if Rangefinder then (if Pitot then 43 else 42) else (if Pitot then 41 else 40))))))
       elsif Wing then (case S is when Tpa_Low_Rate => 15, when others => Infos (S).Limits)
       else Infos (S).Limits);
 
@@ -2692,6 +2708,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_Rangefinder (S : Setting) return Boolean is
      (S in Osd_Lidar_Dist_Pos | Rangefinder_Hardware .. Opticalflow_Flip_X);
 
+   --  Whether a setting exists only in a build with the pitot sensor.
+   function Needs_Pitot (S : Setting) return Boolean is
+     (S in Pitot_Bustype .. Pitot_Hardware | Blackbox_Disable_Pitot | Osd_Airspeed);
+
    --  Whether a setting exists only in a build with the barometer or the rangefinders.
    function Needs_Barometer_Or_Rangefinder (S : Setting) return Boolean is
      (S in Blackbox_Disable_Alt);
@@ -2707,7 +2727,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       Flash_Chip : Boolean := Adaflight.Flash_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Boolean is
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
@@ -2720,6 +2741,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       and then (Compass or else not Needs_Compass (S))
       and then (Barometer or else not Needs_Barometer (S))
       and then (Rangefinder or else not Needs_Rangefinder (S))
+      and then (Pitot or else not Needs_Pitot (S))
       and then (Barometer or else Rangefinder or else not Needs_Barometer_Or_Rangefinder (S)));
 
    function Table_In_Build
@@ -2731,7 +2753,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Boolean is
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Boolean is
      (case T is
          when Table_Ap_Yaw_Mode | Table_Ap_Rx_Loss_Policy | Table_Ap_Geofence_Action
            | Table_Launch_Control_Mode => not Wing,
@@ -2746,6 +2769,7 @@ package body Adaflight.Settings_Table with SPARK_Mode is
          when Table_Mag_Hardware => Compass,
          when Table_Baro_Hardware => Barometer,
          when Table_Rangefinder_Hardware | Table_Opticalflow_Hardware => Rangefinder,
+         when Table_Pitot_Hardware => Pitot,
          when others => True);
 
    function Describe
@@ -2754,10 +2778,11 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
-      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled) return Info is
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Info is
      (Kind => Infos (S).Kind, Where => Infos (S).Where, How => Infos (S).How,
-      Min => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS, Compass, Barometer, Rangefinder)).Min,
-      Max => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS, Compass, Barometer, Rangefinder)).Max,
+      Min => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS, Compass, Barometer, Rangefinder, Pitot)).Min,
+      Max => Limit_Pairs (Limits_Of (S, Wing, LED_Strip, GPS, Compass, Barometer, Rangefinder, Pitot)).Max,
       Table => Infos (S).Table, Count => Infos (S).Count, Min_Length => Infos (S).Min_Length,
       Write_Once => Infos (S).Write_Once, Group => Group_Numbers (Infos (S).Group));
 
