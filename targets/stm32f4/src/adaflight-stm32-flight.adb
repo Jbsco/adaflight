@@ -685,7 +685,6 @@ package body Adaflight.STM32.Flight is
       V.Board.Configuration_State := Config.System_Config.Configuration_State;
       V.Board.SPI_Devices := SPI_Devices;
       V.Board.I2C_Devices := I2C_Devices;
-      V.Board.Motor_Protocol_Disabled := Config.Motor_Config.Dev.Motor_Protocol = 0;
       V.Board.VCP := True;
       V.Board.Soft_Serial := Adaflight.Build_Features.Soft_Serial;
       V.Beeper := True;
@@ -1548,6 +1547,8 @@ package body Adaflight.STM32.Flight is
            (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
       end if;
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
+      Ctx.Out_Views.Common.Board.Acc_Needs_Calibration := Config.Accelerometer_Config.Acc_Zero (3) = 0;
+      Ctx.Out_Views.Common.Board.Motor_Protocol_Disabled := Config.Motor_Config.Dev.Motor_Protocol = 0;
       Ctx.Out_Views.Common.Board.RX_Bind :=
         Adaflight.RX_Bind.Bind_For
           (Adaflight.STM32.Radio.Source, Adaflight.STM32.Radio.Serial_Protocol,

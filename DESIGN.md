@@ -16406,3 +16406,10 @@ table and no software serial capability in its board information. A build here l
 and its board information now follows them (D856), but its command line kept those pins. Command line now follows a
 soft serial build switch, as it follows race transponder (D851). `hostwing.do` checks it on its host image built
 without GPS.
+
+## D858. Accelerometer calibration problem over MSP (2026-11-20)
+
+A Betaflight board reports in its board information when its accelerometer has never been calibrated, and a
+configurator warns from that bit. A board here never set it, and took its motor protocol problem at start only. A
+board now reports both at each request, the calibration from its stored accelerometer zero. Host smoke reads that
+bit on a fresh configuration and again after an MSP calibration clears it.
