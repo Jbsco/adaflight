@@ -16334,3 +16334,11 @@ of them is built. Its own vectors check that build, with the summed falls of its
 A Betaflight build without rangefinders reads its sensor configuration write's rangefinder and optical flow hardware
 fields and drops them, so an out of range value changes nothing and is no error. That write here now passes over
 both fields without rangefinder switch (D844), as it does over barometer hardware (D843).
+
+## D848. Pitot settings only with pitot sensor (2026-11-20)
+
+A Betaflight build without pitot sensor, as a 512 KB build is, lists six settings and pitot hardware's lookup table
+fewer: `pitot_*` settings, `blackbox_disable_pitot` and the airspeed element's position. It runs one task fewer, so
+`scheduler_debug_task` stops one lower. A build here left the sensor out at 512 KB (D622), but its command line kept
+those settings. Settings table now marks them from a settings oracle built without pitot sensor, through a pitot
+build switch, and that maximum's falls take its one. `hostwing.do` checks it on its host image built without GPS.

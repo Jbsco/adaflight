@@ -16,8 +16,8 @@ project Adaflight_Core is
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
-   --  the SD card, the flight log, the flash chip, the compass, the barometer or the rangefinders the servo, LED,
-   --  GPS, SD, flight log, flash, compass, barometer or rangefinder build spec.
+   --  the SD card, the flight log, the flash chip, the compass, the barometer, the rangefinders or the pitot sensor
+   --  the servo, LED, GPS, SD, flight log, flash, compass, barometer, rangefinder or pitot build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -30,6 +30,7 @@ project Adaflight_Core is
    Compass      : Switch := external ("ADAFLIGHT_COMPASS", "on");
    Barometer    : Switch := external ("ADAFLIGHT_BAROMETER", "on");
    Rangefinder  : Switch := external ("ADAFLIGHT_RANGEFINDER", "on");
+   Pitot        : Switch := external ("ADAFLIGHT_PITOT", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -96,6 +97,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-rangefinder_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-rangefinder_build.ads");
+   end case;
+   case Pitot is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-pitot_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-pitot_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -165,6 +172,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Rangefinder_Build") use "adaflight-rangefinder_build__off.ads";
+      end case;
+      case Pitot is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Pitot_Build") use "adaflight-pitot_build__off.ads";
       end case;
    end Naming;
 
