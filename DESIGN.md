@@ -16398,3 +16398,11 @@ A Betaflight board reports in its board information whether it has a USB serial 
 receiver that binds, and a configurator reads them for its ports and receiver tabs. A board here reported none of
 them in every build. A board now reports its USB serial port, its software serial ports with that feature, and a
 bind with a receiver that takes one, as MSP bind answers it, updated at each request. Host smoke reads the bits.
+
+## D857. Software serial pins only with software serial ports (2026-11-20)
+
+A Betaflight build without software serial ports, as a 512 KB build is, has no software serial pins in its resource
+table and no software serial capability in its board information. A build here left the ports out at 512 KB (D622),
+and its board information now follows them (D856), but its command line kept those pins. Command line now follows a
+soft serial build switch, as it follows race transponder (D851). `hostwing.do` checks it on its host image built
+without GPS.
