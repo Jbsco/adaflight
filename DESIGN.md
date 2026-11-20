@@ -16328,3 +16328,9 @@ A Betaflight build lists `blackbox_disable_alt` when it has a barometer or a ran
 both. A settings oracle built without both shows it is the one setting that needs either feature. Settings
 generator now reads such a setting from a build that leaves several features out, and In_Build keeps it while any
 of them is built. Its own vectors check that build, with the summed falls of its limits.
+
+## D847. Rangefinder hardware over MSP only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders reads its sensor configuration write's rangefinder and optical flow hardware
+fields and drops them, so an out of range value changes nothing and is no error. That write here now passes over
+both fields without rangefinder switch (D844), as it does over barometer hardware (D843).

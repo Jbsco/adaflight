@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the rangefinders over its UART1 TCP port: its settings have no
 rangefinder or optical flow setting, and none for the altitude log field without the barometer either, and its
-resource command neither lists nor takes a sonar pin.
+resource command neither lists nor takes a sonar pin, and its MSP sensor configuration write passes over the
+rangefinder and optical flow hardware.
 
 usage: host-rangefinder-off-check.py <host image>"""
 import importlib.util
@@ -22,6 +23,12 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "rangefinderoff.bin"))
         try:
             hs.time.sleep(2.5)
+            # A build with the rangefinders refuses a hardware value outside its setting's range.
+            sensors = hs.msp(sock, 96) or bytes(5)
+            hs.check("sensor configuration write passes over the rangefinder hardware there",
+                     hs.msp(sock, 97, sensors[:3] + bytes([200]) + sensors[4:]) is not None)
+            hs.check("sensor configuration write passes over the optical flow hardware there",
+                     hs.msp(sock, 97, sensors[:4] + bytes([200]) + sensors[5:]) is not None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             lines = hs.cli(sock, "dump all", 4.0).splitlines()

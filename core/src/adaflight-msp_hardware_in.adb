@@ -3,6 +3,7 @@ with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 with Adaflight.Mixer_Init;
 with Adaflight.Compass_Build;
 with Adaflight.Baro_Build;
+with Adaflight.Rangefinder_Build;
 
 package body Adaflight.MSP_Hardware_In with SPARK_Mode is
    use type Interfaces.Integer_64;
@@ -67,11 +68,15 @@ package body Adaflight.MSP_Hardware_In with SPARK_Mode is
             end if;
             Offset := 3;
             if Length - Offset >= 1 then
-               Add (P, Rangefinder_Hardware, U8 (Request, Offset), 0);
+               if Adaflight.Rangefinder_Build.Enabled then
+                  Add (P, Rangefinder_Hardware, U8 (Request, Offset), 0);
+               end if;
                Offset := Offset + 1;
             end if;
             if Length - Offset >= 1 then
-               Add (P, Opticalflow_Hardware, U8 (Request, Offset), 0);
+               if Adaflight.Rangefinder_Build.Enabled then
+                  Add (P, Opticalflow_Hardware, U8 (Request, Offset), 0);
+               end if;
                Offset := Offset + 1;
             end if;
             if Length - Offset >= 1 then
