@@ -16377,3 +16377,9 @@ A Betaflight build with race transponder lists its three providers with their da
 reply, and a configurator shows its transponder tab from that list. A board here drove the transponder (D736) but
 never marked it built in that reply, which listed no provider in every build. A board now marks it with its
 transponder, and host smoke reads the list.
+
+## D854. Transponder write over MSP only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder answers its transponder write as unknown, and its transponder reply
+lists no provider. That reply here follows a board's transponder (D853), and that write now follows transponder
+switch (D851).

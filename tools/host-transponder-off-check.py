@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the race transponder over its UART1 TCP port: its settings have no
-transponder setting, and its resource command neither lists nor takes a transponder pin.
+transponder setting, its resource command neither lists nor takes a transponder pin, and MSP lists no provider and
+answers the transponder write as unknown.
 
 usage: host-transponder-off-check.py <host image>"""
 import importlib.util
@@ -21,6 +22,9 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "transponderoff.bin"))
         try:
             hs.time.sleep(2.5)
+            reply = hs.msp(sock, 82)
+            hs.check("transponder reply lists no provider there", reply == bytes(1), repr(reply))
+            hs.check("transponder write is refused as unknown there", hs.msp(sock, 83, bytes([3, 0x2A])) is None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             lines = hs.cli(sock, "dump all", 4.0).splitlines()
