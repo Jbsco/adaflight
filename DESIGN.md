@@ -16413,3 +16413,18 @@ A Betaflight board reports in its board information when its accelerometer has n
 configurator warns from that bit. A board here never set it, and took its motor protocol problem at start only. A
 board now reports both at each request, the calibration from its stored accelerometer zero. Host smoke reads that
 bit on a fresh configuration and again after an MSP calibration clears it.
+
+## D859. iBus telemetry setting only with iBus telemetry (2026-11-20)
+
+A Betaflight build without iBus telemetry, as a 512 KB build is, lists `ibus_sensor` no more. A build here left that
+telemetry out at 512 KB (D622), but its command line kept that setting. Settings table now marks it from a settings
+oracle built without iBus telemetry, through an iBus telemetry build switch. `hostwing.do` checks it on its host image
+built without GPS.
+
+## D860. MAVLink telemetry settings only with MAVLink telemetry (2026-11-20)
+
+A Betaflight build without MAVLink telemetry, as a 512 KB build is, lists eight `mavlink_*` settings fewer and has no
+MAVLink receiver, which answers over that telemetry. A build here left both out at 512 KB (D622), but its command
+line kept those settings. Settings table now marks them from a settings oracle built without MAVLink telemetry and
+receiver, through a MAVLink telemetry build switch, and `featuregen.py` leaves that receiver out without its
+telemetry. `hostwing.do` checks it on its host image built without GPS.

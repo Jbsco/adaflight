@@ -63,6 +63,12 @@ export ADAFLIGHT_GIMBAL
 ADAFLIGHT_SOFT_SERIAL="$(python3 ../../tools/featuregen.py --feature Soft_Serial \
     ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_SOFT_SERIAL
+ADAFLIGHT_IBUS_TELEMETRY="$(python3 ../../tools/featuregen.py --feature IBus_Telemetry \
+    ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_IBUS_TELEMETRY
+ADAFLIGHT_MAVLINK_TELEMETRY="$(python3 ../../tools/featuregen.py --feature MAVLink_Telemetry \
+    ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_MAVLINK_TELEMETRY
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

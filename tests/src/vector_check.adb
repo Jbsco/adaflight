@@ -32321,6 +32321,8 @@ procedure Vector_Check is
    Settings_Dash : Boolean := True;
    Settings_Transp : Boolean := True;
    Settings_Gimbal : Boolean := True;
+   Settings_IBus : Boolean := True;
+   Settings_MAVLink : Boolean := True;
    Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
    Settings_No_Servo_Count : Natural := 0;
    Settings_No_LED_Count : Natural := 0;
@@ -32336,6 +32338,8 @@ procedure Vector_Check is
    Settings_No_Dash_Count : Natural := 0;
    Settings_No_Transp_Count : Natural := 0;
    Settings_No_Gimbal_Count : Natural := 0;
+   Settings_No_IBus_Count : Natural := 0;
+   Settings_No_MAVLink_Count : Natural := 0;
    Settings_No_Baro_Range_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
@@ -32445,7 +32449,9 @@ procedure Vector_Check is
            and then not In_Build
              (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan, Settings_Servos, Settings_LED,
               Settings_GPS, Settings_SD, Settings_BB, Settings_Flash, Settings_Mag, Settings_Baro, Settings_Range,
-              Settings_Pitot, Settings_Dash, Settings_Transp, Settings_Gimbal)
+              Settings_Pitot, Settings_Dash, Settings_Transp, Settings_Gimbal,
+              Settings_IBus,
+              Settings_MAVLink)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32463,7 +32469,11 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            if not Settings_Gimbal then
+            if not Settings_MAVLink then
+               Settings_No_MAVLink_Count := Settings_No_MAVLink_Count + 1;
+            elsif not Settings_IBus then
+               Settings_No_IBus_Count := Settings_No_IBus_Count + 1;
+            elsif not Settings_Gimbal then
                Settings_No_Gimbal_Count := Settings_No_Gimbal_Count + 1;
             elsif not Settings_Transp then
                Settings_No_Transp_Count := Settings_No_Transp_Count + 1;
@@ -44214,6 +44224,8 @@ procedure Vector_Check is
                  or else Kind = "settingsnomag" or else Kind = "settingsnobaro" or else Kind = "settingsnorange"
                  or else Kind = "settingsnobarorange" or else Kind = "settingsnopitot" or else Kind = "settingsnodash"
                  or else Kind = "settingsnotransp" or else Kind = "settingsnogimbal"
+                 or else Kind = "settingsnoibus"
+                 or else Kind = "settingsnomavlink"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
                   Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
@@ -44222,9 +44234,13 @@ procedure Vector_Check is
                     or else Kind = "settingsnoflash" or else Kind = "settingsnomag" or else Kind = "settingsnobaro"
                     or else Kind = "settingsnorange" or else Kind = "settingsnobarorange"
                     or else Kind = "settingsnopitot" or else Kind = "settingsnodash" or else Kind = "settingsnotransp"
-                    or else Kind = "settingsnogimbal";
+                    or else Kind = "settingsnogimbal"
+                    or else Kind = "settingsnoibus"
+                    or else Kind = "settingsnomavlink";
                   Settings_Transp := Kind /= "settingsnotransp";
                   Settings_Gimbal := Kind /= "settingsnogimbal";
+                  Settings_IBus := Kind /= "settingsnoibus";
+                  Settings_MAVLink := Kind /= "settingsnomavlink";
                   Settings_Pitot := Kind /= "settingsnopitot";
                   Settings_Dash := Kind /= "settingsnodash";
                   Settings_Baro := Kind /= "settingsnobaro" and then Kind /= "settingsnobarorange";
@@ -44686,6 +44702,12 @@ begin
    Settings_Seen := 0;
    Run (Dir & "/settings-nogimbal.csv", "settingsnogimbal");
    Settings_Gimbal := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-noibus.csv", "settingsnoibus");
+   Settings_IBus := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-nomavlink.csv", "settingsnomavlink");
+   Settings_MAVLink := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44779,7 +44801,8 @@ begin
                      if Adaflight.Settings_Table.In_Build
                        (S, W, G, P, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
                         Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True,
-                        Rangefinder => True, Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+                        Rangefinder => True, Pitot => True, Dashboard => True, Transponder => True, Gimbal => True,
+                        IBus_Telemetry => True, MAVLink_Telemetry => True)
                      then
                         Expected := Expected + 1;
                      end if;
@@ -44802,7 +44825,8 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True, SD_Card => True,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True,
+            MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44820,7 +44844,8 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True, SD_Card => True,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True,
+            MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44840,7 +44865,8 @@ begin
             if Adaflight.Settings_Table.In_Build
               (S, False, 1, True, Servos => True, LED_Strip => not Both, GPS => False, SD_Card => True,
                Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-               Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+               Pitot => True, Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True,
+               MAVLink_Telemetry => True)
             then
                Expected := Expected + 1;
             end if;
@@ -44858,7 +44884,8 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => False,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True,
+            MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44876,7 +44903,8 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
             Blackbox => False, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True)
+            Pitot => True, Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True,
+            MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44894,7 +44922,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => False, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44912,7 +44940,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => False, Barometer => True, Rangefinder => True, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44930,7 +44958,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => True, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44948,7 +44976,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => False, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44966,7 +44994,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => False, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44984,7 +45012,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => False,
-            Dashboard => True, Transponder => True, Gimbal => True)
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -45002,7 +45030,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
-            Dashboard => False, Transponder => True, Gimbal => True)
+            Dashboard => False, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -45020,7 +45048,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
-            Dashboard => True, Transponder => False, Gimbal => True)
+            Dashboard => True, Transponder => False, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -45038,7 +45066,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
             Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
-            Dashboard => True, Transponder => True, Gimbal => False)
+            Dashboard => True, Transponder => True, Gimbal => False, IBus_Telemetry => True, MAVLink_Telemetry => True)
          then
             Expected := Expected + 1;
          end if;
@@ -45046,6 +45074,42 @@ begin
       if Settings_No_Gimbal_Count /= Expected then
          Put_Line ("settings: the vectors hold" & Settings_No_Gimbal_Count'Image
                    & " settings without the gimbal control of" & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
+            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => False, MAVLink_Telemetry => True)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_IBus_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_IBus_Count'Image
+                   & " settings without the iBus telemetry of" & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
+            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
+            Dashboard => True, Transponder => True, Gimbal => True, IBus_Telemetry => True, MAVLink_Telemetry => False)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_MAVLink_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_MAVLink_Count'Image
+                   & " settings without the MAVLink telemetry of" & Expected'Image);
          Failures := Failures + 1;
       end if;
    end;
