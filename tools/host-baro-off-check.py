@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the barometer over its UART1 TCP port: peripherals prints no barometer line
-for a configured barometer, its settings have no barometer setting, and its resource command neither lists nor
-takes a barometer pin.
+for a configured barometer, its settings have no barometer setting, its resource command neither lists nor takes
+a barometer pin, and its MSP sensor configuration write passes over the barometer hardware.
 
 usage: host-baro-off-check.py <host image>"""
 import importlib.util
@@ -22,6 +22,10 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "barooff.bin"))
         try:
             hs.time.sleep(2.5)
+            # A build with the barometer refuses a hardware value outside its setting's range.
+            sensors = hs.msp(sock, 96) or bytes(3)
+            hs.check("sensor configuration write passes over the barometer hardware there",
+                     hs.msp(sock, 97, sensors[:1] + bytes([200]) + sensors[2:]) is not None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             # A build with the barometer prints a configured one that it did not detect.

@@ -16300,3 +16300,9 @@ runs one task fewer, so `scheduler_debug_task` stops one lower. Settings table m
 built without barometer, and that maximum's falls (D838) now take barometer's one. Betaflight also drops
 `blackbox_disable_alt` when a build has neither barometer nor rangefinder. Here it stays until rangefinder has a
 build switch of its own.
+
+## D843. Barometer hardware over MSP only with barometer (2026-11-20)
+
+A Betaflight build without barometer reads its sensor configuration write's barometer hardware field and drops it,
+so an out of range value changes nothing and is no error. That write here now passes over the field without
+barometer switch (D841), as it does over compass hardware (D839).
