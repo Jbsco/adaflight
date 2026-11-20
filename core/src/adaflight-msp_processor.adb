@@ -12,6 +12,7 @@ with Adaflight.MSP_Receiver_Out;
 with Adaflight.GPS_Build;
 with Adaflight.Blackbox_Build;
 with Adaflight.Flash_Build;
+with Adaflight.Compass_Build;
 with Adaflight.LED_Build;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Servo_Build;
@@ -376,6 +377,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
       if MSP_Control_In.Handles (Command)
         and then (Command /= MSP_Control_In.Erase_Flash_Command
                   or else (Adaflight.Blackbox_Build.Enabled and then Adaflight.Flash_Build.Enabled))
+        and then (Command /= MSP_Control_In.Mag_Calibration_Command or else Adaflight.Compass_Build.Enabled)
       then
          declare
             CR : MSP_Control_In.Result;
@@ -457,6 +459,7 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
         and then (Command not in MSP_Hardware_In.Set_GPS_Config_Command | MSP_Hardware_In.Set_GPS_Rescue_Command
                     | MSP_Hardware_In.Set_GPS_Rescue_PIDs_Command
                   or else Adaflight.GPS_Build.Enabled)
+        and then (Command /= MSP_Hardware_In.Set_Compass_Config_Command or else Adaflight.Compass_Build.Enabled)
       then
          declare
             HR : MSP_Hardware_In.Result;

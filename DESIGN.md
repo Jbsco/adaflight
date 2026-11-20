@@ -16255,3 +16255,32 @@ card. Flash erase here followed flight log alone (D831), and now also needs flas
 A Betaflight build without flash chip offers BLACKBOX mode but no BLACKBOX ERASE mode, also when it keeps its flight
 log on an SD card. A board here offered both with its flight log (D832), and now offers BLACKBOX ERASE only with its
 flash chip as well.
+
+## D837. Compass line and pins only with compass (2026-11-19)
+
+A Betaflight build without compass, as for a board whose configuration names none, prints no compass line in
+`peripherals` and has no compass pins in its resource table. A build here leaves compass code out the same way
+(D622), but its command line still printed a configured compass as not detected and kept its pins. Command line now
+follows a compass build switch, as it follows flash chip (D833). `hostwing.do` checks it on its host image built
+without servos, LED strip, SD card, flash chip and compass.
+
+## D838. Compass settings only with compass (2026-11-19)
+
+A Betaflight build without compass lists 12 settings and compass hardware's lookup table fewer: `mag_*` settings,
+`align_mag` and `blackbox_disable_mag`. It also runs two tasks fewer, so `scheduler_debug_task` stops two lower.
+Settings table marks them from a settings oracle built without compass, and that maximum's falls (D822) now take
+compass's two.
+
+## D839. Compass MSP messages only with compass (2026-11-19)
+
+A Betaflight build without compass answers its compass configuration write and compass calibration as unknown. Its
+sensor alignment and sensor configuration writes read compass fields and drop them, so an out of range compass
+alignment or hardware value changes nothing and is no error. Compass replies here already followed a board flag, and
+these writes now follow compass switch (D837).
+
+## D840. MAG mode with a detected compass (2026-11-19)
+
+Betaflight offers MAG mode, its heading hold, whenever its compass was detected at start. A board here never offered
+it, so a configurator listed no MAG mode, although flight code reads a MAG range set from command line. A board now
+offers it with a detected compass, and never in a build without compass. Host smoke checks it with its simulator's
+compass, and `hostwing.do` checks its absence without compass.

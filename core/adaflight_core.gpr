@@ -16,7 +16,8 @@ project Adaflight_Core is
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
-   --  the SD card, the flight log or the flash chip the servo, LED, GPS, SD, flight log or flash build spec.
+   --  the SD card, the flight log, the flash chip or the compass the servo, LED, GPS, SD, flight log, flash or
+   --  compass build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -26,6 +27,7 @@ project Adaflight_Core is
    SD_Card      : Switch := external ("ADAFLIGHT_SD_CARD", "on");
    Blackbox     : Switch := external ("ADAFLIGHT_BLACKBOX", "on");
    Flash_Chip   : Switch := external ("ADAFLIGHT_FLASH_CHIP", "on");
+   Compass      : Switch := external ("ADAFLIGHT_COMPASS", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -74,6 +76,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-flash_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-flash_build.ads");
+   end case;
+   case Compass is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-compass_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-compass_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -125,6 +133,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Flash_Build") use "adaflight-flash_build__off.ads";
+      end case;
+      case Compass is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Compass_Build") use "adaflight-compass_build__off.ads";
       end case;
    end Naming;
 
