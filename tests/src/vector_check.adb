@@ -32318,6 +32318,7 @@ procedure Vector_Check is
    Settings_Baro : Boolean := True;
    Settings_Range : Boolean := True;
    Settings_Pitot : Boolean := True;
+   Settings_Dash : Boolean := True;
    Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
    Settings_No_Servo_Count : Natural := 0;
    Settings_No_LED_Count : Natural := 0;
@@ -32330,6 +32331,7 @@ procedure Vector_Check is
    Settings_No_Baro_Count : Natural := 0;
    Settings_No_Range_Count : Natural := 0;
    Settings_No_Pitot_Count : Natural := 0;
+   Settings_No_Dash_Count : Natural := 0;
    Settings_No_Baro_Range_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
@@ -32439,7 +32441,7 @@ procedure Vector_Check is
            and then not In_Build
              (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan, Settings_Servos, Settings_LED,
               Settings_GPS, Settings_SD, Settings_BB, Settings_Flash, Settings_Mag, Settings_Baro, Settings_Range,
-              Settings_Pitot)
+              Settings_Pitot, Settings_Dash)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32453,11 +32455,13 @@ procedure Vector_Check is
             D : constant Info :=
               Describe
                 (S, Settings_Wing, Settings_LED, Settings_GPS, Settings_Mag, Settings_Baro, Settings_Range,
-                 Settings_Pitot);
+                 Settings_Pitot, Settings_Dash);
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            if not Settings_Pitot then
+            if not Settings_Dash then
+               Settings_No_Dash_Count := Settings_No_Dash_Count + 1;
+            elsif not Settings_Pitot then
                Settings_No_Pitot_Count := Settings_No_Pitot_Count + 1;
             elsif not Settings_Baro and then not Settings_Range then
                Settings_No_Baro_Range_Count := Settings_No_Baro_Range_Count + 1;
@@ -44200,7 +44204,7 @@ procedure Vector_Check is
                  or else Kind = "settingsnoled" or else Kind = "settingsnogps" or else Kind = "settingsnoledgps"
                  or else Kind = "settingsnosd" or else Kind = "settingsnobb" or else Kind = "settingsnoflash"
                  or else Kind = "settingsnomag" or else Kind = "settingsnobaro" or else Kind = "settingsnorange"
-                 or else Kind = "settingsnobarorange" or else Kind = "settingsnopitot"
+                 or else Kind = "settingsnobarorange" or else Kind = "settingsnopitot" or else Kind = "settingsnodash"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
                   Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
@@ -44208,8 +44212,9 @@ procedure Vector_Check is
                     or else Kind = "settingsnoledgps" or else Kind = "settingsnosd" or else Kind = "settingsnobb"
                     or else Kind = "settingsnoflash" or else Kind = "settingsnomag" or else Kind = "settingsnobaro"
                     or else Kind = "settingsnorange" or else Kind = "settingsnobarorange"
-                    or else Kind = "settingsnopitot";
+                    or else Kind = "settingsnopitot" or else Kind = "settingsnodash";
                   Settings_Pitot := Kind /= "settingsnopitot";
+                  Settings_Dash := Kind /= "settingsnodash";
                   Settings_Baro := Kind /= "settingsnobaro" and then Kind /= "settingsnobarorange";
                   Settings_Range := Kind /= "settingsnorange" and then Kind /= "settingsnobarorange";
                   Settings_SD := Kind /= "settingsnosd";
@@ -44660,6 +44665,9 @@ begin
    Settings_Seen := 0;
    Run (Dir & "/settings-nopitot.csv", "settingsnopitot");
    Settings_Pitot := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-nodash.csv", "settingsnodash");
+   Settings_Dash := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44753,7 +44761,7 @@ begin
                      if Adaflight.Settings_Table.In_Build
                        (S, W, G, P, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
                         Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True,
-                        Rangefinder => True, Pitot => True)
+                        Rangefinder => True, Pitot => True, Dashboard => True)
                      then
                         Expected := Expected + 1;
                      end if;
@@ -44776,7 +44784,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True, SD_Card => True,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True)
+            Pitot => True, Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44794,7 +44802,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True, SD_Card => True,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True)
+            Pitot => True, Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44814,7 +44822,7 @@ begin
             if Adaflight.Settings_Table.In_Build
               (S, False, 1, True, Servos => True, LED_Strip => not Both, GPS => False, SD_Card => True,
                Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-               Pitot => True)
+               Pitot => True, Dashboard => True)
             then
                Expected := Expected + 1;
             end if;
@@ -44832,7 +44840,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => False,
             Blackbox => True, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True)
+            Pitot => True, Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44850,7 +44858,7 @@ begin
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
             Blackbox => False, Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True,
-            Pitot => True)
+            Pitot => True, Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44867,7 +44875,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => False, Compass => True, Barometer => True, Rangefinder => True, Pitot => True)
+            Flash_Chip => False, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44884,7 +44893,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => True, Compass => False, Barometer => True, Rangefinder => True, Pitot => True)
+            Flash_Chip => True, Compass => False, Barometer => True, Rangefinder => True, Pitot => True,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44901,7 +44911,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => True, Pitot => True)
+            Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => True, Pitot => True,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44918,7 +44929,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => False, Pitot => True)
+            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => False, Pitot => True,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44935,7 +44947,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => False, Pitot => True)
+            Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => False, Pitot => True,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44952,7 +44965,8 @@ begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
            (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
-            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => False)
+            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => False,
+            Dashboard => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44960,6 +44974,24 @@ begin
       if Settings_No_Pitot_Count /= Expected then
          Put_Line ("settings: the vectors hold" & Settings_No_Pitot_Count'Image
                    & " settings without the pitot sensor of" & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
+            Flash_Chip => True, Compass => True, Barometer => True, Rangefinder => True, Pitot => True,
+            Dashboard => False)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_Dash_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_Dash_Count'Image
+                   & " settings without the OLED dashboard of" & Expected'Image);
          Failures := Failures + 1;
       end if;
    end;

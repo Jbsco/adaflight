@@ -16348,3 +16348,11 @@ build switch, and that maximum's falls take its one. `hostwing.do` checks it on 
 A Betaflight build without pitot sensor reads its sensor configuration write's pitot hardware field and drops it, so
 an out of range value changes nothing and is no error. That write here now passes over the field without pitot
 switch (D848), as it does over rangefinder hardware (D847).
+
+## D850. Dashboard settings only with OLED dashboard (2026-11-20)
+
+A Betaflight build without OLED dashboard, as a 512 KB build is, lists `dashboard_i2c_bus` and `dashboard_i2c_addr`
+no more and runs one task fewer, so `scheduler_debug_task` stops one lower. A build here left the dashboard out at
+512 KB (D622), but its command line kept both settings. Settings table now marks them from a settings oracle built
+without dashboard, through a dashboard build switch, and that maximum's falls take its one. `hostwing.do` checks it
+on its host image built without GPS.
