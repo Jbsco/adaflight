@@ -16292,3 +16292,11 @@ A Betaflight build without barometer, as for a board whose configuration names n
 (D622), but its command line kept both. Command line now follows a barometer build switch, as it follows compass
 (D837). `hostwing.do` checks it on its host image built without servos, LED strip, SD card, flash chip, compass and
 barometer.
+
+## D842. Barometer settings only with barometer (2026-11-20)
+
+A Betaflight build without barometer lists six `baro_*` settings and barometer hardware's lookup table fewer, and
+runs one task fewer, so `scheduler_debug_task` stops one lower. Settings table marks them from a settings oracle
+built without barometer, and that maximum's falls (D838) now take barometer's one. Betaflight also drops
+`blackbox_disable_alt` when a build has neither barometer nor rangefinder. Here it stays until rangefinder has a
+build switch of its own.

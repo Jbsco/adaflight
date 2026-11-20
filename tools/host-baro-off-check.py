@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the barometer over its UART1 TCP port: peripherals prints no barometer line
-for a configured barometer, and its resource command neither lists nor takes a barometer pin.
+for a configured barometer, its settings have no barometer setting, and its resource command neither lists nor
+takes a barometer pin.
 
 usage: host-baro-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +30,12 @@ def main() -> int:
             hs.check("peripherals prints no barometer line there",
                      "peripherals" in text and "UNKNOWN COMMAND" not in text and "baro:" not in text, text[-200:])
             lines = hs.cli(sock, "dump all", 4.0).splitlines()
+            names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
+            hs.check("dump has no barometer settings there",
+                     "acc_hardware" in names and not any(n.startswith("baro_") for n in names),
+                     repr([n for n in names if n.startswith("baro_")]))
+            text = hs.cli(sock, "get baro_hardware")
+            hs.check("get finds no barometer setting there", "INVALID NAME" in text, text[-120:])
             hs.check("dump has no barometer pins there",
                      any(line.startswith("resource MOTOR ") for line in lines)
                      and not any("BARO_" in line for line in lines if "resource" in line))
