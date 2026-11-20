@@ -16284,3 +16284,11 @@ Betaflight offers MAG mode, its heading hold, whenever its compass was detected 
 it, so a configurator listed no MAG mode, although flight code reads a MAG range set from command line. A board now
 offers it with a detected compass, and never in a build without compass. Host smoke checks it with its simulator's
 compass, and `hostwing.do` checks its absence without compass.
+
+## D841. Barometer line and pins only with barometer (2026-11-20)
+
+A Betaflight build without barometer, as for a board whose configuration names none, prints no barometer line in
+`peripherals` and has no barometer pins in its resource table. A build here leaves barometer code out the same way
+(D622), but its command line kept both. Command line now follows a barometer build switch, as it follows compass
+(D837). `hostwing.do` checks it on its host image built without servos, LED strip, SD card, flash chip, compass and
+barometer.

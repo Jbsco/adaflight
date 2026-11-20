@@ -42,6 +42,9 @@ export ADAFLIGHT_FLASH_CHIP
 ADAFLIGHT_COMPASS="$(python3 ../../tools/featuregen.py --feature Compass ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_COMPASS
+ADAFLIGHT_BAROMETER="$(python3 ../../tools/featuregen.py --feature Barometer ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_BAROMETER
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
