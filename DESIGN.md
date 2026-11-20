@@ -16370,3 +16370,10 @@ A Betaflight build without race transponder lists `transponder_provider`, `trans
 table no more, and runs one task fewer, so `scheduler_debug_task` stops one lower. Settings table marks them from a
 settings oracle built without transponder, and that maximum's falls (D850) now take its one. Settings generator now
 wraps the limits in a setting's description when they take that many features.
+
+## D853. Transponder providers over MSP with race transponder (2026-11-20)
+
+A Betaflight build with race transponder lists its three providers with their data lengths in its transponder
+reply, and a configurator shows its transponder tab from that list. A board here drove the transponder (D736) but
+never marked it built in that reply, which listed no provider in every build. A board now marks it with its
+transponder, and host smoke reads the list.

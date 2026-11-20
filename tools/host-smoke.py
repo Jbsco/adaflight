@@ -5671,6 +5671,9 @@ def main():
             try:
                 found, lines = until(sent, lambda s: len(s) >= 50, wait=10.0)
                 check("transponder transmits with its feature on", found, str(len(lines)))
+                providers = msp(sock, 82) or b""
+                check("transponder reply lists its three providers with their data lengths",
+                      providers[:7] == bytes([3, 1, 6, 2, 9, 3, 1]), repr(providers[:9]))
                 first = lines[0] if lines else [""] * 8
                 check("ILAP coding counts an 84 MHz timer at prescaler 3 over a period of 45, a toggle at 22",
                       first[2:7] == ["ILAP", "3", "45", "22", "720"], repr(first[:7]))
