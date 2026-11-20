@@ -14,6 +14,7 @@ A build without a feature leaves it out of command line, settings and MSP:
 - Flash chip: no `flash_erase`, `flash_info`, `flash_read`, `flash_scan` or `flash_write` command, no flash bus setting and no flash chip pin. It offers no BLACKBOX ERASE mode, and MSP answers flash erase as unknown.
 - Compass: no compass line in `peripherals`, no compass setting and no compass pin. MSP answers compass configuration writes and compass calibration as unknown, and sensor writes pass over compass fields. It offers no MAG mode.
 - Barometer: no barometer line in `peripherals`, no barometer setting and no barometer pin. MSP sensor writes pass over barometer fields.
+- Gimbal control: no gimbal setting.
 - OLED dashboard: no dashboard setting.
 - Race transponder: no transponder setting and no transponder pin, and MSP lists no provider and answers its write as unknown.
 - Pitot sensor: no pitot setting, and MSP sensor writes pass over its hardware field.

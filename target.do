@@ -57,6 +57,9 @@ export ADAFLIGHT_DASHBOARD
 ADAFLIGHT_TRANSPONDER="$(python3 ../../tools/featuregen.py --feature Transponder \
     ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_TRANSPONDER
+ADAFLIGHT_GIMBAL="$(python3 ../../tools/featuregen.py --feature Gimbal ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_GIMBAL
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

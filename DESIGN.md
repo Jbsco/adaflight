@@ -16383,3 +16383,11 @@ transponder, and host smoke reads the list.
 A Betaflight build without race transponder answers its transponder write as unknown, and its transponder reply
 lists no provider. That reply here follows a board's transponder (D853), and that write now follows transponder
 switch (D851).
+
+## D855. Gimbal settings only with gimbal control (2026-11-20)
+
+A Betaflight build without gimbal control, as a 512 KB build is, lists 18 `gimbal_*` settings fewer and runs one task
+fewer, so `scheduler_debug_task` stops one lower. `gimbal_mode` stays, as it belongs to servos. A build here left the
+gimbal out at 512 KB (D622), but its command line kept those settings. Settings table now marks them from a settings
+oracle built without gimbal, through a gimbal build switch, and that maximum's falls take its one. `hostwing.do`
+checks it on its host image built without GPS.
