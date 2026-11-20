@@ -44,7 +44,7 @@ def main() -> int:
             names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
             gone = ("mag_", "align_mag", "blackbox_disable_mag")
             hs.check("dump has no compass settings there",
-                     "baro_hardware" in names and not any(n.startswith(gone) for n in names),
+                     "acc_hardware" in names and not any(n.startswith(gone) for n in names),
                      repr([n for n in names if n.startswith(gone)]))
             text = hs.cli(sock, "get mag_declination")
             hs.check("get finds no compass setting there", "INVALID NAME" in text, text[-120:])

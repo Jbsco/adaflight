@@ -2,6 +2,7 @@ with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 with Adaflight.Mixer_Init;
 with Adaflight.Compass_Build;
+with Adaflight.Baro_Build;
 
 package body Adaflight.MSP_Hardware_In with SPARK_Mode is
    use type Interfaces.Integer_64;
@@ -58,7 +59,9 @@ package body Adaflight.MSP_Hardware_In with SPARK_Mode is
             Set_Mixer_Config (C, Request, R);
          when Set_Sensor_Config_Command =>
             Add (P, Acc_Hardware, U8 (Request, 0), 0);
-            Add (P, Baro_Hardware, U8 (Request, 1), 0);
+            if Adaflight.Baro_Build.Enabled then
+               Add (P, Baro_Hardware, U8 (Request, 1), 0);
+            end if;
             if Adaflight.Compass_Build.Enabled then
                Add (P, Mag_Hardware, U8 (Request, 2), 0);
             end if;
