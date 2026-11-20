@@ -18,7 +18,8 @@ project Adaflight_Core is
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
    --  the SD card, the flight log, the flash chip, the compass, the barometer, the rangefinders, the pitot sensor,
    --  the OLED dashboard or the race transponder the servo, LED, GPS, SD, flight log, flash, compass, barometer,
-   --  rangefinder, pitot, dashboard or transponder build spec.
+   --  rangefinder, pitot, dashboard or transponder build spec, and a build without the gimbal control the gimbal
+   --  build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -34,6 +35,7 @@ project Adaflight_Core is
    Pitot        : Switch := external ("ADAFLIGHT_PITOT", "on");
    Dashboard    : Switch := external ("ADAFLIGHT_DASHBOARD", "on");
    Transponder  : Switch := external ("ADAFLIGHT_TRANSPONDER", "on");
+   Gimbal       : Switch := external ("ADAFLIGHT_GIMBAL", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -118,6 +120,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-transponder_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-transponder_build.ads");
+   end case;
+   case Gimbal is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-gimbal_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-gimbal_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -205,6 +213,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Transponder_Build") use "adaflight-transponder_build__off.ads";
+      end case;
+      case Gimbal is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Gimbal_Build") use "adaflight-gimbal_build__off.ads";
       end case;
    end Naming;
 
