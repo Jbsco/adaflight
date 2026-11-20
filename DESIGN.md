@@ -16342,3 +16342,9 @@ fewer: `pitot_*` settings, `blackbox_disable_pitot` and the airspeed element's p
 `scheduler_debug_task` stops one lower. A build here left the sensor out at 512 KB (D622), but its command line kept
 those settings. Settings table now marks them from a settings oracle built without pitot sensor, through a pitot
 build switch, and that maximum's falls take its one. `hostwing.do` checks it on its host image built without GPS.
+
+## D849. Pitot hardware over MSP only with pitot sensor (2026-11-20)
+
+A Betaflight build without pitot sensor reads its sensor configuration write's pitot hardware field and drops it, so
+an out of range value changes nothing and is no error. That write here now passes over the field without pitot
+switch (D848), as it does over rangefinder hardware (D847).

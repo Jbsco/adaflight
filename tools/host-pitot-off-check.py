@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the pitot sensor over its UART1 TCP port: its settings have no pitot
-setting.
+setting, and its MSP sensor configuration write passes over the pitot hardware.
 
 usage: host-pitot-off-check.py <host image>"""
 import importlib.util
@@ -21,6 +21,10 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "pitotoff.bin"))
         try:
             hs.time.sleep(2.5)
+            # A build with the pitot sensor refuses a hardware value outside its setting's range.
+            sensors = hs.msp(sock, 96) or bytes(6)
+            hs.check("sensor configuration write passes over the pitot hardware there",
+                     hs.msp(sock, 97, sensors[:5] + bytes([200]) + sensors[6:]) is not None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             lines = hs.cli(sock, "dump all", 4.0).splitlines()
