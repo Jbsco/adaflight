@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the flash chip over its UART1 TCP port: the command line knows no flash
-command and its help lists none, and its resource command neither lists nor takes the flash chip's pin.
+command and its help lists none, its settings have no flash bus setting, and its resource command neither lists
+nor takes the flash chip's pin.
 
 usage: host-flash-off-check.py <host image>"""
 import importlib.util
@@ -32,6 +33,11 @@ def main() -> int:
             text = hs.cli(sock, "help flash_")
             hs.check("help lists no flash command there", "NO MATCHES" in text, text[-120:])
             lines = hs.cli(sock, "dump all", 4.0).splitlines()
+            names = [line.split()[1] for line in lines if line.startswith("set ") and len(line.split()) > 1]
+            hs.check("dump has no flash bus setting there",
+                     "blackbox_device" in names and "flash_spi_bus" not in names)
+            text = hs.cli(sock, "get flash_spi_bus")
+            hs.check("get finds no flash bus setting there", "INVALID NAME" in text, text[-120:])
             hs.check("dump has no flash chip pin there",
                      any(line.startswith("resource MOTOR ") for line in lines)
                      and not any("FLASH_CS" in line for line in lines if "resource" in line))

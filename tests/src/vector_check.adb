@@ -32313,6 +32313,7 @@ procedure Vector_Check is
    Settings_GPS : Boolean := True;
    Settings_SD : Boolean := True;
    Settings_BB : Boolean := True;
+   Settings_Flash : Boolean := True;
    Settings_Count : array (Boolean, Boolean, 1 .. 2) of Natural := (others => (others => (others => 0)));
    Settings_No_Servo_Count : Natural := 0;
    Settings_No_LED_Count : Natural := 0;
@@ -32320,6 +32321,7 @@ procedure Vector_Check is
    Settings_No_LED_GPS_Count : Natural := 0;
    Settings_No_SD_Count : Natural := 0;
    Settings_No_BB_Count : Natural := 0;
+   Settings_No_Flash_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
    Oracle_Gyros : Positive range 1 .. 2 := 1;
@@ -32425,7 +32427,7 @@ procedure Vector_Check is
          while Settings_Seen <= Setting'Pos (Setting'Last)
            and then not In_Build
              (Setting'Val (Settings_Seen), Settings_Wing, Oracle_Gyros, Settings_Plan, Settings_Servos, Settings_LED,
-              Settings_GPS, Settings_SD, Settings_BB)
+              Settings_GPS, Settings_SD, Settings_BB, Settings_Flash)
          loop
             Settings_Seen := Settings_Seen + 1;
          end loop;
@@ -32440,7 +32442,9 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            if not Settings_BB then
+            if not Settings_Flash then
+               Settings_No_Flash_Count := Settings_No_Flash_Count + 1;
+            elsif not Settings_BB then
                Settings_No_BB_Count := Settings_No_BB_Count + 1;
             elsif not Settings_SD then
                Settings_No_SD_Count := Settings_No_SD_Count + 1;
@@ -44169,14 +44173,16 @@ procedure Vector_Check is
                elsif Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsnoplan"
                  or else Kind = "settingswingnoplan" or else Kind = "settingsgyro2" or else Kind = "settingsnoservo"
                  or else Kind = "settingsnoled" or else Kind = "settingsnogps" or else Kind = "settingsnoledgps"
-                 or else Kind = "settingsnosd" or else Kind = "settingsnobb"
+                 or else Kind = "settingsnosd" or else Kind = "settingsnobb" or else Kind = "settingsnoflash"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
                   Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
                     or else Kind = "settingsnoservo" or else Kind = "settingsnoled" or else Kind = "settingsnogps"
-                    or else Kind = "settingsnoledgps" or else Kind = "settingsnosd" or else Kind = "settingsnobb";
+                    or else Kind = "settingsnoledgps" or else Kind = "settingsnosd" or else Kind = "settingsnobb"
+                    or else Kind = "settingsnoflash";
                   Settings_SD := Kind /= "settingsnosd";
                   Settings_BB := Kind /= "settingsnobb";
+                  Settings_Flash := Kind /= "settingsnoflash";
                   Settings_Servos := Kind /= "settingsnoservo";
                   Settings_LED := Kind /= "settingsnoled" and then Kind /= "settingsnoledgps";
                   Settings_GPS := Kind /= "settingsnogps" and then Kind /= "settingsnoledgps";
@@ -44602,6 +44608,9 @@ begin
    Settings_Seen := 0;
    Run (Dir & "/settings-nobb.csv", "settingsnobb");
    Settings_BB := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-noflash.csv", "settingsnoflash");
+   Settings_Flash := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44693,7 +44702,8 @@ begin
                begin
                   for S in Adaflight.Settings_Table.Setting loop
                      if Adaflight.Settings_Table.In_Build
-                       (S, W, G, P, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True)
+                       (S, W, G, P, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
+                        Blackbox => True, Flash_Chip => True)
                      then
                         Expected := Expected + 1;
                      end if;
@@ -44714,7 +44724,8 @@ begin
    begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
-           (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True)
+           (S, False, 1, True, Servos => False, LED_Strip => True, GPS => True, SD_Card => True,
+            Blackbox => True, Flash_Chip => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44730,7 +44741,8 @@ begin
    begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
-           (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True, SD_Card => True, Blackbox => True)
+           (S, False, 1, True, Servos => True, LED_Strip => False, GPS => True, SD_Card => True,
+            Blackbox => True, Flash_Chip => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44749,7 +44761,7 @@ begin
          for S in Adaflight.Settings_Table.Setting loop
             if Adaflight.Settings_Table.In_Build
               (S, False, 1, True, Servos => True, LED_Strip => not Both, GPS => False, SD_Card => True,
-               Blackbox => True)
+               Blackbox => True, Flash_Chip => True)
             then
                Expected := Expected + 1;
             end if;
@@ -44765,7 +44777,8 @@ begin
    begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
-           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => False, Blackbox => True)
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => False,
+            Blackbox => True, Flash_Chip => True)
          then
             Expected := Expected + 1;
          end if;
@@ -44781,13 +44794,31 @@ begin
    begin
       for S in Adaflight.Settings_Table.Setting loop
          if Adaflight.Settings_Table.In_Build
-           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => False)
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True,
+            Blackbox => False, Flash_Chip => True)
          then
             Expected := Expected + 1;
          end if;
       end loop;
       if Settings_No_BB_Count /= Expected then
          Put_Line ("settings: the vectors hold" & Settings_No_BB_Count'Image & " settings without the flight log of"
+                   & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
+            Flash_Chip => False)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_Flash_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_Flash_Count'Image & " settings without the flash chip of"
                    & Expected'Image);
          Failures := Failures + 1;
       end if;

@@ -16238,3 +16238,9 @@ A Betaflight build without flash chip, as for a board whose configuration names 
 no flash chip pin in its resource table. A build here leaves flash chip code out the same way (D665), but its command
 line kept them: `flash_info` printed a zero geometry, `flash_erase` nothing and `flash_scan` an error. Command line
 now follows a flash chip build switch, as it follows SD card (D826). `hostwing.do` checks it on its host image built without servos, LED strip, SD card and flash chip.
+
+## D834. Flash bus setting only with flash chip (2026-11-19)
+
+A Betaflight build without flash chip also lists `flash_spi_bus` no more, and keeps every lookup table. Settings
+table marks it from a settings oracle built without flash chip but with SD card, so its flight log stays. Settings
+generator now takes a view that leaves out no lookup table, whose flag lookup table test does not take.
