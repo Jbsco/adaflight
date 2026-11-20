@@ -5598,6 +5598,7 @@ package body Adaflight.STM32.Flight is
         ("Adaflight (" & Adaflight.Board.Board_Name & ")",
          Composite => Config.Usb_Dev_Config.Type_Value = Composite_Type);
       Ctx.Out_Views.Common := Common_Snapshot;
+      Ctx.Out_Views.Common.Transponder.Built_In := Adaflight.Build_Features.Transponder;
       Ctx.Out_Views.Build := (others => True);
       Ctx.Out_Views.Hardware.Built :=
         (Adaflight.MSP_Hardware_Out.Gyro | Adaflight.MSP_Hardware_Out.Acc => True,

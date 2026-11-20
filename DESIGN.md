@@ -16356,3 +16356,30 @@ no more and runs one task fewer, so `scheduler_debug_task` stops one lower. A bu
 512 KB (D622), but its command line kept both settings. Settings table now marks them from a settings oracle built
 without dashboard, through a dashboard build switch, and that maximum's falls take its one. `hostwing.do` checks it
 on its host image built without GPS.
+
+## D851. Transponder pin only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder, as a 512 KB build is, has no transponder pin in its resource table. A
+build here left the transponder out at 512 KB (D622), but its command line kept that pin. Command line now follows a
+transponder build switch, as it follows rangefinders (D844). `hostwing.do` checks it on its host image built without
+GPS.
+
+## D852. Transponder settings only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder lists `transponder_provider`, `transponder_data` and the provider lookup
+table no more, and runs one task fewer, so `scheduler_debug_task` stops one lower. Settings table marks them from a
+settings oracle built without transponder, and that maximum's falls (D850) now take its one. Settings generator now
+wraps the limits in a setting's description when they take that many features.
+
+## D853. Transponder providers over MSP with race transponder (2026-11-20)
+
+A Betaflight build with race transponder lists its three providers with their data lengths in its transponder
+reply, and a configurator shows its transponder tab from that list. A board here drove the transponder (D736) but
+never marked it built in that reply, which listed no provider in every build. A board now marks it with its
+transponder, and host smoke reads the list.
+
+## D854. Transponder write over MSP only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder answers its transponder write as unknown, and its transponder reply
+lists no provider. That reply here follows a board's transponder (D853), and that write now follows transponder
+switch (D851).

@@ -10,6 +10,7 @@ with Adaflight.Flash_Build;
 with Adaflight.Compass_Build;
 with Adaflight.Baro_Build;
 with Adaflight.Rangefinder_Build;
+with Adaflight.Transponder_Build;
 with Adaflight.Servo_Build;
 
 package Adaflight.CLI_Resources with SPARK_Mode is
@@ -25,8 +26,8 @@ package Adaflight.CLI_Resources with SPARK_Mode is
 
    --  Whether the build's resource table has an owner: servos only with
    --  servos, the LED strip, the SD card's, the flash chip's, the compass's,
-   --  the barometer's and the sonar's pins only with them, and the mass
-   --  storage pin only with the flight log.
+   --  the barometer's, the sonar's and the transponder's pins only with them,
+   --  and the mass storage pin only with the flight log.
    function In_Build (O : Owner) return Boolean is
      (case O is
          when Servo                         => Adaflight.Servo_Build.Enabled,
@@ -37,6 +38,7 @@ package Adaflight.CLI_Resources with SPARK_Mode is
          when Compass_CS | Compass_EXTI     => Adaflight.Compass_Build.Enabled,
          when Baro_CS | Baro_EOC | Baro_XCLR => Adaflight.Baro_Build.Enabled,
          when Sonar_Trigger | Sonar_Echo    => Adaflight.Rangefinder_Build.Enabled,
+         when Transponder                   => Adaflight.Transponder_Build.Enabled,
          when others                        => True);
 
    --  The owner's name as the command line prints and reads it.

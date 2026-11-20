@@ -14,6 +14,7 @@ with Adaflight.Baro_Build;
 with Adaflight.Rangefinder_Build;
 with Adaflight.Pitot_Build;
 with Adaflight.Dashboard_Build;
+with Adaflight.Transponder_Build;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
@@ -247,13 +248,15 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
       Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
       Pitot : Boolean := Adaflight.Pitot_Build.Enabled;
-      Dashboard : Boolean := Adaflight.Dashboard_Build.Enabled) return Info;
+      Dashboard : Boolean := Adaflight.Dashboard_Build.Enabled;
+      Transponder : Boolean := Adaflight.Transponder_Build.Enabled) return Info;
 
    --  Whether the multirotor or the wing build has a setting, with the flight plan or without it,
    --  with servos or without them, with the LED strip or without it, with the GPS or without it, with the SD card
    --  or without it, with the flight log or without it, with the flash chip or without it, with the compass or
    --  without it, with the barometer or without it, with the rangefinders or without them, with the pitot sensor or
-   --  without it, with the OLED dashboard or without it, on a board with that many gyros.
+   --  without it, with the OLED dashboard or without it, with the race transponder or without it, on a board with
+   --  that many gyros.
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
@@ -267,12 +270,13 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
       Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
       Pitot : Boolean := Adaflight.Pitot_Build.Enabled;
-      Dashboard : Boolean := Adaflight.Dashboard_Build.Enabled) return Boolean;
+      Dashboard : Boolean := Adaflight.Dashboard_Build.Enabled;
+      Transponder : Boolean := Adaflight.Transponder_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table, with servos or without them, with the LED strip
    --  or without it, with the GPS or without it, with the SD card or without it, with the flight log or without it,
    --  with the compass or without it, with the barometer or without it, with the rangefinders or without them, with
-   --  the pitot sensor or without it.
+   --  the pitot sensor or without it, with the race transponder or without it.
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
       Servos : Boolean := Adaflight.Servo_Build.Enabled;
@@ -283,7 +287,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Compass : Boolean := Adaflight.Compass_Build.Enabled;
       Barometer : Boolean := Adaflight.Baro_Build.Enabled;
       Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
-      Pitot : Boolean := Adaflight.Pitot_Build.Enabled) return Boolean;
+      Pitot : Boolean := Adaflight.Pitot_Build.Enabled;
+      Transponder : Boolean := Adaflight.Transponder_Build.Enabled) return Boolean;
 
    --  The longest setting name and the longest value name.
    Max_Name_Length  : constant := 43;

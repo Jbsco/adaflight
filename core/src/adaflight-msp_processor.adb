@@ -13,6 +13,7 @@ with Adaflight.GPS_Build;
 with Adaflight.Blackbox_Build;
 with Adaflight.Flash_Build;
 with Adaflight.Compass_Build;
+with Adaflight.Transponder_Build;
 with Adaflight.LED_Build;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.Servo_Build;
@@ -393,7 +394,10 @@ package body Adaflight.MSP_Processor with SPARK_Mode is
                Write_U8 (B, S, E.Control.Reply (K));
             end loop;
          end;
-      elsif MSP_Peripheral_In.Handles (Command) then
+      elsif MSP_Peripheral_In.Handles (Command)
+        and then (Command /= MSP_Peripheral_In.Set_Transponder_Config_Command
+                  or else Adaflight.Transponder_Build.Enabled)
+      then
          declare
             PR : MSP_Peripheral_In.Result;
          begin
