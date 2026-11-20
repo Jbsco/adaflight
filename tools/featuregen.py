@@ -119,6 +119,9 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     # Each optical flow sensor brings a rangefinder, so a build without rangefinders has no optical flow.
     if not chosen["Rangefinder"]:
         chosen["Optical_Flow"] = False
+    # The MAVLink receiver answers over the MAVLink telemetry, so a build without that telemetry has no such receiver.
+    if not chosen["MAVLink_Telemetry"]:
+        chosen["MAVLink_Receiver"] = False
     return chosen
 
 

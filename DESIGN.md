@@ -16420,3 +16420,11 @@ A Betaflight build without iBus telemetry, as a 512 KB build is, lists `ibus_sen
 telemetry out at 512 KB (D622), but its command line kept that setting. Settings table now marks it from a settings
 oracle built without iBus telemetry, through an iBus telemetry build switch. `hostwing.do` checks it on its host image
 built without GPS.
+
+## D860. MAVLink telemetry settings only with MAVLink telemetry (2026-11-20)
+
+A Betaflight build without MAVLink telemetry, as a 512 KB build is, lists eight `mavlink_*` settings fewer and has no
+MAVLink receiver, which answers over that telemetry. A build here left both out at 512 KB (D622), but its command
+line kept those settings. Settings table now marks them from a settings oracle built without MAVLink telemetry and
+receiver, through a MAVLink telemetry build switch, and `featuregen.py` leaves that receiver out without its
+telemetry. `hostwing.do` checks it on its host image built without GPS.

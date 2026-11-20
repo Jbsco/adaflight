@@ -38,6 +38,7 @@ project Adaflight_Core is
    Gimbal       : Switch := external ("ADAFLIGHT_GIMBAL", "on");
    Soft_Serial  : Switch := external ("ADAFLIGHT_SOFT_SERIAL", "on");
    IBus_Telemetry : Switch := external ("ADAFLIGHT_IBUS_TELEMETRY", "on");
+   MAVLink_Telemetry : Switch := external ("ADAFLIGHT_MAVLINK_TELEMETRY", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -140,6 +141,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-ibus_telemetry_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-ibus_telemetry_build.ads");
+   end case;
+   case MAVLink_Telemetry is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-mavlink_telemetry_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-mavlink_telemetry_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -245,6 +252,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.IBus_Telemetry_Build") use "adaflight-ibus_telemetry_build__off.ads";
+      end case;
+      case MAVLink_Telemetry is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.MAVLink_Telemetry_Build") use "adaflight-mavlink_telemetry_build__off.ads";
       end case;
    end Naming;
 
