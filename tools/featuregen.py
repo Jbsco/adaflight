@@ -116,6 +116,9 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     if not chosen["Blackbox"]:
         for name in ("SD_Card", "Flash_Chip", "Mass_Storage"):
             chosen[name] = False
+    # Each optical flow sensor brings a rangefinder, so a build without rangefinders has no optical flow.
+    if not chosen["Rangefinder"]:
+        chosen["Optical_Flow"] = False
     return chosen
 
 

@@ -16306,3 +16306,31 @@ build switch of its own.
 A Betaflight build without barometer reads its sensor configuration write's barometer hardware field and drops it,
 so an out of range value changes nothing and is no error. That write here now passes over the field without
 barometer switch (D841), as it does over compass hardware (D839).
+
+## D844. Sonar pins only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders, as a 512 KB local build is, has no sonar pins in its resource table and no
+optical flow, since each optical flow sensor brings a rangefinder. A build here left both out at 512 KB (D622), but
+its command line kept those pins. Command line now follows a rangefinder build switch, as it follows barometer
+(D841), and `featuregen.py` leaves optical flow out of a build without rangefinders. `hostwing.do` checks it on its
+host image built without rangefinders.
+
+## D845. Rangefinder settings only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders lists seven settings and two lookup tables fewer: rangefinder and optical
+flow settings with their hardware tables, and lidar distance element's position. It runs two tasks fewer, so
+`scheduler_debug_task` stops two lower. Settings table marks them from a settings oracle built without rangefinders
+and optical flow, and that maximum's falls (D842) now take theirs.
+
+## D846. Altitude log field setting with barometer or rangefinders (2026-11-20)
+
+A Betaflight build lists `blackbox_disable_alt` when it has a barometer or a rangefinder, and drops it only without
+both. A settings oracle built without both shows it is the one setting that needs either feature. Settings
+generator now reads such a setting from a build that leaves several features out, and In_Build keeps it while any
+of them is built. Its own vectors check that build, with the summed falls of its limits.
+
+## D847. Rangefinder hardware over MSP only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders reads its sensor configuration write's rangefinder and optical flow hardware
+fields and drops them, so an out of range value changes nothing and is no error. That write here now passes over
+both fields without rangefinder switch (D844), as it does over barometer hardware (D843).
