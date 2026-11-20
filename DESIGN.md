@@ -16270,3 +16270,10 @@ A Betaflight build without compass lists 12 settings and compass hardware's look
 `align_mag` and `blackbox_disable_mag`. It also runs two tasks fewer, so `scheduler_debug_task` stops two lower.
 Settings table marks them from a settings oracle built without compass, and that maximum's falls (D822) now take
 compass's two.
+
+## D839. Compass MSP messages only with compass (2026-11-19)
+
+A Betaflight build without compass answers its compass configuration write and compass calibration as unknown. Its
+sensor alignment and sensor configuration writes read compass fields and drop them, so an out of range compass
+alignment or hardware value changes nothing and is no error. Compass replies here already followed a board flag, and
+these writes now follow compass switch (D837).

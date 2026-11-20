@@ -1,4 +1,5 @@
 with Adaflight.MSP_Simplified_Tuning;
+with Adaflight.Compass_Build;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 
@@ -146,11 +147,13 @@ package body Adaflight.MSP_Tuning_In with SPARK_Mode is
       Length : constant Integer := Request'Length;
       P      : Plan;
    begin
-      Add (P, Align_Mag, U8 (Request, 2), 0);
-      if Length - 4 >= 6 then
-         Add (P, Mag_Align_Roll, S16 (Request, 4), 0);
-         Add (P, Mag_Align_Pitch, S16 (Request, 6), 0);
-         Add (P, Mag_Align_Yaw, S16 (Request, 8), 0);
+      if Adaflight.Compass_Build.Enabled then
+         Add (P, Align_Mag, U8 (Request, 2), 0);
+         if Length - 4 >= 6 then
+            Add (P, Mag_Align_Roll, S16 (Request, 4), 0);
+            Add (P, Mag_Align_Pitch, S16 (Request, 6), 0);
+            Add (P, Mag_Align_Yaw, S16 (Request, 8), 0);
+         end if;
       end if;
       if not Valid (P) then
          R := Error;

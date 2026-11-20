@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the compass over its UART1 TCP port: peripherals prints no compass line
 for a configured compass, its settings have no compass setting, and its resource command neither lists nor
-takes a compass pin.
+takes a compass pin; MSP answers the compass configuration write and calibration as unknown, and its sensor
+alignment and sensor configuration writes pass over compass fields.
 
 usage: host-compass-off-check.py <host image>"""
 import importlib.util
@@ -22,6 +23,15 @@ def main() -> int:
         proc, sock = hs.start(sys.argv[1], os.path.join(work, "compassoff.bin"))
         try:
             hs.time.sleep(2.5)
+            hs.check("compass configuration write is refused as unknown there", hs.msp(sock, 224, bytes(2)) is None)
+            hs.check("compass calibration is refused as unknown there", hs.msp(sock, 206) is None)
+            # A build with the compass refuses an alignment or a hardware value outside its setting's range.
+            align = hs.msp(sock, 126) or bytes(10)
+            hs.check("sensor alignment write passes over the compass alignment there",
+                     hs.msp(sock, 220, align[:2] + bytes([200]) + align[3:5]) is not None)
+            sensors = hs.msp(sock, 96) or bytes(3)
+            hs.check("sensor configuration write passes over the compass hardware there",
+                     hs.msp(sock, 97, sensors[:2] + bytes([200]) + sensors[3:]) is not None)
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             # A build with the compass prints a configured one that it did not detect.
