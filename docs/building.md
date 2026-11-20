@@ -14,7 +14,7 @@ A build without a feature leaves it out of command line, settings and MSP:
 - Flash chip: no `flash_erase`, `flash_info`, `flash_read`, `flash_scan` or `flash_write` command, no flash bus setting and no flash chip pin. It offers no BLACKBOX ERASE mode, and MSP answers flash erase as unknown.
 - Compass: no compass line in `peripherals`, no compass setting and no compass pin. MSP answers compass configuration writes and compass calibration as unknown, and sensor writes pass over compass fields. It offers no MAG mode.
 - Barometer: no barometer line in `peripherals`, no barometer setting and no barometer pin. MSP sensor writes pass over barometer fields.
-- Rangefinders: no optical flow and no sonar pin.
+- Rangefinders: no optical flow, no rangefinder or optical flow setting and no sonar pin.
 
 No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its settings, its mode boxes, its OSD map and its MAVLink mission protocol. Without it the GPS rescue is a flight mode of its own.
 

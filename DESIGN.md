@@ -16314,3 +16314,10 @@ optical flow, since each optical flow sensor brings a rangefinder. A build here 
 its command line kept those pins. Command line now follows a rangefinder build switch, as it follows barometer
 (D841), and `featuregen.py` leaves optical flow out of a build without rangefinders. `hostwing.do` checks it on its
 host image built without rangefinders.
+
+## D845. Rangefinder settings only with rangefinders (2026-11-20)
+
+A Betaflight build without rangefinders lists seven settings and two lookup tables fewer: rangefinder and optical
+flow settings with their hardware tables, and lidar distance element's position. It runs two tasks fewer, so
+`scheduler_debug_task` stops two lower. Settings table marks them from a settings oracle built without rangefinders
+and optical flow, and that maximum's falls (D842) now take theirs.
