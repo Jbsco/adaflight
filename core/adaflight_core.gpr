@@ -18,8 +18,8 @@ project Adaflight_Core is
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
    --  the SD card, the flight log, the flash chip, the compass, the barometer, the rangefinders, the pitot sensor,
    --  the OLED dashboard or the race transponder the servo, LED, GPS, SD, flight log, flash, compass, barometer,
-   --  rangefinder, pitot, dashboard or transponder build spec, and a build without the gimbal control the gimbal
-   --  build spec.
+   --  rangefinder, pitot, dashboard or transponder build spec, and a build without the gimbal control or the
+   --  software serial ports the gimbal or soft serial build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -36,6 +36,7 @@ project Adaflight_Core is
    Dashboard    : Switch := external ("ADAFLIGHT_DASHBOARD", "on");
    Transponder  : Switch := external ("ADAFLIGHT_TRANSPONDER", "on");
    Gimbal       : Switch := external ("ADAFLIGHT_GIMBAL", "on");
+   Soft_Serial  : Switch := external ("ADAFLIGHT_SOFT_SERIAL", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -126,6 +127,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-gimbal_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-gimbal_build.ads");
+   end case;
+   case Soft_Serial is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-soft_serial_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-soft_serial_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -219,6 +226,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Gimbal_Build") use "adaflight-gimbal_build__off.ads";
+      end case;
+      case Soft_Serial is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Soft_Serial_Build") use "adaflight-soft_serial_build__off.ads";
       end case;
    end Naming;
 
