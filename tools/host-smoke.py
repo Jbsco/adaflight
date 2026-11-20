@@ -2188,20 +2188,24 @@ def boot_beep_checks(image, work):
 
 
 def board_problem_checks(image, work):
-    """Board information's configuration problems over a configuration store of its own: a fresh accelerometer asks
-    for its calibration, and an MSP calibration clears that problem."""
+    """Board information over a configuration store of its own: a fresh accelerometer asks for its calibration and an
+    MSP calibration clears that problem, and a fresh board reports itself unconfigured until an MSP save, without a
+    restart."""
     proc, sock = start(image, os.path.join(work, "board-problems.bin"))
 
-    def problems():
+    def field(offset, size):
         info = msp(sock, 4) or b""
         try:
             i = 8 + 1 + info[8]
             i += 1 + info[i]
             i += 1 + info[i]
-            i += 32 + 1 + 1 + 2
-            return int.from_bytes(info[i:i + 4], "little")
+            i += 32 + 1 + offset
+            return int.from_bytes(info[i:i + size], "little") if len(info) >= i + size else None
         except IndexError:
             return None
+
+    def problems():
+        return field(1 + 2, 4)
     try:
         time.sleep(2.5)
         before = problems()
@@ -2210,6 +2214,11 @@ def board_problem_checks(image, work):
         msp(sock, 205)
         cleared, after = until(problems, lambda p: p == 0, wait=6.0)
         check("accelerometer calibration over MSP clears that problem", cleared, repr(after))
+        state = field(0, 1)
+        check("board information reports a fresh board unconfigured", state == 0, repr(state))
+        msp(sock, 250)
+        saved, state = until(lambda: field(0, 1), lambda s: s == 1, wait=4.0)
+        check("board information reports it configured after an MSP save, without a restart", saved, repr(state))
     finally:
         stop(proc)
         sock.close()
