@@ -2187,6 +2187,34 @@ def boot_beep_checks(image, work):
           repr((connected, beeps)))
 
 
+def board_problem_checks(image, work):
+    """Board information's configuration problems over a configuration store of its own: a fresh accelerometer asks
+    for its calibration, and an MSP calibration clears that problem."""
+    proc, sock = start(image, os.path.join(work, "board-problems.bin"))
+
+    def problems():
+        info = msp(sock, 4) or b""
+        try:
+            i = 8 + 1 + info[8]
+            i += 1 + info[i]
+            i += 1 + info[i]
+            i += 32 + 1 + 1 + 2
+            return int.from_bytes(info[i:i + 4], "little")
+        except IndexError:
+            return None
+    try:
+        time.sleep(2.5)
+        before = problems()
+        check("board information asks for an accelerometer calibration on a fresh configuration", before == 1,
+              repr(before))
+        msp(sock, 205)
+        cleared, after = until(problems, lambda p: p == 0, wait=6.0)
+        check("accelerometer calibration over MSP clears that problem", cleared, repr(after))
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def activity_led_checks(image, work):
     """The status LEDs' activity signals in the host's pin log, each LED lit by a low level. The second LED toggles
     each 150 ms while a GPS fix has enough satellites, and goes on and off around a compass's start. The first LED
@@ -6351,6 +6379,7 @@ def main():
         attitude_rate_checks(image, work)
         status_led_checks(image, work)
         boot_beep_checks(image, work)
+        board_problem_checks(image, work)
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
         nand_flash_checks(image, work)
