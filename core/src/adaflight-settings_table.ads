@@ -8,6 +8,7 @@ with Adaflight.LED_Build;
 with Adaflight.GPS_Build;
 with Adaflight.SD_Build;
 with Adaflight.Blackbox_Build;
+with Adaflight.Flash_Build;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
@@ -240,7 +241,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
 
    --  Whether the multirotor or the wing build has a setting, with the flight plan or without it,
    --  with servos or without them, with the LED strip or without it, with the GPS or without it, with the SD card
-   --  or without it, with the flight log or without it, on a board with that many gyros.
+   --  or without it, with the flight log or without it, with the flash chip or without it, on a board with that
+   --  many gyros.
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
@@ -248,7 +250,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
       SD_Card : Boolean := Adaflight.SD_Build.Enabled;
-      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled) return Boolean;
+      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled;
+      Flash_Chip : Boolean := Adaflight.Flash_Build.Enabled) return Boolean;
 
    --  Whether the multirotor or the wing build has a lookup table, with servos or without them, with the LED strip
    --  or without it, with the GPS or without it, with the SD card or without it, with the flight log or without it.

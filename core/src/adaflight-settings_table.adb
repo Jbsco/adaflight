@@ -2656,6 +2656,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
      (S in Blackbox_Sample_Rate .. Blackbox_Baud | Sdcard_Detect_Inverted .. Sdcard_Spi_Bus | Osd_Log_Status_Pos
         | Usb_Msc_Pin_Pullup .. Flash_Spi_Bus);
 
+   --  Whether a setting exists only in a build with the flash chip.
+   function Needs_Flash_Chip (S : Setting) return Boolean is
+     (S in Flash_Spi_Bus);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
@@ -2663,7 +2667,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       LED_Strip : Boolean := Adaflight.LED_Build.Enabled;
       GPS : Boolean := Adaflight.GPS_Build.Enabled;
       SD_Card : Boolean := Adaflight.SD_Build.Enabled;
-      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled) return Boolean is
+      Blackbox : Boolean := Adaflight.Blackbox_Build.Enabled;
+      Flash_Chip : Boolean := Adaflight.Flash_Build.Enabled) return Boolean is
      ((if Wing then Infos (S).In_Wing else Infos (S).In_Multirotor)
       and then (Flight_Plan or else not Needs_Flight_Plan (S))
       and then (Gyros > 1 or else not Needs_Second_Gyro (S))
@@ -2671,7 +2676,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       and then (LED_Strip or else not Needs_LED_Strip (S))
       and then (GPS or else not Needs_GPS (S))
       and then (SD_Card or else not Needs_SD_Card (S))
-      and then (Blackbox or else not Needs_Blackbox (S)));
+      and then (Blackbox or else not Needs_Blackbox (S))
+      and then (Flash_Chip or else not Needs_Flash_Chip (S)));
 
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;
