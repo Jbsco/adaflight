@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the flash chip over its UART1 TCP port: the command line knows no flash
 command and its help lists none, its settings have no flash bus setting, its resource command neither lists nor
-takes the flash chip's pin, and MSP answers flash erase as unknown.
+takes the flash chip's pin, and MSP answers flash erase as unknown and offers no BLACKBOX ERASE mode.
 
 usage: host-flash-off-check.py <host image>"""
 import importlib.util
@@ -25,6 +25,9 @@ def main() -> int:
         try:
             hs.time.sleep(2.5)
             hs.check("flash erase is refused as unknown there", hs.msp(sock, 72) is None)
+            names = hs.msp(sock, 116) or b""
+            hs.check("box names offer flight log mode but no BLACKBOX ERASE there",
+                     b"BLACKBOX;" in names and b"BLACKBOX ERASE" not in names, repr(names[:80]))
             sock.sendall(b"#")
             hs.read_all(sock, 0.8)
             for command in COMMANDS:
