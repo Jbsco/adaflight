@@ -16321,3 +16321,10 @@ A Betaflight build without rangefinders lists seven settings and two lookup tabl
 flow settings with their hardware tables, and lidar distance element's position. It runs two tasks fewer, so
 `scheduler_debug_task` stops two lower. Settings table marks them from a settings oracle built without rangefinders
 and optical flow, and that maximum's falls (D842) now take theirs.
+
+## D846. Altitude log field setting with barometer or rangefinders (2026-11-20)
+
+A Betaflight build lists `blackbox_disable_alt` when it has a barometer or a rangefinder, and drops it only without
+both. A settings oracle built without both shows it is the one setting that needs either feature. Settings
+generator now reads such a setting from a build that leaves several features out, and In_Build keeps it while any
+of them is built. Its own vectors check that build, with the summed falls of its limits.

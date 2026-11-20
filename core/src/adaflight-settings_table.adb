@@ -2692,6 +2692,10 @@ package body Adaflight.Settings_Table with SPARK_Mode is
    function Needs_Rangefinder (S : Setting) return Boolean is
      (S in Osd_Lidar_Dist_Pos | Rangefinder_Hardware .. Opticalflow_Flip_X);
 
+   --  Whether a setting exists only in a build with the barometer or the rangefinders.
+   function Needs_Barometer_Or_Rangefinder (S : Setting) return Boolean is
+     (S in Blackbox_Disable_Alt);
+
    function In_Build
      (S : Setting; Wing : Boolean; Gyros : Positive;
       Flight_Plan : Boolean := Adaflight.Plan_Build.Enabled;
@@ -2715,7 +2719,8 @@ package body Adaflight.Settings_Table with SPARK_Mode is
       and then (Flash_Chip or else not Needs_Flash_Chip (S))
       and then (Compass or else not Needs_Compass (S))
       and then (Barometer or else not Needs_Barometer (S))
-      and then (Rangefinder or else not Needs_Rangefinder (S)));
+      and then (Rangefinder or else not Needs_Rangefinder (S))
+      and then (Barometer or else Rangefinder or else not Needs_Barometer_Or_Rangefinder (S)));
 
    function Table_In_Build
      (T : Lookup_Table; Wing : Boolean;

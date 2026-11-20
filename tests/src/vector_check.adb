@@ -32328,6 +32328,7 @@ procedure Vector_Check is
    Settings_No_Mag_Count : Natural := 0;
    Settings_No_Baro_Count : Natural := 0;
    Settings_No_Range_Count : Natural := 0;
+   Settings_No_Baro_Range_Count : Natural := 0;
 
    --  The gyros of the settings oracle a family came from: one, or two for the families of the two gyro build.
    Oracle_Gyros : Positive range 1 .. 2 := 1;
@@ -32451,7 +32452,9 @@ procedure Vector_Check is
             Text_Mode : constant Boolean := Str (5) = "string";
          begin
             Settings_Seen := Settings_Seen + 1;
-            if not Settings_Range then
+            if not Settings_Baro and then not Settings_Range then
+               Settings_No_Baro_Range_Count := Settings_No_Baro_Range_Count + 1;
+            elsif not Settings_Range then
                Settings_No_Range_Count := Settings_No_Range_Count + 1;
             elsif not Settings_Baro then
                Settings_No_Baro_Count := Settings_No_Baro_Count + 1;
@@ -44190,15 +44193,16 @@ procedure Vector_Check is
                  or else Kind = "settingsnoled" or else Kind = "settingsnogps" or else Kind = "settingsnoledgps"
                  or else Kind = "settingsnosd" or else Kind = "settingsnobb" or else Kind = "settingsnoflash"
                  or else Kind = "settingsnomag" or else Kind = "settingsnobaro" or else Kind = "settingsnorange"
+                 or else Kind = "settingsnobarorange"
                then
                   Settings_Wing := Kind = "settingswing" or else Kind = "settingswingnoplan";
                   Settings_Plan := Kind = "settings" or else Kind = "settingswing" or else Kind = "settingsgyro2"
                     or else Kind = "settingsnoservo" or else Kind = "settingsnoled" or else Kind = "settingsnogps"
                     or else Kind = "settingsnoledgps" or else Kind = "settingsnosd" or else Kind = "settingsnobb"
                     or else Kind = "settingsnoflash" or else Kind = "settingsnomag" or else Kind = "settingsnobaro"
-                    or else Kind = "settingsnorange";
-                  Settings_Baro := Kind /= "settingsnobaro";
-                  Settings_Range := Kind /= "settingsnorange";
+                    or else Kind = "settingsnorange" or else Kind = "settingsnobarorange";
+                  Settings_Baro := Kind /= "settingsnobaro" and then Kind /= "settingsnobarorange";
+                  Settings_Range := Kind /= "settingsnorange" and then Kind /= "settingsnobarorange";
                   Settings_SD := Kind /= "settingsnosd";
                   Settings_Mag := Kind /= "settingsnomag";
                   Settings_BB := Kind /= "settingsnobb";
@@ -44640,6 +44644,10 @@ begin
    Settings_Seen := 0;
    Run (Dir & "/settings-norange.csv", "settingsnorange");
    Settings_Range := True;
+   Settings_Seen := 0;
+   Run (Dir & "/settings-nobarorange.csv", "settingsnobarorange");
+   Settings_Baro := True;
+   Settings_Range := True;
    Run (Dir & "/confset-gyro2.csv", "confsetgyro2");
    Run (Dir & "/confcodec-gyro2.csv", "confcodecgyro2");
    Oracle_Gyros := 1;
@@ -44900,6 +44908,23 @@ begin
       if Settings_No_Range_Count /= Expected then
          Put_Line ("settings: the vectors hold" & Settings_No_Range_Count'Image
                    & " settings without the rangefinders of" & Expected'Image);
+         Failures := Failures + 1;
+      end if;
+   end;
+   declare
+      Expected : Natural := 0;
+   begin
+      for S in Adaflight.Settings_Table.Setting loop
+         if Adaflight.Settings_Table.In_Build
+           (S, False, 1, True, Servos => True, LED_Strip => True, GPS => True, SD_Card => True, Blackbox => True,
+            Flash_Chip => True, Compass => True, Barometer => False, Rangefinder => False)
+         then
+            Expected := Expected + 1;
+         end if;
+      end loop;
+      if Settings_No_Baro_Range_Count /= Expected then
+         Put_Line ("settings: the vectors hold" & Settings_No_Baro_Range_Count'Image
+                   & " settings without the barometer and the rangefinders of" & Expected'Image);
          Failures := Failures + 1;
       end if;
    end;

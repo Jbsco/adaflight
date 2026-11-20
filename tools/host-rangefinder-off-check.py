@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks a build of the host image without the rangefinders over its UART1 TCP port: its settings have no
-rangefinder or optical flow setting, and its resource command neither lists nor takes a sonar pin.
+rangefinder or optical flow setting, and none for the altitude log field without the barometer either, and its
+resource command neither lists nor takes a sonar pin.
 
 usage: host-rangefinder-off-check.py <host image>"""
 import importlib.util
@@ -29,6 +30,9 @@ def main() -> int:
             hs.check("dump has no rangefinder or optical flow settings there",
                      "rangefinder_max_range_cm" in names and not any(n.startswith(gone) for n in names),
                      repr([n for n in names if n.startswith(gone)]))
+            # The altitude log field needs the barometer or the rangefinders, and this build has neither.
+            hs.check("dump has no altitude log field setting without the barometer either there",
+                     "blackbox_disable_alt" not in names)
             text = hs.cli(sock, "get rangefinder_hardware")
             hs.check("get finds no rangefinder setting there", "INVALID NAME" in text, text[-120:])
             hs.check("dump has no sonar pins there",
