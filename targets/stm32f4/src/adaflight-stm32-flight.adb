@@ -12,6 +12,7 @@ with Adaflight.Blackbox;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
+with Adaflight.RX_Bind;
 with Adaflight.STM32.Build_Stamp;
 with Adaflight.STM32.HoTT;
 with Adaflight.STM32.Status_LED;
@@ -685,6 +686,8 @@ package body Adaflight.STM32.Flight is
       V.Board.SPI_Devices := SPI_Devices;
       V.Board.I2C_Devices := I2C_Devices;
       V.Board.Motor_Protocol_Disabled := Config.Motor_Config.Dev.Motor_Protocol = 0;
+      V.Board.VCP := True;
+      V.Board.Soft_Serial := Adaflight.Build_Features.Soft_Serial;
       V.Beeper := True;
       V.Meters.Virtual := True;
       V.OSD := True;
@@ -1545,6 +1548,10 @@ package body Adaflight.STM32.Flight is
            (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
       end if;
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
+      Ctx.Out_Views.Common.Board.RX_Bind :=
+        Adaflight.RX_Bind.Bind_For
+          (Adaflight.STM32.Radio.Source, Adaflight.STM32.Radio.Serial_Protocol,
+           Natural (Config.Rx_Spi_Config.Rx_Spi_Protocol)) not in Adaflight.RX_Bind.No_Bind;
       Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
       Ctx.Control.From_Telemetry := From_Telemetry;
       Ctx.Control.RX_SPI_Active := (Runtime_Features and Adaflight.Config_Fix.Feature_RX_SPI) /= 0;

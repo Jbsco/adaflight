@@ -16391,3 +16391,10 @@ fewer, so `scheduler_debug_task` stops one lower. `gimbal_mode` stays, as it bel
 gimbal out at 512 KB (D622), but its command line kept those settings. Settings table now marks them from a settings
 oracle built without gimbal, through a gimbal build switch, and that maximum's falls take its one. `hostwing.do`
 checks it on its host image built without GPS.
+
+## D856. Board capabilities over MSP (2026-11-20)
+
+A Betaflight board reports in its board information whether it has a USB serial port, software serial ports and a
+receiver that binds, and a configurator reads them for its ports and receiver tabs. A board here reported none of
+them in every build. A board now reports its USB serial port, its software serial ports with that feature, and a
+bind with a receiver that takes one, as MSP bind answers it, updated at each request. Host smoke reads the bits.

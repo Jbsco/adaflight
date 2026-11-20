@@ -3825,6 +3825,9 @@ def main():
                   past == b"" and len([line for line in camera_lines(store) if line[0] == "key"]) == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            info = msp(sock, 4) or b""
+            check("board information names the USB serial port, the software serial ports and the receiver's bind",
+                  len(info) > 7 and info[7] == 0x43, repr(info[:9]))
             taken = msp(sock, 186, bytes([200]))
             analog = msp(sock, 110)
             link = msp(sock, 187)
