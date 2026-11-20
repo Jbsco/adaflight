@@ -16194,3 +16194,13 @@ servos, LED strip and SD card.
 A Betaflight build without SD card also lists three `sdcard_*` settings and SD card mode's lookup table fewer.
 Settings table marks them from a settings oracle built without SD card, through its list of builds that each leave
 one feature out (D819). Its task list and limits do not change.
+
+## D828. GEPRCF411SX1280 without flight log (2026-11-19)
+
+GEPRCF411SX1280's configuration names a flash chip, so its build kept its flight log (D666) and its flash chip code
+(D665). With servos, LED strip, GPS and SD card left out of command line, settings and MSP (D814 to D827), and its
+main RAM fitting (D824), its image still overflowed flash by 24,694 bytes.
+
+By the user's ruling it now leaves its flight log out, about 22 KB, and its flash chip code, about 11 KB, which only
+that log used. `featuregen.py` names such per-board omissions, which a build's `FEATURES` can still turn back on.
+It fits with 8,363 bytes of flash and 5,832 bytes of main RAM free. Betaflight builds both into this target.
