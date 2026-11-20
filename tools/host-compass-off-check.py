@@ -2,7 +2,8 @@
 """Checks a build of the host image without the compass over its UART1 TCP port: peripherals prints no compass line
 for a configured compass, its settings have no compass setting, and its resource command neither lists nor
 takes a compass pin; MSP answers the compass configuration write and calibration as unknown, and its sensor
-alignment and sensor configuration writes pass over compass fields.
+alignment and sensor configuration writes pass over compass fields, and with the simulator's link it offers no
+MAG mode.
 
 usage: host-compass-off-check.py <host image>"""
 import importlib.util
@@ -52,6 +53,17 @@ def main() -> int:
                      and not any("COMPASS_" in line for line in lines if "resource" in line))
             text = hs.cli(sock, "resource COMPASS_CS A01")
             hs.check("resource takes no compass pin there", "INVALID RESOURCE NAME" in text, text[-120:])
+        finally:
+            hs.stop(proc)
+            sock.close()
+        # A build with the compass detects the simulator's and offers MAG mode.
+        proc, sock = hs.start(sys.argv[1], os.path.join(work, "compassoff.bin"),
+                              {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        try:
+            hs.time.sleep(4.0)
+            names = hs.msp(sock, 116) or b""
+            hs.check("box names offer no MAG mode with the simulator's link there",
+                     b"ARM;" in names and b";MAG;" not in names, repr(names[:120]))
         finally:
             hs.stop(proc)
             sock.close()

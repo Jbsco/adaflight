@@ -2262,6 +2262,9 @@ def activity_led_checks(image, work):
         time.sleep(4.0)
         seen = [v for _, v in changes(second)]
         check("a compass's start lights the second LED before the boot flashes", seen[:14] == [0, 1] * 7, repr(seen[:16]))
+        if contains("Compass"):
+            names = msp(sock, 116) or b""
+            check("box names offer MAG with the simulator's compass", b";MAG;" in names, repr(names[:120]))
     finally:
         stop(proc)
         sock.close()

@@ -16277,3 +16277,10 @@ A Betaflight build without compass answers its compass configuration write and c
 sensor alignment and sensor configuration writes read compass fields and drop them, so an out of range compass
 alignment or hardware value changes nothing and is no error. Compass replies here already followed a board flag, and
 these writes now follow compass switch (D837).
+
+## D840. MAG mode with a detected compass (2026-11-19)
+
+Betaflight offers MAG mode, its heading hold, whenever its compass was detected at start. A board here never offered
+it, so a configurator listed no MAG mode, although flight code reads a MAG range set from command line. A board now
+offers it with a detected compass, and never in a build without compass. Host smoke checks it with its simulator's
+compass, and `hostwing.do` checks its absence without compass.

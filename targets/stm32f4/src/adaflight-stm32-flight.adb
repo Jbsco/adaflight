@@ -930,6 +930,7 @@ package body Adaflight.STM32.Flight is
          M (Adaflight.Modes.Calib) := On (Adaflight.Config_Fix.Feature_Inflight_Acc_Cal);
          M (Adaflight.Modes.Acro_Trainer) := True;
       end if;
+      M (Adaflight.Modes.Mag) := Adaflight.STM32.Compass.Detected;
       if Adaflight.Build_Features.GPS and then On (Adaflight.Config_Fix.Feature_GPS) then
          M (Adaflight.Modes.GPS_Rescue) :=
            not On (Adaflight.Config_Fix.Feature_3D)
