@@ -16,8 +16,9 @@ project Adaflight_Core is
 
    --  A build without debug values takes the debug build spec that turns them off, and a build without the
    --  flight plan the plan build spec that turns it off, and a build without servos, the LED strip, the GPS,
-   --  the SD card, the flight log, the flash chip, the compass, the barometer, the rangefinders or the pitot sensor
-   --  the servo, LED, GPS, SD, flight log, flash, compass, barometer, rangefinder or pitot build spec.
+   --  the SD card, the flight log, the flash chip, the compass, the barometer, the rangefinders, the pitot sensor
+   --  or the OLED dashboard the servo, LED, GPS, SD, flight log, flash, compass, barometer, rangefinder, pitot or
+   --  dashboard build spec.
    type Switch is ("on", "off");
    Debug_Values : Switch := external ("ADAFLIGHT_DEBUG_VALUES", "on");
    Flight_Plan  : Switch := external ("ADAFLIGHT_FLIGHT_PLAN", "on");
@@ -31,6 +32,7 @@ project Adaflight_Core is
    Barometer    : Switch := external ("ADAFLIGHT_BAROMETER", "on");
    Rangefinder  : Switch := external ("ADAFLIGHT_RANGEFINDER", "on");
    Pitot        : Switch := external ("ADAFLIGHT_PITOT", "on");
+   Dashboard    : Switch := external ("ADAFLIGHT_DASHBOARD", "on");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -103,6 +105,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-pitot_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-pitot_build.ads");
+   end case;
+   case Dashboard is
+      when "on" =>
+         Excluded := Excluded & ("adaflight-dashboard_build__off.ads");
+      when "off" =>
+         Excluded := Excluded & ("adaflight-dashboard_build.ads");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -178,6 +186,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.Pitot_Build") use "adaflight-pitot_build__off.ads";
+      end case;
+      case Dashboard is
+         when "on" =>
+            null;
+         when "off" =>
+            for Spec ("Adaflight.Dashboard_Build") use "adaflight-dashboard_build__off.ads";
       end case;
    end Naming;
 

@@ -50,7 +50,8 @@ VERBATIM='core/src/adaflight-settings_table.adb tests/vectors/settings.csv tests
           tests/vectors/settings-noservo.csv tests/vectors/settings-noled.csv tests/vectors/settings-nogps.csv
           tests/vectors/settings-noledgps.csv tests/vectors/settings-nosd.csv tests/vectors/settings-nobb.csv
           tests/vectors/settings-noflash.csv tests/vectors/settings-nomag.csv tests/vectors/settings-nobaro.csv
-          tests/vectors/settings-norange.csv tests/vectors/settings-nobarorange.csv tests/vectors/settings-nopitot.csv'
+          tests/vectors/settings-norange.csv tests/vectors/settings-nobarorange.csv tests/vectors/settings-nopitot.csv
+          tests/vectors/settings-nodash.csv'
 LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gnc|lasp' 2>/dev/null \
        | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' | grep -v '^.gitmodules$' \
        | grep -v '^DIVERGENCES.md$' | grep -v '^docs/upstream/' \
@@ -61,7 +62,7 @@ LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gn
                     -e tests/vectors/settings-nobb.csv -e tests/vectors/settings-noflash.csv \
                     -e tests/vectors/settings-nomag.csv -e tests/vectors/settings-nobaro.csv \
                     -e tests/vectors/settings-norange.csv -e tests/vectors/settings-nobarorange.csv \
-                    -e tests/vectors/settings-nopitot.csv || true)
+                    -e tests/vectors/settings-nopitot.csv -e tests/vectors/settings-nodash.csv || true)
 for f in $VERBATIM; do
     if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
         EXTRA=$(grep -noiE 'betaflight|cleanflight|inav|ema-gnc|lasp' "$f" | grep -vE ':(BETAFLIGHT|INAV)$' || true)
