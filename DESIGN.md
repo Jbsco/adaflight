@@ -16356,3 +16356,10 @@ no more and runs one task fewer, so `scheduler_debug_task` stops one lower. A bu
 512 KB (D622), but its command line kept both settings. Settings table now marks them from a settings oracle built
 without dashboard, through a dashboard build switch, and that maximum's falls take its one. `hostwing.do` checks it
 on its host image built without GPS.
+
+## D851. Transponder pin only with race transponder (2026-11-20)
+
+A Betaflight build without race transponder, as a 512 KB build is, has no transponder pin in its resource table. A
+build here left the transponder out at 512 KB (D622), but its command line kept that pin. Command line now follows a
+transponder build switch, as it follows rangefinders (D844). `hostwing.do` checks it on its host image built without
+GPS.

@@ -2,10 +2,11 @@
 # Gate: a multirotor build of the host image without the flight plan, servos, LED strip, SD card, flash chip,
 # compass, barometer and rangefinders leaves out the flight plan's boxes, build option and command, the servo, LED,
 # SD card and flash commands, the compass and barometer lines and the sonar pins, a build without the GPS, the
-# flight log, the pitot sensor and the OLED dashboard leaves out the GPS command, lines, settings and messages, the
-# msc command and the pitot and dashboard settings, a wing build answers with the wing's boxes, build options and
-# settings, a build for a board that names a gyro alignment reads its gyro turned by it, a build for a board with
-# two gyros runs both, and a build for a board that builds only the MPU9250 driver starts its gyro with it.
+# flight log, the pitot sensor, the OLED dashboard and the race transponder leaves out the GPS command, lines,
+# settings and messages, the msc command, the pitot and dashboard settings and the transponder pin, a wing build
+# answers with the wing's boxes, build options and settings, a build for a board that names a gyro alignment reads
+# its gyro turned by it, a build for a board with two gyros runs both, and a build for a board that builds only the
+# MPU9250 driver starts its gyro with it.
 set -e
 cd "$(dirname "$0")/targets/host"
 # Neither build has the flight plan, so the core project leaves it out here.
@@ -22,11 +23,12 @@ python3 ../../tools/host-compass-off-check.py bin/adaflight_host
 python3 ../../tools/host-baro-off-check.py bin/adaflight_host
 python3 ../../tools/host-rangefinder-off-check.py bin/adaflight_host
 ADAFLIGHT_GPS=off ADAFLIGHT_SD_CARD=off ADAFLIGHT_BLACKBOX=off ADAFLIGHT_PITOT=off ADAFLIGHT_DASHBOARD=off \
-    FEATURES=-gps,-blackbox,-pitot,-dashboard alr -n build
+    ADAFLIGHT_TRANSPONDER=off FEATURES=-gps,-blackbox,-pitot,-dashboard,-transponder alr -n build
 python3 ../../tools/host-gps-off-check.py bin/adaflight_host
 python3 ../../tools/host-blackbox-off-check.py bin/adaflight_host
 python3 ../../tools/host-pitot-off-check.py bin/adaflight_host
 python3 ../../tools/host-dashboard-off-check.py bin/adaflight_host
+python3 ../../tools/host-transponder-off-check.py bin/adaflight_host
 FEATURES=+wing,+flash_chip alr -n build
 python3 ../../tools/host-wing-check.py bin/adaflight_host
 BOARD=LUXF4OSD FEATURES=+wing,+flash_chip alr -n build
