@@ -33,6 +33,9 @@ export ADAFLIGHT_GPS
 ADAFLIGHT_SD_CARD="$(python3 ../../tools/featuregen.py --feature SD_Card ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_SD_CARD
+ADAFLIGHT_BLACKBOX="$(python3 ../../tools/featuregen.py --feature Blackbox ../../third_party/board-configs/configs \
+    "$BOARD_NAME" "${FEATURES:-}")"
+export ADAFLIGHT_BLACKBOX
 alr -n build --release
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
@@ -59,6 +62,11 @@ fi
 if [ "$ADAFLIGHT_SD_CARD" = off ] \
     && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "sd_info_command"; then
     echo "target: SD card command code in an image built without the SD card"
+    exit 1
+fi
+if [ "$ADAFLIGHT_BLACKBOX" = off ] \
+    && alr -n exec -- arm-eabi-nm "bin/adaflight_$CRATE" | grep -q "msp_blackbox_in__process"; then
+    echo "target: flight log MSP code in an image built without the flight log"
     exit 1
 fi
 echo "target: features $(sed -n 's/^ *\([A-Za-z0-9_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \

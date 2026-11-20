@@ -5,6 +5,7 @@ with Interfaces; use Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.LED_Build;
 with Adaflight.SD_Build;
+with Adaflight.Blackbox_Build;
 with Adaflight.Servo_Build;
 
 package Adaflight.CLI_Resources with SPARK_Mode is
@@ -19,12 +20,14 @@ package Adaflight.CLI_Resources with SPARK_Mode is
       VTX_Data, VTX_CLK, Pullup, Pulldown);
 
    --  Whether the build's resource table has an owner: servos only with
-   --  servos, and the LED strip and the SD card's pins only with them.
+   --  servos, the LED strip and the SD card's pins only with them, and the
+   --  mass storage pin only with the flight log.
    function In_Build (O : Owner) return Boolean is
      (case O is
          when Servo                         => Adaflight.Servo_Build.Enabled,
          when LED_Strip                     => Adaflight.LED_Build.Enabled,
          when SD_Card_CS | SD_Card_Detect   => Adaflight.SD_Build.Enabled,
+         when USB_MSC_Pin                   => Adaflight.Blackbox_Build.Enabled,
          when others                        => True);
 
    --  The owner's name as the command line prints and reads it.

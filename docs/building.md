@@ -2,7 +2,15 @@
 
 The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers. It also leaves out the board crate's run-time checks.
 
-A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. GEPRCF411SX1280 leaves its flight log and its flash chip out all the same, since its flash is short. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. Without servos its command line has no `servo` or `smix` command, no servo setting and no servo pin, and MSP servo writes change nothing. Without LED strip its command line has no `led`, `color` or `mode_color` command, no LED strip setting and no LED strip pin, and MSP answers LED writes as unknown. Without GPS its command line has no `gpspassthrough` command, no GPS lines in `status` and `env`, and no GPS, rescue or hold setting, and MSP answers GPS messages as unknown. Without SD card its command line has no `sd_info` command, no SD card line in `status`, no SD card setting and no SD card pin. A 512 KB board also leaves out debug values.
+A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. GEPRCF411SX1280 leaves its flight log and its flash chip out all the same, since its flash is short. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board also leaves out debug values.
+
+A build without a feature leaves it out of command line, settings and MSP:
+
+- Servos: no `servo` or `smix` command, no servo setting and no servo pin, and MSP servo writes change nothing.
+- LED strip: no `led`, `color` or `mode_color` command, no LED strip setting and no LED strip pin, and MSP answers LED writes as unknown.
+- GPS: no `gpspassthrough` command, no GPS lines in `status` and `env`, no GPS, rescue or hold setting, and MSP answers GPS messages as unknown.
+- SD card: no `sd_info` command, no SD card line in `status`, no SD card setting and no SD card pin.
+- Flight log: no SD card, flash chip or mass storage mode. Its command line has no `msc` command, no flight log, storage or mass storage setting and no mass storage pin. It offers no flight log mode, and MSP answers flight log writes and flash erase as unknown.
 
 No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its settings, its mode boxes, its OSD map and its MAVLink mission protocol. Without it the GPS rescue is a flight mode of its own.
 

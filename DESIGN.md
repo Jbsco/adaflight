@@ -16204,3 +16204,30 @@ main RAM fitting (D824), its image still overflowed flash by 24,694 bytes.
 By the user's ruling it now leaves its flight log out, about 22 KB, and its flash chip code, about 11 KB, which only
 that log used. `featuregen.py` names such per-board omissions, which a build's `FEATURES` can still turn back on.
 It fits with 8,363 bytes of flash and 5,832 bytes of main RAM free. Betaflight builds both into this target.
+
+## D829. msc command only with flight log (2026-11-19)
+
+A Betaflight build without flight log has no SD card and no flash chip, since either one turns its flight log back
+on. It has no USB mass storage mode either: no `msc` command and no mass storage pin in its resource table.
+`featuregen.py` now leaves SD card, flash chip and mass storage out of a build without flight log, and command line
+follows a flight log build switch, as it follows SD card (D826). `hostwing.do` checks it on its host image built
+without GPS and flight log.
+
+## D830. Flight log settings only with flight log (2026-11-19)
+
+A Betaflight build without flight log lists 29 settings and four lookup tables fewer: `blackbox_*` settings, SD card
+and flash bus settings, log status element's position and mass storage pin's pull-up. Settings table marks them from
+a settings oracle built without flight log, SD card and flash chip. A setting or table that SD card's view marks as
+well needs both features. Its task list and limits do not change.
+
+## D831. Flight log MSP writes only with flight log (2026-11-19)
+
+A Betaflight build without flight log answers its flight log write and its flash erase as unknown. Its flight log
+reply here already reported no flight log from a board flag. Both writes now follow flight log switch (D829).
+Betaflight also needs a flash chip for flash erase. Here it still follows flight log alone.
+
+## D832. Flight log modes only with flight log (2026-11-19)
+
+A Betaflight build without flight log offers neither BLACKBOX nor BLACKBOX ERASE mode. A board here offered both in
+every build, and now offers them only with its flight log. Betaflight also needs a flash chip for BLACKBOX ERASE.
+Here it still follows flight log alone.
