@@ -11,7 +11,7 @@ A build without a feature leaves it out of command line, settings and MSP:
 - GPS: no `gpspassthrough` command, no GPS lines in `status` and `env`, no GPS, rescue or hold setting, and MSP answers GPS messages as unknown.
 - SD card: no `sd_info` command, no SD card line in `status`, no SD card setting and no SD card pin.
 - Flight log: no SD card, flash chip or mass storage mode. Its command line has no `msc` command, no flight log, storage or mass storage setting and no mass storage pin. It offers no flight log mode, and MSP answers flight log writes and flash erase as unknown.
-- Flash chip: no `flash_erase`, `flash_info`, `flash_read`, `flash_scan` or `flash_write` command, no flash bus setting and no flash chip pin.
+- Flash chip: no `flash_erase`, `flash_info`, `flash_read`, `flash_scan` or `flash_write` command, no flash bus setting and no flash chip pin, and MSP answers flash erase as unknown.
 
 No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its executor with rescue plans, its `waypoint` command, its settings, its mode boxes, its OSD map and its MAVLink mission protocol. Without it the GPS rescue is a flight mode of its own.
 

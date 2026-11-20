@@ -16244,3 +16244,8 @@ now follows a flash chip build switch, as it follows SD card (D826). `hostwing.d
 A Betaflight build without flash chip also lists `flash_spi_bus` no more, and keeps every lookup table. Settings
 table marks it from a settings oracle built without flash chip but with SD card, so its flight log stays. Settings
 generator now takes a view that leaves out no lookup table, whose flag lookup table test does not take.
+
+## D835. Flash erase over MSP only with flash chip (2026-11-19)
+
+A Betaflight build without flash chip answers flash erase as unknown, also when it keeps its flight log on an SD
+card. Flash erase here followed flight log alone (D831), and now also needs flash chip switch (D833).
