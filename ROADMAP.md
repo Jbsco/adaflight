@@ -11,46 +11,39 @@ Silver with no assume, and pass the gates on `main`.
 
 - Phase 0, complete 2026-10-08. Foundation. Core crate, bounded maths and filters, vector checker,
   gates, CI, design ledger.
-- Phase 1, open. Control core. PID controller, rate profiles and stick curves, RC
+- Phase 1, complete by 2026-11-20. Control core. PID controller, rate profiles and stick curves, RC
   smoothing, mixer and motor output limits, arming logic, failsafe, runtime modes.
-- Phase 2, open. Sensor pipeline. Gyro filtering chain, dynamic notch, RPM filter,
-  accelerometer calibration, attitude estimation, board alignment, barometer,
-  compass, battery and current sensing. The sensor task set remains, apart from the
-  barometer and compass read cycles.
-- Phase 3, open. Scheduler and task set. Cooperative scheduler, task table, the main loop,
-  initialization order. The scheduler and the task table are in.
-- Phase 4, open. Receivers. Serial protocol decoders, SPI receivers, channel mapping,
-  link statistics, bind. The channel processing and the link statistics are in.
-- Phase 5, open. Configuration and ground link. Parameter groups, settings table, the CLI,
-  the MSP protocol so the existing configurator connects.
-- Phase 6, open. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
-  strip, beeper, VTX control, GPS with rescue and position modes, servos and wing
-  support.
-- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds STM32F405 and STM32F411 images.
-  `targets/host` runs flight software on host, its UARTs and USB port on TCP ports. `targets/stm32f7`
-  builds STM32F7 images. 512 KB boards pack initialized data and elaboration code, which start-up
-  unpacks into RAM, and STM32F7 boards their cold tables, ITCM code and command line printing code with them. Then H7 and other families
-  Betaflight runs on, plus a physics simulator link for host target. Drivers for SPI, I2C, DMA, timers,
-  USB, flash, SD card, ADC on DMA, DShot on timers and bit-banged on GPIO ports. USB mass storage mode runs on
-  host target over a flash chip's flight logs or an SD card's blocks. F4 and F7 boards have a polled USB
-  controller for it that no board has run yet.
-- Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
-  configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
-  tool over DFU, `tools/dfu`, checks read protection, erases, writes, verifies and starts images,
-  polling status early for faster writes. adaflight-configurator's desktop build builds and flashes from
-  an adaflight checkout, with a fit view for boards short of flash: feature blocks along a bar of the
-  target's flash, its end marked by a line and features past it in red. A survey of the configurator's MSP
-  reads and save payloads against a host image closed gaps in simplified tuning and blackbox replies, and
-  its indexed writes round-trip. A native command-line MSP client, `tools/msp`, sends single requests,
-  dumps every read command, and backs up, restores and compares a configuration through a board's command
-  line. A pass through each configurator tab on a board follows.
+- Phase 2, complete by 2026-11-20. Sensor pipeline. Gyro filtering chain, dynamic notch, RPM filter,
+  accelerometer calibration, attitude estimation, board alignment, barometer, compass, rangefinders,
+  optical flow, pitot, battery and current sensing, each with its task.
+- Phase 3, complete by 2026-11-20. Scheduler and task set. Cooperative scheduler, Betaflight's task table
+  numbered by what a build contains, main loop, initialization order.
+- Phase 4, complete by 2026-11-20. Receivers. Serial and SPI receivers, channel mapping, link statistics,
+  bind. The KN receiver stays out, as no Betaflight build compiles it.
+- Phase 5, complete by 2026-11-20. Configuration and ground link. Parameter groups, settings table,
+  command line, MSP with the messages Betaflight Configurator reads and writes. A build without a feature
+  lists the settings, commands, pins and MSP replies of Betaflight's build without it.
+- Phase 6, complete by 2026-11-20. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
+  strip, beeper, VTX control, GPS with rescue and position modes, flight plans, servos and wing support.
+  `docs/building.md` lists what each board size leaves out.
+- Phase 7, in progress. Targets. `targets/stm32f4` builds STM32F405 and STM32F411 images,
+  `targets/stm32f7` STM32F7 images, and `targets/host` runs flight software on host with its UARTs and
+  USB port on TCP ports and a physics simulator link. Drivers cover SPI, I2C, DMA, timers, USB, flash, SD
+  card, ADC on DMA, and DShot on timers and bit-banged on GPIO ports. 512 KB boards pack initialized data
+  and start-up code. Left: H7 and other families Betaflight runs on, and USB mass storage on a board,
+  whose polled controller no board has run yet.
+- Phase 8, in progress. Tooling. adaflight-configurator, the upstream configurator with adaflight's
+  changes, builds and flashes from an adaflight checkout and shows a fit view for boards short of flash.
+  `tools/dfu` flashes over DFU on Linux, and `tools/msp` sends MSP requests and backs up a configuration.
+  MSP reads and writes were checked against a host image, and read replies against Betaflight's own host
+  build. Left: a pass through each configurator tab on a board.
 
 ## After parity
 
 Parity comes first. Then the size and speed of the port get measured on the STM32F4, F7
 and H7 boards against Betaflight's images for the same feature set. A proved core runs
 with its run-time checks off at no loss of safety, so its generated code starts at the
-size and speed of the C, and it seems plausible that the port ends up smaller on the F4
+size and speed of the C. It seems plausible that the port ends up smaller on the F4
 boards. Whatever room that opens goes to features the F4 builds have to leave out today,
 with more room on F7 and H7. The measurement decides.
 
@@ -65,6 +58,6 @@ Each Betaflight source area at commit af0638839, the commit the vectors were rec
 - **scheduler**: ported
 - **rx**: ported, apart from the KN receiver, which no build compiles
 - **pg, config, cli, msp**: ported
-- **blackbox, osd, cms, telemetry, io**: ported, with the remaining parts in Phase 6
-- **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers and the DShot protocol and its command queue ported, with the bus, timer, DMA, UART and USB drivers in Phase 7
-- **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): Phase 7
+- **blackbox, osd, cms, telemetry, io**: ported
+- **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers, the DShot protocol and its command queue, and USB mass storage ported. Bus, timer, DMA, UART and USB drivers are written for STM32F4 and F7 in Phase 7
+- **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): STM32F4, STM32F7 and the host target in Phase 7. STM32H7, AT32, APM32, PICO and ESP32 not started
