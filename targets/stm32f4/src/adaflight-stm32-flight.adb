@@ -12,6 +12,8 @@ with Adaflight.Blackbox;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
+with Adaflight.Compass_Detect;
+with Adaflight.Baro_Detect;
 with Adaflight.RX_Bind;
 with Adaflight.STM32.Build_Stamp;
 with Adaflight.STM32.HoTT;
@@ -196,6 +198,10 @@ package body Adaflight.STM32.Flight is
    use type Adaflight.STM32.Gyro.Read_Mode;
 
    Baud       : constant := 115_200;
+   --  The pitot hardware values of the detected sensor reply: none found, or
+   --  the MS4525, the one pitot the board reads.
+   Pitot_None   : constant := 1;
+   Pitot_MS4525 : constant := 2;
    UART1_Id   : constant Adaflight.Serial_Feature_Map.Port_Id := 51;
    VCP_Id     : constant Adaflight.Serial_Feature_Map.Port_Id := 20;
 
@@ -2189,6 +2195,8 @@ package body Adaflight.STM32.Flight is
    procedure Pitot_Aftermath is
    begin
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Pitot) := Adaflight.STM32.Pitot.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Pitot) :=
+        (if Adaflight.STM32.Pitot.Detected then Pitot_MS4525 else Pitot_None);
       Ctx.Out_Views.State.Pitot :=
         (Airspeed      => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Airspeed_Cm_S)),
          Diff_Pressure => Float'Max (-2.0E9, Float'Min (2.0E9, Adaflight.STM32.Pitot.Diff_Pressure_Pa)));
@@ -5654,6 +5662,8 @@ package body Adaflight.STM32.Flight is
                       Number  => Natural'Min (15, Adaflight.STM32.Baro.Bus_Number),
                       Address => Adaflight.STM32.Baro.Bus_Address));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Baro) := Adaflight.STM32.Baro.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Baro) :=
+        (if Adaflight.STM32.Baro.Detected then Adaflight.STM32.Baro.Hardware else Adaflight.Baro_Detect.Hardware_None);
       Adaflight.STM32.Compass.Init (Config);
       Env.Mag :=
         (Detected => Adaflight.STM32.Compass.Detected, Hardware => Adaflight.STM32.Compass.Hardware,
@@ -5662,6 +5672,9 @@ package body Adaflight.STM32.Flight is
                       Number  => Natural'Min (15, Adaflight.STM32.Compass.Bus_Number),
                       Address => Adaflight.STM32.Compass.Bus_Address));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Mag) := Adaflight.STM32.Compass.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Mag) :=
+        (if Adaflight.STM32.Compass.Detected then Adaflight.STM32.Compass.Hardware
+         else Adaflight.Compass_Detect.Hardware_None);
       Adaflight.STM32.MT.Init (Config.Rangefinder_Config.Rangefinder_Hardware);
       Adaflight.STM32.Rangefinder.Init (Config);
       Adaflight.STM32.Optical_Flow.Init (Config, Adaflight.STM32.Time.Micros);
@@ -5669,6 +5682,8 @@ package body Adaflight.STM32.Flight is
         (Detected => Adaflight.STM32.Optical_Flow.Detected, Hardware => Adaflight.STM32.Optical_Flow.Hardware,
          Bus      => (Kind => CLI.No_Bus, Number => 0, Address => 0));
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Optical_Flow) := Adaflight.STM32.Optical_Flow.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Optical_Flow) :=
+        (if Adaflight.STM32.Optical_Flow.Detected then Adaflight.STM32.Optical_Flow.Hardware else 0);
       Adaflight.STM32.Pitot.Init (Config);
       Pitot_Aftermath;
       Init_Internal_ADC;
@@ -5706,6 +5721,8 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Current.Present;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Rangefinder) :=
+        (if Adaflight.STM32.Rangefinder.Detected then Config.Rangefinder_Config.Rangefinder_Hardware else 0);
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found,
                                          Baro => Adaflight.STM32.Baro.Detected,
                                          Mag  => Adaflight.STM32.Compass.Detected),
