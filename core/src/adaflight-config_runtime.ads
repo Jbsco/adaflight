@@ -80,8 +80,9 @@ with Adaflight.VTX;
 
 package Adaflight.Config_Runtime with SPARK_Mode is
 
-   function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile
-     with Pre => Config_Fix.Fixed_PID_Profile (P);
+   --  The runtime PID profile from a stored one, each value held to its
+   --  range and the dynamic lowpass and the notch to their order.
+   function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile;
 
    --  The rate profile from a stored rate profile; the rates have no order
    --  rule, so nothing is asked of the fix.
@@ -432,6 +433,16 @@ private
    function SPA_Mode_Of (Code : Unsigned_8) return SPA_Kind is
      (if Code <= SPA_Kind'Pos (SPA_Kind'Last) then SPA_Kind'Val (Code) else I_Freeze);
 
+   --  The dynamic D term lowpass minimum, zero above its maximum.
+   function Dyn_LPF_Min_Of (P : Pid_Profile_Record) return Natural is
+     (if Held (Integer (P.Dterm_Lpf1_Dyn_Min_Hz), 0, 1000) <= Held (Integer (P.Dterm_Lpf1_Dyn_Max_Hz), 0, 1000)
+      then Held (Integer (P.Dterm_Lpf1_Dyn_Min_Hz), 0, 1000) else 0);
+
+   --  The D term notch center, zero at or below its cutoff.
+   function Notch_Hz_Of (P : Pid_Profile_Record) return Natural is
+     (if Held (Integer (P.Dterm_Notch_Cutoff), 0, 1000) < Held (Integer (P.Dterm_Notch_Hz), 0, 1000)
+      then Held (Integer (P.Dterm_Notch_Hz), 0, 1000) else 0);
+
    function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile is
      (Gains                    => (Roll => Axis_Gains_Of (P.Pid (0)), Pitch => Axis_Gains_Of (P.Pid (1)),
                                    Yaw => Axis_Gains_Of (P.Pid (2))),
@@ -470,14 +481,14 @@ private
       Acro_Trainer_Lookahead_Ms => Held (Integer (P.Acro_Trainer_Lookahead_Ms), 10, 200),
       Acro_Trainer_Debug_Axis  => Held (Integer (P.Acro_Trainer_Debug_Axis), 0, 1),
       Acro_Trainer_Gain        => Held (Integer (P.Acro_Trainer_Gain), 25, 255),
-      Dterm_LPF1_Dyn_Min_Hz    => Held (Integer (P.Dterm_Lpf1_Dyn_Min_Hz), 0, 1000),
+      Dterm_LPF1_Dyn_Min_Hz    => Dyn_LPF_Min_Of (P),
       Dterm_LPF1_Dyn_Max_Hz    => Held (Integer (P.Dterm_Lpf1_Dyn_Max_Hz), 0, 1000),
       Dterm_LPF1_Dyn_Expo      => Held (Integer (P.Dterm_Lpf1_Dyn_Expo), 0, 10),
       Dterm_LPF1_Type          => Lowpass_Kind'Val (Code (P.Dterm_Lpf1_Type, Lowpass_Kind'Pos (Lowpass_Kind'Last))),
       Dterm_LPF1_Static_Hz     => Held (Integer (P.Dterm_Lpf1_Static_Hz), 0, 1000),
       Dterm_LPF2_Static_Hz     => Held (Integer (P.Dterm_Lpf2_Static_Hz), 0, 1000),
       Dterm_LPF2_Type          => Lowpass_Kind'Val (Code (P.Dterm_Lpf2_Type, Lowpass_Kind'Pos (Lowpass_Kind'Last))),
-      Dterm_Notch_Hz           => Held (Integer (P.Dterm_Notch_Hz), 0, 1000),
+      Dterm_Notch_Hz           => Notch_Hz_Of (P),
       Dterm_Notch_Cutoff       => Held (Integer (P.Dterm_Notch_Cutoff), 0, 1000),
       Yaw_Lowpass_Hz           => Held (Integer (P.Yaw_Lowpass_Hz), 0, 500),
       Anti_Gravity_Cutoff_Hz   => Held (Integer (P.Anti_Gravity_Cutoff_Hz), 2, 50),

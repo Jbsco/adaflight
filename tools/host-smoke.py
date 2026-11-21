@@ -2224,6 +2224,33 @@ def board_problem_checks(image, work):
         sock.close()
 
 
+def filter_order_checks(image, work):
+    """MSP filter writes that leave the D term's dynamic lowpass minimum above its maximum, or its notch cutoff above
+    its center, over a configuration store of their own: each is answered, reads back as written, and the board
+    keeps answering."""
+    proc, sock = start(image, os.path.join(work, "filter-order.bin"))
+    try:
+        time.sleep(2.5)
+        for name, fields in (("dynamic lowpass minimum above its maximum", {33: 331}),
+                             ("notch cutoff above its center", {9: 100, 11: 150})):
+            base = bytearray(msp(sock, 92) or b"")
+            if len(base) < 35:
+                check("MSP filter write with the D term " + name + " is answered", False, repr(bytes(base)))
+                continue
+            for offset, value in fields.items():
+                base[offset:offset + 2] = value.to_bytes(2, "little")
+            reply = msp(sock, 93, bytes(base))
+            check("MSP filter write with the D term " + name + " is answered", reply == b"", repr(reply))
+            back = msp(sock, 92) or b""
+            check("D term " + name + " reads back as written",
+                  all(back[o:o + 2] == v.to_bytes(2, "little") for o, v in fields.items()), back.hex())
+            api = msp(sock, 1)
+            check("board answers after the D term " + name, api is not None and len(api) == 3, repr(api))
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def activity_led_checks(image, work):
     """The status LEDs' activity signals in the host's pin log, each LED lit by a low level. The second LED toggles
     each 150 ms while a GPS fix has enough satellites, and goes on and off around a compass's start. The first LED
@@ -6394,6 +6421,7 @@ def main():
         status_led_checks(image, work)
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
+        filter_order_checks(image, work)
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
         nand_flash_checks(image, work)

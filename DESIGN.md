@@ -16450,3 +16450,20 @@ A Betaflight build sets its rangefinder's altitude to out of range only once it 
 reply reads zero with none found or none built. A board here started that altitude at out of range in every build
 and replied minus one. A board now replies zero without a detected rangefinder, and its OSD reads the same value.
 Host smoke reads zero on its image, which has no rangefinder.
+
+## D864. D term filter order in the runtime profile (2026-11-20)
+
+A Betaflight board sets a D term dynamic lowpass minimum above its maximum to zero, and a notch center at or below its
+cutoff to zero, when it loads a configuration. Its MSP filter write stores both as sent and starts its PID filters from
+them at once. The runtime PID profile here took both orders as a precondition (D14, D187), so that write stopped the
+host image at the precondition's check. A board image runs without run-time checks, so its proofs did not cover that
+profile.
+
+The runtime profile now keeps both orders as a load sets them: a reversed dynamic lowpass runs as its static lowpass,
+and a reversed notch is off. The stored values stay as written until a save.
+
+A differential MSP write survey against Betaflight's SITL build found both: each set command's read reply written
+back, then once per byte raised by one. Its other differences come from features SITL does not build, from set
+commands laid out apart from their read reply, or from writes outside a setting's range (D203 to D218). Betaflight's reversed notch has an infinite or negative Q, and its D term
+reads not a number or grows without bound until a save (F368). Host smoke writes each order over MSP, reads it back
+and reads the board answering.
