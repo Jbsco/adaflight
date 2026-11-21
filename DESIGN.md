@@ -16428,3 +16428,10 @@ MAVLink receiver, which answers over that telemetry. A build here left both out 
 line kept those settings. Settings table now marks them from a settings oracle built without MAVLink telemetry and
 receiver, through a MAVLink telemetry build switch, and `featuregen.py` leaves that receiver out without its
 telemetry. `hostwing.do` checks it on its host image built without GPS.
+
+## D861. Board configuration state at each request (2026-11-20)
+
+A Betaflight board marks its configuration configured at each save, and its board information reports that at once,
+with its stored board identifier. A board here took both at start, so after an MSP save it still reported an
+unconfigured board until a restart. A board now takes both at each request, as it takes its problems (D858). Host
+smoke reads that state before and after an MSP save.

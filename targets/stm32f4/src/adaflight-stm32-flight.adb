@@ -674,15 +674,11 @@ package body Adaflight.STM32.Flight is
       V.Firmware.UID := (UID (1), UID (2), UID (3));
       V.Firmware.Options := Common.Build_Options (Image_Options.Numbers);
       V.Firmware.Option_Count := Image_Options.Length;
-      for K in V.Board.Identifier'Range loop
-         V.Board.Identifier (K) := Character'Val (Config.System_Config.Board_Identifier (K - 1));
-      end loop;
       V.Board.MAX7456 := True;
       V.Board.Target_Name := Text (Adaflight.Board.MCU_Name);
       V.Board.Board_Info := True;
       V.Board.Board_Name := Text (Adaflight.Board.Board_Name);
       V.Board.Manufacturer := Text (Adaflight.Board.Manufacturer_ID);
-      V.Board.Configuration_State := Config.System_Config.Configuration_State;
       V.Board.SPI_Devices := SPI_Devices;
       V.Board.I2C_Devices := I2C_Devices;
       V.Board.VCP := True;
@@ -1548,6 +1544,10 @@ package body Adaflight.STM32.Flight is
       end if;
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
       Ctx.Out_Views.Common.Board.Acc_Needs_Calibration := Config.Accelerometer_Config.Acc_Zero (3) = 0;
+      Ctx.Out_Views.Common.Board.Configuration_State := Config.System_Config.Configuration_State;
+      for K in Ctx.Out_Views.Common.Board.Identifier'Range loop
+         Ctx.Out_Views.Common.Board.Identifier (K) := Character'Val (Config.System_Config.Board_Identifier (K - 1));
+      end loop;
       Ctx.Out_Views.Common.Board.Motor_Protocol_Disabled := Config.Motor_Config.Dev.Motor_Protocol = 0;
       Ctx.Out_Views.Common.Board.RX_Bind :=
         Adaflight.RX_Bind.Bind_For
