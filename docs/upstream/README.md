@@ -151,3 +151,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [HoTT text mode opens the menu while armed](hott-text-mode-menu-while-armed.md)
 - [HoTT display heartbeat exits a menu that a key already closed](hott-heartbeat-exit-without-menu.md)
 - [After a HoTT text mode session the stick command cannot reach the OSD menu](hott-display-exit-after-session.md)
+- [MSP filter write starts a D term notch whose cutoff is at or above its center](dterm-notch-cutoff-order.md)

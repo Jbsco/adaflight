@@ -1493,6 +1493,23 @@ package body Adaflight.STM32.Flight is
       end if;
    end Save_Settings;
 
+   --  The arming disable reasons, the selected profiles and the reboot
+   --  requirement into the status replies.
+   procedure Report_Status is
+      Status : Adaflight.MSP_Out.Status_Values renames Ctx.Out_Views.State.Status;
+   begin
+      Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
+      Env.Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
+      Status.PID_Profile := Natural'Min (Adaflight.MSP_Out.PID_Profile_Count - 1,
+                                         Natural (Config.System_Config.Pid_Profile_Index));
+      Status.Rate_Profile := Natural'Min (Adaflight.MSP_Out.Control_Rate_Profile_Count - 1,
+                                          Natural (Config.System_Config.Active_Rate_Profile));
+      Status.Battery_Profile := Natural'Min (Adaflight.MSP_Out.Battery_Profile_Count - 1,
+                                             Natural (Config.System_Config.Active_Battery_Profile));
+      Status.Reboot_Required :=
+        MSP_Reboot_Required or else (Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
+   end Report_Status;
+
    --  One command through the processor, with the link it came in on. A
    --  request that came in on the MSP display port's serial port gets the
    --  replies its device expects, and one from the telemetry link's MSP
@@ -1560,6 +1577,7 @@ package body Adaflight.STM32.Flight is
           (Adaflight.STM32.Radio.Source, Adaflight.STM32.Radio.Serial_Protocol,
            Natural (Config.Rx_Spi_Config.Rx_Spi_Protocol)) not in Adaflight.RX_Bind.No_Bind;
       Ctx.Out_Views.OSD.VTX_Port := From_Display_Port;
+      Report_Status;
       Ctx.Control.From_Telemetry := From_Telemetry;
       Ctx.Control.RX_SPI_Active := (Runtime_Features and Adaflight.Config_Fix.Feature_RX_SPI) /= 0;
       Ctx.Control.Source := Source;
@@ -1682,6 +1700,7 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Receiver.Reboot_Required then
          MSP_Reboot_Required := True;
+         Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Reboot_Required, True);
       end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
@@ -3030,16 +3049,7 @@ package body Adaflight.STM32.Flight is
    procedure Report_Pilot is
       Status : Adaflight.MSP_Out.Status_Values renames Ctx.Out_Views.State.Status;
    begin
-      Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
-      Env.Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
-      Status.PID_Profile := Natural'Min (Adaflight.MSP_Out.PID_Profile_Count - 1,
-                                         Natural (Config.System_Config.Pid_Profile_Index));
-      Status.Rate_Profile := Natural'Min (Adaflight.MSP_Out.Control_Rate_Profile_Count - 1,
-                                          Natural (Config.System_Config.Active_Rate_Profile));
-      Status.Battery_Profile := Natural'Min (Adaflight.MSP_Out.Battery_Profile_Count - 1,
-                                             Natural (Config.System_Config.Active_Battery_Profile));
-      Status.Reboot_Required :=
-        MSP_Reboot_Required or else (Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
+      Report_Status;
       Adaflight.MSP_Box.Pack_Flight_Mode_Flags
         (Active => Offered, Armed => Adaflight.STM32.Pilot.Armed, Flight => Adaflight.STM32.Pilot.Flight_Modes,
          Switches => Adaflight.STM32.Pilot.Active_Boxes, Wing => Adaflight.Build_Features.Wing,
