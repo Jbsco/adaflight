@@ -8953,6 +8953,16 @@ def main():
             flags = text.split("Arming disable flags:")[-1]
             check("UDP frames clear RXLOSS", "Arming disable flags:" in text and "RXLOSS" not in flags,
                   flags.strip()[:80])
+            rate = re.search(r"RX rate: (\d+),", text)
+            check("status reads the UDP frames' receiver rate near 50 Hz", rate is not None
+                  and 40 <= int(rate.group(1)) <= 60, text.split("CPU:")[-1][:80])
+            text = cli(sock, "rc_smoothing_info")
+            detected = re.search(r"Detected Rx frequency: (\d+)Hz", text)
+            setpoint = re.search(r"Active setpoint and FF cutoff: (\d+)Hz \(auto\)", text)
+            throttle = re.search(r"Active throttle cutoff: (\d+)Hz \(auto\)", text)
+            check("rc_smoothing_info reads the frames' rate and running cutoffs",
+                  detected is not None and 40 <= int(detected.group(1)) <= 60 and setpoint is not None
+                  and int(setpoint.group(1)) > 0 and throttle is not None and int(throttle.group(1)) > 0, text[-160:])
         finally:
             stop_feed.set()
             stop(proc)
