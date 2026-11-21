@@ -2687,7 +2687,8 @@ package body Adaflight.STM32.Flight is
    --  the accelerometer and a calibrated compass, over the arming, the angle
    --  or horizon mode that turns the throttle correction on, the headfree
    --  mode, and the GPS course with the filtered yaw rate, then the angles
-   --  and the quaternion into the attitude replies.
+   --  and the quaternion into the attitude replies. A host image set to the
+   --  simulator's direct attitude takes each packet's quaternion instead.
    procedure Run_Attitude (Now_Us : Scheduler.Time_Us) is
       Rates : constant Adaflight.Vectors.Vector3 :=
         (X => Gyro_State.Downsampled (Adaflight.Axes.Roll),
@@ -2699,7 +2700,7 @@ package body Adaflight.STM32.Flight is
       Rate_Bound : constant := Adaflight.Attitude.Rate_Bound;
    begin
       Adaflight.STM32.Compass.Set_Gyro (Rates);
-      if Adaflight.STM32.MCU.Simulated then
+      if Adaflight.STM32.MCU.Simulated and then Adaflight.STM32.MCU.Simulator_Attitude_Direct then
          declare
             Fresh  : Boolean;
             Q      : Adaflight.Attitude.Quaternion;

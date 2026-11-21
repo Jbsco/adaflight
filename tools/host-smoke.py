@@ -4457,10 +4457,11 @@ def main():
         if built("GPS"):
             satellite_beep_checks()
         # Headfree offset on the beeper: its switch sets the offset and sounds the beeper with the craft
-        # within 45 degrees of level, and stays silent with it rolled further.
+        # within 45 degrees of level, and stays silent with it rolled further. The simulator's direct attitude
+        # rolls the craft.
         def headfree_offset_checks():
             store = os.path.join(work, "headadj.bin")
-            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1", "ADAFLIGHT_SIMULATOR_ATTITUDE": "direct"}
             proc, sock = start(image, store, extra=sim_link)
             try:
                 time.sleep(2.5)
@@ -4957,10 +4958,10 @@ def main():
         # mirrors a fed position about its first packet, so a falling latitude flies north. Each part starts the
         # image afresh, since the executor's debug values stay as its last update left them. The screen shows the
         # plan's elements: the waypoint's number, the distance and the time to it, the flight mode, and the map with
-        # the waypoint's marker and the flown trail.
+        # the waypoint's marker and the flown trail. The simulator's direct attitude gives the heading.
         def flight_plan_flight_checks():
             store = os.path.join(work, "planfly.bin")
-            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+            sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1", "ADAFLIGHT_SIMULATOR_ATTITUDE": "direct"}
             proc, sock = start(image, store, extra=sim_link)
             try:
                 time.sleep(2.5)
@@ -8736,7 +8737,8 @@ def main():
             sock.close()
         with open(store, "rb") as f:
             check("the power-up bind writes the configuration", f.read() != stored_before_bind)
-        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+        proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1",
+                                           "ADAFLIGHT_SIMULATOR_ATTITUDE": "direct"})
         try:
             time.sleep(2.5)
             sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -8744,7 +8746,8 @@ def main():
             sim.bind(("127.0.0.1", 9002))
             sim.settimeout(0.5)
             # A level craft at rest rolled ten degrees, in the Gazebo bridge's frames: no rates, gravity's
-            # reaction along the body's up axis, and the attitude quaternion as the plugin sends it.
+            # reaction along the body's up axis, and the attitude quaternion as the plugin sends it, which the
+            # simulator's direct attitude takes.
             half = math.radians(5.0)
             def fdm(t):
                 return struct.pack("<18d", t, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, math.cos(half), math.sin(half),
@@ -8804,6 +8807,43 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        # The attitude estimate on the simulator's sensors, its default: gravity's reaction rolled ten degrees
+        # with a level quaternion rolls the estimate, and a rolled quaternion over a level reaction does not.
+        for name, reaction_roll, quaternion_roll in (("estimate follows a rolled gravity reaction", 10.0, 0.0),
+                                                     ("estimate ignores a rolled packet quaternion", 0.0, 10.0)):
+            proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
+            sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sim.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sim.bind(("127.0.0.1", 9002))
+            sim.settimeout(0.05)
+            try:
+                time.sleep(2.5)
+                r = math.radians(reaction_roll)
+                half = math.radians(quaternion_roll / 2.0)
+
+                def roll_now():
+                    reply = msp(sock, 108)
+                    return int.from_bytes(reply[0:2], "little", signed=True) if reply and len(reply) >= 2 else None
+
+                end = time.time() + 4.0
+                i = 0
+                while time.time() < end:
+                    sim.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 9.80665 * math.sin(r),
+                                           -9.80665 * math.cos(r), math.cos(half), math.sin(half), 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                    try:
+                        sim.recv(256)
+                    except socket.timeout:
+                        pass
+                    i += 1
+                    time.sleep(0.01)
+                roll = roll_now()
+                want = 100 if reaction_roll else 0
+                check(f"simulator {name}", roll is not None and abs(abs(roll) - want) <= 15, repr(roll))
+            finally:
+                stop(proc)
+                sock.close()
+                sim.close()
         proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
         try:
             time.sleep(2.5)

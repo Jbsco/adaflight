@@ -25,6 +25,7 @@ package body Adaflight.Host_Simulator is
    Bridge_Name : constant String := (if Comma = 0 then Setting else Setting (Setting'First .. Comma - 1));
    Address     : constant String := (if Comma = 0 then "127.0.0.1" else Setting (Comma + 1 .. Setting'Last));
    On      : constant Boolean := Bridge_Name = "gazebo" or else Bridge_Name = "legacy";
+   Direct  : constant Boolean := Ada.Environment_Variables.Value ("ADAFLIGHT_SIMULATOR_ATTITUDE", "") = "direct";
    Legacy  : constant Boolean := Bridge_Name = "legacy";
    Bridge  : constant Adaflight.Sim_FDM.Bridge :=
      (if Legacy then Adaflight.Sim_FDM.Legacy else Adaflight.Sim_FDM.Gazebo);
@@ -59,6 +60,7 @@ package body Adaflight.Host_Simulator is
 
    function Enabled return Boolean is (On);
    function Legacy_Bridge return Boolean is (Legacy);
+   function Direct_Attitude return Boolean is (Direct);
    function Gyro return Adaflight.Sim_FDM.Axes is (Feed_Gyro);
    function Acc return Adaflight.Sim_FDM.Axes is (Feed_Acc);
    function Mag return Adaflight.Sim_FDM.Axes is (Feed_Mag);
