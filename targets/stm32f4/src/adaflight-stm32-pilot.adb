@@ -307,6 +307,10 @@ package body Adaflight.STM32.Pilot is
 
    function RX_Rate_Hz return Float is (RC.Smoothed_Rate_Hz);
 
+   function Current_RX_Rate_Hz return Float is (RC.Current_Rate_Hz);
+
+   function RX_Rate_Valid return Boolean is (RC.Rate_Valid);
+
    function Deflections return Adaflight.Arming.Axis_Deflections is
       D : Adaflight.Arming.Axis_Deflections := (others => 0.0);
    begin

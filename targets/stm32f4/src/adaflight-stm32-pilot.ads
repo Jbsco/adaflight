@@ -123,4 +123,8 @@ package Adaflight.STM32.Pilot is
    function Setpoint_Cutoff_Hz return Natural;
    function Throttle_Cutoff_Hz return Natural;
    function RX_Rate_Hz return Float;
+   --  The receiver's current frame rate and whether its last interval fell
+   --  within the measured limits, as rc_smoothing_info and status report them.
+   function Current_RX_Rate_Hz return Float;
+   function RX_Rate_Valid return Boolean;
 end Adaflight.STM32.Pilot;

@@ -2060,6 +2060,19 @@ package body Adaflight.STM32.Flight is
    procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request, SmartPort_Inputs);
    procedure SmartPort_Run is new Adaflight.STM32.SmartPort.Run (Telemetry_Request);
 
+   --  The receiver's frame rate and the RC smoothing's running cutoffs, with
+   --  whether a setting fixed each, for rc_smoothing_info and status.
+   procedure Report_Smoothing is
+   begin
+      Env.Smoothing :=
+        (Rate_Valid         => Adaflight.STM32.Pilot.RX_Rate_Valid,
+         Rate_Hz            => Adaflight.STM32.Pilot.Current_RX_Rate_Hz,
+         Setpoint_Cutoff_Hz => Unsigned_16 (Adaflight.STM32.Pilot.Setpoint_Cutoff_Hz),
+         Setpoint_Manual    => Config.Rx_Config.Rc_Smoothing_Setpoint_Cutoff /= 0,
+         Throttle_Cutoff_Hz => Unsigned_16 (Adaflight.STM32.Pilot.Throttle_Cutoff_Hz),
+         Throttle_Manual    => Config.Rx_Config.Rc_Smoothing_Throttle_Cutoff /= 0);
+   end Report_Smoothing;
+
    --  The serial task: while the command line is open its port's bytes go to
    --  it, otherwise each port's bytes go to its MSP framing, UART1's while no
    --  other device holds it. The status reply reads the loop timing first.
@@ -2072,6 +2085,7 @@ package body Adaflight.STM32.Flight is
             S : Line_State renames Lines (CLI_Line);
          begin
             if S.Waiting > 0 then
+               Report_Smoothing;
                Terminal.Process (Session, Into, S.Pending (0 .. S.Waiting - 1), Now_Ms, Config, Ports, Env, Board,
                                  Sched, Changes);
                S.Waiting := 0;

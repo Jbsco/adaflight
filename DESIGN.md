@@ -16500,3 +16500,16 @@ host smoke's GPS lap check reading no OSD rows once on CI (#877).
 A reader polling that OSD file every half millisecond found 3 short files in 35494 reads, and 5 in 49340 with every
 core busy. Each write now goes to that name with ".part" added and is renamed over it, and that reader found none in
 49709 reads with every core busy.
+
+## D868. Receiver rate for the command line (2026-11-21)
+
+Betaflight's rc_smoothing_info reports its receiver's detected frame rate, or no signal, and each running RC smoothing
+cutoff, and its status reports that rate. A board here filled its command line's smoothing record only at start, so
+rc_smoothing_info always read no signal with cutoffs of zero, and status read a receiver rate of zero. A board now
+fills that record from its running RC smoothing before each batch of command line input.
+
+A closed-loop run against Betaflight's SITL build found it, with flight dynamics and stick packets on both images'
+simulator ports. Both now report 50 Hz frames and 18 Hz cutoffs, and their motor outputs agree in each steady phase
+of a scripted arm, throttle, roll and yaw sequence. In the first packets after a roll or yaw step they differ by up to
+0.014 of full output, the same in each of three runs, and that difference is open. Host smoke reads both commands
+with its simulator receiver.
