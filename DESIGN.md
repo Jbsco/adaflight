@@ -16480,3 +16480,23 @@ channels, servos, profile selection and copy, motor test values, arming blocks a
 come from features SITL does not build, from writes outside a setting's range, or from motor test values that the host
 image converts for DShot (D221), where SITL runs analog pulses. Host smoke sends each write with a status request in
 one burst.
+
+## D866. Host screen file after a complete screen draw (2026-11-20)
+
+Host's screen file was written once its MAX7456 model's memory had rested for five milliseconds or had waited a fifth
+of a second (D716). With every core busy, a pause inside one screen update passed five milliseconds, and that file
+held part of an update: host smoke read the visual beeper's mark as one, two and three stars in one run of six.
+
+The board's OSD now reports whether its last screen draw sent all it found changed, and a full redraw while disarmed
+counts as such a draw. Host writes its screen file only then, at most ten times a second. With every core busy,
+eighteen runs of the beeper checks read no part of that mark.
+
+## D867. Host screen files renamed into place (2026-11-21)
+
+Host wrote its OSD and OLED screen files in place: it truncated a file, then wrote its rows. A reader between those
+steps found fewer rows, which a single read in host smoke takes as an empty screen. That seems the likely cause of
+host smoke's GPS lap check reading no OSD rows once on CI (#877).
+
+A reader polling that OSD file every half millisecond found 3 short files in 35494 reads, and 5 in 49340 with every
+core busy. Each write now goes to that name with ".part" added and is renamed over it, and that reader found none in
+49709 reads with every core busy.

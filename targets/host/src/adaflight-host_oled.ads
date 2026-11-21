@@ -8,7 +8,8 @@
 --  bar graph, a hash for another glyph past printable ASCII and a question
 --  mark for a cell that is no glyph. It is written at most ten
 --  times a second, once the memory has rested for five milliseconds or has
---  waited a fifth of a second.
+--  waited a fifth of a second, to that name with ".part" added and renamed
+--  over it, so a reader finds a whole file.
 with Interfaces;
 package Adaflight.Host_OLED is
    Address : constant Interfaces.Unsigned_8 := 16#3C#;

@@ -1,6 +1,7 @@
 with Ada.Environment_Variables;
 with Ada.Real_Time;
 with Ada.Wide_Text_IO;
+with GNAT.OS_Lib;
 with Adaflight.OLED_Font;
 package body Adaflight.Host_OLED is
    use type Ada.Real_Time.Time;
@@ -87,9 +88,10 @@ package body Adaflight.Host_OLED is
    end Shown;
 
    procedure Dump is
-      File : Ada.Wide_Text_IO.File_Type;
+      File           : Ada.Wide_Text_IO.File_Type;
+      Unused_Renamed : Boolean;
    begin
-      Ada.Wide_Text_IO.Create (File, Ada.Wide_Text_IO.Out_File, Name, Form => "WCEM=8");
+      Ada.Wide_Text_IO.Create (File, Ada.Wide_Text_IO.Out_File, Name & ".part", Form => "WCEM=8");
       for Row in Page_Number loop
          for Cell in 0 .. 20 loop
             Ada.Wide_Text_IO.Put (File, Shown (Row, Cell));
@@ -97,6 +99,7 @@ package body Adaflight.Host_OLED is
          Ada.Wide_Text_IO.New_Line (File);
       end loop;
       Ada.Wide_Text_IO.Close (File);
+      GNAT.OS_Lib.Rename_File (Name & ".part", Name, Unused_Renamed);
    exception
       when others =>
          null;
