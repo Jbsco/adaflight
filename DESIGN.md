@@ -16443,3 +16443,10 @@ table numbers that, and not built as not available. A configurator names the det
 board here filled only gyro and accelerometer, so a detected barometer read as zero. A board now fills barometer,
 compass, rangefinder, optical flow and pitot from its detection, the pitot's at each update as its source comes and
 goes. Host smoke reads the BMP280 and no other sensor found on its image.
+
+## D863. Zero sonar altitude without a rangefinder (2026-11-20)
+
+A Betaflight build sets its rangefinder's altitude to out of range only once it detects one, so its sonar altitude
+reply reads zero with none found or none built. A board here started that altitude at out of range in every build
+and replied minus one. A board now replies zero without a detected rangefinder, and its OSD reads the same value.
+Host smoke reads zero on its image, which has no rangefinder.
