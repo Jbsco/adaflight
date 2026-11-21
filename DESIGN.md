@@ -16467,3 +16467,16 @@ back, then once per byte raised by one. Its other differences come from features
 commands laid out apart from their read reply, or from writes outside a setting's range (D203 to D218). Betaflight's reversed notch has an infinite or negative Q, and its D term
 reads not a number or grows without bound until a save (F368). Host smoke writes each order over MSP, reads it back
 and reads the board answering.
+
+## D865. Status at each MSP request (2026-11-20)
+
+A Betaflight board changes its selected profiles, its MSP arming block and its reboot requirement inside the MSP
+write, so a status request in the same burst reads them. A board here copied those into its status replies at its
+loop's next report, so a status request right after a profile switch still named the old profile. A board now copies
+them at each request, and a write that needs a restart sets that arming reason at once.
+
+The MSP write survey of D864 found it with indexed and runtime set commands: mode and adjustment ranges, failsafe
+channels, servos, profile selection and copy, motor test values, arming blocks and RC channels. Its other differences
+come from features SITL does not build, from writes outside a setting's range, or from motor test values that the host
+image converts for DShot (D221), where SITL runs analog pulses. Host smoke sends each write with a status request in
+one burst.

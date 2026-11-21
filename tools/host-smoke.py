@@ -2251,6 +2251,54 @@ def filter_order_checks(image, work):
         sock.close()
 
 
+def status_request_checks(image, work):
+    """MSP writes sent in one burst with an extended status request, over a configuration store of their own: the
+    status answers with the PID and rate profiles just selected, the MSP arming block just set, and the reboot
+    requirement an RC smoothing cutoff change just raised."""
+    proc, sock = start(image, os.path.join(work, "status-request.bin"))
+
+    def frame(cmd, payload=b""):
+        check = len(payload) ^ cmd
+        for b in payload:
+            check ^= b
+        return b"$M<" + bytes([len(payload), cmd]) + payload + bytes([check])
+
+    def status_after(cmd, payload):
+        sock.sendall(frame(cmd, payload) + frame(150))
+        data, replies = read_all(sock, 0.5), []
+        while len(data) >= 6 and data[:3] == b"$M>" and len(data) >= 6 + data[3]:
+            replies.append((data[4], data[5:5 + data[3]]))
+            data = data[6 + data[3]:]
+        return replies[1][1] if len(replies) == 2 and replies[1][0] == 150 else b""
+
+    def arming_bits(status):
+        if len(status) < 17 or len(status) < 21 + status[15]:
+            return None
+        at = 17 + status[15]
+        return int.from_bytes(status[at:at + 4], "little")
+    try:
+        time.sleep(2.5)
+        status = status_after(210, bytes([1]))
+        check("extended status in the same burst as a PID profile selection reads that profile",
+              len(status) > 10 and status[10] == 1, status.hex())
+        status = status_after(210, bytes([0x82]))
+        check("extended status in the same burst as a rate profile selection reads that profile",
+              len(status) > 14 and status[14] == 2, status.hex())
+        bits = arming_bits(status_after(99, bytes([1, 0])))
+        check("extended status in the same burst as an MSP arming block reads that block",
+              bits is not None and bits >> 16 & 1 == 1, repr(bits))
+        rx = bytearray(msp(sock, 44) or b"")
+        if len(rx) > 25:
+            rx[25] = (rx[25] + 7) & 0xFF
+        status = status_after(45, bytes(rx))
+        bits = arming_bits(status)
+        check("extended status in the same burst as an RC smoothing cutoff change reads a reboot required",
+              len(status) >= 6 and status[-6] == 1 and bits is not None and bits >> 21 & 1 == 1, status.hex())
+    finally:
+        stop(proc)
+        sock.close()
+
+
 def activity_led_checks(image, work):
     """The status LEDs' activity signals in the host's pin log, each LED lit by a low level. The second LED toggles
     each 150 ms while a GPS fix has enough satellites, and goes on and off around a compass's start. The first LED
@@ -6422,6 +6470,7 @@ def main():
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
         filter_order_checks(image, work)
+        status_request_checks(image, work)
         activity_led_checks(image, work)
         flash_read_checks(image, store, chip)
         nand_flash_checks(image, work)
