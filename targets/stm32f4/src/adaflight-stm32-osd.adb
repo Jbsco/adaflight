@@ -235,6 +235,7 @@ package body Adaflight.STM32.OSD is
 
    Dev        : Chip_Bus;
    Chip_State : Chip.State;
+   Drawn      : Boolean := True;
    Port       : Chip_Port.Port;
    Kind       : Adaflight.OSD_Task.Device_Kind := Adaflight.OSD_Task.None;
    Present    : Boolean := False;
@@ -528,6 +529,8 @@ package body Adaflight.STM32.OSD is
    function Grabbed return Boolean is
      (if On_MSP then DPM.Is_Grabbed (MSP_Display) else Port.Grab_Count > 0);
 
+   function Screen_Synced return Boolean is (Drawn and then not Chip.DMA_In_Progress (Dev));
+
    procedure Menu_Clear is
    begin
       if On_MSP then
@@ -561,6 +564,7 @@ package body Adaflight.STM32.OSD is
       elsif Present then
          Link_Debug;
          Chip_Port.Redraw (Dev, Chip_State, Armed);
+         Drawn := Drawn or else not Armed;
          Link_Debug;
       end if;
    end Menu_Redraw;
@@ -1151,6 +1155,7 @@ package body Adaflight.STM32.OSD is
                   Chip_Port.Port_Layer_Copy (Chip_State, 0, 1, Unused);
                when Redraw =>
                   Chip_Port.Redraw (Dev, Chip_State, Armed);
+                  Drawn := Drawn or else not Armed;
                when Write_Logo | Write_Sys | Redraw_Background | Begin_Transaction | Commit_Transaction | Heartbeat
                   | Draw_Screen =>
                   null;
@@ -1184,6 +1189,7 @@ package body Adaflight.STM32.OSD is
                Chip_Port.Heartbeat (Dev, Chip_State, Answers.Heartbeat_Taken);
             when Adaflight.OSD_Task.Transfer =>
                Chip.Draw_Screen (Dev, Chip_State, Answers.More_To_Draw);
+               Drawn := not Answers.More_To_Draw;
             when others =>
                null;
          end case;

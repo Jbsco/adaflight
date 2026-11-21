@@ -44,6 +44,9 @@ package Adaflight.STM32.OSD is
    procedure Set_Display_Line (Present : Boolean);
    --  The display's columns and rows, zero before the chip answers.
    procedure Dimensions (Columns, Rows : out Interfaces.Unsigned_8);
+   --  Whether the MAX7456's last screen draw sent all it found changed,
+   --  with no transfer under way.
+   function Screen_Synced return Boolean;
 
    --  The display's readiness for the OSD replies: a chip that did not
    --  answer is started again first, with a redraw while disarmed.

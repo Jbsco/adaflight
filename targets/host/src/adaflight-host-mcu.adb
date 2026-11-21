@@ -5,6 +5,7 @@ with Adaflight.Host_Arming_Log;
 with Adaflight.Host_OLED;
 with Adaflight.Host_Screen;
 with Adaflight.Host_Simulator;
+with Adaflight.STM32.OSD;
 with Adaflight.Sim_FDM;
 package body Adaflight.STM32.MCU is
    --  A fixed identifier for the host image.
@@ -66,7 +67,7 @@ package body Adaflight.STM32.MCU is
    procedure Simulator_Poll is
    begin
       Adaflight.Host_Simulator.Poll;
-      Adaflight.Host_Screen.Poll;
+      Adaflight.Host_Screen.Poll (Adaflight.STM32.OSD.Screen_Synced);
       Adaflight.Host_OLED.Poll;
       Adaflight.Host_Arming_Log.Poll;
    end Simulator_Poll;

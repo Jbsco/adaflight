@@ -6,33 +6,21 @@ package body Adaflight.Host_Screen is
    use type Ada.Real_Time.Time_Span;
    use type Interfaces.Unsigned_8;
 
-   Display      : array (Address) of Interfaces.Unsigned_8 := (others => 0);
-   Changed      : Boolean := False;
-   First_Change : Ada.Real_Time.Time := Ada.Real_Time.Clock;
-   Last_Change  : Ada.Real_Time.Time := Ada.Real_Time.Clock;
-   Written      : Ada.Real_Time.Time := Ada.Real_Time.Clock;
-
-   procedure Note_Change is
-      Now : constant Ada.Real_Time.Time := Ada.Real_Time.Clock;
-   begin
-      if not Changed then
-         First_Change := Now;
-      end if;
-      Changed := True;
-      Last_Change := Now;
-   end Note_Change;
+   Display : array (Address) of Interfaces.Unsigned_8 := (others => 0);
+   Changed : Boolean := False;
+   Written : Ada.Real_Time.Time := Ada.Real_Time.Clock;
 
    procedure Clear is
    begin
       Display := (others => 0);
-      Note_Change;
+      Changed := True;
    end Clear;
 
    procedure Put (At_Address : Address; Code : Interfaces.Unsigned_8) is
    begin
       if Display (At_Address) /= Code then
          Display (At_Address) := Code;
-         Note_Change;
+         Changed := True;
       end if;
    end Put;
 
@@ -57,21 +45,13 @@ package body Adaflight.Host_Screen is
          null;
    end Dump;
 
-   procedure Poll is
+   procedure Poll (Synced : Boolean) is
+      Now : constant Ada.Real_Time.Time := Ada.Real_Time.Clock;
    begin
-      if Changed then
-         declare
-            Now : constant Ada.Real_Time.Time := Ada.Real_Time.Clock;
-         begin
-            if Now - Written >= Ada.Real_Time.Milliseconds (100)
-              and then (Now - Last_Change >= Ada.Real_Time.Milliseconds (5)
-                        or else Now - First_Change >= Ada.Real_Time.Milliseconds (200))
-            then
-               Dump;
-               Changed := False;
-               Written := Now;
-            end if;
-         end;
+      if Changed and then Synced and then Now - Written >= Ada.Real_Time.Milliseconds (100) then
+         Dump;
+         Changed := False;
+         Written := Now;
       end if;
    end Poll;
 end Adaflight.Host_Screen;
