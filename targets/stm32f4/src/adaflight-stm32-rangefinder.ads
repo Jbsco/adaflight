@@ -20,7 +20,8 @@ package Adaflight.STM32.Rangefinder is
    procedure Update;
    procedure Process (Now_Us : Interfaces.Unsigned_32; Cos_Tilt : Float);
    --  The last altitude in centimetres, or the out of range or failure code,
-   --  and the last distance before the tilt correction.
+   --  and zero without a detected rangefinder; and the last distance before
+   --  the tilt correction.
    function Altitude_Cm return Interfaces.Integer_32;
    --  The UP-T1 module's optical flow side: its detection on the optical
    --  flow port, which opens that port when the rangefinder has not, the

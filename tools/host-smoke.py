@@ -3865,6 +3865,11 @@ def main():
             info = msp(sock, 4) or b""
             check("board information names the USB serial port, the software serial ports and the receiver's bind",
                   len(info) > 7 and info[7] == 0x43, repr(info[:9]))
+            active = msp2(sock, 0x300A) or b""
+            check("active sensors name the BMP280 and no compass, rangefinder, optical flow or pitot found",
+                  active[2:] == bytes([4, 1, 0, 0, 1]), active.hex())
+            sonar = msp(sock, 58)
+            check("sonar altitude reads zero with no rangefinder found", sonar == bytes(4), repr(sonar))
             taken = msp(sock, 186, bytes([200]))
             analog = msp(sock, 110)
             link = msp(sock, 187)

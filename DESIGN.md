@@ -16435,3 +16435,18 @@ A Betaflight board marks its configuration configured at each save, and its boar
 with its stored board identifier. A board here took both at start, so after an MSP save it still reported an
 unconfigured board until a restart. A board now takes both at each request, as it takes its problems (D858). Host
 smoke reads that state before and after an MSP save.
+
+## D862. Detected sensors over MSP (2026-11-20)
+
+A Betaflight board reports in its active sensor reply each sensor's detected hardware: none found as its hardware
+table numbers that, and not built as not available. A configurator names the detected sensors from that reply. A
+board here filled only gyro and accelerometer, so a detected barometer read as zero. A board now fills barometer,
+compass, rangefinder, optical flow and pitot from its detection, the pitot's at each update as its source comes and
+goes. Host smoke reads the BMP280 and no other sensor found on its image.
+
+## D863. Zero sonar altitude without a rangefinder (2026-11-20)
+
+A Betaflight build sets its rangefinder's altitude to out of range only once it detects one, so its sonar altitude
+reply reads zero with none found or none built. A board here started that altitude at out of range in every build
+and replied minus one. A board now replies zero without a detected rangefinder, and its OSD reads the same value.
+Host smoke reads zero on its image, which has no rangefinder.

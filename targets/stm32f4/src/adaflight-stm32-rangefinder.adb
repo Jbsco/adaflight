@@ -278,7 +278,7 @@ package body Adaflight.STM32.Rangefinder is
       Adaflight.Rangefinder_Debug.Record_Process (Adaflight.STM32.Debug_Values.State, Sensor);
    end Process;
 
-   function Altitude_Cm return Interfaces.Integer_32 is (Sensor.Calculated_Altitude);
+   function Altitude_Cm return Interfaces.Integer_32 is (if Detected then Sensor.Calculated_Altitude else 0);
 
    function Raw_Altitude_Cm return Interfaces.Integer_32 is (Sensor.Raw_Altitude);
    procedure Detect_UPT1_Flow
