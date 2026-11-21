@@ -16490,3 +16490,13 @@ held part of an update: host smoke read the visual beeper's mark as one, two and
 The board's OSD now reports whether its last screen draw sent all it found changed, and a full redraw while disarmed
 counts as such a draw. Host writes its screen file only then, at most ten times a second. With every core busy,
 eighteen runs of the beeper checks read no part of that mark.
+
+## D867. Host screen files renamed into place (2026-11-21)
+
+Host wrote its OSD and OLED screen files in place: it truncated a file, then wrote its rows. A reader between those
+steps found fewer rows, which a single read in host smoke takes as an empty screen. That seems the likely cause of
+host smoke's GPS lap check reading no OSD rows once on CI (#877).
+
+A reader polling that OSD file every half millisecond found 3 short files in 35494 reads, and 5 in 49340 with every
+core busy. Each write now goes to that name with ".part" added and is renamed over it, and that reader found none in
+49709 reads with every core busy.

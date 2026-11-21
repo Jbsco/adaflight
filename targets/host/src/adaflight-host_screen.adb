@@ -1,6 +1,7 @@
 with Ada.Environment_Variables;
 with Ada.Real_Time;
 with Ada.Text_IO;
+with GNAT.OS_Lib;
 package body Adaflight.Host_Screen is
    use type Ada.Real_Time.Time;
    use type Ada.Real_Time.Time_Span;
@@ -25,10 +26,11 @@ package body Adaflight.Host_Screen is
    end Put;
 
    procedure Dump is
-      File : Ada.Text_IO.File_Type;
-      Name : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_OSD_SCREEN", "adaflight-osd.txt");
+      File           : Ada.Text_IO.File_Type;
+      Name           : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_OSD_SCREEN", "adaflight-osd.txt");
+      Unused_Renamed : Boolean;
    begin
-      Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name);
+      Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name & ".part");
       for Row in 0 .. 15 loop
          for Col in 0 .. 29 loop
             declare
@@ -40,6 +42,7 @@ package body Adaflight.Host_Screen is
          Ada.Text_IO.New_Line (File);
       end loop;
       Ada.Text_IO.Close (File);
+      GNAT.OS_Lib.Rename_File (Name & ".part", Name, Unused_Renamed);
    exception
       when others =>
          null;

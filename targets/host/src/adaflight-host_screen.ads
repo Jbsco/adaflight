@@ -4,6 +4,8 @@
 --  ADAFLIGHT_OSD_SCREEN names, adaflight-osd.txt when unset. The file is
 --  written at most ten times a second, and only after a screen draw that
 --  sent all it found changed, so it never holds part of a screen update.
+--  Each write goes to that name with ".part" added and is renamed over it,
+--  so a reader finds a whole file.
 with Interfaces;
 package Adaflight.Host_Screen is
    subtype Address is Natural range 0 .. 511;
