@@ -114,11 +114,12 @@ package body Adaflight.Host_Simulator is
    end Put_Float;
 
    --  The motor packets: four speeds as 32-bit floats, each numerator over
-   --  the scale, and the raw packet with the driven count and sixteen pulses.
+   --  the scale, and the raw packet with the driven count, two bytes of
+   --  padding and sixteen pulses.
    procedure Send_Motor_Packets is
       use GNAT.Sockets;
       Speeds : Ada.Streams.Stream_Element_Array (1 .. 4 * Motor_Count) := (others => 0);
-      Raw    : Ada.Streams.Stream_Element_Array (1 .. 2 + 4 * 16) := (others => 0);
+      Raw    : Ada.Streams.Stream_Element_Array (1 .. 4 + 4 * 16) := (others => 0);
       Sent   : Ada.Streams.Stream_Element_Offset;
    begin
       for I in Speed_Num'Range loop
@@ -127,7 +128,7 @@ package body Adaflight.Host_Simulator is
       Raw (1) := Ada.Streams.Stream_Element (Driven mod 256);
       Raw (2) := Ada.Streams.Stream_Element (Driven / 256);
       for I in Raw_Pulses'Range loop
-         Put_Float (Raw, Ada.Streams.Stream_Element_Offset (3 + 4 * I), Raw_Pulses (I));
+         Put_Float (Raw, Ada.Streams.Stream_Element_Offset (5 + 4 * I), Raw_Pulses (I));
       end loop;
       Send_Socket (PWM_Socket, Speeds, Sent, PWM_To);
       if Sent >= 0 then

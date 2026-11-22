@@ -16638,3 +16638,11 @@ Betaflight's SITL build, 1.18 m/s at the throttle floor, and then stayed armed o
 is down and disarmed in 9 s, where SITL takes 8 s, and every scenario of that harness passes on both images. Host smoke
 flies both requests over the simulator link: a touchdown jerk after a takeoff and a 10 rad/s roll with crash recovery at
 DISARM each disarm with their reason, and removing the handlers fails both.
+
+## D879. Raw motor packet layout (2026-11-22)
+
+Betaflight's simulator target sends its raw output packet as its C struct: a 16-bit motor count, two bytes of padding
+before its first float, and sixteen floats, 68 bytes in all. Host's simulator link left that padding out (D563), so its
+66-byte packet put each pulse two bytes early, and a simulator reading Betaflight's layout dropped it or read wrong
+servo values. Host now sends that 68-byte layout. Betaflight's SITL scenario harness reads raw outputs this way for its
+fixed-wing model, which drives elevons from them. Host smoke reads a motor count and pulses at their reference offsets.
