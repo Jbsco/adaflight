@@ -16657,3 +16657,11 @@ Betaflight's SITL scenario harness flies a fixed-wing model from those slots. A 
 now steps through the same launch states on host as on Betaflight's wing build, within 0.05 s, with matching pitch and
 airspeed. Without servos it read a full nose-up command and aborted the launch. Host smoke checks a flying wing's motor
 and elevons in that packet, centred at rest and apart under roll in passthrough, and both checks fail without servos.
+
+## D881. Raw accelerometer counts over MSP (2026-11-22)
+
+Boards now answer MSP_RAW_IMU with each accelerometer count as measured. They had divided it by 8, 4 or 2 from the
+count for one g (D383), an older Betaflight scaling that Betaflight 4.5 dropped and Betaflight 2026.12 does not have.
+Configurator divides that reading by 2048, so a 2048-count chip at rest showed a quarter g in its sensors tab and in its
+board alignment wizard. Each gyro model on host now reads its own counts: 2040 for one g on the chips that count 2048,
+and 1020 on the two that count 1024.

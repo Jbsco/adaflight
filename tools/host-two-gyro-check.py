@@ -75,7 +75,7 @@ def main() -> int:
         hs.check("rates with both gyros are the mean of their aligned readings",
                  imu is not None and near(imu[3:6], (410, 0, -738)), repr(imu))
         hs.check("acceleration with both gyros follows the first gyro",
-                 imu is not None and near(imu[:3], (32, -64, 510)), repr(imu))
+                 imu is not None and near(imu[:3], (128, -256, 2040)), repr(imu))
         hs.check("sensor alignment reply reports the first gyro with both detected and enabled",
                  alignment is not None and len(alignment) >= 5 and list(alignment[:2]) == [1, 1]
                  and list(alignment[3:5]) == [3, 3], repr(alignment[:5] if alignment else alignment))
@@ -87,7 +87,7 @@ def main() -> int:
         hs.check("second gyro's own rates arrive turned by its alignment",
                  imu is not None and near(imu[3:6], (656, -328, -984)), repr(imu))
         hs.check("second gyro's own acceleration arrives when it is the first enabled",
-                 imu is not None and near(imu[:3], (-64, -64, 510)), repr(imu))
+                 imu is not None and near(imu[:3], (-256, -256, 2040)), repr(imu))
         hs.check("sensor alignment reply reports the second gyro's alignment",
                  alignment is not None and len(alignment) >= 5 and list(alignment[:2]) == [2, 2]
                  and list(alignment[3:5]) == [3, 2], repr(alignment[:5] if alignment else alignment))
@@ -97,7 +97,7 @@ def main() -> int:
                  "GYRO: (1) ICM20689 enabled, (2) ICM20689" in status and "(2) ICM20689 enabled" not in status
                  and "gyro_enabled_bitmask = 1" in mask, repr((status[:300], mask[-80:])))
         hs.check("rates of the first gyro alone arrive as it reads them",
-                 imu is not None and near(imu[3:6], (164, 328, -492)) and near(imu[:3], (32, -64, 510)), repr(imu))
+                 imu is not None and near(imu[3:6], (164, 328, -492)) and near(imu[:3], (128, -256, 2040)), repr(imu))
     print("host-two-gyro-check: failures", len(hs.failures))
     return 1 if hs.failures else 0
 
