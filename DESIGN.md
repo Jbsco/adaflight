@@ -16600,3 +16600,14 @@ A rescue generator built for rescue plans gives its own vectors, through which t
 control set for a rescue plan. Moving the maximum altitude ahead of the sensors fails them. Under a lost link 110 m from
 home, host image now climbs like Betaflight's SITL build: motor means 0.733 and 1.000 in both through the rescue, and an
 altitude target ramped to the same 750 cm.
+
+## D876. Rescue altitude at the arm transition (2026-11-22)
+
+Boards give their rescue an altitude of zero until position estimation has handled the current arm state, which is
+what its reset gives. A rescue task runs on its own schedule, and a pass between arming and that reset read a disarmed
+altitude and kept it as its running maximum. Under a Gazebo bridge, host image reads 941 m while disarmed, and its
+rescue plan returned 951 m above home. Betaflight 2026.12 has this race too.
+
+With a simulator feed running from boot, a lost-link rescue 110 m from home now climbs like Betaflight's SITL build in
+three runs out of three. Altitude feedforward reads 379, 355, 235 and 190 at 3.8, 4, 5 and 8 s in both, where host
+image held 450 before.
