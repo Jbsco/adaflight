@@ -16573,3 +16573,17 @@ A flight log's state flags carry the GPS home fix, GPS fix and GPS fix ever bits
 Boards had also set bit 4 while the craft sat within the small angle, a bit Betaflight 2026.12 does not define.
 blackbox-tools at f832acf names that bit FIXED_WING, so logs of a quad read as a wing's. A closed-loop run against
 Betaflight's SITL build now logs equal state flags.
+
+## D874. Nav leg altitude in altitude hold (2026-11-21)
+
+While a nav leg with altitude flies, altitude hold takes that leg's target altitude, vertical rate and rate cap in place
+of its own, and keeps the leg's altitude as its target. Altitude hold had left this out, so flight plan legs and rescue
+plans changed altitude only by stick, failsafe or emergency descent. Under a lost link 110 m from home, host image's
+rescue plan commanded a climb at 632 cm/s while its altitude hold descended, where Betaflight's SITL build climbed.
+
+Boards pass the navigator's leg to the hold, clamped to the altitude controller's types: a rate within 65536 cm/s and a
+cap within 8000 cm/s. A leg's stated rate reaches 1000 m/s, past both, and no flight comes near either. The altitude
+hold generator now draws a nav leg in one sequence of three, so vectors cover the leg's target, rate and cap.
+
+With this change, host image climbs in that rescue too, at 1725 us of throttle against SITL's 1900 us. Its altitude ramp
+still waits, since position hold clears the blind climb's heading recovery when it engages after the executor.
