@@ -154,3 +154,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [MSP filter write starts a D term notch whose cutoff is at or above its center](dterm-notch-cutoff-order.md)
 - [Feedforward interpolation turns off for a CRSF setting with no serial receiver open](feedforward-interpolation-provider.md)
 - [Feedforward averaging is off after every power-up](feedforward-averaging-boot.md)
+- [A rescue's maximum altitude can take the altitude from before arming](rescue-max-altitude-arming.md)

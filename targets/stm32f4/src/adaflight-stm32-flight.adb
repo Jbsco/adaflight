@@ -4190,7 +4190,8 @@ package body Adaflight.STM32.Flight is
          GPS_Stamp             => G.Stamp,
          Heading_Valid         => Heading_Valid,
          GPS_Healthy           => G.Healthy,
-         Altitude_Control_Cm   => Pos_State.Control_Altitude_Cm,
+         Altitude_Control_Cm   =>
+           (if Pos_State.Was_Armed = Adaflight.STM32.Pilot.Armed then Pos_State.Control_Altitude_Cm else 0.0),
          Altitude_Filtered_Cm  => Held (Pos_State.Filtered_Altitude_Cm),
          Altitude_Available    => Pos_State.Valid_Z,
          Valid_XY              => P_Inp.Valid_XY,
@@ -4210,6 +4211,12 @@ package body Adaflight.STM32.Flight is
       Asked           : Adaflight.Arming.Outputs;
    begin
       if Adaflight.Build_Features.Wing then
+         return;
+      end if;
+      --  A build that flies its rescue as a plan keeps only the rescue's
+      --  sensors, running maximum altitude and availability.
+      if Adaflight.Plan_Build.Enabled then
+         Adaflight.GPS_Rescue.Track (Rescue_State, Rescue_Settings, Inp);
          return;
       end if;
       Adaflight.GPS_Rescue.Update

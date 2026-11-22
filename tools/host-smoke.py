@@ -5358,7 +5358,7 @@ def main():
 
             # A latitude out of range stops the virtual GPS, so the position estimate lapses and the plan aborts.
             # The switch then asks for the descent: the altitude hold alone, with the rescue's failure warning and
-            # a target below the craft, which this part reads from the autopilot's altitude debug values.
+            # a throttle below the climb's, which this part reads from the autopilot's altitude debug values.
             def descent_part(state, pulses, with_sticks, place, arm, failsafe, rescue, autopilot, alt_hold):
                 pulses[5] = 1800
                 switched, value = until(state, lambda s: s is not None and s[0] & autopilot, wait=4.0)
@@ -5380,10 +5380,12 @@ def main():
                 check("OSD warning names the rescue's failure during the descent", named,
                       repr((shown, state(), rows)))
                 # The debug values are the throttle, the target and the altitude, in centimetres. The fed altitude
-                # never falls, so the target stops a little below it.
-                lowered, value = until(state, lambda s: s is not None and s[1][1] < s[1][2] - 100, wait=4.0)
-                check("altitude hold's target goes below the craft in the rescue descent",
-                      lowered and before is not None and before[1][1] >= before[1][2] - 100, repr((before, value)))
+                # never moves, so the target stays where the plan's climb left it, more than a second's descent away,
+                # and the descent shows in the throttle.
+                lowered, value = until(state, lambda s: s is not None and before is not None
+                                       and s[1][0] < before[1][0] - 100 and s[1][1] <= before[1][1], wait=4.0)
+                check("altitude hold's throttle falls from the climb's in the rescue descent, its target no higher",
+                      lowered, repr((before, value)))
                 pulses[5] = 1000
                 released, value = until(state, lambda s: s is not None and s[0] & arm and not s[0] & alt_hold,
                                         wait=3.0)

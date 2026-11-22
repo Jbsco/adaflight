@@ -12264,6 +12264,7 @@ procedure Vector_Check is
    RS_Hold     : Adaflight.Position_Hold.State;
    RS_Nav      : Adaflight.Position_Nav.Navigator;
    RS_Max_Rate_Pitch, RS_Max_Rate_Roll : Float := 670.0;
+   RS_Plan     : Boolean := False;
 
    procedure Check_Rescue_Line is
       use Adaflight.GPS_Rescue;
@@ -12294,6 +12295,7 @@ procedure Vector_Check is
          RS_Max_Rate_Pitch := Flt (22);
          RS_Max_Rate_Roll := Flt (23);
          RS_PC := (others => <>);
+         RS_PC.Rescue_Plan := RS_Plan;
          Adaflight.Altitude_Control.Init (RS_Altitude, RS_AC);
          Adaflight.Position_Hold.Init (RS_Hold, (Deadband => 5), RS_PC);
          RS_Nav := (others => <>);
@@ -12369,8 +12371,14 @@ procedure Vector_Check is
             P_Inp.Heading_Valid := Inp.Heading_Valid;
             P_Inp.Max_Rate_Pitch := RS_Max_Rate_Pitch;
             P_Inp.Max_Rate_Roll := RS_Max_Rate_Roll;
-            Update (RS_State, RS_Settings, Inp, RS_AC, RS_Altitude, RS_PC, P_Inp, RS_Hold.Control,
-                    Disarm, Arming_Disabled);
+            if RS_Plan then
+               Track (RS_State, RS_Settings, Inp);
+               Disarm := False;
+               Arming_Disabled := False;
+            else
+               Update (RS_State, RS_Settings, Inp, RS_AC, RS_Altitude, RS_PC, P_Inp, RS_Hold.Control,
+                       Disarm, Arming_Disabled);
+            end if;
             Adaflight.Position_Hold.Update (RS_Hold, RS_PC, P_Inp, RS_Nav, Enable_XY);
             Expect_Bool ("disarm", Disarm);
             Expect_Bool ("arming_disabled", Arming_Disabled);
@@ -43982,6 +43990,10 @@ procedure Vector_Check is
                elsif Kind = "poshold" then
                   Check_Poshold_Line;
                elsif Kind = "rescue" then
+                  RS_Plan := False;
+                  Check_Rescue_Line;
+               elsif Kind = "rescueplan" then
+                  RS_Plan := True;
                   Check_Rescue_Line;
                elsif Kind = "vtxsa" then
                   Check_SmartAudio_Line;
@@ -44521,6 +44533,7 @@ begin
    Run (Dir & "/posest.csv", "posest");
    Run (Dir & "/poshold.csv", "poshold");
    Run (Dir & "/rescue.csv", "rescue");
+   Run (Dir & "/rescueplan.csv", "rescueplan");
    Run (Dir & "/vtxsa.csv", "vtxsa");
    Run (Dir & "/vtxctl.csv", "vtxctl");
    Run (Dir & "/vtxtramp.csv", "vtxtramp");
