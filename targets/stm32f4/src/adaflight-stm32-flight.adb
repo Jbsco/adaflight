@@ -3127,7 +3127,6 @@ package body Adaflight.STM32.Flight is
       F : Adaflight.STM32.Blackbox.Facts;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Profile : Adaflight.PID_Profile.Profile renames Adaflight.STM32.Pilot.Profile.all;
-      Small_Angle : constant Boolean := Upright;
       Mag     : constant Adaflight.Vectors.Vector3 := Adaflight.STM32.Compass.Field;
    begin
       F.Now_Ms := Adaflight.STM32.Time.Millis;
@@ -3153,7 +3152,7 @@ package body Adaflight.STM32.Flight is
       F.Slow :=
         (Flight_Mode_Flags        => Box_Word,
          State_Flags              => (if G.Fix_Home then 1 else 0) or (if G.Fix then 2 else 0)
-                                     or (if G.Fix_Ever then 4 else 0) or (if Small_Angle then 16 else 0),
+                                     or (if G.Fix_Ever then 4 else 0),
          Failsafe_Phase           => Adaflight.STM32.Radio.Failsafe_Phase,
          RX_Signal_Received       => Adaflight.STM32.Radio.Receiving,
          RX_Flight_Channels_Valid => Adaflight.STM32.Radio.Flight_Channels_Valid);

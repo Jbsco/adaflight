@@ -16566,3 +16566,10 @@ sensors as absent on every board, since boards never set them, and the compass f
 
 A closed-loop run against Betaflight's SITL build, with virtual compass and barometer on both images, logged both
 fields equal loop for loop. Host smoke checks that the flight log lists the barometer altitude with a barometer found.
+
+## D873. Flight log state flags (2026-11-21)
+
+A flight log's state flags carry the GPS home fix, GPS fix and GPS fix ever bits alone, as Betaflight 2026.12's do.
+Boards had also set bit 4 while the craft sat within the small angle, a bit Betaflight 2026.12 does not define.
+blackbox-tools at f832acf names that bit FIXED_WING, so logs of a quad read as a wing's. A closed-loop run against
+Betaflight's SITL build now logs equal state flags.
