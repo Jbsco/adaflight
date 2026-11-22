@@ -16513,3 +16513,21 @@ simulator ports. Both now report 50 Hz frames and 18 Hz cutoffs, and their motor
 of a scripted arm, throttle, roll and yaw sequence. In the first packets after a roll or yaw step they differ by up to
 0.014 of full output, the same in each of three runs, and that difference is open. Host smoke reads both commands
 with its simulator receiver.
+
+## D869. Simulator attitude from the estimate (2026-11-21)
+
+Betaflight's simulator target runs its attitude estimator on its virtual gyro, accelerometer and compass, and takes
+each packet's quaternion as the attitude only when built with SITL_ATTITUDE_DIRECT. Host's simulator link took the
+quaternion (D543), so a rolled quaternion moved the craft and a rolled accelerometer did not, the reverse of
+Betaflight's SITL build. We chose the estimator path because simulated flights then run the attitude code boards fly.
+Host's simulator link now runs that estimator on the sensors it feeds, and `ADAFLIGHT_SIMULATOR_ATTITUDE=direct` keeps
+a quaternion path for checks that isolate a controller from estimation.
+
+With its estimator on, Betaflight's simulator target compiles its IMU unit as a board does, apart from thread locks, so
+attitude vectors already cover that path. A closed-loop run in angle mode against Betaflight's SITL build found
+the difference. After the change, a ten-degree roll fed to the accelerometer gives motor outputs within 0.02 of SITL's
+in each steady phase, and a roll fed to the quaternion alone moves neither.
+
+Host smoke's checks of direct path frames, headfree offset and flight plan flights take direct attitude,
+since they feed attitude and heading through the quaternion alone. Two new checks read the estimate follow a rolled
+gravity reaction and ignore a rolled quaternion.

@@ -170,6 +170,8 @@ package body Adaflight.STM32.MCU is
 
    function Simulated return Boolean is (False);
 
+   function Simulator_Attitude_Direct return Boolean is (False);
+
    procedure Simulator_Poll is null;
 
    procedure Simulator_Attitude

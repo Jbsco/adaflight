@@ -62,6 +62,8 @@ package body Adaflight.STM32.MCU is
 
    function Simulated return Boolean is (Adaflight.Host_Simulator.Enabled);
 
+   function Simulator_Attitude_Direct return Boolean is (Adaflight.Host_Simulator.Direct_Attitude);
+
    --  The host's work once per scheduler pass: the simulator's packets, the
    --  screen files and the log of arming events.
    procedure Simulator_Poll is

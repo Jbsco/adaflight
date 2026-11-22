@@ -4,7 +4,9 @@
 --  for the UDP receiver, and the motor packets sent back, one pair per
 --  flight dynamics packet. ADAFLIGHT_SIMULATOR names the bridge, gazebo or
 --  legacy, with the simulator's address after a comma; unset, the link is
---  off and the virtual sensors read a craft at rest.
+--  off and the virtual sensors read a craft at rest. The attitude estimate
+--  runs on those virtual sensors. ADAFLIGHT_SIMULATOR_ATTITUDE set to direct
+--  takes each packet's quaternion as the attitude instead.
 with Interfaces;
 with Adaflight.Attitude;
 with Adaflight.Sim_FDM;
@@ -12,6 +14,7 @@ with Adaflight.STM32.MCU;
 package Adaflight.Host_Simulator is
    function Enabled return Boolean;
    function Legacy_Bridge return Boolean;
+   function Direct_Attitude return Boolean;
    --  The sockets opened on the first call, then the packets that arrived
    --  since the last call, each decoded and stepped.
    procedure Poll;

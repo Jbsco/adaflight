@@ -39,9 +39,12 @@ package Adaflight.STM32.MCU is
    --  once, with the time kept beside that request.
    procedure Take_Mass_Storage_Request (Asked : out Boolean; Time_Ms : out Interfaces.Unsigned_64);
    --  The host image's simulator link: whether the image runs against a
-   --  simulator, its packets read once a pass, and the attitude quaternion
-   --  of the latest packet, once. Board images have no link.
+   --  simulator, whether it takes each packet's attitude quaternion in place
+   --  of the attitude estimate, its packets read once a pass, and the
+   --  attitude quaternion of the latest packet, once. Board images have no
+   --  link.
    function Simulated return Boolean;
+   function Simulator_Attitude_Direct return Boolean;
    procedure Simulator_Poll;
    procedure Simulator_Attitude
      (Fresh : out Boolean; Q : out Adaflight.Attitude.Quaternion; Legacy_Bridge : out Boolean);
