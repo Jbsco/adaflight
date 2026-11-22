@@ -16624,3 +16624,17 @@ on host they stopped at that arming reason. With host's receiver and motor lines
 Betaflight's SITL build: heading learnt 7 to 8 s into the rescue, at most 4 degrees off the nose, landing 0.3 m from
 home. Host smoke checks that a fresh store under the simulator link lists no calibration problem and that angle mode on
 a switch leaves no calibration reason there, which the same store gives without the link.
+
+## D878. PID disarm requests on boards (2026-11-22)
+
+Boards now act on the PID controller's two disarm requests in its pass, crash first, as Betaflight's controller orders
+them. A crash with `crash_recovery` at DISARM sets the crash reason and disarms. A touchdown jerk past
+`landing_disarm_threshold` sets the arm switch reason and disarms, so arming waits for the switch to go off. The
+controller raised both requests, and no board read them, so neither setting disarmed a board. The mixer now reads the
+arm state after the runaway check, so a disarm from that check or from the controller stops the motors in that pass.
+
+Betaflight's SITL scenario harness found the gap. Its rescue over home without a heading descended on host as on
+Betaflight's SITL build, 1.18 m/s at the throttle floor, and then stayed armed on the ground. Host now climbs 0.6 m and
+is down and disarmed in 9 s, where SITL takes 8 s, and every scenario of that harness passes on both images. Host smoke
+flies both requests over the simulator link: a touchdown jerk after a takeoff and a 10 rad/s roll with crash recovery at
+DISARM each disarm with their reason, and removing the handlers fails both.

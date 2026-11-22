@@ -207,6 +207,16 @@ package body Adaflight.STM32.Control is
       Inp.Launch_Handover := Adaflight.STM32.Pilot.Launch.Handover;
       Adaflight.PID_Controller.Update
         (Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Adaflight.STM32.Pilot.Profile.all, Inp);
+      if Ctl.Crash_Disarm_Requested then
+         Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Crash_Disarm, True);
+         Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Crash_Protection, Adaflight.STM32.Time.Micros, Step);
+      end if;
+      if Ctl.Landing_Disarm_Requested then
+         Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Arm_Switch, True);
+         if Adaflight.STM32.Pilot.Armed then
+            Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Landing, Adaflight.STM32.Time.Micros, Step);
+         end if;
+      end if;
       Adaflight.PID_Debug.Record_Loop
         (Adaflight.STM32.Debug_Values.State, Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all, Inp,
          Adaflight.STM32.Debug_Values.Axis);
@@ -219,6 +229,7 @@ package body Adaflight.STM32.Control is
    begin
       Sensed.PID_Sums := PID_Sums;
       Adaflight.STM32.Pilot.Runaway_Check (Sensed, Channels, Current.Now_Us, Step);
+      Current.Armed := Adaflight.STM32.Pilot.Armed;
    end Runaway_Check;
 
    --  The mixer's loop over the throttle, the arming and the modes, the
