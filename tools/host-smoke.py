@@ -2189,8 +2189,8 @@ def boot_beep_checks(image, work):
 
 def board_problem_checks(image, work):
     """Board information over a configuration store of its own: a fresh accelerometer asks for its calibration and an
-    MSP calibration clears that problem, and a fresh board reports itself unconfigured until an MSP save, without a
-    restart."""
+    MSP calibration clears that problem, a fresh board reports itself unconfigured until an MSP save, without a
+    restart, and a simulator's accelerometer counts as calibrated."""
     proc, sock = start(image, os.path.join(work, "board-problems.bin"))
 
     def field(offset, size):
@@ -2222,6 +2222,40 @@ def board_problem_checks(image, work):
     finally:
         stop(proc)
         sock.close()
+    # A simulator's accelerometer counts as calibrated: a fresh configuration lists no such problem, and angle mode on
+    # a switch leaves no calibration reason, which the same store gives without the simulator link.
+    sim_store = os.path.join(work, "board-problems-sim.bin")
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    proc, sock = start(image, sim_store, sim_link)
+    try:
+        time.sleep(2.5)
+        sim_problems = problems()
+        check("simulator link's fresh accelerometer asks for no calibration", sim_problems == 0, repr(sim_problems))
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        cli(sock, "aux 0 1 0 1700 2100 0 0")
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+
+    def angle_reasons(extra):
+        proc, sock = start(image, sim_store, extra)
+        try:
+            time.sleep(5.0)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            return cli(sock, "status", 1.5).split("Arming disable flags:")[-1]
+        finally:
+            stop(proc)
+            sock.close()
+    reasons = angle_reasons(sim_link)
+    check("angle mode on a switch leaves no accelerometer calibration reason under the simulator link",
+          "NO_ACC_CAL" not in reasons, reasons.strip()[:80])
+    reasons = angle_reasons(None)
+    check("angle mode on a switch asks for an accelerometer calibration without the simulator link",
+          "NO_ACC_CAL" in reasons, reasons.strip()[:80])
 
 
 def filter_order_checks(image, work):
