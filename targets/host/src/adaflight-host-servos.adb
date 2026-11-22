@@ -3,11 +3,13 @@
 --  refused ends the setup. Each output's setup and each change of its pulse
 --  add a line to the file the environment variable ADAFLIGHT_SERVO_LOG
 --  names: the servo, its period and its center pulse for a setup, and the
---  servo and the compare register's value for a change.
+--  servo and the compare register's value for a change. Under the simulator
+--  link each servo write also goes into its raw packet, pin or no pin.
 with Ada.Environment_Variables;
 with Ada.Text_IO;
 with Interfaces;
 with Adaflight.CLI_Resources;
+with Adaflight.Host_Simulator;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Servos is
    use Interfaces;
@@ -56,6 +58,9 @@ package body Adaflight.STM32.Servos is
 
    procedure Write (Index : Natural; Value : Float) is
    begin
+      if Adaflight.Host_Simulator.Enabled then
+         Adaflight.Host_Simulator.Set_Servo (Index, Value);
+      end if;
       if Index < Max_Servos
         and then Configured (Index)
         and then Adaflight.PWM_Output.Servo_Pulse (Held (Value)) /= Pulses (Index)
