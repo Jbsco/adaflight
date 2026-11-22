@@ -2258,6 +2258,89 @@ def board_problem_checks(image, work):
           "NO_ACC_CAL" in reasons, reasons.strip()[:80])
 
 
+def pid_disarm_checks(image, work):
+    """PID controller disarms over the simulator link, each from a configuration store of its own: a touchdown jerk past
+    landing_disarm_threshold with the sticks centred and the throttle low after a takeoff disarms and keeps arming off
+    by the switch, and a crash with crash_recovery at DISARM disarms and keeps arming off by the crash reason."""
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    rest = [992, 992, 172, 992]
+
+    def flight(name, lines, event):
+        store = os.path.join(work, f"pid-disarm-{name}.bin")
+        proc, sock = start(image, store, extra=sim_link)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ["set rx_uart = UART3", "aux 0 0 0 1700 2100 0 0", "set runaway_takeoff_prevention = OFF"] + lines:
+                cli(sock, line)
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, extra=sim_link)
+        receiver = Receiver()
+        receiver.start()
+        sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        done = threading.Event()
+        feed = {"roll": 0.0, "acc_z": -9.80665}
+
+        def feed_sim():
+            tick = 0
+            while not done.is_set():
+                sim.sendto(struct.pack("<18d", tick * 0.01, feed["roll"], 0.0, 0.0, 0.0, 0.0, feed["acc_z"], 1.0, 0.0,
+                                       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                tick += 1
+                time.sleep(0.01)
+
+        def armed_and_reasons():
+            status = msp(sock, 150)
+            if status is None or len(status) < 21 + status[15]:
+                return None, 0
+            at = 16 + status[15]
+            return status[6] & 1, int.from_bytes(status[at + 1:at + 5], "little")
+        threading.Thread(target=feed_sim, daemon=True).start()
+        try:
+            time.sleep(8.0)
+            receiver.channels = rest + [1811] + [992] * 11
+            time.sleep(1.5)
+            before = armed_and_reasons()
+            event(receiver, feed)
+            time.sleep(0.5)
+            return before, armed_and_reasons()
+        finally:
+            done.set()
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
+            sim.close()
+
+    def touchdown(receiver, feed):
+        receiver.channels = [992, 992, 992, 992, 1811] + [992] * 11
+        time.sleep(1.0)
+        receiver.channels = rest + [1811] + [992] * 11
+        time.sleep(1.0)
+        feed["acc_z"] = -70.0
+        time.sleep(0.05)
+        feed["acc_z"] = -9.80665
+
+    def crash(receiver, feed):
+        receiver.channels = [992, 992, 992, 992, 1811] + [992] * 11
+        time.sleep(1.0)
+        feed["roll"] = 10.0
+        time.sleep(0.3)
+        feed["roll"] = 0.0
+    before, after = flight("landing", ["set landing_disarm_threshold = 10"], touchdown)
+    check("craft arms before its touchdown", before[0] == 1, repr(before))
+    check("touchdown jerk disarms and keeps arming off by the switch", after[0] == 0 and after[1] & (1 << 29) != 0,
+          repr((after[0], hex(after[1]))))
+    before, after = flight("crash", ["set crash_recovery = DISARM"], crash)
+    check("craft arms before its crash", before[0] == 1, repr(before))
+    check("crash with crash recovery at DISARM disarms and keeps arming off by the crash reason",
+          after[0] == 0 and after[1] & (1 << 6) != 0, repr((after[0], hex(after[1]))))
+
+
 def filter_order_checks(image, work):
     """MSP filter writes that leave the D term's dynamic lowpass minimum above its maximum, or its notch cutoff above
     its center, over a configuration store of their own: each is answered, reads back as written, and the board
@@ -6508,6 +6591,7 @@ def main():
         status_led_checks(image, work)
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
+        pid_disarm_checks(image, work)
         filter_order_checks(image, work)
         status_request_checks(image, work)
         activity_led_checks(image, work)
