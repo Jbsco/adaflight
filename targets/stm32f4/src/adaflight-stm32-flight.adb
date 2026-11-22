@@ -4212,6 +4212,12 @@ package body Adaflight.STM32.Flight is
       if Adaflight.Build_Features.Wing then
          return;
       end if;
+      --  A build that flies its rescue as a plan keeps only the rescue's
+      --  sensors, running maximum altitude and availability.
+      if Adaflight.Plan_Build.Enabled then
+         Adaflight.GPS_Rescue.Track (Rescue_State, Rescue_Settings, Inp);
+         return;
+      end if;
       Adaflight.GPS_Rescue.Update
         (Rescue_State, Rescue_Settings, Inp,
          Adaflight.Altitude_Hold.Control_Settings (Alt_Hold_Settings), Alt_Hold_State.Control,

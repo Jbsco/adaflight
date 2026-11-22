@@ -16587,3 +16587,16 @@ hold generator now draws a nav leg in one sequence of three, so vectors cover th
 
 With this change, host image climbs in that rescue too, at 1725 us of throttle against SITL's 1900 us. Its altitude ramp
 still waits, since position hold clears the blind climb's heading recovery when it engages after the executor.
+
+## D875. Rescue task in rescue plan builds (2026-11-22)
+
+A build that flies its rescue as a flight plan runs `GPS_Rescue.Track` as its rescue task: the sensors, the running
+maximum altitude and the availability, in that order, and no phase of its own. Boards had run the full rescue task in
+those builds too. Outside rescue mode it stopped every pass, and each stop cleared the heading recovery that the rescue
+plan's blind climb had asked for, so position hold never ran without a heading and the climb's altitude ramp stood
+still.
+
+A rescue generator built for rescue plans gives its own vectors, through which the checker runs `Track` with position
+control set for a rescue plan. Moving the maximum altitude ahead of the sensors fails them. Under a lost link 110 m from
+home, host image now climbs like Betaflight's SITL build: motor means 0.733 and 1.000 in both through the rescue, and an
+altitude target ramped to the same 750 cm.
