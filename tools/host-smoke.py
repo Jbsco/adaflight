@@ -9099,8 +9099,8 @@ def main():
                     pass
                 try:
                     data = raw_sim.recv(128)
-                    if len(data) == 66:
-                        raw = struct.unpack("<H16f", data)
+                    if len(data) == 68:
+                        raw = struct.unpack("<H2x16f", data)
                 except socket.timeout:
                     pass
                 if speeds is not None and raw is not None and speeds[0] > 0.4:
