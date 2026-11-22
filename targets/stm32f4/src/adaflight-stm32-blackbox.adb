@@ -110,6 +110,7 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Main.Gyro_Filtered := F.Gyro_Filtered;
       In_Flight.Main.Gyro_Raw := F.Gyro_Raw;
       In_Flight.Main.Acc := F.Acc;
+      In_Flight.Main.Mag := F.Mag;
       In_Flight.Main.Quaternion_W := F.Quaternion_W;
       In_Flight.Main.Quaternion_XYZ := F.Quaternion_XYZ;
       In_Flight.Main.VBat_Latest := F.VBat_Latest;

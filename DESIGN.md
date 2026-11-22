@@ -16557,3 +16557,12 @@ This was the closed-loop difference against Betaflight's SITL build (worklog 202
 by up to 0.014 in motor output, in feedforward alone. After an MSP rate profile select on the SITL build, its blackbox
 feedforward matched host image loop for loop through a roll step, and motor outputs through roll and yaw steps agreed
 within 0.002. Vectors check averaged feedforward against the reference's code with averaging on.
+
+## D872. Compass and barometer in flight logs (2026-11-21)
+
+Boards give the flight log their compass field and whether a compass and a barometer were found, so a log lists
+`magADC` and `baroAlt` whenever those sensors are present, as Betaflight's does. The log's conditions had read both
+sensors as absent on every board, since boards never set them, and the compass field never reached the recorder.
+
+A closed-loop run against Betaflight's SITL build, with virtual compass and barometer on both images, logged both
+fields equal loop for loop. Host smoke checks that the flight log lists the barometer altitude with a barometer found.

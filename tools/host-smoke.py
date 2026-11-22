@@ -4191,6 +4191,8 @@ def main():
                   repr([l for l in head if l.startswith(b"H Firmware")][:2]))
             check("flight log names the craft", b"H Craft name:ADAHOST\n" in data, repr([l for l in head if l.startswith(b"H Craft")]))
             check("flight log lists the fields", b"H Field I name:loopIteration,time,axisP[0]" in data, repr([l for l in head if l.startswith(b"H Field I name")][:1])[:120])
+            names = next((l for l in head if l.startswith(b"H Field I name:")), b"")
+            check("flight log lists the barometer altitude of the barometer found", b",baroAlt," in names, repr(names[-160:]))
             check("flight log writes frames", len(data) > 4000 and b"\nI" in data[data.find(b"H Craft name:"):], f"{len(data)} bytes")
             now = int(time.time())
             ack = msp(sock, 246, now.to_bytes(4, "little") + (500).to_bytes(2, "little"))

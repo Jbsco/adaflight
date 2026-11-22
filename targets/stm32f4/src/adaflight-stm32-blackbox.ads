@@ -29,6 +29,7 @@ package Adaflight.STM32.Blackbox is
       Gyro_Filtered   : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Gyro_Raw        : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Acc             : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
+      Mag             : Adaflight.Blackbox.Axis_Floats := (others => 0.0);
       Quaternion_W    : Adaflight.Blackbox.Unit_Float := 1.0;
       Quaternion_XYZ  : Adaflight.Blackbox.Unit_Floats := (others => 0.0);
       Slow            : Adaflight.Blackbox.Slow_Inputs;
