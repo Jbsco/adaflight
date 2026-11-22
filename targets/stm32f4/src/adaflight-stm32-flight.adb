@@ -360,6 +360,9 @@ package body Adaflight.STM32.Flight is
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration :=
      Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Gyro_Count);
+   --  A simulator's accelerometer counts as calibrated.
+   function Acc_Has_Been_Calibrated return Boolean is
+     (Adaflight.STM32.MCU.Simulated or else Config.Accelerometer_Config.Acc_Zero (3) /= 0);
    --  The scheduler's state lives in the core coupled memory too. Its init
    --  sets all of it.
    Sched    : Scheduler.State;
@@ -1567,7 +1570,7 @@ package body Adaflight.STM32.Flight is
            (Ctx.Out_Views.OSD.Warning_Line, Ctx.Out_Views.OSD.Warning_Blinking, Ctx.Out_Views.OSD.Warning_Severity);
       end if;
       Ctx.Out_Views.Common.VTX_Port := From_Display_Port;
-      Ctx.Out_Views.Common.Board.Acc_Needs_Calibration := Config.Accelerometer_Config.Acc_Zero (3) = 0;
+      Ctx.Out_Views.Common.Board.Acc_Needs_Calibration := not Acc_Has_Been_Calibrated;
       Ctx.Out_Views.Common.Board.Configuration_State := Config.System_Config.Configuration_State;
       for K in Ctx.Out_Views.Common.Board.Identifier'Range loop
          Ctx.Out_Views.Common.Board.Identifier (K) := Character'Val (Config.System_Config.Board_Identifier (K - 1));
@@ -2789,7 +2792,7 @@ package body Adaflight.STM32.Flight is
       Sensed.GPS_Sats := Natural (Adaflight.STM32.GPS.Current.Satellites);
       Sensed.Altitude_Available := Pos_State.Valid_Z;
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
-      Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
+      Sensed.Acc_Has_Calibration := Acc_Has_Been_Calibrated;
       Sensed.Baro_Calibrated := Adaflight.STM32.Baro.Calibrated;
       Sensed.Mag_Calibrated := Adaflight.STM32.Compass.Calibration_Complete;
       Sensed.Headfree_Offset_Set := Adaflight.Attitude.Headfree_Offset_Allowed (Att_State);
@@ -3843,7 +3846,7 @@ package body Adaflight.STM32.Flight is
       F.Joystick_Active := Joystick_In_Use;
       F.Acc_Present := Gyro_Report.Acc_Found;
       F.Acc_Calibration_Complete := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
-      F.Acc_Calibrated := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
+      F.Acc_Calibrated := Acc_Has_Been_Calibrated;
       F.Gyro_Present := Selection.Found;
       F.Gyro_Calibration_Complete := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
       F.PID_Frequency := Float'Min (65_535.0, 1.0e6 / Float (Natural'Max (1, Natural (Sample_Us))));

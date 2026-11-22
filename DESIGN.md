@@ -16611,3 +16611,16 @@ rescue plan returned 951 m above home. Betaflight 2026.12 has this race too.
 With a simulator feed running from boot, a lost-link rescue 110 m from home now climbs like Betaflight's SITL build in
 three runs out of three. Altitude feedforward reads 379, 355, 235 and 190 at 3.8, 4, 5 and 8 s in both, where host
 image held 450 before.
+
+## D877. Simulator accelerometer calibrated (2026-11-22)
+
+Betaflight's simulator target counts its accelerometer as calibrated, so a fresh configuration arms with angle mode,
+altitude hold or rescue on a switch, and MSP lists no calibration problem. Host's simulator link kept board behaviour
+and waited for an MSP accelerometer calibration first. Under that link, host now counts its accelerometer as calibrated
+for arming, for MSP board information and for its menu's calibration status. Boards still read the stored calibration.
+
+Betaflight's SITL scenario harness found the difference. Its heading recovery scenarios arm without a calibration, and
+on host they stopped at that arming reason. With host's receiver and motor lines added, both now fly on host as on
+Betaflight's SITL build: heading learnt 7 to 8 s into the rescue, at most 4 degrees off the nose, landing 0.3 m from
+home. Host smoke checks that a fresh store under the simulator link lists no calibration problem and that angle mode on
+a switch leaves no calibration reason there, which the same store gives without the link.
