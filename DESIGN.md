@@ -16531,3 +16531,15 @@ in each steady phase, and a roll fed to the quaternion alone moves neither.
 Host smoke's checks of direct path frames, headfree offset and flight plan flights take direct attitude,
 since they feed attitude and heading through the quaternion alone. Two new checks read the estimate follow a rolled
 gravity reaction and ignore a rolled quaternion.
+
+## D870. Feedforward interpolation by receiver (2026-11-21)
+
+Feedforward extrapolates a repeated receiver frame and spreads a change after a repeat over two frame intervals, unless
+an open serial receiver reads CRSF. Betaflight 2026.12 reads the serial receiver setting alone, which defaults to CRSF
+in any build with CRSF, so a PPM, parallel PWM, SPI or MSP receiver there runs without interpolation. The Betaflight
+change that added this check names CRSF protocol as its reason, so we check the receiver that is open. Boards pass
+`Radio.Is_CRSF` to the PID settings, which reads CRSF only for an open serial receiver.
+
+A roll step of 100 microseconds at 50 Hz frames gives feedforward debug setpoint speeds of 7, 11, 3, 1, 0 per frame
+(units of 100 degrees per second squared) on host image. A host image built to read the setting alone gives 14, 4, 1, 0.
+Host smoke's simulator receiver block checks for that extrapolation with UDP frames under the default CRSF setting.

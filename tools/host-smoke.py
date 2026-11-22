@@ -8929,6 +8929,8 @@ def main():
             check("UDP receiver feature set", "Enabled RX_UDP" in text, text[-120:])
             text = cli(sock, "set motor_pwm_protocol = PWM")
             check("analog motor protocol set for the simulator", "motor_pwm_protocol set to PWM" in text, text[-120:])
+            text = cli(sock, "set debug_mode = FEEDFORWARD")
+            check("debug mode set to feedforward", "debug_mode set to FEEDFORWARD" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -8936,9 +8938,9 @@ def main():
             sock.close()
         proc, sock = start(image, store, extra={"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"})
         stop_feed = threading.Event()
+        sticks = [1500, 1600, 1000, 1700] + [1000] * 12
         def feed_simulator():
             out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sticks = [1500, 1600, 1000, 1700] + [1000] * 12
             i = 0
             while not stop_feed.is_set():
                 out.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -8987,6 +8989,29 @@ def main():
             check("raw packet carries four motors with motor one at 1500",
                   raw is not None and raw[0] == 4 and abs(raw[1] - 1500.0) <= 1.0
                   and all(abs(v - 1000.0) <= 1.0 for v in raw[2:5]), repr(raw))
+            # The CRSF provider stays set with no serial receiver open, so a roll step's first repeated frame takes
+            # an extrapolated setpoint speed.
+            def frame_debug_values():
+                sock.sendall(b"$M<\x00\xfe\xfe")
+                data, end = b"", time.time() + 0.2
+                while time.time() < end and not (len(data) >= 6 and len(data) >= 6 + data[3]):
+                    try:
+                        data += sock.recv(4096)
+                    except socket.timeout:
+                        pass
+                return data[5:5 + data[3]] if len(data) >= 6 and data[:3] == b"$M>" else b""
+            speeds = []
+            sticks[0] = 1600
+            deadline = time.time() + 0.4
+            while time.time() < deadline:
+                values = frame_debug_values()
+                if len(values) >= 4:
+                    speed = struct.unpack("<h", values[2:4])[0]
+                    if not speeds or speeds[-1] != speed:
+                        speeds.append(speed)
+            moving = [v for v in speeds if v != 0]
+            check("feedforward extrapolates a repeated frame with no serial receiver open under a CRSF provider",
+                  len(moving) >= 2 and moving[1] > moving[0] > 0, repr(speeds[:8]))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "status")
