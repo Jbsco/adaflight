@@ -3127,7 +3127,7 @@ package body Adaflight.STM32.Flight is
       F : Adaflight.STM32.Blackbox.Facts;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Profile : Adaflight.PID_Profile.Profile renames Adaflight.STM32.Pilot.Profile.all;
-      Small_Angle : constant Boolean := Upright;
+      Mag     : constant Adaflight.Vectors.Vector3 := Adaflight.STM32.Compass.Field;
    begin
       F.Now_Ms := Adaflight.STM32.Time.Millis;
       F.Arming_Beep_Us := Adaflight.Beeper.Arming_Beep_Time (Beep);
@@ -3144,12 +3144,15 @@ package body Adaflight.STM32.Flight is
       F.Acc := (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.X)),
                 1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
                 2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
+      F.Mag := (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Mag.X)),
+                1 => Float'Max (-1.0e6, Float'Min (1.0e6, Mag.Y)),
+                2 => Float'Max (-1.0e6, Float'Min (1.0e6, Mag.Z)));
       F.Quaternion_W := Att_State.Reported.W;
       F.Quaternion_XYZ := (0 => Att_State.Reported.X, 1 => Att_State.Reported.Y, 2 => Att_State.Reported.Z);
       F.Slow :=
         (Flight_Mode_Flags        => Box_Word,
          State_Flags              => (if G.Fix_Home then 1 else 0) or (if G.Fix then 2 else 0)
-                                     or (if G.Fix_Ever then 4 else 0) or (if Small_Angle then 16 else 0),
+                                     or (if G.Fix_Ever then 4 else 0),
          Failsafe_Phase           => Adaflight.STM32.Radio.Failsafe_Phase,
          RX_Signal_Received       => Adaflight.STM32.Radio.Receiving,
          RX_Flight_Channels_Valid => Adaflight.STM32.Radio.Flight_Channels_Valid);
@@ -3170,6 +3173,8 @@ package body Adaflight.STM32.Flight is
       F.Conditions.Has_Servos := Adaflight.STM32.Control.Uses_Servos;
       F.Conditions.DShot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
+      F.Conditions.Mag_Present := Adaflight.STM32.Compass.Detected;
+      F.Conditions.Baro_Present := Adaflight.STM32.Baro.Detected;
       F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
       F.Surface_Raw := Adaflight.STM32.Rangefinder.Raw_Altitude_Cm;
       F.Baro_Alt := Integer_32 (Float'Max (-2.0e9, Float'Min (2.0e9, Adaflight.STM32.Baro.Altitude_Cm)));
