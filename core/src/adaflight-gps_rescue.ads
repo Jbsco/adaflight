@@ -175,4 +175,10 @@ package Adaflight.GPS_Rescue with SPARK_Mode is
       Disarm : out Boolean; Arming_Disabled : out Boolean)
      with Pre => Bounded (Inp) and then Position_Control.Bounded (P_Inp);
 
+   --  One rescue task of a build that flies its rescue as a flight plan:
+   --  the sensors, the running maximum altitude and the availability, with
+   --  no phase of its own and no hold on the controllers.
+   procedure Track (S : in out State; C : Settings; Inp : Inputs)
+     with Pre => Bounded (Inp);
+
 end Adaflight.GPS_Rescue;

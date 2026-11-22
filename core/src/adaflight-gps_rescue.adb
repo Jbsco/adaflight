@@ -500,4 +500,16 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
       end if;
    end Update;
 
+   -----------
+   -- Track --
+   -----------
+
+   procedure Track (S : in out State; C : Settings; Inp : Inputs) is
+   begin
+      S.Taps := (others => <>);
+      Sensor_Update (S, Inp);
+      Update_Max_Altitude (S, C, Inp);
+      Check_Available (S, Inp);
+   end Track;
+
 end Adaflight.GPS_Rescue;
