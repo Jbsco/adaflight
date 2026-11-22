@@ -35,8 +35,9 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 8, in progress. Tooling. adaflight-configurator, the upstream configurator with adaflight's
   changes, builds and flashes from an adaflight checkout and shows a fit view for boards short of flash.
   `tools/dfu` flashes over DFU on Linux, and `tools/msp` sends MSP requests and backs up a configuration.
-  MSP reads and writes were checked against a host image and against Betaflight's own host build. Left: a
-  pass through each configurator tab on a board.
+  MSP reads and writes were checked against a host image and against Betaflight's own host build.
+  Closed-loop flights through the simulator link match that build within 0.002 in motor output, apart
+  from recorded divergences. Left: a pass through each configurator tab on a board.
 
 ## After parity
 

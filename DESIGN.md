@@ -16531,3 +16531,29 @@ in each steady phase, and a roll fed to the quaternion alone moves neither.
 Host smoke's checks of direct path frames, headfree offset and flight plan flights take direct attitude,
 since they feed attitude and heading through the quaternion alone. Two new checks read the estimate follow a rolled
 gravity reaction and ignore a rolled quaternion.
+
+## D870. Feedforward interpolation by receiver (2026-11-21)
+
+Feedforward extrapolates a repeated receiver frame and spreads a change after a repeat over two frame intervals, unless
+an open serial receiver reads CRSF. Betaflight 2026.12 reads the serial receiver setting alone, which defaults to CRSF
+in any build with CRSF, so a PPM, parallel PWM, SPI or MSP receiver there runs without interpolation. The Betaflight
+change that added this check names CRSF protocol as its reason, so we check the receiver that is open. Boards pass
+`Radio.Is_CRSF` to the PID settings, which reads CRSF only for an open serial receiver.
+
+A roll step of 100 microseconds at 50 Hz frames gives feedforward debug setpoint speeds of 7, 11, 3, 1, 0 per frame
+(units of 100 degrees per second squared) on host image. A host image built to read the setting alone gives 14, 4, 1, 0.
+Host smoke's simulator receiver block checks for that extrapolation with UDP frames under the default CRSF setting.
+
+## D871. Feedforward averaging from power-up (2026-11-21)
+
+Boards set up their PID settings before receiver processing (`targets/stm32f4/src/adaflight-stm32-pilot.adb:97` and
+`:113`), so feedforward averaging follows `feedforward_averaging` from power-up
+(`core/src/adaflight-rc_command.adb:106`). Betaflight 2026.12 starts receiver processing first, while its PID runtime is
+still zero, so it runs feedforward without averaging after every power-up. Averaging comes on there only after a rate
+profile change, an MSP RC tuning write or an MSP save. We keep the setting in force from power-up, since a craft
+should fly the feedforward its configuration names whether or not a save came before the flight.
+
+This was the closed-loop difference against Betaflight's SITL build (worklog 2026-11-21): roll and yaw steps differed
+by up to 0.014 in motor output, in feedforward alone. After an MSP rate profile select on the SITL build, its blackbox
+feedforward matched host image loop for loop through a roll step, and motor outputs through roll and yaw steps agreed
+within 0.002. Vectors check averaged feedforward against the reference's code with averaging on.

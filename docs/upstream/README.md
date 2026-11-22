@@ -152,3 +152,5 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [HoTT display heartbeat exits a menu that a key already closed](hott-heartbeat-exit-without-menu.md)
 - [After a HoTT text mode session the stick command cannot reach the OSD menu](hott-display-exit-after-session.md)
 - [MSP filter write starts a D term notch whose cutoff is at or above its center](dterm-notch-cutoff-order.md)
+- [Feedforward interpolation turns off for a CRSF setting with no serial receiver open](feedforward-interpolation-provider.md)
+- [Feedforward averaging is off after every power-up](feedforward-averaging-boot.md)
