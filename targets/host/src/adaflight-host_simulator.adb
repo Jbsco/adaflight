@@ -263,6 +263,13 @@ package body Adaflight.Host_Simulator is
       end if;
    end Set_Motor;
 
+   procedure Set_Servo (Index : Natural; Pulse : Float) is
+   begin
+      if Index < Raw_Pulses'Length - Driven then
+         Raw_Pulses (Driven + Index) := Pulse;
+      end if;
+   end Set_Servo;
+
    procedure Complete_Motors (Three_D : Boolean) is
    begin
       Speed_Scale := (if Three_D then 500.0 else 1000.0);

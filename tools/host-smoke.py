@@ -2341,6 +2341,74 @@ def pid_disarm_checks(image, work):
           after[0] == 0 and after[1] & (1 << 6) != 0, repr((after[0], hex(after[1]))))
 
 
+def sim_servo_checks(image, work):
+    """Servos in the simulator link's raw packet, over a configuration store of its own: a flying wing lists one motor
+    with its two elevons right after it, centred at rest, and roll in passthrough moves them apart."""
+    store = os.path.join(work, "sim-servo.bin")
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    proc, sock = start(image, store, extra=sim_link)
+    try:
+        time.sleep(2.5)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        for line in ("feature -RX_SERIAL", "feature RX_UDP", "set motor_pwm_protocol = PWM", "mixer FLYING_WING",
+                     "aux 1 12 1 1700 2100 0 0"):
+            cli(sock, line)
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store, extra=sim_link)
+    done = threading.Event()
+    sticks = [1500, 1500, 1000, 1500] + [1000] * 12
+
+    def feed_link():
+        out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        i = 0
+        while not done.is_set():
+            out.sendto(struct.pack("<18d", i * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, -105.25, 40.0, 1600.0, 0.0), ("127.0.0.1", 9003))
+            if i % 2 == 0:
+                out.sendto(struct.pack("<d16H", i * 0.01, *sticks), ("127.0.0.1", 9004))
+            i += 1
+            time.sleep(0.01)
+        out.close()
+    raw_link = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    raw_link.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    raw_link.bind(("127.0.0.1", 9001))
+    raw_link.settimeout(0.05)
+
+    def latest_raw(seconds):
+        found, end = None, time.time() + seconds
+        while time.time() < end:
+            try:
+                data = raw_link.recv(128)
+                if len(data) == 68:
+                    found = struct.unpack("<H2x16f", data)
+            except socket.timeout:
+                pass
+        return found
+    threading.Thread(target=feed_link, daemon=True).start()
+    try:
+        time.sleep(3.0)
+        rest = latest_raw(1.0)
+        check("flying wing's raw packet lists one motor with two centred elevons after it",
+              rest is not None and rest[0] == 1 and all(abs(v - 1500.0) <= 20.0 for v in rest[2:4]), repr(rest))
+        sticks[4:6] = [1000, 1900]
+        sticks[0] = 1900
+        time.sleep(1.0)
+        rolled = latest_raw(1.0)
+        check("roll in passthrough moves the elevons apart in the raw packet",
+              rolled is not None and abs((rolled[2] - 1500.0) + (rolled[3] - 1500.0)) <= 40.0
+              and abs(rolled[2] - rolled[3]) >= 200.0, repr(rolled))
+    finally:
+        done.set()
+        stop(proc)
+        sock.close()
+        raw_link.close()
+
+
 def filter_order_checks(image, work):
     """MSP filter writes that leave the D term's dynamic lowpass minimum above its maximum, or its notch cutoff above
     its center, over a configuration store of their own: each is answered, reads back as written, and the board
@@ -6592,6 +6660,7 @@ def main():
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
         pid_disarm_checks(image, work)
+        sim_servo_checks(image, work)
         filter_order_checks(image, work)
         status_request_checks(image, work)
         activity_led_checks(image, work)

@@ -16646,3 +16646,14 @@ before its first float, and sixteen floats, 68 bytes in all. Host's simulator li
 66-byte packet put each pulse two bytes early, and a simulator reading Betaflight's layout dropped it or read wrong
 servo values. Host now sends that 68-byte layout. Betaflight's SITL scenario harness reads raw outputs this way for its
 fixed-wing model, which drives elevons from them. Host smoke reads a motor count and pulses at their reference offsets.
+
+## D880. Servos in the simulator raw packet (2026-11-22)
+
+Betaflight's simulator target writes each servo into its raw output packet right after the motors, as servo index plus
+motor count, with no pin involved. Host's servos went only to their timers and log, so a simulator reading that packet
+saw zeros where a flying wing's elevons sit. Under the simulator link, host now writes each servo there too.
+
+Betaflight's SITL scenario harness flies a fixed-wing model from those slots. A hand launch thrown at 12 m/s from 20 m
+now steps through the same launch states on host as on Betaflight's wing build, within 0.05 s, with matching pitch and
+airspeed. Without servos it read a full nose-up command and aborted the launch. Host smoke checks a flying wing's motor
+and elevons in that packet, centred at rest and apart under roll in passthrough, and both checks fail without servos.

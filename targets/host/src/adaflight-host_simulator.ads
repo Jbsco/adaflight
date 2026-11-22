@@ -36,4 +36,6 @@ package Adaflight.Host_Simulator is
    procedure Set_Motor_Count (N : Natural);
    procedure Set_Motor (Index : Natural; Pulse, Idle : Float);
    procedure Complete_Motors (Three_D : Boolean);
+   --  A servo's pulse, placed in the raw packet after the driven motors.
+   procedure Set_Servo (Index : Natural; Pulse : Float);
 end Adaflight.Host_Simulator;
