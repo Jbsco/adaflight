@@ -93,15 +93,27 @@ package body Adaflight.Altitude_Hold with SPARK_Mode is
       if S.Active then
          declare
             Interval : constant Interval_Us := Altitude_Control.Task_Interval (Inp.Interval_Us);
+            Target   : Altitude_Cm;
+            Velocity : Altitude_Control.Target_Velocity;
+            Limit    : Altitude_Control.Climb_Rate_Cms;
          begin
             if C.Climb_Rate /= 0 then
                Update_Target (S, C, Inp, Interval);
+            end if;
+            Target := S.Target_Altitude_Cm;
+            Velocity := S.Target_Velocity;
+            Limit := Climb_Limit_Of (S);
+            if Inp.Nav_Altitude then
+               Target := Inp.Nav_Target_Cm;
+               Velocity := Inp.Nav_Velocity_Cms;
+               Limit := Inp.Nav_Rate_Limit_Cms;
+               S.Target_Altitude_Cm := Target;
             end if;
             Altitude_Control.Control
               (S.Control, Control_Settings (C),
                (Altitude_Cm => Inp.Altitude_Cm, Vertical_Velocity => Inp.Vertical_Velocity,
                 Vertical_Acceleration => Inp.Vertical_Acceleration, Cos_Tilt => Inp.Cos_Tilt),
-               S.Target_Altitude_Cm, Interval, S.Target_Velocity, Climb_Limit_Of (S));
+               Target, Interval, Velocity, Limit);
          end;
       end if;
    end Update;

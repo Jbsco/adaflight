@@ -1,8 +1,9 @@
 --  The altitude hold: the hold's engagement from the flight mode with the
 --  hover throttle captured from the stick, the target altitude moved by the
 --  stick outside its deadband or driven down by a failsafe or an emergency
---  descent, and the autopilot's altitude controller that turns the error
---  into a throttle fraction.
+--  descent, a nav leg's altitude in its place while one flies, and the
+--  autopilot's altitude controller that turns the error into a throttle
+--  fraction.
 with Interfaces;
 with Adaflight.Altitude_Control;
 with Adaflight.Position_Filter;
@@ -41,7 +42,9 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
    --  The flight mode, the task's measured interval (nonpositive before the
    --  first measurement), the throttle stick and its low status, the
    --  failsafe, the emergency descent request with its rate, the altitude
-   --  estimate's control values, and the attitude's cosine of tilt.
+   --  estimate's control values, the attitude's cosine of tilt, and a nav leg
+   --  flying with altitude: its target altitude, its vertical rate and its
+   --  rate cap.
    type Inputs is record
       Hold_Mode             : Boolean := False;
       Interval_Us           : Integer_32 := 0;
@@ -54,6 +57,10 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
       Vertical_Velocity     : Altitude_Hold.Altitude_Cm := 0.0;
       Vertical_Acceleration : Altitude_Hold.Altitude_Cm := 0.0;
       Cos_Tilt              : Cosine := 1.0;
+      Nav_Altitude          : Boolean := False;
+      Nav_Target_Cm         : Altitude_Hold.Altitude_Cm := 0.0;
+      Nav_Velocity_Cms      : Altitude_Control.Target_Velocity := 0.0;
+      Nav_Rate_Limit_Cms    : Altitude_Control.Climb_Rate_Cms := 0.0;
    end record;
 
    subtype Deadband_Fraction is Float range 0.0 .. 0.7;
@@ -89,8 +96,9 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
 
    --  One hold task: the engagement or release with the controller reset,
    --  then while engaged the target moved by the stick, the failsafe, or the
-   --  emergency descent at the measured interval, and the controller's
-   --  throttle fraction.
+   --  emergency descent at the measured interval, a nav leg's altitude, rate
+   --  and cap in place of the hold's own, which keeps that altitude as its
+   --  target, and the controller's throttle fraction.
    procedure Update (S : in out State; C : Settings; Inp : Inputs);
 
 end Adaflight.Altitude_Hold;
