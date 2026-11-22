@@ -2930,7 +2930,11 @@ procedure Vector_Check is
                Altitude_Cm           => Flt (12),
                Vertical_Velocity     => Flt (13),
                Vertical_Acceleration => Flt (14),
-               Cos_Tilt              => Flt (15));
+               Cos_Tilt              => Flt (15),
+               Nav_Altitude          => Int (23) /= 0 and then Int (24) /= 0,
+               Nav_Target_Cm         => Flt (25),
+               Nav_Velocity_Cms      => Flt (26),
+               Nav_Rate_Limit_Cms    => Flt (27));
          begin
             Update (AH_State, AH_Settings, Inp);
             Record_Int ("ahstep.active", Int (16), Boolean'Pos (AH_State.Active));
@@ -2940,8 +2944,8 @@ procedure Vector_Check is
             Record_Result ("ahstep.throttle", Bits (20), To_Bits (AH_State.Control.Throttle_Out));
             Record_Int ("ahstep.captured_hover", Int (21), Integer_64 (AH_State.Control.Captured_Hover));
             Record_Int ("ahstep.hover", Int (22), Integer_64 (Hover_Throttle (AH_State, AH_Settings)));
-            if NF /= 22 then
-               Put_Line ("ahstep: expected 22 fields, got" & Integer'Image (NF));
+            if NF /= 27 then
+               Put_Line ("ahstep: expected 27 fields, got" & Integer'Image (NF));
                Failures := Failures + 1;
             end if;
          end;

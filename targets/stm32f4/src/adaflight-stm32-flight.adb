@@ -2,6 +2,7 @@ with Interfaces; use Interfaces;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
 with Adaflight.Adjustments;
+with Adaflight.Altitude_Control;
 with Adaflight.Altitude_Hold;
 with Adaflight.Arming;
 with Adaflight.Attitude;
@@ -4062,6 +4063,9 @@ package body Adaflight.STM32.Flight is
    --  interval the scheduler measured since its last run.
    procedure Run_Altitude_Hold is
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      Alt_Bound : constant Float := Adaflight.Altitude_Hold.Altitude_Cm'Last;
+      Vel_Bound : constant Float := Adaflight.Altitude_Control.Target_Velocity'Last;
+      Rate_Cap  : constant Float := Adaflight.Altitude_Control.Climb_Rate_Cms'Last;
    begin
       if Adaflight.Build_Features.Wing then
          return;
@@ -4078,7 +4082,14 @@ package body Adaflight.STM32.Flight is
           Altitude_Cm           => Pos_State.Control_Altitude_Cm,
           Vertical_Velocity     => Pos_State.Control_Derivative,
           Vertical_Acceleration => Pos_State.Control_Acceleration,
-          Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State)))));
+          Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State))),
+          Nav_Altitude          => Adaflight.Position_Nav.Has_Active_Target (Navigator)
+                                   and then Navigator.Cmd.Include_Altitude,
+          Nav_Target_Cm         => Float'Max (-Alt_Bound, Float'Min (Alt_Bound,
+                                     Adaflight.Position_Nav.Target_Altitude_Cm (Navigator))),
+          Nav_Velocity_Cms      => Float'Max (-Vel_Bound, Float'Min (Vel_Bound, Navigator.Target_Vel.Up)),
+          Nav_Rate_Limit_Cms    => Float'Max (0.0, Float'Min (Rate_Cap,
+                                     Adaflight.Position_Nav.Vertical_Rate_Limit_Cm_S (Navigator)))));
       Adaflight.Autopilot_Debug.Record_Altitude (Adaflight.STM32.Debug_Values.State, Alt_Hold_State.Control);
    end Run_Altitude_Hold;
 
