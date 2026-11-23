@@ -8962,7 +8962,7 @@ def main():
             imu = msp(sock, 102)
             raw = [int.from_bytes(imu[i:i + 2], "little", signed=True) for i in range(0, 12, 2)] if imu else []
             check("simulator feeds the virtual accelerometer one g up and a still gyro",
-                  len(raw) == 6 and abs(raw[2] - 2048) <= 32 and abs(raw[0]) <= 32 and abs(raw[1]) <= 32
+                  len(raw) == 6 and abs(raw[2] - 256) <= 4 and abs(raw[0]) <= 4 and abs(raw[1]) <= 4
                   and raw[3:6] == [0, 0, 0], repr(raw))
             status = msp(sock, 101)
             if contains("Barometer"):

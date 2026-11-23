@@ -10,6 +10,8 @@ package body Adaflight.STM32.Gyro is
    --  runs in its place over the chip model on the host's gyro bus.
    Rate_Hz : constant := 1_000;
    Chip    : constant Boolean := Ada.Environment_Variables.Exists ("ADAFLIGHT_GYRO_CHIP");
+   --  The virtual accelerometer counts 256 for one g.
+   Virtual_One_G : constant := 256;
 
    procedure Detect (Position : Natural; Hardware_LPF : Byte; High_Range : Boolean; R : out Report) is
       Build    : constant Gyro_Detect.Driver_Set := (Gyro_Detect.Virtual => True, others => False);
@@ -31,6 +33,7 @@ package body Adaflight.STM32.Gyro is
       R.Sample_Rate_Hz := Rate_Hz;
       R.Acc_Sample_Rate_Hz := Rate_Hz;
       R.Overflow_Protected := True;
+      R.One_G := Virtual_One_G;
    end Detect;
 
    procedure Init
@@ -51,10 +54,6 @@ package body Adaflight.STM32.Gyro is
          Gyro_Chip.Set_Active (Position);
       end if;
    end Set_Active;
-
-   --  A simulator's counts, the accelerometer's 256 a g raised to the chip families' 2048.
-   function Scaled (Count : Interfaces.Integer_16) return Interfaces.Integer_16 is
-     (Interfaces.Integer_16 (Integer'Max (-32_768, Integer'Min (32_767, Integer (Count) * 8))));
 
    procedure Read_Gyro (Position : Natural; Raw : out Axis_Values; OK : out Boolean) is
    begin
@@ -89,10 +88,10 @@ package body Adaflight.STM32.Gyro is
          declare
             A : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Acc;
          begin
-            Raw := (Scaled (A (1)), Scaled (A (2)), Scaled (A (3)));
+            Raw := (A (1), A (2), A (3));
          end;
       else
-         Raw := (0, 0, Acc_One_G);
+         Raw := (0, 0, Virtual_One_G);
       end if;
       OK := True;
    end Read_Acc;
