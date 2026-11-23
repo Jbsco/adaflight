@@ -3544,6 +3544,39 @@ def board_gyro_checks(image, work):
           repr(aligned[:5] if aligned else aligned))
 
 
+def acc_zero_restart_checks(image, work):
+    """An accelerometer calibration over the MPU6000 model, whose resting counts lean, levels the raw IMU reply,
+    and the stored zero keeps it level after a restart."""
+    store = os.path.join(work, "acc-zero-eeprom.bin")
+    if os.path.exists(store):
+        os.remove(store)
+
+    def acc(sock):
+        reply = msp(sock, 102)
+        return [int.from_bytes(reply[i:i + 2], "little", signed=True) for i in range(0, 6, 2)] if reply else None
+    proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": "MPU6000"})
+    try:
+        time.sleep(4.0)
+        before = acc(sock)
+        msp(sock, 205)
+        time.sleep(3.0)
+        calibrated = acc(sock)
+    finally:
+        stop(proc)
+        sock.close()
+    proc, sock = start(image, store, {"ADAFLIGHT_GYRO_CHIP": "MPU6000"})
+    try:
+        time.sleep(4.0)
+        restarted = acc(sock)
+    finally:
+        stop(proc)
+        sock.close()
+    level = lambda v: v is not None and abs(v[0]) <= 4 and abs(v[1]) <= 4 and abs(v[2] - 2048) <= 4
+    check("accelerometer calibration levels the MPU6000 model's leaning counts",
+          before is not None and abs(before[0]) > 64 and level(calibrated), repr((before, calibrated)))
+    check("stored accelerometer zero keeps the reading level after a restart", level(restarted), repr(restarted))
+
+
 def gyro_clock_checks(image, work):
     """The gyro clock input over the host's ICM426xx models, with the clock's start and each register write of a
     model in one log. Without a clock pin no clock starts and an ICM-42688-P keeps its own oscillator. With the
@@ -6685,6 +6718,7 @@ def main():
         menu_live_config_checks(image, work)
         gyro_chip_checks(image, work)
         board_gyro_checks(image, work)
+        acc_zero_restart_checks(image, work)
         ppm_checks(image, work)
         pwm_checks(image, work)
         gyro_clock_checks(image, work)
