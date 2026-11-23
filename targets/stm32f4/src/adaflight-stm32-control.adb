@@ -134,6 +134,16 @@ package body Adaflight.STM32.Control is
       Anti_Gravity := Enabled;
    end Set_Anti_Gravity;
 
+   procedure Set_Acro_Trainer (Enabled : Boolean) is
+   begin
+      Adaflight.PID_Controller.Set_Acro_Trainer_State (Ctl, Enabled);
+   end Set_Acro_Trainer;
+
+   procedure Acro_Trainer_Init is
+   begin
+      Adaflight.PID_Controller.Acro_Trainer_Init (Ctl);
+   end Acro_Trainer_Init;
+
    procedure Nothing is null;
 
    --  The wing launch's pass, over the autopilot's angle targets the level

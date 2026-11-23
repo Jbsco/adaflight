@@ -94,6 +94,10 @@ package Adaflight.STM32.Control is
    procedure Set_Stabilisation (Enabled : Boolean; Iterm_Reset : Boolean);
    --  What the arming's modes pass asked: the anti-gravity state.
    procedure Set_Anti_Gravity (Enabled : Boolean);
+
+   --  The acro trainer on or off, and its limits cleared at arming.
+   procedure Set_Acro_Trainer (Enabled : Boolean);
+   procedure Acro_Trainer_Init;
    --  One PID loop pass: the yaw reset when the sticks ask for it, the RC
    --  command, the controller with the runaway check, the mix, and the
    --  servos when the mixer drives them, with the flight log and the PID
