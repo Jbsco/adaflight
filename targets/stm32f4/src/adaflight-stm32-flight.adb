@@ -857,10 +857,11 @@ package body Adaflight.STM32.Flight is
       Env.Status.Config_Size := (if Valid then Unsigned_16 (Natural'Min (Size, 65_535)) else 0);
    end Note_Config_Size;
 
-   --  The configuration written to the store after its checks: the region
-   --  as it reads, the image of every group when any changed, programmed
-   --  and checked back, in up to three attempts; a store that still fails
-   --  ends in the failure mode with its code.
+   --  The configuration written to the store after its checks, with the
+   --  receiver signal suspended: the region as it reads, the image of every
+   --  group when any changed, programmed and checked back, in up to three
+   --  attempts; a store that still fails ends in the failure mode with its
+   --  code.
    procedure Write_Configuration is
       Data    : Adaflight.Config_Codec.Data;
       Image   : Adaflight.Bytes.Byte_Array (Adaflight.STM32.Flash.Config'Range);
@@ -869,25 +870,30 @@ package body Adaflight.STM32.Flight is
       OK      : Boolean;
       Valid   : Boolean;
       Size    : Natural;
+      Stored  : Boolean := False;
    begin
       Adj_State.Config_Dirty := False;
       Fix_Configuration;
       Adaflight.Config_Codec.Encode (Config, Data);
+      Adaflight.STM32.Radio.Suspend_Signal;
       for Attempt in 1 .. 3 loop
          Image := Adaflight.STM32.Flash.Config;
          Adaflight.Config_Store.Save (Adaflight.Config_Codec.Registry, Data, Hashes, Image, Written, Fits);
-         if not Written then
-            return;
-         end if;
+         Stored := not Written;
+         exit when not Written;
          Adaflight.Config_Store.Check_Structure (Image, Valid, Size);
          Adaflight.STM32.Flash.Write (Image (0 .. Size - 1), OK);
          Adaflight.Config_Store.Check_Structure (Adaflight.STM32.Flash.Config, Valid, Size);
          if OK and then Valid and then Adaflight.Config_Store.Version_Valid (Adaflight.STM32.Flash.Config) then
             Note_Config_Size;
-            return;
+            Stored := True;
+            exit;
          end if;
       end loop;
-      Adaflight.STM32.Failure_Flashes.Mode (Failure_Config_Store_Failure);
+      if not Stored then
+         Adaflight.STM32.Failure_Flashes.Mode (Failure_Config_Store_Failure);
+      end if;
+      Adaflight.STM32.Radio.Resume_Signal;
    end Write_Configuration;
 
    --  The mode boxes the image offers: those always offered, those of the
@@ -982,15 +988,17 @@ package body Adaflight.STM32.Flight is
       return M;
    end Available_Boxes;
 
-   --  The stored configuration loaded: every group from its defaults and
-   --  its stored bytes, the running features, the checks, the board's
-   --  information taken in, and the mode boxes offered; Success says the
-   --  image held every group.
+   --  The stored configuration loaded with the receiver signal suspended:
+   --  every group from its defaults and its stored bytes, the running
+   --  features, the checks, the board's information taken in, the failsafe
+   --  reset, and the mode boxes offered; Success says the image held every
+   --  group.
    procedure Load_Configuration (Success : out Boolean) is
       Fresh    : Adaflight.Config_Groups.Configuration;
       Defaults : Adaflight.Config_Codec.Data;
       Data     : Adaflight.Config_Codec.Data;
    begin
+      Adaflight.STM32.Radio.Suspend_Signal;
       Adaflight.Config_Reset.Reset (Board, Adaflight.Build_Features.Wing, Gyro_Count, Fresh);
       Adaflight.Config_Codec.Encode (Fresh, Defaults);
       Adaflight.Config_Store.Load
@@ -1001,7 +1009,9 @@ package body Adaflight.STM32.Flight is
       Configure_Soft_Serial;
       Adaflight.STM32.ESC_Serial.Configure (Config);
       Adaflight.Board_Info.Init (Board, Config);
+      Adaflight.STM32.Radio.Reset_Failsafe (Config);
       Offered := Available_Boxes;
+      Adaflight.STM32.Radio.Resume_Signal;
    end Load_Configuration;
 
    --  The configuration reset to its defaults, written and read back.

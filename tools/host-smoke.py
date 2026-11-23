@@ -5047,6 +5047,18 @@ def main():
             sticks = [992, 992, 172, 992]
             try:
                 time.sleep(8.0)
+                # A save reads the configuration back, which resets the failsafe: the receiver's next frames hold
+                # arming for the half second of its recovery.
+                before = armed_and_reasons()[1]
+                sock.sendall(b"$M<" + bytes([0, 250, 250]))
+                time.sleep(0.15)
+                read_all(sock, 0.05)
+                held = armed_and_reasons()[1]
+                time.sleep(1.0)
+                after = armed_and_reasons()[1]
+                check("configuration save holds arming for the receiver's recovery",
+                      before & 0x4 == 0 and held & 0x4 != 0 and after & 0x4 == 0,
+                      repr((hex(before), hex(held), hex(after))))
                 receiver.channels = sticks + [1811] + [992] * 11
                 time.sleep(1.5)
                 check("craft arms before the runaway", armed_and_reasons()[0] == 1, repr(armed_and_reasons()))

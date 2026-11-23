@@ -302,6 +302,12 @@ package body Adaflight.STM32.Radio is
       end if;
    end Bind_At_Power_Up;
 
+   function Failsafe_Settings (Config : Adaflight.Config_Groups.Configuration) return Adaflight.Failsafe.Settings is
+     (Adaflight.Config_Runtime.Failsafe_Settings_Of
+        (Config.Failsafe_Config, Config.Autopilot_Config,
+         Rescue_Plan => Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS
+                        and then not Adaflight.Build_Features.Wing));
+
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config) is
       Conditions : constant Adaflight.Modes.Conditions :=
@@ -362,10 +368,7 @@ package body Adaflight.STM32.Radio is
       if Rx_Settings.Source in Adaflight.Receiver.Parallel_PWM then
          Rx_Settings.Reported_Channels := Adaflight.STM32.RX_Input.PWM_Channel_Count;
       end if;
-      FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of
-        (Config.Failsafe_Config, Config.Autopilot_Config,
-         Rescue_Plan => Adaflight.Plan_Build.Enabled and then Adaflight.Build_Features.GPS
-                        and then not Adaflight.Build_Features.Wing);
+      FS_Settings := Failsafe_Settings (Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | SUMH_Provider
@@ -530,6 +533,26 @@ package body Adaflight.STM32.Radio is
       MSP_Pending := False;
       MSP_Chunks_Left := False;
    end Init;
+
+   Suspend_Period_Us : constant := 1_500_000;
+
+   procedure Suspend_Signal is
+   begin
+      Adaflight.Receiver.Suspend (Rx, Rx_Settings, Adaflight.STM32.Time.Micros);
+      Adaflight.Failsafe.On_Rx_Suspend (FS, Suspend_Period_Us);
+   end Suspend_Signal;
+
+   procedure Resume_Signal is
+   begin
+      Adaflight.Receiver.Resume (Rx, Rx_Settings, Adaflight.STM32.Time.Micros);
+      Adaflight.Failsafe.On_Rx_Resume (FS, Adaflight.STM32.Time.Millis);
+   end Resume_Signal;
+
+   procedure Reset_Failsafe (Config : Adaflight.Config_Groups.Configuration) is
+   begin
+      FS_Settings := Failsafe_Settings (Config);
+      Adaflight.Failsafe.Reset (FS, FS_Settings);
+   end Reset_Failsafe;
 
    --  What a received frame asked of the telemetry: a device information
    --  reply to a ping, a response slot, a speed proposal from the frame past
