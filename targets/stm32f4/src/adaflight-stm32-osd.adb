@@ -1056,7 +1056,7 @@ package body Adaflight.STM32.OSD is
       W.Headfree_Mode := F.Modes (Adaflight.Arming.Headfree_Mode);
       W.Battery_Capacity := Natural (F.Battery_Capacity);
       W.MAh_Drawn := Natural (F.MAh_Drawn);
-      W.Has_Used_MAh := F.MAh_Drawn > 0;
+      W.Has_Used_MAh := F.Used_MAh;
       W.Average_Cell_Voltage := Natural (F.Cell_Voltage);
       W.Full_Cell_Voltage := Natural (F.Full_Cell_Voltage);
       W.Pos_Hold_Failure := F.Pos_Hold_Failure;
