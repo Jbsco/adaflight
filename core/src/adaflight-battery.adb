@@ -430,16 +430,28 @@ package body Adaflight.Battery with SPARK_Mode is
       S.Overall := Battery_State'Max (S.Voltage_State, S.Consumption_State);
       --  The energy drawn since the last call, from the filtered voltage.
       declare
+         Drawn     : constant Integer_32 := mAh_Drawn (S);
          Delta_mAh : constant Interfaces.Integer_64 :=
-           Interfaces.Integer_64 (S.Current.mAh_Drawn) - Interfaces.Integer_64 (S.mAh_Previous);
+           Interfaces.Integer_64 (Drawn) - Interfaces.Integer_64 (S.mAh_Previous);
          Product   : constant Interfaces.Integer_64 :=
            Interfaces.Integer_64 (S.Voltage.Display_Filtered) * Delta_mAh;
          Energy    : constant Float := S.Watt_Hours + Float (Product) / 100_000.0;
       begin
          S.Watt_Hours := Float'Max (-1.0e9, Float'Min (1.0e9, Energy));
-         S.mAh_Previous := S.Current.mAh_Drawn;
+         S.mAh_Previous := Drawn;
       end;
    end Update_States;
+
+   -------------------
+   -- Set_mAh_Drawn --
+   -------------------
+
+   procedure Set_mAh_Drawn (S : in out State; mAh : Unsigned_32) is
+   begin
+      S.mAh_Offset :=
+        (if mAh <= Unsigned_32 (Integer_32'Last) then Integer_32 (mAh)
+         else Integer_32 (Interfaces.Integer_64 (mAh) - 2 ** 32));
+   end Set_mAh_Drawn;
 
    -----------
    -- Alarm --

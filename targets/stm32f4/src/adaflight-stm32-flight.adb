@@ -2622,7 +2622,7 @@ package body Adaflight.STM32.Flight is
          else (Id => Id, mAh_Drawn => 0, Amperage => 0));
    begin
       B.Legacy_Voltage := Unsigned_16 ((Volts + 5) / 10);
-      B.MAh_Drawn := Bat.Current.mAh_Drawn;
+      B.MAh_Drawn := Adaflight.Battery.mAh_Drawn (Bat);
       B.RSSI := Adaflight.STM32.Radio.RSSI;
       B.Amperage := Bat.Current.Amperage;
       B.Voltage := Unsigned_16 (Volts);
@@ -2879,7 +2879,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.Flight_Stats.On_Disarm
         (Stats_Tracker, Adaflight.Config_Runtime.Flight_Stats_Settings_Of (Stored), T, Adaflight.STM32.Time.Millis,
          Adaflight.STM32.GPS.Current.Distance_Flown_Cm,
-         Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))), Schedule);
+         Adaflight.Battery.mAh_Drawn (Bat), Schedule);
       Stored.Stats_Total_Flights := T.Flights;
       Stored.Stats_Total_Time_S := T.Time_S;
       Stored.Stats_Total_Dist_M := T.Dist_M;
@@ -3772,7 +3772,7 @@ package body Adaflight.STM32.Flight is
       F.Full_Cell_Voltage := Unsigned_16 (Bat_Settings.Full_Cell_Voltage);
       F.Used_MAh := Has_Used_MAh;
       F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
-      F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
+      F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Adaflight.Battery.mAh_Drawn (Bat)));
       F.Wh_Drawn := Bat.Watt_Hours;
       F.Blackbox_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox);
       if F.Blackbox_Box then
@@ -3869,7 +3869,8 @@ package body Adaflight.STM32.Flight is
 
    --  The menu task: the flight's readings for the pass, one pass of the
    --  menu system, then its requests: the calibrations, the OSD's elements,
-   --  the profiles, the configuration written and the reset.
+   --  the profiles, the restored charge, the configuration written and the
+   --  reset.
    procedure Run_Menu (Before : Unsigned_32) is
       F : Adaflight.STM32.Menu.Facts;
       R : Adaflight.STM32.Menu.Requests;
@@ -3923,6 +3924,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if R.OSD_Profile then
          Config.Osd_Config.Osd_Profile_Index := Unsigned_8'Max (1, Unsigned_8'Min (3, R.OSD_Profile_Idx));
+      end if;
+      if R.MAh_Restore then
+         Adaflight.Battery.Set_mAh_Drawn (Bat, R.MAh_Restored);
       end if;
       if R.PID_Profile or else R.Rate_Profile or else R.PID_Init then
          Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
@@ -4526,7 +4530,7 @@ package body Adaflight.STM32.Flight is
       Inp.Pack_Voltage := Unsigned_16 (Volts);
       Inp.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
       Inp.Amperage := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage)));
-      Inp.MAh_Drawn := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn)));
+      Inp.MAh_Drawn := Adaflight.Battery.mAh_Drawn (Bat);
       Inp.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       Inp.Cell_Count := Unsigned_8 (Natural'Min (255, Bat.Cells));
       Inp.RSSI := Adaflight.STM32.Radio.RSSI;
@@ -4679,7 +4683,7 @@ package body Adaflight.STM32.Flight is
       R.Cells := Unsigned_8 (Natural'Min (255, Bat.Cells));
       R.Percentage := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       R.Amperage := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage)));
-      R.MAh_Drawn := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn)));
+      R.MAh_Drawn := Adaflight.Battery.mAh_Drawn (Bat);
       R.Acc := (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z));
       R.Gyro := (Held (Gyro_State.Filtered (Adaflight.Axes.Roll)), Held (Gyro_State.Filtered (Adaflight.Axes.Pitch)),
                  Held (Gyro_State.Filtered (Adaflight.Axes.Yaw)));
@@ -4859,7 +4863,7 @@ package body Adaflight.STM32.Flight is
          Amperage_Ca         => Wide (Long_Integer (Bat.Current.Amperage)),
          Capacity            => Unsigned_16 (Natural'Min (65_535, Bat_Settings.Capacity_mAh)),
          Percent             => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
-         Mah_Drawn           => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Mah_Drawn           => Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat))),
          Vario_Cms           => Estimated_Vario,
          Altitude_Cm         => Estimated_Altitude_Cm,
          Yaw                 => Integer_16 (Att_State.Euler.Yaw));
@@ -4883,7 +4887,7 @@ package body Adaflight.STM32.Flight is
       Inp.Pack_Voltage := Unsigned_16 (Volts);
       Inp.Amperage := Wide (Long_Integer (Bat.Current.Amperage));
       Inp.Altitude_Cm := Estimated_Altitude_Cm;
-      Inp.MAh_Drawn := Wide (Long_Integer (Bat.Current.mAh_Drawn));
+      Inp.MAh_Drawn := Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat)));
       Inp.Vario := Estimated_Vario;
       Inp.Roll := Integer_16 (Att_State.Euler.Roll);
       Inp.Pitch := Integer_16 (Att_State.Euler.Pitch);
@@ -4937,7 +4941,7 @@ package body Adaflight.STM32.Flight is
       Inp.Dshot_Telemetry := Adaflight.STM32.Motors.Telemetry_On;
       Inp.Dshot_Rpm := Float'Min (1.6e7, Float (Adaflight.STM32.DShot_Output.Rpm_Average));
       Inp.Amperage_Ca := Wide (Long_Integer (Bat.Current.Amperage));
-      Inp.Mah_Drawn := Wide (Long_Integer (Bat.Current.mAh_Drawn));
+      Inp.Mah_Drawn := Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat)));
       Inp.Fix := G.Fix;
       Inp.Num_Sat := G.Satellites;
       Inp.Lat := Held (G.Latitude);
@@ -4962,7 +4966,7 @@ package body Adaflight.STM32.Flight is
          Voltage_Cv     => Unsigned_16 (Volts),
          Cell_Cv        => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
          Amperage_Ca    => Wide (Long_Integer (Bat.Current.Amperage)),
-         Mah_Drawn      => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Mah_Drawn      => Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat))),
          Armed          => Adaflight.STM32.Pilot.Armed,
          Lat            => G.Latitude,
          Lon            => G.Longitude,
@@ -4996,7 +5000,7 @@ package body Adaflight.STM32.Flight is
          Amperage_Ca      => Wide (Long_Integer (Bat.Current.Amperage)),
          Capacity         => Unsigned_16 (Natural'Min (65_535, Bat_Settings.Capacity_mAh)),
          Percent          => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
-         Mah_Drawn        => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Mah_Drawn        => Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat))),
          Armed            => Adaflight.STM32.Pilot.Armed,
          Throttle_Low     => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
          Motor_Stop       => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
@@ -5079,7 +5083,7 @@ package body Adaflight.STM32.Flight is
       Inp.Amperage_Ca := Wide (Long_Integer (Bat.Current.Amperage));
       Inp.Capacity_Set := Bat_Settings.Capacity_mAh > 0;
       Inp.Percent_Remaining := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
-      Inp.Mah_Drawn := Wide (Long_Integer (Bat.Current.mAh_Drawn));
+      Inp.Mah_Drawn := Wide (Long_Integer (Adaflight.Battery.mAh_Drawn (Bat)));
       Inp.Altitude_Cm := Estimated_Altitude_Cm;
       Inp.Vario_Cms := Estimated_Vario;
       Inp.Yaw := Integer_16 (Att_State.Euler.Yaw);
@@ -5159,7 +5163,7 @@ package body Adaflight.STM32.Flight is
          Voltage_State     => State_Of (Bat.Voltage_State),
          Consumption_State => State_Of (Bat.Consumption_State),
          Amperage_Ca       => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage))),
-         Mah_Drawn         => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Mah_Drawn         => Adaflight.Battery.mAh_Drawn (Bat),
          Altitude_Cm       => Estimated_Altitude_Cm,
          Vario_Cms         => Estimated_Vario,
          Fix               => G.Fix,
@@ -5189,7 +5193,7 @@ package body Adaflight.STM32.Flight is
          Armed         => Adaflight.STM32.Pilot.Armed,
          Failsafe      => Adaflight.STM32.Radio.Failsafe_Active,
          Voltage_Cv    => Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered)),
-         Mah_Drawn     => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Mah_Drawn     => Adaflight.Battery.mAh_Drawn (Bat),
          Rssi          => Adaflight.STM32.Radio.RSSI,
          GPS_Present   => G.Present,
          Fix           => G.Fix,
@@ -5239,7 +5243,7 @@ package body Adaflight.STM32.Flight is
         (Legacy_Voltage      => Unsigned_16 ((Volts + 5) / 10),
          Cell_Voltage        => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
          Amperage            => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage))),
-         Drawn_Mah           => Integer_32'Max (0, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Drawn_Mah           => Integer_32'Max (0, Adaflight.Battery.mAh_Drawn (Bat)),
          Remaining_Percent   => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
          Report_Cell_Voltage => Config.Telemetry_Config.Report_Cell_Voltage /= 0);
       Src.Vario := Estimated_Vario;

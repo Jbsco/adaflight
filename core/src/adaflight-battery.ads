@@ -153,7 +153,9 @@ package Adaflight.Battery with SPARK_Mode is
       LVC_Start_Us           : Time_Us := 0;
       Last_Voltage_Change_Ms : Time_Ms := 0;
       Current_Serviced_Us    : Time_Us := 0;
-      mAh_Previous           : Charge_mAh := 0;
+      mAh_Previous           : Integer_32 := 0;
+      --  The charge a battery continue restored, added to the meter's.
+      mAh_Offset             : Integer_32 := 0;
       Watt_Hours             : Float range -1.0e9 .. 1.0e9 := 0.0;
       MSP_Amperage           : Unsigned_16 := 0;
       MSP_mAh                : Unsigned_16 := 0;
@@ -197,6 +199,18 @@ package Adaflight.Battery with SPARK_Mode is
    --  The voltage, consumption, and overall states, the cutoff ramp, and
    --  the energy drawn.
    procedure Update_States (S : in out State; C : Settings; Now_Us : Time_Us; Now_Ms : Time_Ms);
+
+   --  The charge drawn: the meter's and the restored charge, at the 32-bit
+   --  bounds.
+   function mAh_Drawn (S : State) return Integer_32 is
+     (Integer_32 (Interfaces.Integer_64'Max (Interfaces.Integer_64 (Integer_32'First),
+                  Interfaces.Integer_64'Min (Interfaces.Integer_64 (Integer_32'Last),
+                    Interfaces.Integer_64 (S.Current.mAh_Drawn) + Interfaces.Integer_64 (S.mAh_Offset)))));
+
+   --  A battery continue: the stored charge taken as the restored charge, in
+   --  the two's complement of its 32 bits.
+   procedure Set_mAh_Drawn (S : in out State; mAh : Unsigned_32)
+     with Post => Interfaces.Integer_64 (S.mAh_Offset) mod 2 ** 32 = Interfaces.Integer_64 (mAh);
 
    function Alarm (S : State; C : Settings) return Alert;
 
