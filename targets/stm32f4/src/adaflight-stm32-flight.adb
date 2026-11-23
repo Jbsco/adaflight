@@ -490,14 +490,6 @@ package body Adaflight.STM32.Flight is
       or else Natural (Config.Failsafe_Config.Failsafe_Procedure)
               = Adaflight.Failsafe.Procedure_Kind'Pos (Adaflight.Failsafe.GPS_Rescue));
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
-   --  The divisor of the accelerometer counts in the raw readings reply, by
-   --  the count for one g.
-   function Acc_Scale return Float is
-     (if Gyro_Report.One_G > 512 * 4 then 8.0
-      elsif Gyro_Report.One_G > 512 * 2 then 4.0
-      elsif Gyro_Report.One_G >= 512 then 2.0
-      else 1.0);
-
    --  The loop units: the scheduler's settings, the core loop's cadence and
    --  ratio, the gyro filters, the accelerometer with its in-flight
    --  calibration, and the attitude estimate.
@@ -2363,7 +2355,9 @@ package body Adaflight.STM32.Flight is
          Store_Acc_Calibration;
       end if;
       Ctx.Out_Views.State.IMU.Acc :=
-        (0 => Acc_State.Acc.X / Acc_Scale, 1 => Acc_State.Acc.Y / Acc_Scale, 2 => Acc_State.Acc.Z / Acc_Scale);
+        (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.X)),
+         1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
+         2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
    end Acc_Update;
 
    --  The battery settings from the stored battery, sensor and selected

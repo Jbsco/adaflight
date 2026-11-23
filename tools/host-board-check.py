@@ -27,7 +27,7 @@ def main() -> int:
             reply = hs.msp(sock, 102)
             still = struct.unpack("<9h", reply)[:3] if reply is not None and len(reply) == 18 else None
             hs.check("board alignment turns the model's acceleration half a turn about yaw",
-                     still is not None and all(abs(a - b) <= 2 for a, b in zip(still, (-32, 64, 510))), repr(still))
+                     still is not None and all(abs(a - b) <= 2 for a, b in zip(still, (-128, 256, 2040))), repr(still))
             reply = hs.msp(sock, 108)
             tilt = struct.unpack("<3h", reply)[:2] if reply is not None and len(reply) == 6 else None
             hs.check("attitude reply shows that acceleration's tilt",

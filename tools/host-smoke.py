@@ -3353,20 +3353,21 @@ def gyro_chip_checks(image, work, chips=GYRO_CHIPS, turn=lambda v: v):
     acceleration and, 8 s after the start, its rates. The attitude reply shows that acceleration's tilt. A
     model's data registers read zeros until the start wakes its sensors, which for the BMI270 takes its select
     pin's rise after a reset and its whole configuration file. The IIM-42653 and the LSM6DSV32X count 1024 for
-    one g where the others count 2048, so the same acceleration and tilt from each show both. A chip's run is
-    repeated once when its gyro task's rate is outside its band, since an image short of processor time runs
-    that task slower. A board's gyro alignment turns the expected readings, and the tilt follows the turned
-    acceleration. Over configuration stores of their own."""
+    one g where the others count 2048, and the raw IMU reply reads each chip's own counts, so the same tilt
+    shows from both. A chip's run is repeated once when its gyro task's rate is outside its band, since an
+    image short of processor time runs that task slower. A board's gyro alignment turns the expected readings,
+    and the tilt follows the turned acceleration. Over configuration stores of their own."""
 
     def near(values, wanted):
         return values is not None and all(abs(a - b) <= 2 for a, b in zip(values, wanted))
 
-    acc_wanted = turn((32, -64, 510))
     rates_wanted = turn((164, 328, -492))
-    tilt_wanted = (round(10 * math.degrees(math.atan2(acc_wanted[1], acc_wanted[2]))),
-                   round(-10 * math.degrees(math.atan2(acc_wanted[0], math.hypot(acc_wanted[1], acc_wanted[2])))))
 
     for chip, identity, rate_hz, rate_text in chips:
+        one_g = 1024 if chip in ("IIM42653", "LSM6DSV32X") else 2048
+        acc_wanted = turn((one_g // 16, -(one_g // 8), one_g - one_g // 256))
+        tilt_wanted = (round(10 * math.degrees(math.atan2(acc_wanted[1], acc_wanted[2]))),
+                       round(-10 * math.degrees(math.atan2(acc_wanted[0], math.hypot(acc_wanted[1], acc_wanted[2])))))
         store = os.path.join(work, f"gyro-chip-{chip.lower()}-eeprom.bin")
 
         def run():
@@ -8961,7 +8962,7 @@ def main():
             imu = msp(sock, 102)
             raw = [int.from_bytes(imu[i:i + 2], "little", signed=True) for i in range(0, 12, 2)] if imu else []
             check("simulator feeds the virtual accelerometer one g up and a still gyro",
-                  len(raw) == 6 and abs(raw[2] - 512) <= 8 and abs(raw[0]) <= 8 and abs(raw[1]) <= 8
+                  len(raw) == 6 and abs(raw[2] - 2048) <= 32 and abs(raw[0]) <= 32 and abs(raw[1]) <= 32
                   and raw[3:6] == [0, 0, 0], repr(raw))
             status = msp(sock, 101)
             if contains("Barometer"):
