@@ -32,8 +32,8 @@ package Adaflight.STM32.Menu is
    --  The requests a pass made: the calibrations, the lap timer's gate
    --  setting started and ended, the OSD's elements analyzed again, the OSD,
    --  PID and rate profiles changed to the ones asked for, the PID
-   --  configuration set up again, the configuration saved and the board
-   --  reset.
+   --  configuration set up again, the stored charge restored, the
+   --  configuration saved and the board reset.
    type Requests is record
       Acc_Calibration  : Boolean := False;
       Gyro_Calibration : Boolean := False;
@@ -47,6 +47,8 @@ package Adaflight.STM32.Menu is
       Rate_Profile     : Boolean := False;
       Rate_Profile_Idx : Interfaces.Unsigned_8 := 0;
       PID_Init         : Boolean := False;
+      MAh_Restore      : Boolean := False;
+      MAh_Restored     : Interfaces.Unsigned_32 := 0;
       Save             : Boolean := False;
       Reset            : Boolean := False;
    end record;

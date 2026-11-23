@@ -8197,6 +8197,72 @@ def main():
                 esc.stop.set()
                 stop(proc)
                 sock.close()
+        # Battery continue from the setup popup: with the MSP receiver and the main menu at the stick gesture, the
+        # popup offers the stored capacity, and its restore line adds it to the drawn charge and clears it.
+        if built("Menus"):
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                replies = [cli(sock, line) for line in ("feature RX_MSP", "set osd_use_quick_menu = OFF")]
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            esc = ESC()
+            proc, sock = start(image, store)
+            esc.start()
+            try:
+                def restore_sticks(channels, seconds):
+                    deadline = time.time() + seconds
+                    while time.time() < deadline:
+                        sock.sendall(msp_frame(200, struct.pack("<8H", *channels)))
+                        time.sleep(0.02)
+                    read_all(sock, 0.3)
+
+                def restore_screen():
+                    try:
+                        with open(store + ".osd.txt") as f:
+                            return f.read()
+                    except OSError:
+                        return ""
+                rest = [1500, 1500, 1000, 1500, 1000, 1000, 1500, 1500]
+                drawn, before = until(drawn_mah, lambda m: m > 0, wait=10.0)
+                # The accelerometer calibrated, so the popup opens on its restore line.
+                msp(sock, 205)
+                time.sleep(3.0)
+                continued, warning = until(lambda: screen_row(store, 4), lambda r: "BATTERY CONT" in r, wait=10.0)
+                restore_sticks(rest, 1.0)
+                restore_sticks([1500, 2000, 1500, 1000, 1000, 1000, 1500, 1500], 0.4)
+                popup = ""
+                for _ in range(20):
+                    restore_sticks(rest, 0.1)
+                    popup = restore_screen()
+                    if "RESTORE" in popup:
+                        break
+                restored, after = False, before
+                for _ in range(10):
+                    restore_sticks([2000, 1500, 1000, 1500, 1000, 1000, 1500, 1500], 0.2)
+                    restored, after = until(drawn_mah, lambda m: m >= before + 500, wait=0.5)
+                    if restored:
+                        break
+                restore_sticks(rest, 0.3)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                stored = cli(sock, "get stats_mah_used")
+                check("battery continue popup checks have the MSP receiver and the main menu at the gesture",
+                      "Enabled RX_MSP" in replies[0] and "osd_use_quick_menu set to OFF" in replies[1], repr(replies))
+                check("setup popup offers the stored capacity with its cursor on it once battery continue applies",
+                      continued and ">RESTORE   500 MAH" in popup, repr((warning, popup)))
+                check("popup restore adds the stored capacity to the drawn charge and clears the stored capacity",
+                      drawn and restored and after - before < 520 and "stats_mah_used = 0" in stored,
+                      repr((before, after, stored[-60:])))
+            finally:
+                esc.stop.set()
+                stop(proc)
+                sock.close()
         if built("SD_Card"):
             card = os.path.join(work, "logstatus.img")
             fat16_image(card, 40960)

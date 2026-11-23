@@ -4775,6 +4775,10 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "batrestore" then
+         Set_mAh_Drawn (Battery_State_V, Interfaces.Unsigned_32 (Int (4)));
+      elsif Name = "batcont" then
+         Record_Int ("batcont.drawn", Int (4), Integer_64 (mAh_Drawn (Battery_State_V)));
       elsif Name = "batdebug" then
          Bat_Dbg := (others => <>);
          Adaflight.Debug.Select_Mode (Bat_Dbg, Interfaces.Unsigned_8 (Int (3)));
@@ -44448,6 +44452,7 @@ begin
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/batsag.csv", "battery");
    Run (Dir & "/batevent.csv", "battery");
+   Run (Dir & "/batcont.csv", "battery");
    Run (Dir & "/cellprof.csv", "cellprof");
    Run (Dir & "/osdcanvas.csv", "osdcanvas");
    Run (Dir & "/arming.csv", "arming");

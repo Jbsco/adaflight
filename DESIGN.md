@@ -16738,3 +16738,11 @@ The warnings line and the setup popup now take battery continue from its setting
 craft never armed since start-up, a healthy battery below full, and a drawn capacity stored. The warnings line had named
 battery continue for any drawn charge, which hid its warning of a battery not full, and the popup never offered its
 restore line. Host smoke reads both warnings with a battery from ESC telemetry.
+
+## D890. Restored charge from battery continue (2026-11-23)
+
+Selecting the setup popup's restore line now adds the stored capacity to the drawn charge and clears that capacity. The
+battery unit keeps it as an offset beside its meter, set as a 32-bit two's complement value and never reset. MSP analog
+and battery state replies, flight statistics, OSD elements, telemetry and watt-hours count it. Battery percentage and
+the current meters reply read the meter alone. A total past 32 bits saturates, where Betaflight's sum is undefined.
+Vectors restore a drawn charge before arming. Host smoke selects the line and reads 500 mAh more drawn over MSP.

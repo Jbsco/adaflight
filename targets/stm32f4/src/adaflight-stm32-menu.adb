@@ -309,6 +309,8 @@ package body Adaflight.STM32.Menu is
       R.Rate_Profile := Asked.Rate_Changes /= Before.Rate_Changes;
       R.Rate_Profile_Idx := Asked.Rate_Asked;
       R.PID_Init := Asked.PID_Config_Inits /= Before.PID_Config_Inits;
+      R.MAh_Restore := Asked.MAh_Restores /= Before.MAh_Restores;
+      R.MAh_Restored := Asked.MAh_Restored;
       R.Save := Save_Asked;
       R.Reset := Reset_Asked;
       Save_Asked := False;
