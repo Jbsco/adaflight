@@ -16674,3 +16674,20 @@ different one g from Betaflight's SITL build, and its raw readings over MSP read
 D881. Attitude, jerk and calibration work from counts over one g, and Betaflight's SITL scenario harness flies its
 rescue and heading recovery scenarios on host as before. Chip models under `ADAFLIGHT_GYRO_CHIP` keep their own
 counts.
+
+## D883. Virtual accelerometer read once per simulator packet (2026-11-22)
+
+Host's virtual accelerometer now gives a reading only when a simulator packet has arrived since its last read.
+Between packets it reports no new data, so its filter, jerk and calibration step once per packet. It had answered every
+accelerometer task with the latest packet. Its 25 Hz filter then ran at the task rate over held counts, and with 50
+packets a second it settled twenty times sooner than on Betaflight's SITL build.
+
+In Betaflight's SITL scenario harness, a wing held still under a 3 m/s² forward specific force for 5 s showed host's
+pitch estimate about 0.1 s ahead of that build's, up to 0.6 degrees apart. With this change both agree within 0.2
+degrees through that run. Without a simulator link, and for chip models under `ADAFLIGHT_GYRO_CHIP`, the accelerometer
+reads as before.
+
+Host's virtual gyro keeps answering every task with the latest packet. Its filters see held rates between packets
+either way. Its calibration counts task runs where Betaflight's counts packets, so host's gyro is ready in 1.25 s where
+that build waits for 1250 packets, 25 s at 50 packets a second. Counting packets would lengthen each host smoke block
+that arms through a simulator link.

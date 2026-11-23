@@ -86,14 +86,15 @@ package body Adaflight.STM32.Gyro is
       end if;
       if Adaflight.Host_Simulator.Enabled then
          declare
-            A : constant Adaflight.Sim_FDM.Axes := Adaflight.Host_Simulator.Acc;
+            A : Adaflight.Sim_FDM.Axes;
          begin
+            Adaflight.Host_Simulator.Take_Acc (OK, A);
             Raw := (A (1), A (2), A (3));
          end;
       else
          Raw := (0, 0, Virtual_One_G);
+         OK := True;
       end if;
-      OK := True;
    end Read_Acc;
 
    function Mode return Read_Mode is (if Chip then Gyro_Chip.Mode else No_Interrupt);

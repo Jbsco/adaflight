@@ -8964,6 +8964,17 @@ def main():
             check("simulator feeds the virtual accelerometer one g up and a still gyro",
                   len(raw) == 6 and abs(raw[2] - 256) <= 4 and abs(raw[0]) <= 4 and abs(raw[1]) <= 4
                   and raw[3:6] == [0, 0, 0], repr(raw))
+            # Two packets of one g resume the link after the pause, then one packet of two g and none after it: the
+            # accelerometer filter steps once, about ten counts.
+            for k, g in enumerate((1.0, 1.0, 2.0)):
+                sim.sendto(struct.pack("<18d", 0.80 + 0.01 * k, 0.0, 0.0, 0.0, 0.0, 0.0, -g * 9.80665, math.cos(half),
+                                       math.sin(half), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+                time.sleep(0.01)
+            time.sleep(0.3)
+            imu = msp(sock, 102)
+            raw = [int.from_bytes(imu[i:i + 2], "little", signed=True) for i in range(0, 12, 2)] if imu else []
+            check("virtual accelerometer filters each simulator packet once",
+                  len(raw) == 6 and 258 <= raw[2] <= 300, repr(raw))
             status = msp(sock, 101)
             if contains("Barometer"):
                 check("simulator status shows the virtual barometer", status is not None and len(status) > 5
