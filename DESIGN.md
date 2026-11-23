@@ -16709,3 +16709,17 @@ Boards now suspend their receiver signal for each configuration write and read, 
 counts a suspension as 1.5 s more of valid data and a resumption as valid data with its link up. A pulse receiver waits
 out a suspension and skips its first two samples after each resume. At boot, radio start-up replaces whatever these
 calls change.
+
+## D886. Task run time ignored at notifying saves (2026-11-23)
+
+Saves that confirm with one beep now go through one procedure. It has the scheduler ignore the current task's run
+time, then writes the configuration, reads it back and beeps. The flash write then does not count toward that task's
+measured run time. These saves are an accelerometer calibration, a stick command save, a receiver bind that confirms,
+and a mission upload.
+
+## D887. Configuration read back at every notifying save (2026-11-23)
+
+A compass calibration's end, a menu save, a Spektrum VTX control change, corrected VTX settings at start-up and a
+Spektrum bind's reset now save through D886's procedure. Each had written its configuration without reading it back, so
+no failsafe reset (D884) followed, and all but a bind's reset skipped their confirmation beep. A menu save had its
+scheduler ignore a task's state time, where Betaflight ignores its run time.
