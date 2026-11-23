@@ -16757,3 +16757,19 @@ limit drops I term.
 Its box turns trainer on while an accelerometer is present, and arming clears its limits. A look ahead setpoint past
 8192 deg/s saturates there, where Betaflight's has no bound. That needs over 1600 deg/s of gyro near maximum gain and
 look ahead. Vectors draw trainer settings, its box and a rearm.
+
+## D892. Chirp excitation (2026-11-23)
+
+Chirp mode now drives its excitation into the rate loop. Boards offered its box, named it in their build options and
+drew its OSD warning, but no loop added the sweep. In chirp mode the sweep runs on one axis at a time, shaped by a
+lead-lag filter, as a sine on a levelled axis and a cosine otherwise. It repeats after a 750 ms settling time until its
+repeats run out. Leaving chirp mode takes the next axis. OSD reads that axis, its repeats and whether each finished.
+
+A lag or lead of 0 is taken as 1, which keeps the roll setpoint a number (F372). The shaping filter's centre is held at
+four tenths of the loop rate, and a chirp setpoint past 8192 deg/s saturates there. Settings past either bound take a lead
+over ten times its lag, or a centre near the loop rate. A profile change starts the chirp state afresh, where Betaflight
+keeps its mode edge and settling time. Vectors run four sweeps through their repeats, settling and axis change.
+
+Chirp and acro trainer steps stay out of line from rate loop code, as Betaflight keeps its acro trainer out of fast
+RAM. On a Kakute F7 that code then fits its 16 KB ITCM with 448 bytes left. Inlined, both steps overflowed ITCM by 680
+bytes, and its linker crashed instead of reporting that.

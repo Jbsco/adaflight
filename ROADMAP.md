@@ -53,7 +53,7 @@ with more room on F7 and H7. The measurement decides.
 Each Betaflight source area at commit af0638839, the commit the vectors were recorded from. Ported means proved and checked against the recorded vectors.
 
 - **common** (maths, filters, vectors, DFT, tables, encodings, buffers, codecs): ported
-- **flight** (pid, mixer, imu, failsafe, rescue, nav): ported, apart from the chirp excitation
+- **flight** (pid, mixer, imu, failsafe, rescue, nav): ported
 - **fc** (core loop, rc, modes, adjustments, tasks): ported
 - **sensors**: ported
 - **scheduler**: ported

@@ -562,7 +562,16 @@ private
       Simplified_Feedforward_Gain => Held (Integer (P.Simplified_Feedforward_Gain), 0, 200),
       Simplified_Pitch_PI_Gain => Held (Integer (P.Simplified_Pitch_Pi_Gain), 0, 200),
       Simplified_Dterm_Filter  => P.Simplified_Dterm_Filter /= 0,
-      Simplified_Dterm_Filter_Multiplier => Held (Integer (P.Simplified_Dterm_Filter_Multiplier), 10, 200));
+      Simplified_Dterm_Filter_Multiplier => Held (Integer (P.Simplified_Dterm_Filter_Multiplier), 10, 200),
+      Chirp_Lag_Freq_Hz        => Integer (P.Chirp_Lag_Freq_Hz),
+      Chirp_Lead_Freq_Hz       => Integer (P.Chirp_Lead_Freq_Hz),
+      Chirp_Amplitude          => (Roll  => Held (Integer (P.Chirp_Amplitude_Roll), 0, 500),
+                                   Pitch => Held (Integer (P.Chirp_Amplitude_Pitch), 0, 500),
+                                   Yaw   => Held (Integer (P.Chirp_Amplitude_Yaw), 0, 500)),
+      Chirp_Frequency_Start_Deci_Hz => Held (Integer (P.Chirp_Frequency_Start_Deci_Hz), 1, 1_000),
+      Chirp_Frequency_End_Deci_Hz => Held (Integer (P.Chirp_Frequency_End_Deci_Hz), 1, 10_000),
+      Chirp_Time_Seconds       => Held (Integer (P.Chirp_Time_Seconds), 1, 255),
+      Chirp_Repeat             => Held (Integer (P.Chirp_Repeat), 1, 9));
 
    function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile is
      (Kind           => Rates.Curve_Kind'Val (Code (R.Rates_Type, Rates.Curve_Kind'Pos (Rates.Curve_Kind'Last))),

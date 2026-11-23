@@ -13,6 +13,7 @@ with Adaflight.Filters; use Adaflight.Filters;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.PID_Config; use Adaflight.PID_Config;
 with Adaflight.PID_Filters;
+with Adaflight.Chirp;
 
 package Adaflight.PID_Controller with SPARK_Mode, Pure is
 
@@ -117,6 +118,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       --  the targets back to the pilot as the handover rises to one.
       Launch_Mode               : Boolean := False;
       Launch_Handover           : Unit_Interval := 0.0;
+      --  The chirp mode, which runs the chirp excitation on its axis.
+      Chirp_Mode                : Boolean := False;
    end record;
 
    --  A wing's airspeed model reads the motors' RMS output over their range,
@@ -182,12 +185,29 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Acro_State            : Integer range -1 .. 1 := 0;
       Acro_Correction       : Float := 0.0;
       Acro_Projected        : Float := 0.0;
+      Chirp_Sin_Arg         : Float := 0.0;
+      Chirp_Debug_Axis      : Integer range -1 .. 2 := -1;
+      Chirp_Excitation      : Float := 0.0;
    end record;
 
    --  The acro trainer's limit per level axis: none, or the sign of the
    --  angle it holds the craft to.
    subtype Trainer_State is Integer range -1 .. 1;
    type Trainer_States is array (Level_Axis) of Trainer_State;
+
+   --  The chirp excitation's run: its sweep and shaping filter, the repeats
+   --  left, its axis, whether the series finished, the mode as the last loop
+   --  saw it, whether the next axis is due, and the end of a settling time.
+   type Chirp_Run is record
+      Sweep             : Adaflight.Chirp.Generator;
+      Filter            : Filters.Phase_Comp;
+      Repeats_Remaining : Natural range 0 .. 8 := 0;
+      Active_Axis       : Axis := Roll;
+      Series_Finished   : Boolean := False;
+      Mode_Previous     : Boolean := False;
+      Axis_Toggle       : Boolean := False;
+      Settle_Until_Us   : Interfaces.Unsigned_32 := 0;
+   end record;
 
    type State is record
       Data                    : Axis_Terms;
@@ -217,6 +237,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Landing_Disarm_Requested : Boolean := False;
       Acro_Trainer_Active     : Boolean := False;
       Acro_Trainer_Axis_State : Trainer_States := (others => 0);
+      Chirp                   : Chirp_Run;
       Taps                    : Debug_Taps;
    end record;
 
@@ -259,5 +280,14 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
 
    --  One loop of the rate controller.
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs);
+
+   --  The chirp series as the OSD reads it: one sweep finished, its axis,
+   --  the repeats asked for and the one running, and the series finished.
+   function Chirp_Finished (S : State) return Boolean is (S.Chirp.Sweep.Is_Finished);
+   function Chirp_Axis_Of (S : State) return Axis is (S.Chirp.Active_Axis);
+   function Chirp_Repeat_Total (R : Runtime) return Natural is (R.Chirp_Repeat);
+   function Chirp_Repeat_Current (S : State; R : Runtime) return Integer is
+     (R.Chirp_Repeat - S.Chirp.Repeats_Remaining);
+   function Chirp_Series_Finished (S : State) return Boolean is (S.Chirp.Series_Finished);
 
 end Adaflight.PID_Controller;

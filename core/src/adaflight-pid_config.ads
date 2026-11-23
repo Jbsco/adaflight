@@ -40,6 +40,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    subtype D_Max_Ratio is Float range 1.0 .. 250.0;
    type Axis_Velocities is array (Axis) of Velocity;
    type Axis_Ratios is array (Axis) of D_Max_Ratio;
+   type Axis_Amplitudes is array (Axis) of Float range 0.0 .. 500.0;
 
    type Dyn_Lowpass is (None, PT1, SVF, PT2, PT3);
 
@@ -72,6 +73,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
 
    type Runtime is record
       Dt                         : Seconds := 1.0e-3;
+      Loop_Us                    : Loop_Time_Us := 1_000;
       PID_Frequency              : Frequency := 1000.0;
       Coefficient                : Axis_Coefficients;
       Angle_Gain                 : Float range 0.0 .. 20.0 := 0.0;
@@ -105,6 +107,13 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       Acro_Trainer_Lookahead     : Float range 0.01 .. 0.2 := 0.05;
       Acro_Trainer_Debug_Axis    : Natural range 0 .. 1 := 0;
       Acro_Trainer_Gain          : Float range 2.5 .. 25.5 := 7.5;
+      Chirp_Lag_Freq_Hz          : Float range 0.0 .. 255.0 := 3.0;
+      Chirp_Lead_Freq_Hz         : Float range 0.0 .. 255.0 := 30.0;
+      Chirp_Amplitude            : Axis_Amplitudes := (Roll => 230.0, Pitch => 230.0, Yaw => 180.0);
+      Chirp_Frequency_Start_Hz   : Float range 0.1 .. 100.0 := 0.2;
+      Chirp_Frequency_End_Hz     : Float range 0.1 .. 1_000.0 := 600.0;
+      Chirp_Time_Seconds         : Float range 1.0 .. 255.0 := 20.0;
+      Chirp_Repeat               : Natural range 1 .. 9 := 1;
       Dyn_LPF_Filter             : Dyn_Lowpass := None;
       Dyn_LPF_Min                : Hertz := 0;
       Dyn_LPF_Max                : Hertz := 0;

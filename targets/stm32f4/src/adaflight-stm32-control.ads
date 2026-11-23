@@ -98,6 +98,14 @@ package Adaflight.STM32.Control is
    --  The acro trainer on or off, and its limits cleared at arming.
    procedure Set_Acro_Trainer (Enabled : Boolean);
    procedure Acro_Trainer_Init;
+
+   --  The chirp series as the OSD reads it: one sweep finished, its axis,
+   --  the repeats asked for and the one running, and the series finished.
+   function Chirp_Finished return Boolean;
+   function Chirp_Axis return Natural;
+   function Chirp_Repeat_Total return Natural;
+   function Chirp_Repeat_Current return Natural;
+   function Chirp_Series_Finished return Boolean;
    --  One PID loop pass: the yaw reset when the sticks ask for it, the RC
    --  command, the controller with the runaway check, the mix, and the
    --  servos when the mixer drives them, with the flight log and the PID

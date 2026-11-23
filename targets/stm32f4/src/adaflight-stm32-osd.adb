@@ -18,6 +18,7 @@ with Adaflight.Position_Estimator;
 with Adaflight.OSD_Stats;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.Control;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.GPIO;
@@ -782,6 +783,29 @@ package body Adaflight.STM32.OSD is
        Horizon    => M (Adaflight.Arming.Horizon_Mode),
        Rescue_Plan => False));
 
+   --  The chirp series into the render and warnings inputs, kept out of the
+   --  frame's own stack.
+   procedure Refresh_Chirp
+     with No_Inline;
+   procedure Refresh_Chirp is
+      D       : Adaflight.OSD_Render.Inputs renames Context.Draw.Inputs;
+      W       : Adaflight.OSD_Warnings.Inputs renames Context.Draw.Warn_Inputs;
+      Total   : constant Natural := Natural'Min (255, Adaflight.STM32.Control.Chirp_Repeat_Total);
+      Current : constant Natural := Natural'Min (255, Adaflight.STM32.Control.Chirp_Repeat_Current);
+      Axis    : constant Natural := Natural'Min (2, Adaflight.STM32.Control.Chirp_Axis);
+   begin
+      D.Chirp_Total := Interfaces.Unsigned_8 (Total);
+      D.Chirp_Current := Interfaces.Unsigned_8 (Current);
+      D.Chirp_Finished := Adaflight.STM32.Control.Chirp_Finished;
+      D.Chirp_Series_Finished := Adaflight.STM32.Control.Chirp_Series_Finished;
+      D.Chirp_Axis := Axis;
+      W.Chirp_Repeat_Total := Total;
+      W.Chirp_Repeat_Current := Current;
+      W.Chirp_Finished := D.Chirp_Finished;
+      W.Chirp_Series_Finished := D.Chirp_Series_Finished;
+      W.Chirp_Axis := Axis;
+   end Refresh_Chirp;
+
    --  The frame's readings into the task's context.
    procedure Refresh (F : Facts; Now_Us : Unsigned_32) is
       P : Adaflight.OSD_Page.Inputs renames Context.Page_Inputs;
@@ -1001,6 +1025,7 @@ package body Adaflight.STM32.OSD is
       D.Small_Angle := F.Small_Angle;
       D.Ready_Box := F.Ready_Box;
       D.Acro_Trainer_Box := F.Acro_Trainer_Box;
+      Refresh_Chirp;
       D.Antenna := F.Antenna;
       D.Earth_Up := F.Earth_Up;
       D.Total_Flights := F.Total_Flights;

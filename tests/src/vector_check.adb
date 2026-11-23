@@ -1440,6 +1440,17 @@ procedure Vector_Check is
       Cleared     : Boolean := False;
    end record;
    Step_Train : Trainer_Inputs;
+   type Chirp_Inputs is record
+      Valid     : Boolean := False;
+      Lag       : Integer := 3;
+      Lead      : Integer := 30;
+      Amplitude : Adaflight.PID_Profile.Axis_Chirp_Amplitudes := (230, 230, 180);
+      Start     : Integer := 2;
+      Finish    : Integer := 6_000;
+      Seconds   : Integer := 20;
+      Repeat    : Integer := 1;
+   end record;
+   Step_Chirp : Chirp_Inputs;
    Step_Wing_Valid   : Boolean := False;
    Step_Wing_Profile : Adaflight.PID_Profile.Profile;
    Step_Wing_Setup   : Adaflight.PID_Config.Wing_Setup;
@@ -1479,6 +1490,15 @@ procedure Vector_Check is
          if Step_Land.Threshold >= 0 then
             Step_Profile.Landing_Disarm_Threshold := Step_Land.Threshold;
          end if;
+         if Step_Chirp.Valid then
+            Step_Profile.Chirp_Lag_Freq_Hz := Step_Chirp.Lag;
+            Step_Profile.Chirp_Lead_Freq_Hz := Step_Chirp.Lead;
+            Step_Profile.Chirp_Amplitude := Step_Chirp.Amplitude;
+            Step_Profile.Chirp_Frequency_Start_Deci_Hz := Step_Chirp.Start;
+            Step_Profile.Chirp_Frequency_End_Deci_Hz := Step_Chirp.Finish;
+            Step_Profile.Chirp_Time_Seconds := Step_Chirp.Seconds;
+            Step_Profile.Chirp_Repeat := Step_Chirp.Repeat;
+         end if;
          if Step_Train.Valid then
             Step_Profile.Acro_Trainer_Angle_Limit := Step_Train.Angle_Limit;
             Step_Profile.Acro_Trainer_Lookahead_Ms := Step_Train.Lookahead;
@@ -1507,6 +1527,7 @@ procedure Vector_Check is
          Inp.GPS_Rescue_Mode := (Int (36) / 2 ** 11) mod 2 = 1;
          Inp.Passthru_Mode := (Int (36) / 2 ** 8) mod 2 = 1;
          Inp.Launch_Mode := (Int (36) / 2 ** 13) mod 2 = 1;
+         Inp.Chirp_Mode := (Int (36) / 2 ** 7) mod 2 = 1;
          Inp.Launch_Handover := Step_Launch_Handover;
          Inp.Max_RC_Rate (Yaw) := Step_Yaw_Max_Rate;
          Inp.Autopilot_Angle := Step_AP_Angle;
@@ -1553,6 +1574,7 @@ procedure Vector_Check is
          Set_Acro_Trainer_State (Step_State, Step_Train.Box and then Inp.Acc_Present);
          Step_Train := (others => <>);
       end if;
+      Step_Chirp := (others => <>);
       Update (Step_State, Step_Runtime, Step_Profile, Inp);
       Adaflight.PID_Debug.Record_Loop (PID_Debug, Step_State, Step_Runtime, Inp, PID_Debug_Axis);
       Expect_Float ("iterm_accelerator", Step_State.Iterm_Accelerator);
@@ -5755,6 +5777,17 @@ procedure Vector_Check is
          end loop;
          Record_Result ("wingmodesstate.tpa_factor_yaw", Bits (10), To_Bits (Step_State.TPA_Factor_Yaw));
          Record_Result ("wingmodesstate.speed", Bits (14), To_Bits (Step_State.Wing_Speed));
+      elsif Str (1) = "pidchirp" then
+         Step_Chirp := (Valid => True, Lag => Integer (Int (4)), Lead => Integer (Int (5)),
+                        Amplitude => (Integer (Int (6)), Integer (Int (7)), Integer (Int (8))),
+                        Start => Integer (Int (9)), Finish => Integer (Int (10)), Seconds => Integer (Int (11)),
+                        Repeat => Integer (Int (12)));
+      elsif Str (1) = "pidchirpout" then
+         Record_Int ("pidchirp.axis", Int (4), Integer_64 (Adaflight.Axes.Axis'Pos (Step_State.Chirp.Active_Axis)));
+         Record_Int ("pidchirp.repeats_left", Int (5), Integer_64 (Step_State.Chirp.Repeats_Remaining));
+         Record_Int ("pidchirp.series_finished", Int (6), Boolean'Pos (Step_State.Chirp.Series_Finished));
+         Record_Int ("pidchirp.sweep_finished", Int (7), Boolean'Pos (Step_State.Chirp.Sweep.Is_Finished));
+         Record_Int ("pidchirp.count", Int (8), Integer_64 (Step_State.Chirp.Sweep.Count));
       elsif Str (1) = "pidtrain" then
          Step_Train := (Valid => True, Angle_Limit => Integer (Int (4)), Lookahead => Integer (Int (5)),
                         Gain => Integer (Int (6)), Debug_Axis => Integer (Int (7)), Box => Int (8) /= 0,
@@ -44451,6 +44484,7 @@ begin
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidmodes.csv", "pid");
    Run (Dir & "/pidtrain.csv", "pid");
+   Run (Dir & "/pidchirp.csv", "pid");
    Run (Dir & "/pidland.csv", "pid");
    Run (Dir & "/wingmodes.csv", "pid");
    Run (Dir & "/winglaunch.csv", "pid");
