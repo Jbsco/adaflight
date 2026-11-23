@@ -2999,6 +2999,7 @@ package body Adaflight.STM32.Flight is
       end loop;
       for I in 1 .. Step.RC_Stats_Arms loop
          Adaflight.RC_Stats.Notify_Arming (RC_Stats_State);
+         Adaflight.STM32.Control.Acro_Trainer_Init;
       end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
@@ -3621,6 +3622,8 @@ package body Adaflight.STM32.Flight is
                Run_Adjustments (Aux);
             end if;
             Adaflight.STM32.VTX.Switches (Config, Aux, Adaflight.STM32.Pilot.Armed);
+            Adaflight.STM32.Control.Set_Acro_Trainer
+              (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Acro_Trainer) and then Gyro_Report.Acc_Found);
             Adaflight.STM32.Control.Set_Anti_Gravity (Asked.Anti_Gravity);
          when Adaflight.RX_Task.Update =>
             Adaflight.STM32.Pilot.Update_Pass

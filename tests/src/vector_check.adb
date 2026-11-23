@@ -1430,6 +1430,16 @@ procedure Vector_Check is
       Threshold : Integer := -1;
    end record;
    Step_Land : Landing_Inputs;
+   type Trainer_Inputs is record
+      Valid       : Boolean := False;
+      Angle_Limit : Integer := 20;
+      Lookahead   : Integer := 50;
+      Gain        : Integer := 75;
+      Debug_Axis  : Integer := 0;
+      Box         : Boolean := False;
+      Cleared     : Boolean := False;
+   end record;
+   Step_Train : Trainer_Inputs;
    Step_Wing_Valid   : Boolean := False;
    Step_Wing_Profile : Adaflight.PID_Profile.Profile;
    Step_Wing_Setup   : Adaflight.PID_Config.Wing_Setup;
@@ -1468,6 +1478,12 @@ procedure Vector_Check is
          end if;
          if Step_Land.Threshold >= 0 then
             Step_Profile.Landing_Disarm_Threshold := Step_Land.Threshold;
+         end if;
+         if Step_Train.Valid then
+            Step_Profile.Acro_Trainer_Angle_Limit := Step_Train.Angle_Limit;
+            Step_Profile.Acro_Trainer_Lookahead_Ms := Step_Train.Lookahead;
+            Step_Profile.Acro_Trainer_Gain := Step_Train.Gain;
+            Step_Profile.Acro_Trainer_Debug_Axis := Step_Train.Debug_Axis;
          end if;
          Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => NF >= 68 and then Int (68) /= 0,
                     Serial_Rx_Is_CRSF => Profile_CRSF (Index),
@@ -1530,6 +1546,13 @@ procedure Vector_Check is
           Roll => Inp.Attitude (Roll), Pitch => Inp.Attitude (Pitch)));
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
+      if Step_Train.Valid then
+         if Step_Train.Cleared then
+            Acro_Trainer_Init (Step_State);
+         end if;
+         Set_Acro_Trainer_State (Step_State, Step_Train.Box and then Inp.Acc_Present);
+         Step_Train := (others => <>);
+      end if;
       Update (Step_State, Step_Runtime, Step_Profile, Inp);
       Adaflight.PID_Debug.Record_Loop (PID_Debug, Step_State, Step_Runtime, Inp, PID_Debug_Axis);
       Expect_Float ("iterm_accelerator", Step_State.Iterm_Accelerator);
@@ -5732,6 +5755,16 @@ procedure Vector_Check is
          end loop;
          Record_Result ("wingmodesstate.tpa_factor_yaw", Bits (10), To_Bits (Step_State.TPA_Factor_Yaw));
          Record_Result ("wingmodesstate.speed", Bits (14), To_Bits (Step_State.Wing_Speed));
+      elsif Str (1) = "pidtrain" then
+         Step_Train := (Valid => True, Angle_Limit => Integer (Int (4)), Lookahead => Integer (Int (5)),
+                        Gain => Integer (Int (6)), Debug_Axis => Integer (Int (7)), Box => Int (8) /= 0,
+                        Cleared => Int (9) /= 0);
+      elsif Str (1) = "pidtrainout" then
+         Record_Int ("pidtrain.roll_state", Int (4),
+                     Integer_64 (Step_State.Acro_Trainer_Axis_State (Adaflight.Axes.Roll)));
+         Record_Int ("pidtrain.pitch_state", Int (5),
+                     Integer_64 (Step_State.Acro_Trainer_Axis_State (Adaflight.Axes.Pitch)));
+         Record_Int ("pidtrain.active", Int (6), Boolean'Pos (Step_State.Acro_Trainer_Active));
       elsif Str (1) = "pidap" then
          Step_AP_Angle := (Adaflight.Axes.Roll => Flt (4), Adaflight.Axes.Pitch => Flt (5));
          Step_AP_Max := Natural (Int (6));
@@ -44417,6 +44450,7 @@ begin
    Run (Dir & "/rates.csv", "rates");
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidmodes.csv", "pid");
+   Run (Dir & "/pidtrain.csv", "pid");
    Run (Dir & "/pidland.csv", "pid");
    Run (Dir & "/wingmodes.csv", "pid");
    Run (Dir & "/winglaunch.csv", "pid");

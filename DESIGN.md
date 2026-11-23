@@ -16746,3 +16746,14 @@ battery unit keeps it as an offset beside its meter, set as a 32-bit two's compl
 and battery state replies, flight statistics, OSD elements, telemetry and watt-hours count it. Battery percentage and
 the current meters reply read the meter alone. A total past 32 bits saturates, where Betaflight's sum is undefined.
 Vectors restore a drawn charge before arming. Host smoke selects the line and reads 500 mAh more drawn over MSP.
+
+## D891. Acro trainer (2026-11-23)
+
+Acro trainer now limits roll and pitch angle in acro. Its box was offered and named on OSD, but rate loop never read it.
+Past its angle limit with a stick toward it, an axis stays at that limit until its stick reverses, with setpoint
+levelling back. Short of that limit, a look ahead that grows with gyro rate cuts setpoint before angle passes it. Either
+limit drops I term.
+
+Its box turns trainer on while an accelerometer is present, and arming clears its limits. A look ahead setpoint past
+8192 deg/s saturates there, where Betaflight's has no bound. That needs over 1600 deg/s of gyro near maximum gain and
+look ahead. Vectors draw trainer settings, its box and a rearm.

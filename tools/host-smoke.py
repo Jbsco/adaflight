@@ -2341,6 +2341,69 @@ def pid_disarm_checks(image, work):
           after[0] == 0 and after[1] & (1 << 6) != 0, repr((after[0], hex(after[1]))))
 
 
+def acro_trainer_checks(image, work):
+    """Acro trainer over the simulator link, over a configuration store of its own: armed in acro with the acro trainer
+    debug values and roll stick right, the trainer writes nothing with its box on AUX2 off, passes the roll setpoint
+    through once the box is on and the craft is still, and turns that setpoint back once a roll rate carries the
+    angle past its limit toward the stick."""
+    store = os.path.join(work, "acro-trainer.bin")
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    proc, sock = start(image, store, extra=sim_link)
+    try:
+        time.sleep(2.5)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("set rx_uart = UART3", "aux 0 0 0 1700 2100 0 0",
+                                                "aux 1 47 1 1700 2100 0 0", "set runaway_takeoff_prevention = OFF",
+                                                "set debug_mode = ACRO_TRAINER")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("acro trainer checks have the trainer's box on AUX2 and its debug values",
+          "aux 1 47 1 1700 2100 0 0" in replies[2] and "debug_mode set to ACRO_TRAINER" in replies[4], repr(replies))
+    proc, sock = start(image, store, extra=sim_link)
+    receiver = Receiver()
+    receiver.start()
+    sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    done = threading.Event()
+    feed = {"roll": 0.0}
+
+    def trainer_feed():
+        tick = 0
+        while not done.is_set():
+            sim.sendto(struct.pack("<18d", tick * 0.01, feed["roll"], 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+            tick += 1
+            time.sleep(0.01)
+    threading.Thread(target=trainer_feed, daemon=True).start()
+    try:
+        time.sleep(8.0)
+        receiver.channels = [992, 992, 172, 992, 1811, 172] + [992] * 10
+        time.sleep(1.5)
+        status = msp(sock, 150)
+        armed = bool(status and len(status) > 6 and status[6] & 1)
+        receiver.channels[0] = 1400
+        time.sleep(1.0)
+        idle = debug_values(sock)
+        receiver.channels[5] = 1811
+        passed, still = until(lambda: debug_values(sock), lambda d: len(d) == 8 and d[2] > 50, wait=3.0)
+        feed["roll"] = 10.0
+        limited, turned = until(lambda: debug_values(sock), lambda d: len(d) == 8 and d[1] == 1 and d[2] < 0, wait=3.0)
+    finally:
+        done.set()
+        receiver.stop.set()
+        stop(proc)
+        sock.close()
+        sim.close()
+    check("craft arms in acro with the acro trainer's box off", armed, repr(status))
+    check("acro trainer writes no debug values with its box off", idle == [0] * 8, repr(idle))
+    check("acro trainer passes the roll setpoint through while the craft is still", passed, repr(still))
+    check("acro trainer turns the roll setpoint back once the angle passes its limit toward the stick", limited,
+          repr(turned))
+
+
 def sim_servo_checks(image, work):
     """Servos in the simulator link's raw packet, over a configuration store of its own: a flying wing lists one motor
     with its two elevons right after it, centred at rest, and roll in passthrough moves them apart."""
@@ -6706,6 +6769,7 @@ def main():
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
         pid_disarm_checks(image, work)
+        acro_trainer_checks(image, work)
         sim_servo_checks(image, work)
         filter_order_checks(image, work)
         status_request_checks(image, work)

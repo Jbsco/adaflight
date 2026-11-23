@@ -142,7 +142,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    --  setpoint, roll's I term relax values, the raw D deltas and the D before
    --  TPA on roll and pitch, each axis's D max factors, the S terms before
    --  and after their factor, the wing setpoints before and after adjustment,
-   --  and pitch's P boost.
+   --  pitch's P boost, and on the acro trainer's debug axis when it ran, its
+   --  angle, axis state, setpoint and projected angle.
    type Level_Flags is array (Level_Axis) of Boolean;
    type Level_Taps is array (Level_Axis) of Float;
    type Axis_Taps is array (Axis) of Float;
@@ -176,7 +177,17 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Wing_Setpoint_In      : Axis_Rates := (others => 0.0);
       Wing_Setpoint_Out     : Axis_Rates := (others => 0.0);
       P_Boost               : Float := 0.0;
+      Acro_Set              : Boolean := False;
+      Acro_Angle            : Float := 0.0;
+      Acro_State            : Integer range -1 .. 1 := 0;
+      Acro_Correction       : Float := 0.0;
+      Acro_Projected        : Float := 0.0;
    end record;
+
+   --  The acro trainer's limit per level axis: none, or the sign of the
+   --  angle it holds the craft to.
+   subtype Trainer_State is Integer range -1 .. 1;
+   type Trainer_States is array (Level_Axis) of Trainer_State;
 
    type State is record
       Data                    : Axis_Terms;
@@ -204,6 +215,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Crash_Beep              : Boolean := False;
       Crash_Disarm_Requested  : Boolean := False;
       Landing_Disarm_Requested : Boolean := False;
+      Acro_Trainer_Active     : Boolean := False;
+      Acro_Trainer_Axis_State : Trainer_States := (others => 0);
       Taps                    : Debug_Taps;
    end record;
 
@@ -221,6 +234,18 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    procedure Reset_TPA_Speed (S : in out State);
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean);
+
+   --  The acro trainer's limits cleared, as arming and the trainer's start
+   --  clear them.
+   procedure Acro_Trainer_Init (S : in out State)
+     with Post => S.Acro_Trainer_Axis_State = (Roll .. Pitch => 0)
+                  and then S.Acro_Trainer_Active = S.Acro_Trainer_Active'Old;
+
+   --  The acro trainer on or off, its limits cleared as it turns on.
+   procedure Set_Acro_Trainer_State (S : in out State; New_State : Boolean)
+     with Post => S.Acro_Trainer_Active = New_State
+                  and then (if New_State and then not S.Acro_Trainer_Active'Old
+                            then S.Acro_Trainer_Axis_State = (Roll .. Pitch => 0));
 
    function Crash_Recovery_Active (S : State) return Boolean is (S.In_Crash_Recovery);
 

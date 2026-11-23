@@ -38,6 +38,21 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Stabilisation_Enabled := Enabled;
    end Set_Stabilisation;
 
+   procedure Acro_Trainer_Init (S : in out State) is
+   begin
+      S.Acro_Trainer_Axis_State := (others => 0);
+   end Acro_Trainer_Init;
+
+   procedure Set_Acro_Trainer_State (S : in out State; New_State : Boolean) is
+   begin
+      if S.Acro_Trainer_Active /= New_State then
+         if New_State then
+            Acro_Trainer_Init (S);
+         end if;
+         S.Acro_Trainer_Active := New_State;
+      end if;
+   end Set_Acro_Trainer_State;
+
    function Apply_Thrust_Linearization (R : Runtime; Motor : Motor_Command) return Float is
       E      : constant Float := R.Thrust_Linearization;
       Inv    : constant Float := 1.0 - Motor;
@@ -483,6 +498,72 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Attenuate_Yaw;
 
+   Acro_Trainer_Lookahead_Rate_Limit : constant := 500.0;
+   Acro_Trainer_Setpoint_Limit       : constant := 1_000.0;
+
+   function Trainer_Sign (X : Float) return Trainer_State is (if X > 0.0 then 1 else -1);
+
+   --  The acro trainer on a level axis outside the angle, horizon, rescue
+   --  and hold modes. Past the angle limit with the stick toward it, the
+   --  axis holds that limit until the stick reverses, with the setpoint
+   --  levelling back to it; short of it, a look ahead that grows with the
+   --  gyro rate limits the setpoint before the angle passes it. Either limit
+   --  drops the I term. A setpoint past the rate bound is held to it.
+   procedure Apply_Acro_Trainer
+     (R : Runtime; Inp : Inputs; A : Level_Axis; Axis_State : in out Trainer_State; I_Term : in out Iterm;
+      Taps : in out Debug_Taps; Setpoint : in out Rate)
+     with Global => null
+   is
+      Reset_Iterm   : Boolean := False;
+      Projected     : Float range -2.0 ** 12 .. 2.0 ** 12 := 0.0;
+      Setpoint_Sign : constant Trainer_State := Trainer_Sign (Setpoint);
+      Current_Angle : constant Float range -210.0 .. 210.0 := Float (Inp.Attitude (A) - Inp.Trims (A)) / 10.0;
+      Angle_Sign    : constant Trainer_State := Trainer_Sign (Current_Angle);
+      Result        : Float range -2.0 ** 17 .. 2.0 ** 17 := Setpoint;
+   begin
+      if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode
+        or else Inp.Pos_Hold_Mode
+      then
+         return;
+      end if;
+      if Axis_State /= 0 and then Axis_State /= Setpoint_Sign then
+         Axis_State := 0;
+      end if;
+      if abs Current_Angle > R.Acro_Trainer_Angle_Limit and then Axis_State = 0 and then Angle_Sign = Setpoint_Sign then
+         Axis_State := Angle_Sign;
+         Reset_Iterm := True;
+      end if;
+      if Axis_State /= 0 then
+         Result := Constrain_F
+           ((R.Acro_Trainer_Angle_Limit * Float (Angle_Sign) - Current_Angle) * R.Acro_Trainer_Gain,
+            -Acro_Trainer_Setpoint_Limit, Acro_Trainer_Setpoint_Limit);
+      else
+         declare
+            Check_Interval : constant Float range 0.0 .. 0.2 :=
+              Constrain_F (abs Inp.Gyro (A) / Acro_Trainer_Lookahead_Rate_Limit, 0.0, 1.0) * R.Acro_Trainer_Lookahead;
+            Projected_Sign : Trainer_State;
+         begin
+            Projected := Inp.Gyro (A) * Check_Interval + Current_Angle;
+            Projected_Sign := Trainer_Sign (Projected);
+            if abs Projected > R.Acro_Trainer_Angle_Limit and then Projected_Sign = Setpoint_Sign then
+               Result := (R.Acro_Trainer_Angle_Limit * Float (Projected_Sign) - Projected) * R.Acro_Trainer_Gain;
+               Reset_Iterm := True;
+            end if;
+         end;
+      end if;
+      if Reset_Iterm then
+         I_Term := 0.0;
+      end if;
+      if Axis'Pos (A) = R.Acro_Trainer_Debug_Axis then
+         Taps.Acro_Set := True;
+         Taps.Acro_Angle := Current_Angle;
+         Taps.Acro_State := Axis_State;
+         Taps.Acro_Correction := Result;
+         Taps.Acro_Projected := Projected;
+      end if;
+      Setpoint := Constrain_F (Result, -Rate_Bound, Rate_Bound);
+   end Apply_Acro_Trainer;
+
    use type Interfaces.Integer_32;
 
    Crash_Detection_Delay_Us : constant := 1_000_000;
@@ -742,6 +823,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Taps.Yaw_Attenuated_Set := False;
       S.Taps.Relax_Set := False;
       S.Taps.D_Max_Set := (others => False);
+      S.Taps.Acro_Set := False;
       for A in Axis loop
          PID_Filters.Apply_Dterm (S.Filters, A, Inp.Gyro (A), Gyro_Dterm (A));
          if A /= Yaw then
@@ -790,6 +872,12 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                Setpoint := Wing_Setpoint (Setpoint, S.TPA_Factor_S (A), S.TPA_Factor);
             end if;
             S.Taps.Wing_Setpoint_Out (A) := Setpoint;
+            if A /= Yaw and then S.Acro_Trainer_Active and then not S.In_Crash_Recovery
+              and then not Inp.Launch_Control_Active
+            then
+               Apply_Acro_Trainer
+                 (R, Inp, A, S.Acro_Trainer_Axis_State (A), S.Data (A).I, S.Taps, Setpoint);
+            end if;
             if Inp.Angle_Mode and then S.Axis_In_Angle_Mode (A) then
                Setpoint_Delta := 0.0;
             end if;

@@ -66,6 +66,12 @@ package body Adaflight.PID_Debug with SPARK_Mode is
             end if;
          end loop;
       end if;
+      if T.Acro_Set and then Debug.Selected (D, Debug.Acro_Trainer) then
+         Debug.Set (D, Debug.Acro_Trainer, 0, R10 (T.Acro_Angle));
+         Debug.Set (D, Debug.Acro_Trainer, 1, Debug.Integer_16 (T.Acro_State));
+         Debug.Set (D, Debug.Acro_Trainer, 2, Debug.Rounded (Held (T.Acro_Correction)));
+         Debug.Set (D, Debug.Acro_Trainer, 3, R10 (T.Acro_Projected));
+      end if;
       if T.Relax_Set and then Debug.Selected (D, Debug.ITerm_Relax) then
          Debug.Set (D, Debug.ITerm_Relax, 0, Debug.Rounded (Held (T.Relax_Hpf)));
          Debug.Set (D, Debug.ITerm_Relax, 1, R100 (T.Relax_Factor));
