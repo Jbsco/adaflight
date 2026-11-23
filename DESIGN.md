@@ -16731,3 +16731,10 @@ activates a configuration once their loop units run. That activation also starts
 configured cutoff. Before, a calibration's offsets were stored but never read back: they applied until a restart, and
 after a power cycle a board's attitude estimate leaned by its accelerometer's offset. Host smoke calibrates the MPU6000
 model's leaning counts, restarts, and reads them level.
+
+## D889. Battery continue by its setting (2026-11-23)
+
+The warnings line and the setup popup now take battery continue from its setting: it applies with that setting on, a
+craft never armed since start-up, a healthy battery below full, and a drawn capacity stored. The warnings line had named
+battery continue for any drawn charge, which hid its warning of a battery not full, and the popup never offered its
+restore line. Host smoke reads both warnings with a battery from ESC telemetry.

@@ -456,6 +456,16 @@ package body Adaflight.STM32.Flight is
    Bat              : Adaflight.Battery.State;
    Beep             : Adaflight.Beeper.State;
    Bat_Settings     : Adaflight.Battery.Settings;
+   --  Whether a stored drawn capacity waits to be restored: battery
+   --  continue on, a craft never armed, a healthy battery below full, and a
+   --  capacity stored.
+   function Has_Used_MAh return Boolean is
+     (Config.Battery_Config.Is_Battery_Continue_Enabled
+      and then not (Adaflight.STM32.Pilot.Armed or else Adaflight.STM32.Pilot.Was_Ever_Armed)
+      and then Adaflight.Battery."=" (Bat.Overall, Adaflight.Battery.OK)
+      and then Bat.Cells > 0
+      and then Natural'Min (20_000, Bat.Voltage.Display_Filtered) / Bat.Cells < Bat_Settings.Full_Cell_Voltage
+      and then Config.Stats_Config.Stats_Mah_Used > 0);
    Internal         : Adaflight.Internal_ADC.Sampler;
    Internal_Cal     : Adaflight.Internal_ADC.Calibration;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
@@ -3760,6 +3770,7 @@ package body Adaflight.STM32.Flight is
       F.Pack_Voltage := Unsigned_16 (Volts);
       F.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
       F.Full_Cell_Voltage := Unsigned_16 (Bat_Settings.Full_Cell_Voltage);
+      F.Used_MAh := Has_Used_MAh;
       F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
       F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
       F.Wh_Drawn := Bat.Watt_Hours;
@@ -3877,6 +3888,7 @@ package body Adaflight.STM32.Flight is
       F.Acc_Calibrated := Acc_Has_Been_Calibrated;
       F.Gyro_Present := Selection.Found;
       F.Gyro_Calibration_Complete := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
+      F.Used_MAh := Has_Used_MAh;
       F.PID_Frequency := Float'Min (65_535.0, 1.0e6 / Float (Natural'Max (1, Natural (Sample_Us))));
       F.Runtime_Features := Runtime_Features;
       F.Gate_Set_Readings := Lap.Set_Readings;

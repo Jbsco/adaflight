@@ -149,6 +149,7 @@ package Adaflight.STM32.OSD is
       Full_Cell_Voltage : Interfaces.Unsigned_16 := 410;
       Amperage          : Interfaces.Integer_32 range -100_000 .. 100_000 := 0;
       MAh_Drawn         : Interfaces.Integer_32 range 0 .. 2 ** 24 := 0;
+      Used_MAh          : Boolean := False;
       Wh_Drawn          : Float := 0.0;
       Blackbox_Box      : Boolean := False;
       Blackbox_Working  : Boolean := False;

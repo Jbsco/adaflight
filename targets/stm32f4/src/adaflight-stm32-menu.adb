@@ -259,6 +259,7 @@ package body Adaflight.STM32.Menu is
       T.Live.Acc_Calibrated := F.Acc_Calibrated;
       T.Live.Gyro_Present := F.Gyro_Present;
       T.Live.Gyro_Calibration_Complete := F.Gyro_Calibration_Complete;
+      T.Live.Used_MAh := F.Used_MAh;
       T.Live.Reboot_Required := Reboot_Flag;
       T.Live.Runtime_Features := F.Runtime_Features;
       T.Live.PID_Frequency := F.PID_Frequency;

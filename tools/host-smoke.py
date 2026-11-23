@@ -8161,6 +8161,42 @@ def main():
             esc.stop.set()
             stop(proc)
             sock.close()
+        # Battery continue on the warnings line, with the battery from ESC telemetry below full and charge drawn: a
+        # warning of a battery not full while the setting is off, battery continue once it is on with a stored
+        # capacity.
+        store = os.path.join(work, "battcont.bin")
+        for lines, expected, what in (
+                (("feature ESC_SENSOR", "set esc_sensor_uart = UART6", "set battery_meter = ESC",
+                  "set current_meter = ESC", "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
+                  "set osd_warnings_pos = 2177"), "BATT < FULL", "off"),
+                (("set battery_continue = ON", "set stats_mah_used = 500"), "BATTERY CONT", "on with a stored capacity")):
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in lines:
+                    cli(sock, line)
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            esc = ESC()
+            proc, sock = start(image, store)
+            esc.start()
+            try:
+                def drawn_mah():
+                    analog = msp(sock, 110)
+                    return analog[1] | analog[2] << 8 if analog and len(analog) >= 3 else 0
+                drawn, mah = until(drawn_mah, lambda m: m > 0, wait=10.0)
+                shown, row = until(lambda: screen_row(store, 4), lambda r: expected in r, wait=5.0)
+                check(f"warnings line with battery continue {what} reads {expected} once charge is drawn",
+                      drawn and shown, repr((mah, row)))
+            finally:
+                esc.stop.set()
+                stop(proc)
+                sock.close()
         if built("SD_Card"):
             card = os.path.join(work, "logstatus.img")
             fat16_image(card, 40960)

@@ -22,6 +22,7 @@ package Adaflight.STM32.Menu is
       Acc_Calibrated            : Boolean := False;
       Gyro_Present              : Boolean := False;
       Gyro_Calibration_Complete : Boolean := False;
+      Used_MAh                  : Boolean := False;
       PID_Frequency             : Float range 0.0 .. 65_535.0 := 0.0;
       Runtime_Features          : Interfaces.Unsigned_32 := 0;
       Gate_Set_Readings         : Interfaces.Unsigned_16 := 0;
