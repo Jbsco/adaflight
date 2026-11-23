@@ -16665,3 +16665,12 @@ count for one g (D383), an older Betaflight scaling that Betaflight 4.5 dropped 
 Configurator divides that reading by 2048, so a 2048-count chip at rest showed a quarter g in its sensors tab and in its
 board alignment wizard. Each gyro model on host now reads its own counts: 2040 for one g on the chips that count 2048,
 and 1020 on the two that count 1024.
+
+## D882. Virtual accelerometer at 256 counts per g (2026-11-22)
+
+Host's virtual accelerometer now counts 256 for one g, as Betaflight's simulator target does: it takes each packet's
+counts as they arrive and reads 256 up at rest. It had raised them to 2048 (D559), so its flight logs declared a
+different one g from Betaflight's SITL build, and its raw readings over MSP read eight times those of that build since
+D881. Attitude, jerk and calibration work from counts over one g, and Betaflight's SITL scenario harness flies its
+rescue and heading recovery scenarios on host as before. Chip models under `ADAFLIGHT_GYRO_CHIP` keep their own
+counts.
