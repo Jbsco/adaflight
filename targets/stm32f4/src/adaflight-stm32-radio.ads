@@ -40,6 +40,9 @@ package Adaflight.STM32.Radio is
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
+   --  The failsafe's settings taken again from the configuration and its
+   --  state reset, as a configuration's activation does.
+   procedure Reset_Failsafe (Config : Adaflight.Config_Groups.Configuration);
    --  One run of the telemetry task: the negotiation, then the next chunk of
    --  a reply to the link's MSP requests, whose commands go through Answer,
    --  or else the frames due from the sources, sent on the port. Answer

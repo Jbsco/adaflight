@@ -16691,3 +16691,14 @@ Host's virtual gyro keeps answering every task with the latest packet. Its filte
 either way. Its calibration counts task runs where Betaflight's counts packets, so host's gyro is ready in 1.25 s where
 that build waits for 1250 packets, 25 s at 50 packets a second. Counting packets would lengthen each host smoke block
 that arms through a simulator link.
+
+## D884. Failsafe reset at configuration activation (2026-11-22)
+
+Boards now reset their failsafe whenever a configuration read activates a configuration. Its settings come from that
+configuration again, so a saved failsafe change applies without a restart.
+
+After a save that reads back, a receiver's first valid frame now keeps arming off for its recovery period, 0.5 s by
+default, as Betaflight's SITL build does after an accelerometer calibration. Arming had opened as soon as such a save
+ended. In Betaflight's SITL scenario harness a held wing then armed inside its attitude estimate's high-gain reset after
+calibration, and kept up to 1 degree of calibrated tilt into its launch. At boot, radio start-up replaces whatever this
+reset changes.

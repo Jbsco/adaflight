@@ -984,8 +984,8 @@ package body Adaflight.STM32.Flight is
 
    --  The stored configuration loaded: every group from its defaults and
    --  its stored bytes, the running features, the checks, the board's
-   --  information taken in, and the mode boxes offered; Success says the
-   --  image held every group.
+   --  information taken in, the failsafe reset, and the mode boxes offered;
+   --  Success says the image held every group.
    procedure Load_Configuration (Success : out Boolean) is
       Fresh    : Adaflight.Config_Groups.Configuration;
       Defaults : Adaflight.Config_Codec.Data;
@@ -1001,6 +1001,7 @@ package body Adaflight.STM32.Flight is
       Configure_Soft_Serial;
       Adaflight.STM32.ESC_Serial.Configure (Config);
       Adaflight.Board_Info.Init (Board, Config);
+      Adaflight.STM32.Radio.Reset_Failsafe (Config);
       Offered := Available_Boxes;
    end Load_Configuration;
 
