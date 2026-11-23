@@ -2284,6 +2284,17 @@ package body Adaflight.STM32.Flight is
       Follow_Beeper_LED;
    end Confirmation_Beeps;
 
+   --  The configuration written and read back with the current task's run
+   --  time ignored, then confirmed with one beep.
+   procedure Save_And_Notify is
+      Unused_Success : Boolean;
+   begin
+      Scheduler.Ignore_Task_Exec_Time (Sched);
+      Write_Configuration;
+      Load_Configuration (Unused_Success);
+      Confirmation_Beeps (1);
+   end Save_And_Notify;
+
    procedure Silence_Beeper is
    begin
       Adaflight.Beeper.Silence_Beeper (Beep);
@@ -2330,16 +2341,13 @@ package body Adaflight.STM32.Flight is
    --  calibration marked complete and the level trims reset, then written,
    --  read back and confirmed with a beep.
    procedure Store_Acc_Calibration is
-      Unused_Success : Boolean;
    begin
       Config.Accelerometer_Config.Acc_Zero (0) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.X));
       Config.Accelerometer_Config.Acc_Zero (1) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Y));
       Config.Accelerometer_Config.Acc_Zero (2) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Z));
       Config.Accelerometer_Config.Acc_Zero (3) := 1;
       Config.Accelerometer_Config.Accelerometer_Trims := (others => 0);
-      Write_Configuration;
-      Load_Configuration (Unused_Success);
-      Confirmation_Beeps (1);
+      Save_And_Notify;
    end Store_Acc_Calibration;
 
    procedure Acc_Update (Now_Us : Scheduler.Time_Us) is
@@ -2949,7 +2957,6 @@ package body Adaflight.STM32.Flight is
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
-      Unused_Success : Boolean;
    begin
       for I in 1 .. Step.GPS_Home_Resets loop
          Adaflight.STM32.GPS.Reset_Home;
@@ -3018,9 +3025,7 @@ package body Adaflight.STM32.Flight is
          Trims (1) := Integer_16 (Integer'Max (-300, Integer'Min (300, Integer (Trims (1)) + Step.Trim_Pitch)));
       end if;
       if Step.Saves > 0 then
-         Write_Configuration;
-         Load_Configuration (Unused_Success);
-         Confirmation_Beeps (1);
+         Save_And_Notify;
       end if;
       if Step.Beeper.Calls > 0 then
          case Step.Beeper.Last is
@@ -4720,7 +4725,6 @@ package body Adaflight.STM32.Flight is
       Handled        : Boolean;
       Accepted       : Boolean;
       Calls          : Nav.Executor_Output;
-      Unused_Success : Boolean;
    begin
       Adaflight.MAVLink_Mission.Handle (Mission_State, Plan, Msg, Mission_Inputs, Seq, O, Handled);
       if not Handled then
@@ -4737,9 +4741,7 @@ package body Adaflight.STM32.Flight is
          Config.Flight_Plan_Config := Adaflight.Config_Runtime.Flight_Plan_Group_Of (Plan);
       end if;
       if O.Save_Config then
-         Write_Configuration;
-         Load_Configuration (Unused_Success);
-         Confirmation_Beeps (1);
+         Save_And_Notify;
       end if;
       Adaflight.STM32.MAVLink.Send (O.Data (1 .. O.Length), Seq);
    end Mission_Message;
@@ -6107,7 +6109,6 @@ package body Adaflight.STM32.Flight is
             Now_Us         : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
             Bound          : Boolean;
             Notify         : Boolean;
-            Unused_Success : Boolean;
          begin
             if Adaflight.Build_Features.SPI_Receiver then
                Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
@@ -6131,10 +6132,10 @@ package body Adaflight.STM32.Flight is
                Adaflight.RX_Task.In_Progress (RX_State));
             Adaflight.STM32.RX_SPI.Take_Save (Config, Bound, Notify);
             if Bound then
-               Write_Configuration;
                if Notify then
-                  Load_Configuration (Unused_Success);
-                  Confirmation_Beeps (1);
+                  Save_And_Notify;
+               else
+                  Write_Configuration;
                end if;
             end if;
          end;
