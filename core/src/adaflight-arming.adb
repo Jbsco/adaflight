@@ -1053,6 +1053,11 @@ package body Adaflight.Arming with SPARK_Mode is
       else
          Set_Mode (S, Horizon_Mode, False, Out_Step);
       end if;
+      Set_Mode
+        (S, Chirp_Mode,
+         Modes.Is_Active (M, Modes.Chirp) and then not S.Flight_Modes (Failsafe_Mode)
+         and then not S.Flight_Modes (GPS_Rescue_Mode),
+         Out_Step);
       Out_Step.Attitude_Fast :=
         S.Flight_Modes (Angle_Mode) or else S.Flight_Modes (Alt_Hold_Mode) or else S.Flight_Modes (Pos_Hold_Mode)
         or else S.Flight_Modes (Horizon_Mode);

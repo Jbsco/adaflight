@@ -144,6 +144,14 @@ package body Adaflight.STM32.Control is
       Adaflight.PID_Controller.Acro_Trainer_Init (Ctl);
    end Acro_Trainer_Init;
 
+   function Chirp_Finished return Boolean is (Adaflight.PID_Controller.Chirp_Finished (Ctl));
+   function Chirp_Axis return Natural is (Adaflight.Axes.Axis'Pos (Adaflight.PID_Controller.Chirp_Axis_Of (Ctl)));
+   function Chirp_Repeat_Total return Natural is
+     (Adaflight.PID_Controller.Chirp_Repeat_Total (Adaflight.STM32.Pilot.Loop_Runtime.all));
+   function Chirp_Repeat_Current return Natural is
+     (Natural'Max (0, Adaflight.PID_Controller.Chirp_Repeat_Current (Ctl, Adaflight.STM32.Pilot.Loop_Runtime.all)));
+   function Chirp_Series_Finished return Boolean is (Adaflight.PID_Controller.Chirp_Series_Finished (Ctl));
+
    procedure Nothing is null;
 
    --  The wing launch's pass, over the autopilot's angle targets the level
@@ -188,6 +196,7 @@ package body Adaflight.STM32.Control is
       Inp.Zero_Throttle_Iterm_Reset := Iterm_Reset;
       Inp.Angle_Mode := Modes (Adaflight.Arming.Angle_Mode);
       Inp.Horizon_Mode := Modes (Adaflight.Arming.Horizon_Mode);
+      Inp.Chirp_Mode := Modes (Adaflight.Arming.Chirp_Mode);
       Inp.Attitude := Current.Attitude;
       Inp.Trims := Current.Trims;
       for A in Adaflight.PID_Controller.Level_Axis loop

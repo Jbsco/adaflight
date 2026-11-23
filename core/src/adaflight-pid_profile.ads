@@ -50,6 +50,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    subtype Positive_Setting_16 is Positive range 1 .. 65_535;
    type Axis_Settings_16 is array (Axis) of Setting_16;
    type Axis_SPA_Modes is array (Axis) of SPA_Kind;
+   type Axis_Chirp_Amplitudes is array (Axis) of Natural range 0 .. 500;
 
    type Profile is record
       Gains                    : Axis_Gain_Set;
@@ -170,6 +171,16 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Simplified_Pitch_PI_Gain : Tuning_Factor := 100;
       Simplified_Dterm_Filter  : Boolean := True;
       Simplified_Dterm_Filter_Multiplier : Natural range 10 .. 200 := 100;
+      --  The chirp excitation: its shaping filter's lag and lead in hertz,
+      --  its amplitude per axis in degrees per second, its sweep's start and
+      --  end in tenths of a hertz and length in seconds, and its repeats.
+      Chirp_Lag_Freq_Hz        : Natural range 0 .. 255 := 3;
+      Chirp_Lead_Freq_Hz       : Natural range 0 .. 255 := 30;
+      Chirp_Amplitude          : Axis_Chirp_Amplitudes := (Roll => 230, Pitch => 230, Yaw => 180);
+      Chirp_Frequency_Start_Deci_Hz : Natural range 1 .. 1_000 := 2;
+      Chirp_Frequency_End_Deci_Hz : Natural range 1 .. 10_000 := 6_000;
+      Chirp_Time_Seconds       : Natural range 1 .. 255 := 20;
+      Chirp_Repeat             : Natural range 1 .. 9 := 1;
    end record
      with Dynamic_Predicate =>
        (Profile.Dterm_LPF1_Dyn_Min_Hz = 0

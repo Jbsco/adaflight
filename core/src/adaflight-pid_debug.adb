@@ -66,6 +66,22 @@ package body Adaflight.PID_Debug with SPARK_Mode is
             end if;
          end loop;
       end if;
+      if Debug.Selected (D, Debug.Chirp) then
+         Debug.Set (D, Debug.Chirp, 0, Debug.Rounded (Held (Held (T.Chirp_Sin_Arg) * 5.0e3)));
+         Debug.Set (D, Debug.Chirp, 1, Debug.Integer_16 (T.Chirp_Debug_Axis));
+         Debug.Set (D, Debug.Chirp, 2, R10 (S.Chirp.Sweep.F_Chirp));
+         Debug.Set (D, Debug.Chirp, 3, R1000 (T.Chirp_Excitation));
+         if T.Level_Ran (Axes.Roll) then
+            Debug.Set (D, Debug.Chirp, 4, R10 (Current (Axes.Roll)));
+            Debug.Set (D, Debug.Chirp, 5, R10 (S.Angle_Target (Axes.Roll)));
+            Debug.Set (D, Debug.Chirp, 6, 0);
+            Debug.Set (D, Debug.Chirp, 7, 0);
+         end if;
+         if T.Level_Ran (Axes.Pitch) then
+            Debug.Set (D, Debug.Chirp, 6, R10 (Current (Axes.Pitch)));
+            Debug.Set (D, Debug.Chirp, 7, R10 (S.Angle_Target (Axes.Pitch)));
+         end if;
+      end if;
       if T.Acro_Set and then Debug.Selected (D, Debug.Acro_Trainer) then
          Debug.Set (D, Debug.Acro_Trainer, 0, R10 (T.Acro_Angle));
          Debug.Set (D, Debug.Acro_Trainer, 1, Debug.Integer_16 (T.Acro_State));

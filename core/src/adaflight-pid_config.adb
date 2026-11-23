@@ -256,6 +256,7 @@ package body Adaflight.PID_Config with SPARK_Mode is
    begin
       R := (others => <>);
       R.Dt := Dt;
+      R.Loop_Us := Loop_Time;
       R.PID_Frequency := 1.0 / Dt;
       for A in Axis loop
          R.Coefficient (A) := Coefficients_Of (P.Gains (A));
@@ -294,6 +295,15 @@ package body Adaflight.PID_Config with SPARK_Mode is
       R.Acro_Trainer_Lookahead := Float (P.Acro_Trainer_Lookahead_Ms) / 1000.0;
       R.Acro_Trainer_Debug_Axis := P.Acro_Trainer_Debug_Axis;
       R.Acro_Trainer_Gain := Float (P.Acro_Trainer_Gain) / 10.0;
+      R.Chirp_Lag_Freq_Hz := Float (P.Chirp_Lag_Freq_Hz);
+      R.Chirp_Lead_Freq_Hz := Float (P.Chirp_Lead_Freq_Hz);
+      for A in Axis loop
+         R.Chirp_Amplitude (A) := Float (P.Chirp_Amplitude (A));
+      end loop;
+      R.Chirp_Frequency_Start_Hz := Float (P.Chirp_Frequency_Start_Deci_Hz) / 10.0;
+      R.Chirp_Frequency_End_Hz := Float (P.Chirp_Frequency_End_Deci_Hz) / 10.0;
+      R.Chirp_Time_Seconds := Float (P.Chirp_Time_Seconds);
+      R.Chirp_Repeat := P.Chirp_Repeat;
       if P.Dterm_LPF1_Dyn_Min_Hz > 0 then
          R.Dyn_LPF_Filter :=
            (case P.Dterm_LPF1_Type is

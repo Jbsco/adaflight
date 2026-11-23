@@ -1,3 +1,4 @@
+with Ada.Numerics.Elementary_Functions;
 with Adaflight.PWL;
 with Adaflight.Clock;
 
@@ -27,10 +28,34 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    -- Init --
    ----------
 
+   --  The chirp's shaping filter centred between its lag and lead, at the
+   --  phase their ratio gives, and its sweep. A lag or lead of zero is held
+   --  at one, and the centre at four tenths of the loop rate.
+   procedure Init_Chirp (S : in out State; R : Runtime)
+     with Global => null
+   is
+      use Ada.Numerics.Elementary_Functions;
+      Lag    : constant Float range 1.0 .. 255.0 := Float'Max (1.0, R.Chirp_Lag_Freq_Hz);
+      Lead   : constant Float range 1.0 .. 255.0 := Float'Max (1.0, R.Chirp_Lead_Freq_Hz);
+      Alpha  : constant Float range 1.0 / 256.0 .. 256.0 := Constrain_F (Lead / Lag, 1.0 / 256.0, 256.0);
+      --  The root of the ratio and the arcsine within their ranges.
+      Root   : constant Float range 0.0 .. 16.0 := Constrain_F (Sqrt (Alpha), 0.0, 16.0);
+      Angle  : constant Float range -2.0 .. 2.0 :=
+        Constrain_F (Arcsin (Constrain_F ((1.0 - Alpha) / (1.0 + Alpha), -1.0, 1.0)), -2.0, 2.0);
+      Center : constant Float := Constrain_F (Lag * Root, 1.0, 399_000.0 / Float (R.Loop_Us));
+      Phase  : constant Float := Constrain_F (Angle / Rad_Per_Degree, -89.0, 89.0);
+   begin
+      Filters.Phase_Comp_Init (S.Chirp.Filter, Center, Phase, R.Loop_Us);
+      Adaflight.Chirp.Init
+        (S.Chirp.Sweep, R.Chirp_Frequency_Start_Hz, R.Chirp_Frequency_End_Hz, R.Chirp_Time_Seconds,
+         Interfaces.Unsigned_32 (R.Loop_Us));
+   end Init_Chirp;
+
    procedure Init (S : out State; P : Profile; R : Runtime) is
    begin
       S := (others => <>);
       PID_Filters.Init (S.Filters, P, R);
+      Init_Chirp (S, R);
    end Init;
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean) is
@@ -498,6 +523,78 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Attenuate_Yaw;
 
+   Chirp_Settle_Time_Us : constant := 750_000;
+
+   --  The chirp excitation for this loop, shaped by its filter: in chirp
+   --  mode the sweep on the chirp axis, a sine where that axis levels and
+   --  otherwise a cosine scaled down below one hertz, with the sweep repeated
+   --  after a settling time until its repeats run out; out of chirp mode the
+   --  next axis is taken and everything starts again.
+   procedure Chirp_Step
+     (C : in out Chirp_Run; Taps : in out Debug_Taps; R : Runtime; Inp : Inputs; Level : Level_Kind;
+      Filtered : out Signal)
+     with Global => null, No_Inline
+   is
+      use type Interfaces.Integer_32;
+      Excitation : Float range -1.0 .. 1.0 := 0.0;
+      Sin_Arg    : Float := 0.0;
+      Mode_Now   : constant Boolean := Inp.Chirp_Mode;
+      Starting   : constant Boolean := Mode_Now and then not C.Mode_Previous;
+      Running    : Boolean;
+   begin
+      C.Mode_Previous := Mode_Now;
+      if Starting then
+         Filters.Phase_Comp_Reset (C.Filter);
+         C.Repeats_Remaining := R.Chirp_Repeat - 1;
+         C.Series_Finished := False;
+         C.Settle_Until_Us := 0;
+      end if;
+      if Mode_Now then
+         C.Axis_Toggle := True;
+         if C.Settle_Until_Us /= 0 then
+            if Clock.Elapsed (Inp.Now_Us, C.Settle_Until_Us) >= 0 then
+               C.Settle_Until_Us := 0;
+               Adaflight.Chirp.Reset (C.Sweep);
+               Filters.Phase_Comp_Reset (C.Filter);
+            end if;
+         else
+            Adaflight.Chirp.Update (C.Sweep, Running);
+            if Running then
+               Sin_Arg := C.Sweep.Sin_Arg;
+               if C.Active_Axis /= Yaw
+                 and then (Level = Level_Roll_Pitch or else (Level = Level_Roll and then C.Active_Axis = Roll))
+               then
+                  Excitation := Sin_Approx (Sin_Arg);
+               else
+                  Excitation := Cos_Approx (Sin_Arg);
+                  if C.Sweep.F_Chirp < 1.0 then
+                     Excitation := Excitation * C.Sweep.F_Chirp;
+                  end if;
+               end if;
+            elsif C.Sweep.Is_Finished then
+               if C.Repeats_Remaining > 0 then
+                  C.Repeats_Remaining := C.Repeats_Remaining - 1;
+                  C.Settle_Until_Us := Inp.Now_Us + Chirp_Settle_Time_Us;
+               else
+                  C.Series_Finished := True;
+               end if;
+            end if;
+         end if;
+      elsif C.Axis_Toggle then
+         C.Axis_Toggle := False;
+         C.Active_Axis := (if C.Active_Axis = Yaw then Roll else Axis'Succ (C.Active_Axis));
+         Adaflight.Chirp.Reset (C.Sweep);
+         C.Settle_Until_Us := 0;
+         C.Repeats_Remaining := 0;
+         C.Series_Finished := False;
+         Filters.Phase_Comp_Reset (C.Filter);
+      end if;
+      Filters.Phase_Comp_Apply (C.Filter, Excitation, Filtered);
+      Taps.Chirp_Sin_Arg := Sin_Arg;
+      Taps.Chirp_Debug_Axis := (if Mode_Now then Axis'Pos (C.Active_Axis) else -1);
+      Taps.Chirp_Excitation := Excitation;
+   end Chirp_Step;
+
    Acro_Trainer_Lookahead_Rate_Limit : constant := 500.0;
    Acro_Trainer_Setpoint_Limit       : constant := 1_000.0;
 
@@ -512,7 +609,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    procedure Apply_Acro_Trainer
      (R : Runtime; Inp : Inputs; A : Level_Axis; Axis_State : in out Trainer_State; I_Term : in out Iterm;
       Taps : in out Debug_Taps; Setpoint : in out Rate)
-     with Global => null
+     with Global => null, No_Inline
    is
       Reset_Iterm   : Boolean := False;
       Projected     : Float range -2.0 ** 12 .. 2.0 ** 12 := 0.0;
@@ -790,6 +887,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
       H          : Strength := 0.0;
+      Chirp_Filtered : Signal;
    begin
       if R.Wing_Build then
          for A in Axis loop
@@ -837,6 +935,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       if R.Landing_Disarm_Threshold > 0.0 then
          Disarm_On_Impact (S, R, Inp);
       end if;
+      Chirp_Step (S.Chirp, S.Taps, R, Inp, Level, Chirp_Filtered);
       for A in Axis loop
          declare
             Setpoint       : Rate := Inp.Setpoint (A);
@@ -854,6 +953,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             if R.Max_Velocity (A) /= 0.0 then
                Acceleration_Limit (S, A, R, Setpoint);
             end if;
+            Setpoint := Constrain_F
+              (Setpoint + (if A = S.Chirp.Active_Axis then R.Chirp_Amplitude (A) * Chirp_Filtered else 0.0),
+               -Rate_Bound, Rate_Bound);
             S.Axis_In_Angle_Mode (A) := False;
             if A /= Yaw then
                if Level = Level_Roll_Pitch or else (Level = Level_Roll and then A = Roll) then
