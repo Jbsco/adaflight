@@ -534,6 +534,20 @@ package body Adaflight.STM32.Radio is
       MSP_Chunks_Left := False;
    end Init;
 
+   Suspend_Period_Us : constant := 1_500_000;
+
+   procedure Suspend_Signal is
+   begin
+      Adaflight.Receiver.Suspend (Rx, Rx_Settings, Adaflight.STM32.Time.Micros);
+      Adaflight.Failsafe.On_Rx_Suspend (FS, Suspend_Period_Us);
+   end Suspend_Signal;
+
+   procedure Resume_Signal is
+   begin
+      Adaflight.Receiver.Resume (Rx, Rx_Settings, Adaflight.STM32.Time.Micros);
+      Adaflight.Failsafe.On_Rx_Resume (FS, Adaflight.STM32.Time.Millis);
+   end Resume_Signal;
+
    procedure Reset_Failsafe (Config : Adaflight.Config_Groups.Configuration) is
    begin
       FS_Settings := Failsafe_Settings (Config);

@@ -16702,3 +16702,10 @@ default, as Betaflight's SITL build does after an accelerometer calibration. Arm
 ended. In Betaflight's SITL scenario harness a held wing then armed inside its attitude estimate's high-gain reset after
 calibration, and kept up to 1 degree of calibrated tilt into its launch. At boot, radio start-up replaces whatever this
 reset changes.
+
+## D885. Receiver signal suspended around configuration storage (2026-11-22)
+
+Boards now suspend their receiver signal for each configuration write and read, and resume it after. Their failsafe
+counts a suspension as 1.5 s more of valid data and a resumption as valid data with its link up. A pulse receiver waits
+out a suspension and skips its first two samples after each resume. At boot, radio start-up replaces whatever these
+calls change.
