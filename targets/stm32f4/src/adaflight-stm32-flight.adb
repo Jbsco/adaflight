@@ -2247,6 +2247,10 @@ package body Adaflight.STM32.Flight is
                                   else Config.Pitot_Config.Pitot_I2c_Address)));
    end Pitot_Aftermath;
 
+   --  The configuration written and read back with the current task's run
+   --  time ignored, then confirmed with one beep.
+   procedure Save_And_Notify;
+
    --  After a compass task run: the field into the IMU reply, the beep the
    --  read asked for, and the zero saved when a calibration ended.
    procedure Compass_Aftermath is
@@ -2274,7 +2278,7 @@ package body Adaflight.STM32.Flight is
          for C in Adaflight.Vectors.Coordinate loop
             Config.Compass_Config.Mag_Zero (Adaflight.Vectors.Coordinate'Pos (C)) := Interfaces.Integer_16 (Zero (C));
          end loop;
-         Write_Configuration;
+         Save_And_Notify;
       end if;
    end Compass_Aftermath;
 
@@ -2284,8 +2288,6 @@ package body Adaflight.STM32.Flight is
       Follow_Beeper_LED;
    end Confirmation_Beeps;
 
-   --  The configuration written and read back with the current task's run
-   --  time ignored, then confirmed with one beep.
    procedure Save_And_Notify is
       Unused_Success : Boolean;
    begin
@@ -3902,8 +3904,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.OSD.Analyze_Again;
       end if;
       if R.Save then
-         Scheduler.Ignore_Task_State_Time (Sched);
-         Write_Configuration;
+         Save_And_Notify;
       end if;
       if R.Reset then
          Reset;
@@ -5556,7 +5557,7 @@ package body Adaflight.STM32.Flight is
                Adaflight.STM32.VTX.Run (Config, Adaflight.STM32.Time.Millis, Before, Session.Open, Save);
                Push_VTX_MSP;
                if Save then
-                  Write_Configuration;
+                  Save_And_Notify;
                end if;
             end;
          when Scheduler.Stack_Check =>
@@ -5648,8 +5649,7 @@ package body Adaflight.STM32.Flight is
       begin
          Adaflight.STM32.Radio.Bind_At_Power_Up (Config, Bind_Saved);
          if Bind_Saved then
-            Write_Configuration;
-            Confirmation_Beeps (1);
+            Save_And_Notify;
          end if;
       end;
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
@@ -5769,7 +5769,7 @@ package body Adaflight.STM32.Flight is
       begin
          Adaflight.STM32.VTX.Init (Config, Save);
          if Save then
-            Write_Configuration;
+            Save_And_Notify;
          end if;
       end;
       if Adaflight.Build_Features.Gimbal then

@@ -6793,6 +6793,26 @@ def main():
                                       ("vtx_power", 2, "SmartAudio power index for 100 to 299 mW")):
                 text = cli(sock, f"get {name}")
                 check(f"Spektrum VTX control sets the {what}", f"{name} = {value}" in text, text[-120:])
+            # The change saves with a confirmation beep: one short pulse on its own in this start's beeper log.
+            try:
+                with open(vtx_store + ".beeper.txt") as f:
+                    rows = [tuple(int(v) for v in line.split(",")) for line in f.read().split()]
+            except (OSError, ValueError):
+                rows = []
+            last = []
+            for row in rows:
+                if last and row[0] < last[-1][0]:
+                    last = []
+                last.append(row)
+            groups = []
+            for a, b in zip(last, last[1:]):
+                if a[1] == 1 and b[1] == 0:
+                    if groups and a[0] - groups[-1][-1][0] - groups[-1][-1][1] <= 150:
+                        groups[-1].append((a[0], b[0] - a[0]))
+                    else:
+                        groups.append([(a[0], b[0] - a[0])])
+            check("Spektrum VTX control's save confirms with one beep",
+                  any(len(g) == 1 and g[0][1] <= 60 for g in groups), repr([[p[1] for p in g] for g in groups]))
         finally:
             sender.stop.set()
             vtx.stop.set()
