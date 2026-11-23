@@ -48,6 +48,25 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             Z => Constrain_F (Aligned_V.Z, -Aligned_Bound, Aligned_Bound));
    end Align_Sample;
 
+   --  The attitude lowpass from rest at the settings' cutoff.
+   procedure Start_Lowpass (S : in out State; C : Settings)
+     with Post => S.Lowpass_Hz = C.Lowpass_Hz and then S.Zero = S.Zero'Old
+   is
+   begin
+      S.Lowpass_Hz := C.Lowpass_Hz;
+      S.Filter := (others => (others => <>));
+      if S.Lowpass_Hz /= 0 then
+         declare
+            K : constant Unit_Interval :=
+              Filters.PT2_Gain (Float (C.Lowpass_Hz), 1.0 / Float (C.Sample_Rate_Hz));
+         begin
+            for A in Coordinate loop
+               Filters.PT2_Init (S.Filter (A), K);
+            end loop;
+         end;
+      end if;
+   end Start_Lowpass;
+
    ----------
    -- Init --
    ----------
@@ -77,17 +96,18 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             Inflight_Ended   => False,
             Inflight_Saved   => False,
             Taps             => <>);
-      if S.Lowpass_Hz /= 0 then
-         declare
-            K : constant Unit_Interval :=
-              Filters.PT2_Gain (Float (C.Lowpass_Hz), 1.0 / Float (C.Sample_Rate_Hz));
-         begin
-            for A in Coordinate loop
-               Filters.PT2_Init (S.Filter (A), K);
-            end loop;
-         end;
-      end if;
+      Start_Lowpass (S, C);
    end Init;
+
+   --------------
+   -- Activate --
+   --------------
+
+   procedure Activate (S : in out State; C : Settings; Zero : Zero_Offsets) is
+   begin
+      Start_Lowpass (S, C);
+      S.Zero := Zero;
+   end Activate;
 
    -----------------------
    -- Start_Calibration --

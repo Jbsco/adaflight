@@ -363,6 +363,11 @@ package body Adaflight.STM32.Flight is
    --  A simulator's accelerometer counts as calibrated.
    function Acc_Has_Been_Calibrated return Boolean is
      (Adaflight.STM32.MCU.Simulated or else Config.Accelerometer_Config.Acc_Zero (3) /= 0);
+   --  The accelerometer's zero offsets the configuration stores.
+   function Stored_Acc_Zero return Adaflight.Accelerometer.Zero_Offsets is
+     ((Adaflight.Vectors.X => Integer (Config.Accelerometer_Config.Acc_Zero (0)),
+       Adaflight.Vectors.Y => Integer (Config.Accelerometer_Config.Acc_Zero (1)),
+       Adaflight.Vectors.Z => Integer (Config.Accelerometer_Config.Acc_Zero (2))));
    --  The scheduler's state lives in the core coupled memory too. Its init
    --  sets all of it.
    Sched    : Scheduler.State;
@@ -505,6 +510,9 @@ package body Adaflight.STM32.Flight is
    Acc_Settings   : Adaflight.Accelerometer.Settings;
    Acc_State      : Adaflight.Accelerometer.State;
    Acc_Cal        : Adaflight.Acc_Inflight.State;
+   --  Whether the loop units started, so that a configuration's activation
+   --  reaches them.
+   Loop_Units_Started : Boolean := False;
    Att_Config     : Adaflight.Attitude.Config;
    Att_State      : Adaflight.Attitude.State;
    --  Whether the craft is upright: no accelerometer, or an established
@@ -991,8 +999,8 @@ package body Adaflight.STM32.Flight is
    --  The stored configuration loaded with the receiver signal suspended:
    --  every group from its defaults and its stored bytes, the running
    --  features, the checks, the board's information taken in, the failsafe
-   --  reset, and the mode boxes offered; Success says the image held every
-   --  group.
+   --  reset, the accelerometer's zero and lowpass once the loop units run,
+   --  and the mode boxes offered; Success says the image held every group.
    procedure Load_Configuration (Success : out Boolean) is
       Fresh    : Adaflight.Config_Groups.Configuration;
       Defaults : Adaflight.Config_Codec.Data;
@@ -1010,6 +1018,13 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.ESC_Serial.Configure (Config);
       Adaflight.Board_Info.Init (Board, Config);
       Adaflight.STM32.Radio.Reset_Failsafe (Config);
+      if Loop_Units_Started then
+         Acc_Settings.Lowpass_Hz := Adaflight.Config_Runtime.Accelerometer_Settings_Of
+           (A => Config.Accelerometer_Config, Device => Config.Gyro_Device_Config (Active_Gyro),
+            Board => Config.Board_Alignment, Sample_Rate_Hz => Acc_Settings.Sample_Rate_Hz,
+            One_G => Acc_Settings.One_G, Features => Config.Feature_Config.Enabled_Features).Lowpass_Hz;
+         Adaflight.Accelerometer.Activate (Acc_State, Acc_Settings, Stored_Acc_Zero);
+      end if;
       Offered := Available_Boxes;
       Adaflight.STM32.Radio.Resume_Signal;
    end Load_Configuration;
@@ -1284,6 +1299,7 @@ package body Adaflight.STM32.Flight is
          Board => Config.Board_Alignment, Sample_Rate_Hz => Acc_Hz, One_G => Gyro_Report.One_G,
          Features => Config.Feature_Config.Enabled_Features);
       Adaflight.Accelerometer.Init (Acc_State, Acc_Settings);
+      Adaflight.Accelerometer.Activate (Acc_State, Acc_Settings, Stored_Acc_Zero);
       Attitude_Period_Fast_Us :=
         Scheduler.Time_Delta'Max
           (100, Scheduler.Time_Delta
@@ -1292,6 +1308,7 @@ package body Adaflight.STM32.Flight is
         (Adaflight.Config_Runtime.Attitude_Settings_Of (Config.Imu_Config, Config.Throttle_Correction_Config));
       Adaflight.Attitude.Init (Att_State);
       Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
+      Loop_Units_Started := True;
    end Init_Loop_Units;
 
    --  The gyro's lowpass, notch, dynamic notch and RPM filter settings read

@@ -16723,3 +16723,11 @@ A compass calibration's end, a menu save, a Spektrum VTX control change, correct
 Spektrum bind's reset now save through D886's procedure. Each had written its configuration without reading it back, so
 no failsafe reset (D884) followed, and all but a bind's reset skipped their confirmation beep. A menu save had its
 scheduler ignore a task's state time, where Betaflight ignores its run time.
+
+## D888. Stored accelerometer zero applied at activation (2026-11-23)
+
+Boards now take their accelerometer's zero offsets from the configuration at start-up, and again whenever a read
+activates a configuration once their loop units run. That activation also starts the attitude lowpass again at its
+configured cutoff. Before, a calibration's offsets were stored but never read back: they applied until a restart, and
+after a power cycle a board's attitude estimate leaned by its accelerometer's offset. Host smoke calibrates the MPU6000
+model's leaning counts, restarts, and reads them level.

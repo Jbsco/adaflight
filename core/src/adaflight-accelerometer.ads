@@ -102,6 +102,10 @@ package Adaflight.Accelerometer with SPARK_Mode is
    end record;
 
    procedure Init (S : out State; C : Settings);
+   --  A configuration's activation: its stored zero offsets taken in and the
+   --  attitude lowpass started again at the settings' cutoff.
+   procedure Activate (S : in out State; C : Settings; Zero : Zero_Offsets)
+     with Post => S.Zero = Zero and then S.Lowpass_Hz = C.Lowpass_Hz;
 
    procedure Start_Calibration (S : in out State)
      with Post => S.Calibrating = Calibration_Cycles;
