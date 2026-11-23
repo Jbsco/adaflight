@@ -20,6 +20,9 @@ package Adaflight.Host_Simulator is
    procedure Poll;
    function Gyro return Adaflight.Sim_FDM.Axes;
    function Acc return Adaflight.Sim_FDM.Axes;
+   --  The accelerometer reading of the latest packet since the last take,
+   --  once.
+   procedure Take_Acc (Fresh : out Boolean; Counts : out Adaflight.Sim_FDM.Axes);
    --  The magnetic field of the latest packet in the body frame.
    function Mag return Adaflight.Sim_FDM.Axes;
    --  The quaternion of the latest packet since the last take, once.

@@ -51,6 +51,7 @@ package body Adaflight.Host_Simulator is
    Feed_Gyro    : Adaflight.Sim_FDM.Axes := (others => 0);
    Feed_Acc     : Adaflight.Sim_FDM.Axes := (others => 0);
    Feed_Mag     : Adaflight.Sim_FDM.Axes := (others => 0);
+   Fresh_Acc    : Boolean := False;
    Latest       : Adaflight.Attitude.Quaternion;
    Fresh_Q      : Boolean := False;
    Latest_GPS   : Adaflight.Sim_FDM.GPS_Fix;
@@ -199,7 +200,8 @@ package body Adaflight.Host_Simulator is
                      Feed_Gyro := F.Gyro;
                      Feed_Acc := F.Acc;
                      Feed_Mag := F.Mag;
-                     Latest := (W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
+                     Fresh_Acc := True;
+                     Latest :=(W => F.Attitude (1), X => F.Attitude (2), Y => F.Attitude (3), Z => F.Attitude (4));
                      Fresh_Q := True;
                      Pressure_Pa := F.Pressure;
                      Send_Due := True;
@@ -240,6 +242,13 @@ package body Adaflight.Host_Simulator is
          end;
       end loop;
    end Poll;
+
+   procedure Take_Acc (Fresh : out Boolean; Counts : out Adaflight.Sim_FDM.Axes) is
+   begin
+      Fresh := Fresh_Acc;
+      Counts := Feed_Acc;
+      Fresh_Acc := False;
+   end Take_Acc;
 
    procedure Take_RC (Fresh : out Boolean; Pulses : out Adaflight.STM32.MCU.RC_Pulses) is
    begin
