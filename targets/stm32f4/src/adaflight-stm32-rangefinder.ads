@@ -23,6 +23,11 @@ package Adaflight.STM32.Rangefinder is
    --  and zero without a detected rangefinder; and the last distance before
    --  the tilt correction.
    function Altitude_Cm return Interfaces.Integer_32;
+   --  Whether the sensor gave a valid reading within its timeout, and the
+   --  time and measured interval of its latest sample.
+   function Healthy return Boolean;
+   function Sample_Time_Us return Interfaces.Unsigned_32;
+   function Sample_Interval_Us return Interfaces.Integer_32;
    --  The UP-T1 module's optical flow side: its detection on the optical
    --  flow port, which opens that port when the rangefinder has not, the
    --  frame parse the optical flow task shares, and the last flow sample.

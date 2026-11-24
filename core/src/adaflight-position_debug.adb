@@ -37,6 +37,9 @@ package body Adaflight.Position_Debug with SPARK_Mode is
          end if;
       end if;
       if Debug.Selected (D, Debug.Altitude) then
+         if T.RF_Fed then
+            Debug.Set (D, Debug.Altitude, 0, R1 (T.RF_Rel_Cm));
+         end if;
          if T.Baro_Fed then
             Debug.Set (D, Debug.Altitude, 1, R1 (T.Baro_Rel_Cm));
          end if;

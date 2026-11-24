@@ -4074,8 +4074,9 @@ package body Adaflight.STM32.Flight is
    end Telemetry_Mode_Flags;
 
    --  What the position estimate reads: the accelerometer through the
-   --  attitude, no barometer, the GPS as its link reports it, and the modes
-   --  that ask for the horizontal estimate.
+   --  attitude, the barometer, the GPS as its link reports it, the
+   --  rangefinder, and the modes that ask for the horizontal estimate or
+   --  hold an altitude target.
    function Position_Inputs (Now_Us : Unsigned_32) return Adaflight.Position_Estimator.Inputs is
       G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
@@ -4102,6 +4103,13 @@ package body Adaflight.STM32.Flight is
          Cos_Lat            => G.Cos_Lat,
          Position_Hold_Mode => M (Adaflight.Arming.Pos_Hold_Mode),
          Rescue_Mode        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         Altitude_Hold_Mode => M (Adaflight.Arming.Alt_Hold_Mode),
+         Autopilot_Mode     => M (Adaflight.Arming.Autopilot_Mode),
+         RF_Present         => Adaflight.STM32.Rangefinder.Detected,
+         RF_Healthy         => Adaflight.STM32.Rangefinder.Healthy,
+         RF_Altitude_Cm     => Adaflight.STM32.Rangefinder.Altitude_Cm,
+         RF_Sample_Time_Us  => Adaflight.STM32.Rangefinder.Sample_Time_Us,
+         RF_Interval_Us     => Adaflight.STM32.Rangefinder.Sample_Interval_Us,
          Baro_Present       => Adaflight.STM32.Baro.Detected,
          Baro_Altitude_Cm   => Adaflight.STM32.Baro.Altitude_Cm,
          Baro_Sample_Time_Us => Adaflight.STM32.Baro.Sample_Time_Us,

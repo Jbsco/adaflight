@@ -16,6 +16,18 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    Position_Accuracy_Denom : constant := 1_000.0;
    Altitude_Accuracy_Denom : constant := 1_500.0;
    Cross_Cal_Tau_GPS_S     : constant := 200.0;
+   Cross_Cal_Tau_RF_S      : constant := 2.0;
+   Rangefinder_Noise       : constant := 100.0;
+   Rangefinder_Min_Alt_Cm  : constant := 10.0;
+   Near_Field_Min_Cm       : constant := 0.0;
+   Near_Field_Noise_Scale  : constant := 4.0;
+   Ground_Effect_Alt_Cm    : constant := 50.0;
+   Ground_Effect_Full_Cm   : constant := 20.0;
+   Ground_Effect_Scale     : constant := 200.0;
+   Ground_Latch_Hold_Us    : constant := 1_000_000;
+   Ground_Latch_Fade_Us    : constant := 1_000_000;
+   On_Ground_Tolerance_Cm  : constant := 50.0;
+   Min_Ground_Trust        : constant Float := Float'Machine (1.0 / Ground_Effect_Scale);
    Gravity_Cmss            : constant Float := 980.665;
    Measurement_Timeout_Us  : constant := 2_000_000;
    Max_Vertical_Speed_Cms  : constant := 4_000.0;
@@ -76,8 +88,9 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    end Gate_Step;
 
    --  The vertical filter, the barometer's offset, gate and record, the
-   --  GPS altitude offset and the calibration entries back to their start,
-   --  as at a change of arming; the outputs follow from the update.
+   --  rangefinder's offset and gate, the ground effect latch, the GPS
+   --  altitude offset and the calibration entries back to their start, as
+   --  at a change of arming; the outputs follow from the update.
    procedure Reset_Z (S : in out State) is
    begin
       Init (S.Up, 0.0, 0.0, 0.0, Initial_Variance, Initial_Variance, Initial_Variance, Jerk_Density_Z);
@@ -89,6 +102,11 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       S.Baro_Gate := (others => <>);
       S.Baro_Raw_Cm := 0.0;
       S.Baro_Active := False;
+      S.RF_Offset_Cm := 0.0;
+      S.RF_Offset_Set := False;
+      S.RF_Gate := (others => <>);
+      S.Ground_AGL_Valid := False;
+      S.RF_Active := False;
       S.GPS_Anchor_Tau_S := Cross_Cal_Tau_GPS_S;
       S.GPS_Anchor_Active := False;
    end Reset_Z;
@@ -266,9 +284,67 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       end;
    end Baro_Ready;
 
+   --  The rangefinder is a vertical source unless the altitude comes from
+   --  the GPS or the barometer alone.
+   function RF_Feeds_Z (C : Settings) return Boolean is (C.Source not in GPS_Only | Baro_Only);
+
+   --  A rangefinder altitude is usable from a healthy sensor between the
+   --  floor the caller gives and the configured range.
+   function RF_Sample_Valid (Inp : Inputs; Max_Cm, Min_Cm : Float) return Boolean is
+     (Inp.RF_Present and then Inp.RF_Healthy
+      and then Float (Inp.RF_Altitude_Cm) >= Min_Cm and then Float (Inp.RF_Altitude_Cm) <= Max_Cm);
+
+   --  The barometer noise multiplier in ground effect, from the height above
+   --  the ground the rangefinder reads, or the last one it read: at full
+   --  strength for a second after a reading, released over the next. The
+   --  trust falls from one at fifty centimetres to a two hundredth at twenty.
+   procedure Ground_Effect (S : in out State; C : Settings; Inp : Inputs; Scale : out Float)
+     with Post => Scale in 0.98 .. 251.0
+   is
+      AGL  : Float range 0.0 .. 65_535.0;
+      Fade : Unit_Interval := 1.0;
+   begin
+      Scale := 1.0;
+      if not RF_Feeds_Z (C) then
+         return;
+      end if;
+      if RF_Sample_Valid (Inp, Float (C.Max_Range_Cm), Near_Field_Min_Cm) then
+         AGL := Float (Inp.RF_Altitude_Cm);
+         S.Ground_AGL_Cm := AGL;
+         S.Ground_AGL_Time_Us := Inp.Now_Us;
+         S.Ground_AGL_Valid := True;
+      elsif S.Ground_AGL_Valid then
+         declare
+            Age : constant Integer_32 := Clock.Elapsed (Inp.Now_Us, S.Ground_AGL_Time_Us);
+         begin
+            if Age < 0 or else Age >= Ground_Latch_Hold_Us + Ground_Latch_Fade_Us then
+               S.Ground_AGL_Valid := False;
+               return;
+            end if;
+            AGL := Constrain_F (S.Ground_AGL_Cm, 0.0, 65_535.0);
+            if Age > Ground_Latch_Hold_Us then
+               Fade := 1.0 - Float (Age - Ground_Latch_Hold_Us) / Float (Ground_Latch_Fade_Us);
+            end if;
+         end;
+      else
+         return;
+      end if;
+      declare
+         T     : constant Unit_Interval :=
+           Constrain_F ((AGL - Ground_Effect_Full_Cm) / (Ground_Effect_Alt_Cm - Ground_Effect_Full_Cm), 0.0, 1.0);
+         Trust : constant Float range 0.004 .. 1.01 := Min_Ground_Trust + T * Float'Machine (1.0 - Min_Ground_Trust);
+         Full   : constant Float range 0.98 .. 251.0 := 1.0 / Trust;
+         Excess : constant Float range -0.02 .. 250.0 := Full - 1.0;
+         Faded  : constant Float range -0.02 .. 250.0 := Excess * Fade;
+      begin
+         Scale := 1.0 + Faded;
+      end;
+   end Ground_Effect;
+
    procedure Feed_Barometer (S : in out State; C : Settings; Inp : Inputs) is
       Ready  : Boolean;
       Action : Step_Action;
+      Scale  : Float;
    begin
       if not Inp.Baro_Present then
          S.Baro_Data_Available := False;
@@ -285,9 +361,10 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          S.Baro_Offset_Cm := Inp.Baro_Altitude_Cm;
          S.Baro_Offset_Set := True;
       end if;
+      Ground_Effect (S, C, Inp, Scale);
       declare
          Trust    : constant Float range 0.1 .. 1.0 := Constrain_F (Float (C.Prefer_Baro) * 0.01, 0.1, 1.0);
-         Noise    : constant Position_Filter.Noise := Baro_Noise / Trust;
+         Noise    : constant Position_Filter.Noise := Baro_Noise / Trust * Scale;
          Relative : constant Altitude_Cm := Held (Inp.Baro_Altitude_Cm - S.Baro_Offset_Cm);
       begin
          S.Taps.Baro_Fed := True;
@@ -310,6 +387,110 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          S.Baro_Active := True;
       end;
    end Feed_Barometer;
+
+   --  The rangefinder's latest sample is ready while it is new and within
+   --  the interval the sensor measured between its samples.
+   procedure RF_Ready (S : in out State; Inp : Inputs; Ready : out Boolean) is
+      Has_New : constant Boolean := not S.RF_Data_Available or else Inp.RF_Sample_Time_Us /= S.RF_Timestamp_Us;
+   begin
+      if Has_New then
+         S.RF_Data_Available := True;
+         S.RF_Timestamp_Us := Inp.RF_Sample_Time_Us;
+         S.RF_Hold_Us := Inp.RF_Interval_Us;
+      end if;
+      declare
+         Age : constant Integer_32 := Clock.Elapsed (Inp.Now_Us, S.RF_Timestamp_Us);
+         Within_Hold : constant Boolean :=
+           S.RF_Data_Available and then S.RF_Hold_Us > 0 and then Age >= 0 and then Age < S.RF_Hold_Us;
+      begin
+         Ready := (Has_New and then S.RF_Hold_Us <= 0) or else Within_Hold;
+      end;
+   end RF_Ready;
+
+   --  The vertical frame is rebased only while no mode holds an absolute
+   --  altitude target.
+   function May_Rebase (Inp : Inputs) return Boolean is
+     (not (Inp.Altitude_Hold_Mode or else Inp.Position_Hold_Mode or else Inp.Rescue_Mode or else Inp.Autopilot_Mode));
+
+   --  The vertical origin moved so the estimate reads the new position, the
+   --  barometer and GPS offsets and the barometer gate carried with it.
+   procedure Rebase (S : in out State; New_Position_Cm : Altitude_Cm) is
+      Shift : constant Altitude_Cm := Held (New_Position_Cm - S.Up.X (Position));
+   begin
+      Shift_Position (S.Up, Shift);
+      S.Baro_Offset_Cm := Held (S.Baro_Offset_Cm - Shift);
+      S.Baro_Gate.Last_Accepted_Cm := Held (S.Baro_Gate.Last_Accepted_Cm + Shift);
+      S.GPS_Alt_Offset_Cm := Held (S.GPS_Alt_Offset_Cm - Shift);
+   end Rebase;
+
+   --  The rangefinder against the ground height beneath its first sample:
+   --  on the ground, disarmed or with no vertical estimate the first reading
+   --  itself, in the air the estimate rebased onto the reading, or the
+   --  difference kept in the offset while a mode holds an altitude. The
+   --  near field is fused with a larger noise, and the sample goes through
+   --  its step gate.
+   procedure Feed_Rangefinder (S : in out State; C : Settings; Inp : Inputs)
+     with Global => null
+   is
+      Feeds_Z : constant Boolean := RF_Feeds_Z (C);
+      Ready   : Boolean;
+      Action  : Step_Action;
+   begin
+      if not RF_Sample_Valid (Inp, Float (C.Max_Range_Cm), Near_Field_Min_Cm) then
+         S.RF_Data_Available := False;
+         return;
+      end if;
+      RF_Ready (S, Inp, Ready);
+      if not Ready then
+         return;
+      end if;
+      declare
+         Altitude : constant Float range 0.0 .. 65_535.0 := Float (Inp.RF_Altitude_Cm);
+      begin
+         if not S.RF_Offset_Set then
+            if not Inp.Armed or else not S.Valid_Z or else abs S.Up.X (Position) < On_Ground_Tolerance_Cm then
+               S.RF_Offset_Cm := Altitude;
+            elsif Feeds_Z and then May_Rebase (Inp) then
+               S.RF_Offset_Cm := 0.0;
+               Rebase (S, Altitude);
+            else
+               S.RF_Offset_Cm := Held (Altitude - S.Up.X (Position));
+            end if;
+            S.RF_Offset_Set := True;
+         end if;
+         declare
+            Relative : constant Altitude_Cm := Held (Altitude - S.RF_Offset_Cm);
+            Noise    : Position_Filter.Noise := Rangefinder_Noise;
+         begin
+            S.Taps.RF_Fed := True;
+            S.Taps.RF_Rel_Cm := Relative;
+            if not Feeds_Z then
+               return;
+            end if;
+            if C.Source in Rangefinder_Only | Rangefinder_Prefer then
+               Noise := Noise * 0.25;
+            end if;
+            if Altitude < Rangefinder_Min_Alt_Cm then
+               Noise := Noise * Near_Field_Noise_Scale;
+            end if;
+            Gate_Step (S.RF_Gate, Relative, Inp.RF_Interval_Us, Action);
+            case Action is
+               when Reject =>
+                  return;
+               when Full =>
+                  if Drives_Velocity (C, Inp) then
+                     Update_Position_To_Velocity (S.Up, Relative, Noise);
+                  else
+                     Update_Position (S.Up, Relative, Noise);
+                  end if;
+               when Position_Only =>
+                  Update_Position (S.Up, Relative, Noise);
+            end case;
+            S.RF_Active := True;
+            S.Last_Z_Measurement_Us := Inp.Now_Us;
+         end;
+      end;
+   end Feed_Rangefinder;
 
    --  A fix is ready while new, or within the hold interval that its rate
    --  gives, so a slow receiver still corrects every task.
@@ -433,12 +614,17 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    end Feed_GPS;
 
    --  The barometer offset drawn toward the offset the vertical estimate
-   --  implies, at the rate of the GPS anchor, while armed and both fed this
-   --  task; the entries are spent either way.
-   procedure Cross_Calibrate (S : in out State; Armed : Boolean) is
+   --  implies, at the rate of the faster anchor fed this task, the
+   --  rangefinder before the GPS, while armed and the barometer fed; the
+   --  entries are spent either way.
+   procedure Cross_Calibrate (S : in out State; Armed : Boolean)
+     with Global => null
+   is
       Alpha : Unit_Interval := 0.0;
    begin
-      if S.GPS_Anchor_Active then
+      if S.RF_Active then
+         Alpha := Constrain_F (Sample_Time_S / Cross_Cal_Tau_RF_S, 0.0, 1.0);
+      elsif S.GPS_Anchor_Active then
          Alpha := Constrain_F (Sample_Time_S / S.GPS_Anchor_Tau_S, 0.0, 1.0);
       end if;
       if Alpha > 0.0 and then Armed and then S.Baro_Active then
@@ -449,6 +635,7 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          end;
       end if;
       S.Baro_Active := False;
+      S.RF_Active := False;
       S.GPS_Anchor_Active := False;
    end Cross_Calibrate;
 
@@ -501,6 +688,7 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       end if;
       Feed_GPS (S, C, Inp);
       Feed_Barometer (S, C, Inp);
+      Feed_Rangefinder (S, C, Inp);
       Cross_Calibrate (S, Inp.Armed);
       S.Position_East := S.East.X (Position);
       S.Position_North := S.North.X (Position);
