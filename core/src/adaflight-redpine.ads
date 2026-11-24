@@ -54,6 +54,17 @@ package Adaflight.Redpine with SPARK_Mode is
 
    subtype Loop_Time is Integer_32 range 0 .. 255_000;
 
+   --  The debug values the receiver has written: the loop time and RSSI byte
+   --  of the last packet taken, and the missed packet count as a packet taken
+   --  or a packet missed last left it.
+   type Debug_Taps is record
+      Packet_Set   : Boolean := False;
+      Loop_Time_Us : Loop_Time := 0;
+      RSSI_Byte    : Unsigned_8 := 0;
+      Missing_Set  : Boolean := False;
+      Missing      : Unsigned_32 := 0;
+   end record;
+
    --  The protocol state, the start time, the missed packets, the
    --  calibration, the bind tuning, the mode, the hop position, the loop
    --  time and the packet, total and protocol timers, the radio and the last
@@ -74,6 +85,7 @@ package Adaflight.Redpine with SPARK_Mode is
       Protocol_Timer_Us : Unsigned_32 := 0;
       Radio             : Adaflight.SPI_Radio.Radio;
       Packet            : Packet_Bytes := (others => 0);
+      Taps              : Debug_Taps;
    end record;
 
    subtype Output is Adaflight.SPI_Radio.Output;

@@ -16834,3 +16834,11 @@ Each change of these fields writes its value, so each debug value is its field a
 frame counts as missed when a hop passes without both halves of a packet, and that count restarts at each return to
 binding. This mode was offered and named, but no unit wrote it. Vectors run each sequence under this mode or another
 unit's mode.
+
+## D899. Redpine debug values (2026-11-24)
+
+Redpine SPI receivers now record their debug mode. A packet taken writes its loop time and RSSI byte and clears missed
+packet count, and each missed packet writes that count. Every data call writes protocol state, and bind tuning writes
+its lower and upper offsets. A bind request and a start clear missed packet count without a write, so its debug value
+is captured where it is written. This mode was offered and named, but no unit wrote it. Vectors run each sequence
+under this mode or another unit's mode.
