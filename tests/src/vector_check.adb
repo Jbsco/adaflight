@@ -103,6 +103,7 @@ with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.SPI_Radio;
 with Adaflight.FrSky_SPI;
+with Adaflight.FrSky_SPI_Debug;
 with Adaflight.SFHSS;
 with Adaflight.Redpine;
 with Adaflight.FlySky;
@@ -16704,6 +16705,7 @@ procedure Vector_Check is
    --  The X link's SmartPort encoder, its voltage sensor alone enabled.
    FD_Smart  : Adaflight.SmartPort_Telemetry.Stream;
    FD_Tunnel : Adaflight.MSP_Telemetry.Tunnel;
+   FD_Debug  : Adaflight.Debug.State;
 
    function FD_Hex (V : Natural; Width : Natural) return String is
       Digits_Of : constant String := "0123456789abcdef";
@@ -17034,6 +17036,14 @@ procedure Vector_Check is
             Record_Text (Name & ".ops", Str (28), FD_Ops (O));
             Record_Int (Name & ".hub_generated", Int (53), Integer_64 (FD_State.Hub_Generated));
          end;
+      elsif Name = "fddebug" then
+         FD_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (FD_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "fddbg" then
+         Adaflight.FrSky_SPI_Debug.Record_Update (FD_Debug, FD_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("fdstep.debug", Int (4 + J), Integer_64 (FD_Debug.Data (J)));
+         end loop;
       end if;
    end Check_FrSky_D_Line;
 

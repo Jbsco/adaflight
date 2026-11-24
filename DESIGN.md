@@ -16819,3 +16819,10 @@ timer frequency offset and phase shift, written by each lock update in timer int
 connection count, filtered signal strength, signal to noise in decibels and uplink link quality, written by each data
 task. Both modes were offered and named, but no unit wrote them. Vectors run each sequence of the receiver family
 under one of these modes or another unit's mode.
+
+## D897. FrSky SPI debug values (2026-11-24)
+
+FrSky SPI receivers now record their debug mode. D8 receivers write data error count, raised by each channel packet
+with a channel out of range. X receivers write missing packet count after each timeout raises it, and bad frame count
+after each refused packet. This mode was offered and named, but no unit wrote it. Vectors run each sequence of both
+receiver families under this mode or another unit's mode, and later D8 sequences draw some channel values out of range.

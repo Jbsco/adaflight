@@ -77,6 +77,16 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
    Hub_Buffer_Size : constant := 64;
    type Hub_Bytes is array (0 .. Hub_Buffer_Size - 1) of Unsigned_8;
 
+   --  Which debug values the receiver has written: the data error count on a
+   --  D8 channel packet out of range, the bad frame count on an X packet
+   --  refused, and the missing packet count after an X timeout raised it.
+   type Debug_Taps is record
+      Error_Count_Set : Boolean := False;
+      Bad_Frame_Set   : Boolean := False;
+      Missing_Set     : Boolean := False;
+      Missing         : Unsigned_32 := 0;
+   end record;
+
    --  The protocol state, the timers, the calibration, the bind tuning, the
    --  hop position, the RSSI, the antenna, the bind request and the frames.
    type State is record
@@ -132,6 +142,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       To_Process_Id       : Sequence_Id := 0;
       To_Process_Index    : Natural range 0 .. 5 := 0;
       Smart_Clear         : Boolean := False;
+      Taps                : Debug_Taps;
    end record;
 
    subtype Output is Adaflight.SPI_Radio.Output;
