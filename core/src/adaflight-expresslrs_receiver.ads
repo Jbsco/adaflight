@@ -120,6 +120,23 @@ package Adaflight.ExpressLRS_Receiver with SPARK_Mode is
    --  Packets per telemetry packet: one for no telemetry, 128 down to 2.
    subtype Telemetry_Denominator is Byte range 1 .. 128;
 
+   --  What the debug values read: the phase lock's raw and filtered offsets
+   --  with the timer's frequency offset and phase shift when the lock last
+   --  updated, and the lost connection count, filtered signal strength,
+   --  signal to noise and uplink link quality when the data task last ran.
+   type Debug_Taps is record
+      Lock_Set         : Boolean := False;
+      Raw_Offset_Us    : Offset_Us := 0;
+      Offset_Us        : Integer_32 := 0;
+      Frequency_Offset : Integer_32 := 0;
+      Phase_Shift_Us   : Integer_32 := 0;
+      Link_Set         : Boolean := False;
+      Lost_Connections : Unsigned_16 := 0;
+      RSSI_Filtered    : Integer_8 := 0;
+      SNR              : Integer_8 := 0;
+      Uplink_LQ        : Byte := 0;
+   end record;
+
    --  The receiver's state as the reference keeps it, with the file-level
    --  state beside it and the requests and reports the target reads.
    type Receiver is record
@@ -191,6 +208,7 @@ package Adaflight.ExpressLRS_Receiver with SPARK_Mode is
       Save_Count               : Unsigned_32 := 0;
       MSP_Ready_Count          : Unsigned_32 := 0;
       MSP_Frame                : MSP_Buffer := (others => 0);
+      Taps                     : Debug_Taps;
    end record
      with Dynamic_Predicate =>
        Rate_Valid (Receiver.Domain, Receiver.Rate) and then Rate_Valid (Receiver.Domain, Receiver.Next_Rate)

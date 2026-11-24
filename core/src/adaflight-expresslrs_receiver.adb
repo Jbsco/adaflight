@@ -167,6 +167,11 @@ package body Adaflight.ExpressLRS_Receiver with SPARK_Mode is
          else
             Timer_Set_Phase_Shift (R.Timing, Shift_Right_Arith (R.Lock.Offset_Us, 2));
          end if;
+         R.Taps.Frequency_Offset := R.Timing.Frequency_Offset_Ticks;
+         R.Taps.Phase_Shift_Us := R.Timing.Phase_Shift_Us;
+         R.Taps.Raw_Offset_Us := R.Lock.Raw_Offset_Us;
+         R.Taps.Offset_Us := R.Lock.Offset_Us;
+         R.Taps.Lock_Set := True;
       end if;
       R.Events := (others => <>);
    end Update_Phase_Lock;
@@ -856,6 +861,11 @@ package body Adaflight.ExpressLRS_Receiver with SPARK_Mode is
       Handle_Connection_State (R, C, Now_Ms);
       Handle_Config_Update (R, Now_Ms);
       Handle_Link_Stats (R, Now_Ms);
+      R.Taps.Lost_Connections := R.Lost_Connections;
+      R.Taps.RSSI_Filtered := R.RSSI_Filtered;
+      R.Taps.SNR := R.SNR;
+      R.Taps.Uplink_LQ := R.Uplink_LQ;
+      R.Taps.Link_Set := True;
       if R.Packet_St /= None then
          Status := R.Packet_St;
          R.Packet_St := None;
