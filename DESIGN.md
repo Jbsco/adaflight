@@ -16850,3 +16850,14 @@ and each packet check writes its receive error flag. A telemetry timeout reads t
 whether the telemetry packet was still unsent. That register read happens only while this mode is selected, so a
 call's inputs now say whether it is, and give that register's value. This mode was offered and named, but no unit
 wrote it. Vectors run each sequence under this mode or another unit's mode, with the register read in operation order.
+
+## D901. VTX MSP debug values (2026-11-24)
+
+MSP video transmitters now record their debug mode after each driver cycle: count of configuration frames sent,
+whether their link is the CRSF receiver's port, whether low power while disarmed applies, and their link's MSP
+descriptor. This mode was offered and named, but no unit wrote it.
+
+Boards now number MSP links for that descriptor. Each opening of an MSP line takes the next number, so a line reopened
+after a telemetry stream gets a new one. The telemetry link takes its number after those lines at start-up, while the
+telemetry feature is on. Vectors run each sequence under this mode or another unit's mode. Host smoke reads these
+values on a goggle's port and on a CRSF port.

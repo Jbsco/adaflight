@@ -27,13 +27,17 @@ package Adaflight.STM32.VTX is
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  The VTX task: the stored settings, the inputs and the device's bytes
    --  into the control layer, its frames out, and the settings it changed
-   --  written back; Save asks for the configuration to be stored.
+   --  written back; Save asks for the configuration to be stored. The MSP
+   --  descriptors are the serial MSP port's on the transmitter's UART and
+   --  the telemetry link's, for the MSP driver's debug values.
    procedure Run
-     (C        : in out Adaflight.Config_Groups.Configuration;
-      Now_Ms   : Interfaces.Unsigned_32;
-      Now_Us   : Interfaces.Unsigned_32;
-      Cli_Mode : Boolean;
-      Save     : out Boolean);
+     (C                    : in out Adaflight.Config_Groups.Configuration;
+      Now_Ms               : Interfaces.Unsigned_32;
+      Now_Us               : Interfaces.Unsigned_32;
+      Cli_Mode             : Boolean;
+      Serial_Descriptor    : Interfaces.Integer_16;
+      Telemetry_Descriptor : Interfaces.Integer_16;
+      Save                 : out Boolean);
    --  The channel switches after the mode pass.
    procedure Switches
      (C : in out Adaflight.Config_Groups.Configuration; Aux : Adaflight.Modes.Aux_Values; Armed : Boolean);

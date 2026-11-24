@@ -36,4 +36,14 @@ package body Adaflight.VTX_Debug with SPARK_Mode is
       end if;
    end Record_SmartAudio;
 
+   procedure Record_MSP
+     (D : in out Debug.State; M : VTX_MSP.Driver; Low_Power, CRSF_Port : Boolean;
+      Serial_Descriptor, Telemetry_Descriptor : Debug.Integer_16) is
+   begin
+      Debug.Set (D, Debug.VTX_MSP, 0, Debug.Wrapped (Interfaces.Integer_32 (M.Packets)));
+      Debug.Set (D, Debug.VTX_MSP, 1, Boolean'Pos (CRSF_Port));
+      Debug.Set (D, Debug.VTX_MSP, 2, Boolean'Pos (Low_Power));
+      Debug.Set (D, Debug.VTX_MSP, 3, (if CRSF_Port then Telemetry_Descriptor else Serial_Descriptor));
+   end Record_MSP;
+
 end Adaflight.VTX_Debug;

@@ -157,11 +157,13 @@ package body Adaflight.STM32.VTX is
      (Open and then V.Kind /= Core.MSP_Device and then N = Which);
 
    procedure Run
-     (C        : in out Adaflight.Config_Groups.Configuration;
-      Now_Ms   : Interfaces.Unsigned_32;
-      Now_Us   : Interfaces.Unsigned_32;
-      Cli_Mode : Boolean;
-      Save     : out Boolean)
+     (C                    : in out Adaflight.Config_Groups.Configuration;
+      Now_Ms               : Interfaces.Unsigned_32;
+      Now_Us               : Interfaces.Unsigned_32;
+      Cli_Mode             : Boolean;
+      Serial_Descriptor    : Interfaces.Integer_16;
+      Telemetry_Descriptor : Interfaces.Integer_16;
+      Save                 : out Boolean)
    is
       S      : Core.Settings := Adaflight.Config_Runtime.VTX_Settings_Of (C.Vtx_Settings_Config);
       Before : constant Core.Settings := S;
@@ -189,6 +191,16 @@ package body Adaflight.STM32.VTX is
             Adaflight.VTX_Debug.Record_SmartAudio (Adaflight.STM32.Debug_Values.State, V.SA);
          when Core.Tramp_Device =>
             Adaflight.VTX_Debug.Record_Tramp (Adaflight.STM32.Debug_Values.State, V.TR);
+         when Core.MSP_Device =>
+            if E.MSP_Processed then
+               Adaflight.VTX_Debug.Record_MSP
+                 (Adaflight.STM32.Debug_Values.State, V.MD,
+                  Low_Power            =>
+                    Adaflight.VTX_MSP.Low_Power_Disarmed (S, Inp.Armed, Inp.Was_Ever_Armed, Inp.Failsafe),
+                  CRSF_Port            => MSP_CRSF,
+                  Serial_Descriptor    => Serial_Descriptor,
+                  Telemetry_Descriptor => Telemetry_Descriptor);
+            end if;
          when others =>
             null;
       end case;

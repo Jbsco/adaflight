@@ -14444,6 +14444,7 @@ procedure Vector_Check is
    VM_Table    : Adaflight.VTX_Table.Table;
    VM_Settings : Adaflight.VTX.Settings;
    VM_Driver   : Adaflight.VTX_MSP.Driver;
+   VM_Debug    : Adaflight.Debug.State;
 
    procedure VM_Record_State (Name : String) is
       use Adaflight.VTX_MSP;
@@ -14597,6 +14598,20 @@ procedure Vector_Check is
                   VM_Record_Frame (Name & ".frame", 25, Frame);
                end;
          end case;
+      elsif Name = "vmdebug" then
+         VM_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (VM_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "vmdbg" then
+         Adaflight.VTX_Debug.Record_MSP
+           (VM_Debug, VM_Driver,
+            Low_Power            =>
+              Adaflight.VTX_MSP.Low_Power_Disarmed (VM_Settings, Int (3) = 1, Int (4) = 1, Int (5) = 1),
+            CRSF_Port            => Int (6) = 1,
+            Serial_Descriptor    => Interfaces.Integer_16 (Int (7)),
+            Telemetry_Descriptor => Interfaces.Integer_16 (Int (8)));
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("vmstep.debug", Int (9 + J), Integer_64 (VM_Debug.Data (J)));
+         end loop;
       end if;
    end Check_VTX_MSP_Line;
 
