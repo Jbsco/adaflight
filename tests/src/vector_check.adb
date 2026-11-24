@@ -306,6 +306,7 @@ with Adaflight.Command_Line;
 with Adaflight.Command_Line.Terminal;
 with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
+with Adaflight.ExpressLRS_Debug;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
@@ -13422,6 +13423,7 @@ procedure Vector_Check is
    ER_Settings : Adaflight.ExpressLRS_Receiver.Settings;
    ER_Payload  : Adaflight.ExpressLRS_Receiver.Packet := (others => 0);
    ER_Channels : Adaflight.ExpressLRS_Receiver.Channels := (others => 0);
+   ER_Debug    : Adaflight.Debug.State;
 
    procedure Check_ELRS_Receiver_Line is
       package ER renames Adaflight.ExpressLRS_Receiver;
@@ -13620,6 +13622,14 @@ procedure Vector_Check is
             Record_Int (Name & ".freq", Int (13), Integer_64 (ER_Receiver.Current_Freq));
             Record_State (16);
          end;
+      elsif Name = "erdebug" then
+         ER_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (ER_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "erdbg" then
+         Adaflight.ExpressLRS_Debug.Record_Update (ER_Debug, ER_Receiver);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("erstep.debug", Int (4 + J), Integer_64 (ER_Debug.Data (J)));
+         end loop;
       else
          Put_Line ("unknown receiver case " & Name);
          Failures := Failures + 1;

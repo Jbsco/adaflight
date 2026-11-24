@@ -2,12 +2,14 @@ with Interfaces;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.ExpressLRS;
+with Adaflight.ExpressLRS_Debug;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Stream_Buffers;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.SPI_Radio;
 with Adaflight.SX1280;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.ELRS_Timer;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
@@ -481,6 +483,7 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       Handled  : Boolean;
    begin
       ER.Timer_Update (Receiver, Settings, Time.Micros);
+      Adaflight.ExpressLRS_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, Receiver);
       In_Radio := True;
       if Was_Tick then
          SX.Handle_From_Tick (Dev, Radio_State, Handled);
@@ -603,6 +606,7 @@ package body Adaflight.STM32.RX_SPI_SX1280 is
       SR.Check_Bind_Requested (Pin_Radio, Pins, Bind_Level, True, Requested);
       ER.Data_Received (Receiver, Settings, Now_Ms, System_Ready => True, Bind_Requested => Requested,
                         Status => Status);
+      Adaflight.ExpressLRS_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, Receiver);
       Apply;
       if Receiver.In_Binding_Mode then
          SR.LED_Blink (Pin_Radio, Pins, Pin_Ops, Now_Ms, 250);

@@ -16811,3 +16811,11 @@ A configuration activation now applies attitude settings: estimator gains, magne
 throttle correction. Before, boards took them in at start-up alone, so a small angle written over MSP and saved kept
 arming on the old angle until a restart. Host smoke rolls the craft 40 degrees over the simulator link, writes a
 60 degree small angle over MSP, and reads the angle reason clear after the save.
+
+## D896. ExpressLRS debug values (2026-11-24)
+
+ExpressLRS SPI receivers now record their two debug modes. Phase lock mode gives raw and filtered phase offsets with
+timer frequency offset and phase shift, written by each lock update in timer interrupt. Link mode gives lost
+connection count, filtered signal strength, signal to noise in decibels and uplink link quality, written by each data
+task. Both modes were offered and named, but no unit wrote them. Vectors run each sequence of the receiver family
+under one of these modes or another unit's mode.
