@@ -2193,6 +2193,50 @@ def boot_beep_checks(image, work):
           repr((connected, beeps)))
 
 
+def small_angle_save_checks(image, work):
+    """Attitude settings at configuration activation, over a configuration store of its own: the simulator link holds
+    the craft rolled 40 degrees, past the default 25 degree small angle, so the angle reason blocks arming. An MSP
+    arming configuration write of a 60 degree small angle leaves it until an MSP save, which clears it without a
+    restart."""
+    store = os.path.join(work, "small-angle-save.bin")
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    proc, sock = start(image, store, extra=sim_link)
+    sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    done = threading.Event()
+    tilt = math.radians(40.0)
+
+    def tilted_feed():
+        tick = 0
+        while not done.is_set():
+            sim.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 9.80665 * math.sin(tilt),
+                                   -9.80665 * math.cos(tilt), math.cos(tilt / 2), math.sin(tilt / 2), 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+            tick += 1
+            time.sleep(0.01)
+    threading.Thread(target=tilted_feed, daemon=True).start()
+    angle = 1 << 8
+    try:
+        blocked, before = until(lambda: arming_flags(sock), lambda f: f is not None and f & angle != 0, wait=10.0)
+        config = msp(sock, 61)
+        written = msp(sock, 62, bytes([config[0], 0, 60, config[3]])) if config and len(config) >= 4 else None
+        time.sleep(1.0)
+        unsaved = arming_flags(sock)
+        msp(sock, 250)
+        cleared, after = until(lambda: arming_flags(sock), lambda f: f is not None and f & angle == 0, wait=4.0)
+        readback = msp(sock, 61)
+    finally:
+        done.set()
+        stop(proc)
+        sock.close()
+        sim.close()
+    check("a 40 degree roll blocks arming with the angle reason", blocked, repr(before))
+    check("an MSP small angle write leaves the angle reason until a save",
+          written is not None and unsaved is not None and unsaved & angle != 0, repr((config, written, unsaved)))
+    check("an MSP save applies the 60 degree small angle without a restart", cleared, repr(after))
+    check("the saved arming configuration reads the 60 degree small angle", readback is not None and len(readback) >= 3
+          and readback[2] == 60, repr(readback))
+
+
 def board_problem_checks(image, work):
     """Board information over a configuration store of its own: a fresh accelerometer asks for its calibration and an
     MSP calibration clears that problem, a fresh board reports itself unconfigured until an MSP save, without a
@@ -6949,6 +6993,7 @@ def main():
         status_led_checks(image, work)
         boot_beep_checks(image, work)
         board_problem_checks(image, work)
+        small_angle_save_checks(image, work)
         pid_disarm_checks(image, work)
         acro_trainer_checks(image, work)
         chirp_checks(image, work)
