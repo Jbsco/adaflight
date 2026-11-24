@@ -650,12 +650,18 @@ class Lidar(threading.Thread):
                 sock = None
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(frame)
+                sock.sendall(self.frame if self.frame is not None else frame)
             except OSError:
                 break
             time.sleep(0.01)
         if sock is not None:
             sock.close()
+
+
+def tfmini_frame(distance_cm):
+    """A TFmini frame at a distance with a strength of 500 and the short integral time."""
+    body = bytes([0x59, 0x59]) + distance_cm.to_bytes(2, "little") + (500).to_bytes(2, "little") + bytes([0x02, 0x00])
+    return body + bytes([sum(body) & 0xFF])
 
 
 class Camera(threading.Thread):
@@ -2465,6 +2471,52 @@ def chirp_checks(image, work):
     check("chirp sweeps roll with a rising frequency once its box is on",
           swept and len(later) == 8 and later[1] == 0 and later[2] > early[2], repr((early, later)))
     check("chirp takes pitch once its box goes off and on again", moved, repr(pitch))
+
+
+def rangefinder_altitude_checks(image, work):
+    """Rangefinder altitude in the position estimate, over a configuration store of its own: a TFmini on UART4 as
+    the only altitude source with the altitude debug values reads 150 cm, then 250 cm. The relative rangefinder
+    altitude starts at zero and reads the 100 cm step, and the estimated altitude over MSP follows it."""
+    if not built("Rangefinder"):
+        return
+    store = os.path.join(work, "rangefinder-altitude.bin")
+    proc, sock = start(image, store)
+    try:
+        time.sleep(2.5)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("set rangefinder_hardware = TFMINI", "set rangefinder_uart = UART4",
+                                                "set altitude_source = RANGEFINDER_ONLY", "set debug_mode = ALTITUDE",
+                                                "feature RANGEFINDER")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("rangefinder altitude checks have a TFmini on UART4 as the only altitude source",
+          "altitude_source set to RANGEFINDER_ONLY" in replies[2] and "debug_mode set to ALTITUDE" in replies[3],
+          repr(replies))
+    lidar = Lidar()
+    lidar.start()
+    proc, sock = start(image, store)
+
+    def altitude():
+        reply = msp(sock, 109)
+        return struct.unpack("<i", reply[:4])[0] if reply and len(reply) >= 4 else None
+    try:
+        time.sleep(3.0)
+        ground, start_values = until(lambda: debug_values(sock), lambda d: len(d) == 8, wait=2.0)
+        before = altitude()
+        lidar.frame = tfmini_frame(250)
+        stepped, values = until(lambda: debug_values(sock), lambda d: len(d) == 8 and d[0] == 100, wait=3.0)
+        climbed, after = until(altitude, lambda a: a is not None and before is not None and a - before >= 90, wait=3.0)
+    finally:
+        lidar.stop.set()
+        stop(proc)
+        sock.close()
+    check("relative rangefinder altitude starts at zero", ground and start_values[0] == 0, repr(start_values))
+    check("relative rangefinder altitude reads the 100 cm step", stepped, repr(values))
+    check("estimated altitude follows the rangefinder", climbed, repr((before, after)))
 
 
 def sim_servo_checks(image, work):
@@ -6834,6 +6886,7 @@ def main():
         pid_disarm_checks(image, work)
         acro_trainer_checks(image, work)
         chirp_checks(image, work)
+        rangefinder_altitude_checks(image, work)
         sim_servo_checks(image, work)
         filter_order_checks(image, work)
         status_request_checks(image, work)

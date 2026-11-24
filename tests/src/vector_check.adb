@@ -4059,7 +4059,8 @@ procedure Vector_Check is
                           Prefer_Baro    => Integer (Int (4)),
                           Altitude_LPF   => Integer (Int (5)),
                           Derivative_LPF => Integer (Int (6)),
-                          Horizontal     => Auto);
+                          Horizontal     => Auto,
+                          Max_Range_Cm   => 400);
          Alt_Present := Int (7) /= 0;
          Alt_One_G_Reciprocal := Flt (8);
          Init (Alt_State, Alt_Settings, Armed => False);
@@ -11993,6 +11994,7 @@ procedure Vector_Check is
    Pos_Baro_Present     : Boolean := False;
    Pos_GPS_Present      : Boolean := False;
    Pos_One_G_Reciprocal : Float := 1.0 / 4096.0;
+   Pos_RF               : Adaflight.Position_Estimator.Inputs;
 
    procedure Check_Posest_Line is
       use Adaflight.Position_Estimator;
@@ -12003,13 +12005,37 @@ procedure Vector_Check is
                           Prefer_Baro    => Integer (Int (4)),
                           Altitude_LPF   => Integer (Int (5)),
                           Derivative_LPF => Integer (Int (6)),
-                          Horizontal     => Horizontal_Source'Val (Int (7)));
+                          Horizontal     => Horizontal_Source'Val (Int (7)),
+                          Max_Range_Cm   => 400);
          Pos_Baro_Present := Int (8) /= 0;
          Pos_GPS_Present := Int (9) /= 0;
          Pos_One_G_Reciprocal := Flt (10);
+         Pos_RF := (others => <>);
          Init (Pos_State, Pos_Settings, Armed => False);
          Record_Result ("posinit.altitude_k", Bits (11), To_Bits (Pos_State.Altitude_Filter.K));
          Record_Result ("posinit.derivative_k", Bits (12), To_Bits (Pos_State.Derivative_Filter.K));
+      elsif Name = "posrfinit" then
+         Pos_Settings.Max_Range_Cm := Interfaces.Unsigned_16 (Int (3));
+         Pos_RF.RF_Present := Int (4) /= 0;
+      elsif Name = "posrf" then
+         Pos_RF.RF_Healthy := Int (4) /= 0;
+         Pos_RF.RF_Altitude_Cm := I32 (5);
+         Pos_RF.RF_Sample_Time_Us := Interfaces.Unsigned_32 (Int (6));
+         Pos_RF.RF_Interval_Us := I32 (7);
+         Pos_RF.Altitude_Hold_Mode := Int (8) /= 0;
+         Pos_RF.Autopilot_Mode := Int (9) /= 0;
+      elsif Name = "posrfout" then
+         Record_Result ("posrfout.offset", Bits (4), To_Bits (Pos_State.RF_Offset_Cm));
+         Record_Int ("posrfout.offset_set", Int (5), Boolean'Pos (Pos_State.RF_Offset_Set));
+         Record_Int ("posrfout.available", Int (6), Boolean'Pos (Pos_State.RF_Data_Available));
+         Record_Int ("posrfout.timestamp", Int (7), Integer_64 (Pos_State.RF_Timestamp_Us));
+         Record_Int ("posrfout.hold", Int (8), Integer_64 (Pos_State.RF_Hold_Us));
+         Record_Result ("posrfout.gate_last", Bits (9), To_Bits (Pos_State.RF_Gate.Last_Accepted_Cm));
+         Record_Int ("posrfout.gate_reference", Int (10), Boolean'Pos (Pos_State.RF_Gate.Has_Reference));
+         Record_Int ("posrfout.gate_rejects", Int (11), Integer_64 (Pos_State.RF_Gate.Rejects));
+         Record_Result ("posrfout.ground_agl", Bits (12), To_Bits (Pos_State.Ground_AGL_Cm));
+         Record_Int ("posrfout.ground_time", Int (13), Integer_64 (Pos_State.Ground_AGL_Time_Us));
+         Record_Int ("posrfout.ground_valid", Int (14), Boolean'Pos (Pos_State.Ground_AGL_Valid));
       elsif Name = "posdebug" then
          Pos_Debug := (others => <>);
          Adaflight.Debug.Select_Mode (Pos_Debug, Interfaces.Unsigned_8 (Int (3)));
@@ -12074,6 +12100,13 @@ procedure Vector_Check is
             Inp.Cos_Lat := Flt (33);
             Inp.Position_Hold_Mode := Int (34) /= 0;
             Inp.Rescue_Mode := Int (35) /= 0;
+            Inp.RF_Present := Pos_RF.RF_Present;
+            Inp.RF_Healthy := Pos_RF.RF_Healthy;
+            Inp.RF_Altitude_Cm := Pos_RF.RF_Altitude_Cm;
+            Inp.RF_Sample_Time_Us := Pos_RF.RF_Sample_Time_Us;
+            Inp.RF_Interval_Us := Pos_RF.RF_Interval_Us;
+            Inp.Altitude_Hold_Mode := Pos_RF.Altitude_Hold_Mode;
+            Inp.Autopilot_Mode := Pos_RF.Autopilot_Mode;
             if Int (36) = 1 then
                Take_Update (Pos_State, Consumer'Val (Int (37)), Taken);
                Record_Int ("posstep.taken", Int (38), Boolean'Pos (Taken));
@@ -44604,6 +44637,7 @@ begin
    Run (Dir & "/ubxcfg.csv", "ubxcfg");
    Run (Dir & "/gpslink.csv", "gpslink");
    Run (Dir & "/posest.csv", "posest");
+   Run (Dir & "/posestrf.csv", "posest");
    Run (Dir & "/poshold.csv", "poshold");
    Run (Dir & "/rescue.csv", "rescue");
    Run (Dir & "/rescueplan.csv", "rescueplan");

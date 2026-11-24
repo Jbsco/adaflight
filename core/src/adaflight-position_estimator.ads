@@ -1,11 +1,13 @@
 --  The position estimator: three position filters in the earth frame,
 --  east, north and up, fed by the accelerometer through the attitude, by
---  the barometer against its first reading behind a step gate, and by the
---  GPS fixes against the origin captured when the horizontal axes start,
---  with the barometer offset drawn slowly toward the GPS, the validity and
---  trust of each plane, the update events the hold tasks take, and the
---  smoothed altitude and climb rate that the displays and the vertical
---  controllers read.
+--  the barometer against its first reading behind a step gate, its trust
+--  lowered in ground effect, by the rangefinder against the ground height
+--  beneath its first reading behind its own gate, and by the GPS fixes
+--  against the origin captured when the horizontal axes start, with the
+--  barometer offset drawn toward the rangefinder or slowly toward the GPS,
+--  the validity and trust of each plane, the update events the hold tasks
+--  take, and the smoothed altitude and climb rate that the displays and the
+--  vertical controllers read.
 with Interfaces;
 with Adaflight.Clock;
 with Adaflight.Maths; use Adaflight.Maths;
@@ -38,6 +40,7 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Altitude_LPF   : Positive range 10 .. 5_000 := 300;
       Derivative_LPF : Positive range 10 .. 5_000 := 300;
       Horizontal     : Horizontal_Source := Auto;
+      Max_Range_Cm   : Unsigned_16 := 400;
    end record;
 
    --  The position task runs at this rate.
@@ -70,8 +73,10 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    --  the fix, the count of solutions so far, the fix rate, the location,
    --  the north, east and down velocity in centimetres per second, the
    --  horizontal, speed and vertical accuracies in millimetres, and the
-   --  longitude scale), and the flight modes that ask for the horizontal
-   --  estimate.
+   --  longitude scale), the rangefinder (the sensor present, its health,
+   --  the latest altitude in centimetres or a negative code, the time and
+   --  interval of its latest sample), the flight modes that ask for the
+   --  horizontal estimate, and those that hold an altitude target.
    subtype Acc_Scale is Float range 2.0 ** (-16) .. 1.0;
    type Inputs is record
       Now_Us              : Time_Us := 0;
@@ -95,15 +100,22 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       GPS_S_Acc           : Unsigned_32 := 0;
       GPS_V_Acc           : Unsigned_32 := 0;
       Cos_Lat             : Longitude_Scale := 1.0;
+      RF_Present          : Boolean := False;
+      RF_Healthy          : Boolean := False;
+      RF_Altitude_Cm      : Integer_32 := -1;
+      RF_Sample_Time_Us   : Time_Us := 0;
+      RF_Interval_Us      : Integer_32 := 0;
       Position_Hold_Mode  : Boolean := False;
       Rescue_Mode         : Boolean := False;
+      Altitude_Hold_Mode  : Boolean := False;
+      Autopilot_Mode      : Boolean := False;
    end record;
 
    Acc_Bound      : constant := 2.0 ** 16;
    Rotation_Bound : constant := 17.0;
 
-   --  The barometer's step gate: the last reading let through, and the
-   --  count of readings rejected since.
+   --  A step gate of the barometer or the rangefinder: the last reading let
+   --  through, and the count of readings rejected since.
    type Step_Gate is record
       Last_Accepted_Cm : Altitude_Cm := 0.0;
       Has_Reference    : Boolean := False;
@@ -120,9 +132,10 @@ package Adaflight.Position_Estimator with SPARK_Mode is
 
    --  What the debug values read of the last update: whether one ran with its
    --  earth frame acceleration, the barometer's relative altitude when it
-   --  fed, the GPS measurement variances and east and north velocities when
-   --  the horizontal plane fed, and the GPS relative altitude and climb rate
-   --  when the vertical axis fed. Each tap holds what its site last wrote.
+   --  fed, the rangefinder's relative altitude when it had a sample, the GPS
+   --  measurement variances and east and north velocities when the
+   --  horizontal plane fed, and the GPS relative altitude and climb rate when
+   --  the vertical axis fed. Each tap keeps what its site last wrote.
    type Debug_Taps is record
       Updated        : Boolean := False;
       Accel_East     : Float := 0.0;
@@ -130,6 +143,8 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Accel_Up       : Float := 0.0;
       Baro_Fed       : Boolean := False;
       Baro_Rel_Cm    : Altitude_Cm := 0.0;
+      RF_Fed         : Boolean := False;
+      RF_Rel_Cm      : Altitude_Cm := 0.0;
       GPS_XY_Fed     : Boolean := False;
       GPS_R_Pos      : Position_Filter.Noise := 0.0;
       GPS_R_Vel      : Position_Filter.Noise := 0.0;
@@ -154,6 +169,16 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Baro_Gate              : Step_Gate;
       Baro_Raw_Cm            : Altitude_Cm := 0.0;
       Baro_Active            : Boolean := False;
+      RF_Offset_Cm           : Altitude_Cm := 0.0;
+      RF_Offset_Set          : Boolean := False;
+      RF_Data_Available      : Boolean := False;
+      RF_Timestamp_Us        : Time_Us := 0;
+      RF_Hold_Us             : Integer_32 := 0;
+      RF_Gate                : Step_Gate;
+      RF_Active              : Boolean := False;
+      Ground_AGL_Cm          : Altitude_Cm := 0.0;
+      Ground_AGL_Time_Us     : Time_Us := 0;
+      Ground_AGL_Valid       : Boolean := False;
       GPS_Stamp              : Unsigned_16 := 0;
       GPS_Data_Available     : Boolean := False;
       GPS_Received_At_Us     : Time_Us := 0;
@@ -199,9 +224,11 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    --  disarmed, and the predictions; the GPS fix when new or within its
    --  hold interval, against the origin and the first altitude; the
    --  barometer when a new sample is within its hold interval, against the
-   --  offset of its first sample, through the step gate; the barometer
-   --  offset drawn toward the GPS; the validity and trust; the events for
-   --  the hold tasks; and the smoothed outputs.
+   --  offset of its first sample, through the step gate; the rangefinder the
+   --  same way, against the ground height beneath its first sample, with
+   --  the frame rebased onto it in the air; the barometer offset drawn
+   --  toward the faster anchor; the validity and trust; the events for the
+   --  hold tasks; and the smoothed outputs.
    procedure Update (S : in out State; C : Settings; Inp : Inputs)
      with Pre => Vectors.Bounded (Inp.Acc, Acc_Bound) and then Vectors.Bounded (Inp.Rotation, Rotation_Bound);
 

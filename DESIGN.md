@@ -16773,3 +16773,21 @@ keeps its mode edge and settling time. Vectors run four sweeps through their rep
 Chirp and acro trainer steps stay out of line from rate loop code, as Betaflight keeps its acro trainer out of fast
 RAM. On a Kakute F7 that code then fits its 16 KB ITCM with 448 bytes left. Inlined, both steps overflowed ITCM by 680
 bytes, and its linker crashed instead of reporting that.
+
+## D893. Rangefinder altitude in position estimate (2026-11-23)
+
+Position estimate now fuses rangefinder altitude. Before, a detected rangefinder fed only its OSD element, MSP reply and
+flight log, and altitude hold over it held barometer altitude alone. A reading counts from a healthy sensor between zero
+and `rangefinder_max_range_cm`. Its sample is fused when new or within the interval the sensor measured, through a step
+gate like the barometer's. Below 10 cm it is fused with four times its noise, and its noise drops to a quarter when the
+altitude source prefers it.
+
+Its first reading sets an offset for ground height below it. On the ground, disarmed, or with no valid vertical
+estimate, that offset is the reading itself. In the air the estimate's frame is rebased onto the reading, with barometer
+and GPS offsets moved along. While altitude hold, position hold, rescue or autopilot keeps an altitude target, the
+difference stays in the offset instead. A fused reading draws barometer offset toward the estimate with a 2 s time
+constant, ahead of the GPS anchor's.
+
+Below 50 cm of rangefinder height, barometer noise grows up to 200 times at 20 cm. After a reading is lost, the last
+height keeps that derate at full strength for 1 s, then releases it over the next second. Vectors fly over stepped
+terrain with late first readings, dropouts, readings past range and each altitude source.

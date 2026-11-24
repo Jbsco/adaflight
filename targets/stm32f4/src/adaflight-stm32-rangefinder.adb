@@ -280,6 +280,12 @@ package body Adaflight.STM32.Rangefinder is
 
    function Altitude_Cm return Interfaces.Integer_32 is (if Detected then Sensor.Calculated_Altitude else 0);
 
+   function Healthy return Boolean is (Detected and then Core.Is_Healthy (Sensor, Adaflight.STM32.Time.Millis));
+
+   function Sample_Time_Us return Interfaces.Unsigned_32 is (Sensor.Last_Data_Us);
+
+   function Sample_Interval_Us return Interfaces.Integer_32 is (Sensor.Interval_Us);
+
    function Raw_Altitude_Cm return Interfaces.Integer_32 is (Sensor.Raw_Altitude);
    procedure Detect_UPT1_Flow
      (Uart : Interfaces.Integer_8; Found : out Boolean; Delay_Ms : out Natural;
