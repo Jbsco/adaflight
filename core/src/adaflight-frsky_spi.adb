@@ -632,6 +632,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                end if;
                if not S.Frame_Received then
                   S.Packet_Errors := S.Packet_Errors + 1;
+                  S.Taps.Bad_Frame_Set := True;
                   Strobe (O, SFRX);
                end if;
             end if;
@@ -691,6 +692,8 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   return;
                end if;
                S.Missing_Packets := S.Missing_Packets + 1;
+               S.Taps.Missing := S.Missing_Packets;
+               S.Taps.Missing_Set := True;
                S.Protocol := Data;
             end if;
          when others =>
@@ -895,6 +898,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       end loop;
       if Error then
          S.Data_Errors := S.Data_Errors + 1;
+         S.Taps.Error_Count_Set := True;
       else
          Rc (0 .. 7) := Channels (0 .. 7);
       end if;

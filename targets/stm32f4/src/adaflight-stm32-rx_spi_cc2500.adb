@@ -2,11 +2,13 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.CC2500;
 with Adaflight.FrSky_SPI;
+with Adaflight.FrSky_SPI_Debug;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Redpine;
 with Adaflight.SFHSS;
 with Adaflight.SPI_Radio;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.RX_SPI_Device;
@@ -439,6 +441,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          FS.Data_Received (State, Settings, Inp, Ops, Result);
          Run (Ops, Split + 1, Ops.Count);
       end if;
+      Adaflight.FrSky_SPI_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, State);
       R := (Bind => Result = FS.Bind_Done, Data => Result = FS.Data_Ready,
             Processing_Required => State.Processing_Required);
    end FrSky_Data_Received;
@@ -471,6 +474,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          Rc (I) := Data (I);
       end loop;
       FS.Set_Rc_Data (State, Settings, Rc);
+      Adaflight.FrSky_SPI_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, State);
       for I in Rc'Range loop
          Data (I) := Rc (I);
       end loop;
