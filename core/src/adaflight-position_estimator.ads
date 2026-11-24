@@ -2,8 +2,9 @@
 --  east, north and up, fed by the accelerometer through the attitude, by
 --  the barometer against its first reading behind a step gate, its trust
 --  lowered in ground effect, by the rangefinder against the ground height
---  beneath its first reading behind its own gate, and by the GPS fixes
---  against the origin captured when the horizontal axes start, with the
+--  beneath its first reading behind its own gate, by the optical flow's
+--  velocity over the rangefinder height, and by the GPS fixes against the
+--  origin captured when the horizontal axes start, with the
 --  barometer offset drawn toward the rangefinder or slowly toward the GPS,
 --  the validity and trust of each plane, the update events the hold tasks
 --  take, and the smoothed altitude and climb rate that the displays and the
@@ -18,6 +19,7 @@ with Adaflight.Position_Filter;
 package Adaflight.Position_Estimator with SPARK_Mode is
    use type Interfaces.Integer_32;
    use type Interfaces.Unsigned_16;
+   use type Interfaces.Integer_16;
    use type Interfaces.Unsigned_32;
    subtype Time_Us is Clock.Time_Us;
    subtype Integer_16 is Interfaces.Integer_16;
@@ -41,6 +43,8 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Derivative_LPF : Positive range 10 .. 5_000 := 300;
       Horizontal     : Horizontal_Source := Auto;
       Max_Range_Cm   : Unsigned_16 := 400;
+      Flow_Quality_Min : Natural range 0 .. 255 := 30;
+      Flow_Max_Range_Cm : Unsigned_16 := 400;
    end record;
 
    --  The position task runs at this rate.
@@ -75,8 +79,11 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    --  horizontal, speed and vertical accuracies in millimetres, and the
    --  longitude scale), the rangefinder (the sensor present, its health,
    --  the latest altitude in centimetres or a negative code, the time and
-   --  interval of its latest sample), the flight modes that ask for the
-   --  horizontal estimate, and those that hold an altitude target.
+   --  interval of its latest sample), the optical flow (the sensor present,
+   --  its health, the quality, time stamp and delays of its latest sample,
+   --  its processed rates in radians per second and their validity), the
+   --  attitude in decidegrees, the flight modes that ask for the horizontal
+   --  estimate, and those that keep an altitude target.
    subtype Acc_Scale is Float range 2.0 ** (-16) .. 1.0;
    type Inputs is record
       Now_Us              : Time_Us := 0;
@@ -105,6 +112,19 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       RF_Altitude_Cm      : Integer_32 := -1;
       RF_Sample_Time_Us   : Time_Us := 0;
       RF_Interval_Us      : Integer_32 := 0;
+      Flow_Present        : Boolean := False;
+      Flow_Healthy        : Boolean := False;
+      Flow_Quality        : Integer_16 := -3;
+      Flow_Time_Stamp_Us  : Time_Us := 0;
+      Flow_Delay_Ms       : Natural range 0 .. 65_535 := 0;
+      Flow_Gyro_Delay_Us  : Unsigned_32 range 0 .. 2 ** 31 - 1 := 0;
+      Flow_Rate_X         : Float range -4.0e6 .. 4.0e6 := 0.0;
+      Flow_Rate_Y         : Float range -4.0e6 .. 4.0e6 := 0.0;
+      Flow_Valid_X        : Boolean := False;
+      Flow_Valid_Y        : Boolean := False;
+      Roll_Decidegrees    : Integer range -1_800 .. 1_800 := 0;
+      Pitch_Decidegrees   : Integer range -900 .. 900 := 0;
+      Yaw_Decidegrees     : Integer range 0 .. 3_599 := 0;
       Position_Hold_Mode  : Boolean := False;
       Rescue_Mode         : Boolean := False;
       Altitude_Hold_Mode  : Boolean := False;
@@ -132,7 +152,8 @@ package Adaflight.Position_Estimator with SPARK_Mode is
 
    --  What the debug values read of the last update: whether one ran with its
    --  earth frame acceleration, the barometer's relative altitude when it
-   --  fed, the rangefinder's relative altitude when it had a sample, the GPS
+   --  fed, the rangefinder's relative altitude when it had a sample, the
+   --  optical flow's east and north velocities when it fed, the GPS
    --  measurement variances and east and north velocities when the
    --  horizontal plane fed, and the GPS relative altitude and climb rate when
    --  the vertical axis fed. Each tap keeps what its site last wrote.
@@ -145,6 +166,9 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Baro_Rel_Cm    : Altitude_Cm := 0.0;
       RF_Fed         : Boolean := False;
       RF_Rel_Cm      : Altitude_Cm := 0.0;
+      Flow_Fed       : Boolean := False;
+      Flow_East      : Float := 0.0;
+      Flow_North     : Float := 0.0;
       GPS_XY_Fed     : Boolean := False;
       GPS_R_Pos      : Position_Filter.Noise := 0.0;
       GPS_R_Vel      : Position_Filter.Noise := 0.0;
@@ -179,6 +203,9 @@ package Adaflight.Position_Estimator with SPARK_Mode is
       Ground_AGL_Cm          : Altitude_Cm := 0.0;
       Ground_AGL_Time_Us     : Time_Us := 0;
       Ground_AGL_Valid       : Boolean := False;
+      Flow_Data_Available    : Boolean := False;
+      Flow_Timestamp_Us      : Time_Us := 0;
+      Flow_Hold_Us           : Integer_32 := 0;
       GPS_Stamp              : Unsigned_16 := 0;
       GPS_Data_Available     : Boolean := False;
       GPS_Received_At_Us     : Time_Us := 0;
@@ -244,9 +271,10 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    procedure Take_Update (S : in out State; Who : Consumer; Taken : out Boolean);
 
    --  A heading is required for the horizontal estimate while the GPS is
-   --  its source.
-   function Heading_Required (C : Settings; Inp : Inputs) return Boolean is
-     (C.Horizontal /= Optical_Flow_Alone and then Inp.GPS_Present and then Inp.GPS_Fix);
+   --  its source, unless the optical flow keeps it valid.
+   function Heading_Required (S : State; C : Settings; Inp : Inputs) return Boolean is
+     (C.Horizontal /= Optical_Flow_Alone and then not (Inp.Flow_Present and then S.Valid_XY)
+      and then Inp.GPS_Present and then Inp.GPS_Fix);
 
    --  The displayed altitude to the nearest centimeter.
    function Estimated_Altitude_Cm (S : State) return Integer;

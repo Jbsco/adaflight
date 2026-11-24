@@ -2473,6 +2473,72 @@ def chirp_checks(image, work):
     check("chirp takes pitch once its box goes off and on again", moved, repr(pitch))
 
 
+def optical_flow_velocity_checks(image, work):
+    """Optical flow velocity in the position estimate, over a configuration store of its own: a UP-T1 module on
+    UART4 sends 150 cm with flow integrals, optical flow as the only position source and the velocity debug values.
+    Disarmed, the flow velocity debug values stay zero. Armed over the simulator link, they read the flow rates
+    over the 150 cm height."""
+    if not (built("Rangefinder") and built("Optical_Flow")):
+        return
+    store = os.path.join(work, "optical-flow-velocity.bin")
+    sim_link = {"ADAFLIGHT_SIMULATOR": "gazebo,127.0.0.1"}
+    proc, sock = start(image, store, extra=sim_link)
+    try:
+        time.sleep(2.5)
+        sock.sendall(b"#")
+        read_all(sock, 0.8)
+        replies = [cli(sock, line) for line in ("set rangefinder_hardware = UPT1", "set rangefinder_uart = UART4",
+                                                "set opticalflow_hardware = UPT1", "set opticalflow_uart = UART4",
+                                                "feature RANGEFINDER", "feature OPTICALFLOW",
+                                                "set poshold_position_source = OPTICALFLOW_ONLY",
+                                                "set debug_mode = VELOCITY_EST", "set rx_uart = UART3",
+                                                "aux 0 0 0 1700 2100 0 0", "set runaway_takeoff_prevention = OFF")]
+        cli(sock, "save", wait=2.0)
+        proc.wait(timeout=10)
+    finally:
+        stop(proc)
+        sock.close()
+    check("optical flow velocity checks have a UP-T1 as the only position source with the velocity debug values",
+          "poshold_position_source set to OPTICALFLOW_ONLY" in replies[6]
+          and "debug_mode set to VELOCITY_EST" in replies[7], repr(replies))
+    module = Lidar(upt1_frame(1500), prefix=b"UPIXELS UP-T1 READY.\r\n")
+    module.start()
+    proc, sock = start(image, store, extra=sim_link)
+    receiver = Receiver()
+    receiver.start()
+    sim = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    done = threading.Event()
+
+    def level_feed():
+        tick = 0
+        while not done.is_set():
+            sim.sendto(struct.pack("<18d", tick * 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, -9.80665, 1.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), ("127.0.0.1", 9003))
+            tick += 1
+            time.sleep(0.01)
+    threading.Thread(target=level_feed, daemon=True).start()
+    try:
+        time.sleep(8.0)
+        idle = debug_values(sock)
+        receiver.channels = [992, 992, 172, 992, 1811] + [992] * 11
+        time.sleep(1.5)
+        status = msp(sock, 150)
+        armed = bool(status and len(status) > 6 and status[6] & 1)
+        fused, values = until(lambda: debug_values(sock),
+                              lambda d: len(d) == 8 and 100 <= math.hypot(d[2], d[3]) <= 250, wait=3.0)
+    finally:
+        done.set()
+        receiver.stop.set()
+        module.stop.set()
+        stop(proc)
+        sock.close()
+        sim.close()
+    check("flow velocity debug values stay zero while disarmed", len(idle) == 8 and idle[2] == 0 and idle[3] == 0,
+          repr(idle))
+    check("craft arms with the UP-T1 as the only position source", armed, repr(status))
+    check("flow velocity reads the flow rates over the 150 cm height once armed", fused, repr(values))
+
+
 def rangefinder_altitude_checks(image, work):
     """Rangefinder altitude in the position estimate, over a configuration store of its own: a TFmini on UART4 as
     the only altitude source with the altitude debug values reads 150 cm, then 250 cm. The relative rangefinder
@@ -6887,6 +6953,7 @@ def main():
         acro_trainer_checks(image, work)
         chirp_checks(image, work)
         rangefinder_altitude_checks(image, work)
+        optical_flow_velocity_checks(image, work)
         sim_servo_checks(image, work)
         filter_order_checks(image, work)
         status_request_checks(image, work)

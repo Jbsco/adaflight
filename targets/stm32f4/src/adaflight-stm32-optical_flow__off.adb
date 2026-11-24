@@ -10,6 +10,12 @@ package body Adaflight.STM32.Optical_Flow is
 
    function Period_Us return Natural is (0);
 
+   function Delay_Ms return Natural is (0);
+
+   function Healthy return Boolean is (False);
+
+   function Latest return Latest_Sample is (others => <>);
+
    procedure Set_Gyro (Roll_Rate, Pitch_Rate : Float) is null;
 
    procedure Update is null;
