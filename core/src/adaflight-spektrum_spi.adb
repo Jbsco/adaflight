@@ -27,7 +27,9 @@ package body Adaflight.Spektrum_SPI with SPARK_Mode is
    W_AUTO_CAL_TIME   : constant := 16#B2#;
    W_AUTO_CAL_OFFSET : constant := 16#B5#;
    XACT_CFG          : constant := 16#0F#;
+   TX_IRQ_STATUS     : constant := 16#04#;
 
+   TXC_IRQ : constant := 16#02#;
    RXE_IRQ : constant := 16#01#;
    RXC_IRQ : constant := 16#02#;
    BAD_CRC : constant := 16#08#;
@@ -303,6 +305,8 @@ package body Adaflight.Spektrum_SPI with SPARK_Mode is
    is
    begin
       Valid := False;
+      S.Taps.Error := S.Is_Error;
+      S.Taps.Error_Set := True;
       if S.Is_Error then
          if S.Status /= Receive and then (Inp.Rx_Status and BAD_CRC) /= 0 then
             S.Crc_Seed := not S.Crc_Seed;
@@ -414,6 +418,8 @@ package body Adaflight.Spektrum_SPI with SPARK_Mode is
                         Value => 403 + Unsigned_16 (Inp.RSSI_Register and 16#1F#) * 20,
                         others => <>));
                S.Missed_Packets := 0;
+               S.Taps.Missed := 0;
+               S.Taps.Missed_Set := True;
                for K in Payload_Bytes'Range loop
                   S.Payload (K) := P (2 + K);
                end loop;
@@ -478,6 +484,8 @@ package body Adaflight.Spektrum_SPI with SPARK_Mode is
             Start_Recv (O);
          when Receive =>
             S.Missed_Packets := S.Missed_Packets + 1;
+            S.Taps.Missed := S.Missed_Packets;
+            S.Taps.Missed_Set := True;
             if S.Missed_Packets < Max_Missed_Packets then
                Next_Channel (S, O);
                S.Timeout_Us := (if S.Crc_Seed = Mfg_Seed (S) then Short_Timeout_Us else Receive_Timeout (S));
@@ -488,6 +496,11 @@ package body Adaflight.Spektrum_SPI with SPARK_Mode is
                S.Timeout_Us := Sync_Timeout_Us;
             end if;
          when Telemetry =>
+            if Inp.Debug_Selected then
+               Add (O, (Kind => Read_Register, A => TX_IRQ_STATUS, others => <>));
+               S.Taps.Tx_Pending := (Inp.Tx_IRQ_Status and TXC_IRQ) = 0;
+               S.Taps.Tx_Set := True;
+            end if;
             Next_Channel (S, O);
             S.Status := Receive;
             S.Timeout_Us := Receive_Timeout (S) - Telemetry_Timeout_Us;

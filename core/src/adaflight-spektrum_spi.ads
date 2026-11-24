@@ -45,6 +45,19 @@ package Adaflight.Spektrum_SPI with SPARK_Mode is
    Fifo_Size : constant := 64;
    type Fifo_Bytes is array (0 .. Fifo_Size - 1) of Unsigned_8;
 
+   --  The debug values the receiver has written: the missed packet count as
+   --  a receive timeout or a packet taken last left it, the receive error
+   --  flag at the last packet check, and whether the telemetry packet was
+   --  still unsent at the last telemetry timeout.
+   type Debug_Taps is record
+      Missed_Set : Boolean := False;
+      Missed     : Unsigned_8 := 0;
+      Error_Set  : Boolean := False;
+      Error      : Boolean := False;
+      Tx_Set     : Boolean := False;
+      Tx_Pending : Boolean := False;
+   end record;
+
    --  The receiver's status, protocol and id, the channel and its index, the
    --  hop channels, the code columns and CRC seed, the misses, the channel
    --  count, the bind flag, the timers, the bind answers, the telemetry
@@ -70,6 +83,7 @@ package Adaflight.Spektrum_SPI with SPARK_Mode is
       Is_Error          : Boolean := False;
       Radio             : Adaflight.SPI_Radio.Radio;
       Payload           : Payload_Bytes := (others => 0);
+      Taps              : Debug_Taps;
    end record;
 
    subtype Output is Adaflight.SPI_Radio.Output;
@@ -77,7 +91,9 @@ package Adaflight.Spektrum_SPI with SPARK_Mode is
    --  What a call reads: the clocks, the interrupt flag and its time, the
    --  receive interrupt, count and status registers, the RSSI register, the
    --  receive buffer, the bind pin, the battery voltage and the RSSI
-   --  percentage; at start-up, the chip check.
+   --  percentage; at start-up, the chip check. While the receiver's debug
+   --  mode is selected, a telemetry timeout reads the transmit interrupt
+   --  status register, whose value the call takes here.
    type Inputs is record
       Now_Us          : Unsigned_32 := 0;
       Now_Ms          : Unsigned_32 := 0;
@@ -92,6 +108,8 @@ package Adaflight.Spektrum_SPI with SPARK_Mode is
       Battery_Voltage : Unsigned_16 := 0;
       RSSI_Percent    : Unsigned_8 := 0;
       Chip_Ok         : Boolean := True;
+      Debug_Selected  : Boolean := False;
+      Tx_IRQ_Status   : Unsigned_8 := 0;
    end record;
 
    type Received is (None, Bind_Done, Data_Ready);
