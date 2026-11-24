@@ -1009,8 +1009,9 @@ package body Adaflight.STM32.Flight is
    --  The stored configuration loaded with the receiver signal suspended:
    --  every group from its defaults and its stored bytes, the running
    --  features, the checks, the board's information taken in, the failsafe
-   --  reset, the accelerometer's zero and lowpass once the loop units run,
-   --  and the mode boxes offered; Success says the image held every group.
+   --  reset, the accelerometer's zero and lowpass and the attitude settings
+   --  once the loop units run, and the mode boxes offered; Success says the
+   --  image held every group.
    procedure Load_Configuration (Success : out Boolean) is
       Fresh    : Adaflight.Config_Groups.Configuration;
       Defaults : Adaflight.Config_Codec.Data;
@@ -1034,6 +1035,8 @@ package body Adaflight.STM32.Flight is
             Board => Config.Board_Alignment, Sample_Rate_Hz => Acc_Settings.Sample_Rate_Hz,
             One_G => Acc_Settings.One_G, Features => Config.Feature_Config.Enabled_Features).Lowpass_Hz;
          Adaflight.Accelerometer.Activate (Acc_State, Acc_Settings, Stored_Acc_Zero);
+         Att_Config := Adaflight.Attitude.Configure
+           (Adaflight.Config_Runtime.Attitude_Settings_Of (Config.Imu_Config, Config.Throttle_Correction_Config));
       end if;
       Offered := Available_Boxes;
       Adaflight.STM32.Radio.Resume_Signal;

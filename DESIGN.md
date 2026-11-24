@@ -16804,3 +16804,10 @@ Armed, horizontal axes now also start with a healthy flow sensor and rangefinder
 source. While flow keeps horizontal estimate valid, position hold needs no heading. Vectors draw quality, unusable
 axes, stale time stamps, driver delays and each position source. Host smoke arms with a UP-T1 as the only position
 source and reads its velocity.
+
+## D895. Attitude settings at configuration activation (2026-11-24)
+
+A configuration activation now applies attitude settings: estimator gains, magnetic declination, small angle and
+throttle correction. Before, boards took them in at start-up alone, so a small angle written over MSP and saved kept
+arming on the old angle until a restart. Host smoke rolls the craft 40 degrees over the simulator link, writes a
+60 degree small angle over MSP, and reads the angle reason clear after the save.
