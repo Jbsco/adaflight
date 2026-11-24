@@ -49,7 +49,8 @@ package Adaflight.SFHSS with SPARK_Mode is
 
    --  The protocol state, the start time, the hop channel and code, the
    --  missed hops, the calibration, the bind tuning, the next hop time, the
-   --  halves received since the last hop, the radio and the last packet.
+   --  halves received since the last hop, the radio, the last packet and the
+   --  hops that missed a half since binding.
    type State is record
       Protocol        : Protocol_State := Init;
       Start_Time_Ms   : Unsigned_32 := 0;
@@ -65,6 +66,7 @@ package Adaflight.SFHSS with SPARK_Mode is
       High_Seen       : Boolean := False;
       Radio           : Adaflight.SPI_Radio.Radio;
       Packet          : Packet_Bytes := (others => 0);
+      Missing_Frames  : Unsigned_16 := 0;
    end record;
 
    --  A channel past 31 arises only under a hop code of 30 or 31.

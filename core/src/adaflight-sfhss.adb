@@ -279,6 +279,7 @@ package body Adaflight.SFHSS with SPARK_Mode is
          when Init =>
             if Inp.Now_Ms - S.Start_Time_Ms > 10 then
                LED_Off (O, C.Pins);
+               S.Missing_Frames := 0;
                Initialise (C, O);
                S.Protocol := Bind;
             end if;
@@ -366,6 +367,9 @@ package body Adaflight.SFHSS with SPARK_Mode is
                Strobe (O, SRX);
             elsif After (Inp.Now_Us, S.Next_Hop_Us) then
                S.Next_Hop_Us := S.Next_Hop_Us + Sync_Hop_Us;
+               if not (S.Low_Seen and then S.High_Seen) then
+                  S.Missing_Frames := S.Missing_Frames + 1;
+               end if;
                if not S.Low_Seen and then not S.High_Seen then
                   S.Missing_Packets := S.Missing_Packets + 1;
                   if S.Missing_Packets > Max_Missing then

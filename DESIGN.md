@@ -16826,3 +16826,11 @@ FrSky SPI receivers now record their debug mode. D8 receivers write data error c
 with a channel out of range. X receivers write missing packet count after each timeout raises it, and bad frame count
 after each refused packet. This mode was offered and named, but no unit wrote it. Vectors run each sequence of both
 receiver families under this mode or another unit's mode, and later D8 sequences draw some channel values out of range.
+
+## D898. SFHSS debug values (2026-11-24)
+
+SFHSS SPI receivers now record their debug mode: protocol state, missed frame count, and upper and lower bind offsets.
+Each change of these fields writes its value, so each debug value is its field after every start-up and data call. A
+frame counts as missed when a hop passes without both halves of a packet, and that count restarts at each return to
+binding. This mode was offered and named, but no unit wrote it. Vectors run each sequence under this mode or another
+unit's mode.
