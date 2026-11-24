@@ -7,6 +7,7 @@ with Adaflight.Optical_Flow_Debug;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.MT;
 with Adaflight.STM32.Rangefinder;
+with Adaflight.STM32.Time;
 package body Adaflight.STM32.Optical_Flow is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Integer_8;
@@ -96,6 +97,16 @@ package body Adaflight.STM32.Optical_Flow is
    function Detected return Boolean is (Live);
    function Hardware return Interfaces.Unsigned_8 is (Hardware_Id);
    function Period_Us return Natural is (Dev.Period_Us);
+   function Delay_Ms return Natural is (Dev.Period_Us / 1000);
+   function Healthy return Boolean is (Live and then Core.Is_Healthy (Sensor, Adaflight.STM32.Time.Micros));
+   function Latest return Latest_Sample is
+     (Quality       => Sensor.Quality,
+      Time_Stamp_Us => Sensor.Time_Stamp_Us,
+      Rate_X        => Sensor.Processed_Flow.X,
+      Rate_Y        => Sensor.Processed_Flow.Y,
+      Valid_X       => Sensor.X_Valid,
+      Valid_Y       => Sensor.Y_Valid,
+      Gyro_Delay_Us => Sensor.Gyro_Delay_Us);
 
    procedure Set_Gyro (Roll_Rate, Pitch_Rate : Float) is
    begin

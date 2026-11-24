@@ -923,7 +923,9 @@ private
         Position_Estimator.Horizontal_Source'Val
           (Code (H.Position_Source,
                  Position_Estimator.Horizontal_Source'Pos (Position_Estimator.Horizontal_Source'Last))),
-      Max_Range_Cm   => P.Rangefinder_Max_Range_Cm);
+      Max_Range_Cm   => P.Rangefinder_Max_Range_Cm,
+      Flow_Quality_Min  => Natural (H.Opticalflow_Quality_Min),
+      Flow_Max_Range_Cm => H.Opticalflow_Max_Range);
 
    function Position_Hold_Settings_Of (H : Pos_Hold_Config_Record) return Position_Hold.Settings is
      (Deadband => Held (Integer (H.Deadband), 0, 50));

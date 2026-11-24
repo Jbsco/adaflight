@@ -16791,3 +16791,16 @@ constant, ahead of the GPS anchor's.
 Below 50 cm of rangefinder height, barometer noise grows up to 200 times at 20 cm. After a reading is lost, the last
 height keeps that derate at full strength for 1 s, then releases it over the next second. Vectors fly over stepped
 terrain with late first readings, dropouts, readings past range and each altitude source.
+
+## D894. Optical flow velocity in position estimate (2026-11-23)
+
+Position estimate now fuses optical flow velocity, so position hold can run on optical flow. Before, a detected flow
+sensor fed its debug values and MSP reply alone. While horizontal axes run, a sample of usable quality is scaled by
+rangefinder height, levelled by roll and pitch, and turned east and north by heading. It is advanced over the sensor's
+gyro delay with filter acceleration, then fused as horizontal velocity. Its noise grows as quality falls toward
+`poshold_opticalflow_quality_min`. Rangefinder height counts from 10 cm to the lower of both range settings.
+
+Armed, horizontal axes now also start with a healthy flow sensor and rangefinder, unless GPS is the only position
+source. While flow keeps horizontal estimate valid, position hold needs no heading. Vectors draw quality, unusable
+axes, stale time stamps, driver delays and each position source. Host smoke arms with a UP-T1 as the only position
+source and reads its velocity.

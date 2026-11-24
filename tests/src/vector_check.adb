@@ -4060,7 +4060,9 @@ procedure Vector_Check is
                           Altitude_LPF   => Integer (Int (5)),
                           Derivative_LPF => Integer (Int (6)),
                           Horizontal     => Auto,
-                          Max_Range_Cm   => 400);
+                          Max_Range_Cm   => 400,
+                          Flow_Quality_Min  => 30,
+                          Flow_Max_Range_Cm => 400);
          Alt_Present := Int (7) /= 0;
          Alt_One_G_Reciprocal := Flt (8);
          Init (Alt_State, Alt_Settings, Armed => False);
@@ -12006,7 +12008,9 @@ procedure Vector_Check is
                           Altitude_LPF   => Integer (Int (5)),
                           Derivative_LPF => Integer (Int (6)),
                           Horizontal     => Horizontal_Source'Val (Int (7)),
-                          Max_Range_Cm   => 400);
+                          Max_Range_Cm   => 400,
+                          Flow_Quality_Min  => 30,
+                          Flow_Max_Range_Cm => 400);
          Pos_Baro_Present := Int (8) /= 0;
          Pos_GPS_Present := Int (9) /= 0;
          Pos_One_G_Reciprocal := Flt (10);
@@ -12024,6 +12028,27 @@ procedure Vector_Check is
          Pos_RF.RF_Interval_Us := I32 (7);
          Pos_RF.Altitude_Hold_Mode := Int (8) /= 0;
          Pos_RF.Autopilot_Mode := Int (9) /= 0;
+      elsif Name = "posofinit" then
+         Pos_Settings.Flow_Quality_Min := Natural (Int (3));
+         Pos_Settings.Flow_Max_Range_Cm := Interfaces.Unsigned_16 (Int (4));
+         Pos_RF.Flow_Present := Int (5) /= 0;
+         Pos_RF.Flow_Delay_Ms := Natural (Int (6));
+         Pos_RF.Flow_Gyro_Delay_Us := Interfaces.Unsigned_32 (Int (7));
+      elsif Name = "posof" then
+         Pos_RF.Flow_Healthy := Int (4) /= 0;
+         Pos_RF.Flow_Quality := Interfaces.Integer_16 (Int (5));
+         Pos_RF.Flow_Time_Stamp_Us := Interfaces.Unsigned_32 (Int (6));
+         Pos_RF.Flow_Rate_X := Flt (7);
+         Pos_RF.Flow_Rate_Y := Flt (8);
+         Pos_RF.Flow_Valid_X := Int (9) /= 0;
+         Pos_RF.Flow_Valid_Y := Int (10) /= 0;
+         Pos_RF.Roll_Decidegrees := Integer (Int (11));
+         Pos_RF.Pitch_Decidegrees := Integer (Int (12));
+         Pos_RF.Yaw_Decidegrees := Integer (Int (13));
+      elsif Name = "posofout" then
+         Record_Int ("posofout.available", Int (4), Boolean'Pos (Pos_State.Flow_Data_Available));
+         Record_Int ("posofout.timestamp", Int (5), Integer_64 (Pos_State.Flow_Timestamp_Us));
+         Record_Int ("posofout.hold", Int (6), Integer_64 (Pos_State.Flow_Hold_Us));
       elsif Name = "posrfout" then
          Record_Result ("posrfout.offset", Bits (4), To_Bits (Pos_State.RF_Offset_Cm));
          Record_Int ("posrfout.offset_set", Int (5), Boolean'Pos (Pos_State.RF_Offset_Set));
@@ -12107,6 +12132,19 @@ procedure Vector_Check is
             Inp.RF_Interval_Us := Pos_RF.RF_Interval_Us;
             Inp.Altitude_Hold_Mode := Pos_RF.Altitude_Hold_Mode;
             Inp.Autopilot_Mode := Pos_RF.Autopilot_Mode;
+            Inp.Flow_Present := Pos_RF.Flow_Present;
+            Inp.Flow_Healthy := Pos_RF.Flow_Healthy;
+            Inp.Flow_Quality := Pos_RF.Flow_Quality;
+            Inp.Flow_Time_Stamp_Us := Pos_RF.Flow_Time_Stamp_Us;
+            Inp.Flow_Delay_Ms := Pos_RF.Flow_Delay_Ms;
+            Inp.Flow_Gyro_Delay_Us := Pos_RF.Flow_Gyro_Delay_Us;
+            Inp.Flow_Rate_X := Pos_RF.Flow_Rate_X;
+            Inp.Flow_Rate_Y := Pos_RF.Flow_Rate_Y;
+            Inp.Flow_Valid_X := Pos_RF.Flow_Valid_X;
+            Inp.Flow_Valid_Y := Pos_RF.Flow_Valid_Y;
+            Inp.Roll_Decidegrees := Pos_RF.Roll_Decidegrees;
+            Inp.Pitch_Decidegrees := Pos_RF.Pitch_Decidegrees;
+            Inp.Yaw_Decidegrees := Pos_RF.Yaw_Decidegrees;
             if Int (36) = 1 then
                Take_Update (Pos_State, Consumer'Val (Int (37)), Taken);
                Record_Int ("posstep.taken", Int (38), Boolean'Pos (Taken));
@@ -12153,7 +12191,7 @@ procedure Vector_Check is
             Expect_Float ("acceleration_east", Pos_State.Acceleration_East);
             Expect_Float ("acceleration_north", Pos_State.Acceleration_North);
             Expect_Float ("acceleration_up", Pos_State.Acceleration_Up);
-            Expect_Int ("heading_required", Boolean'Pos (Heading_Required (Pos_Settings, Inp)));
+            Expect_Int ("heading_required", Boolean'Pos (Heading_Required (Pos_State, Pos_Settings, Inp)));
             Expect_Float ("altitude", Pos_State.Filtered_Altitude_Cm);
             Expect_Float ("derivative", Pos_State.Filtered_Derivative);
             Expect_Float ("control_altitude", Pos_State.Control_Altitude_Cm);
@@ -44638,6 +44676,7 @@ begin
    Run (Dir & "/gpslink.csv", "gpslink");
    Run (Dir & "/posest.csv", "posest");
    Run (Dir & "/posestrf.csv", "posest");
+   Run (Dir & "/posestof.csv", "posest");
    Run (Dir & "/poshold.csv", "poshold");
    Run (Dir & "/rescue.csv", "rescue");
    Run (Dir & "/rescueplan.csv", "rescueplan");

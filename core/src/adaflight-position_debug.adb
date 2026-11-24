@@ -19,6 +19,10 @@ package body Adaflight.Position_Debug with SPARK_Mode is
             Debug.Set (D, Debug.Position_Est, 1, R1 (if North then S.Velocity_North else S.Velocity_East));
             Debug.Set (D, Debug.Position_Est, 2, R1 (if North then S.Acceleration_North else S.Acceleration_East));
          end if;
+         if T.Flow_Fed then
+            Debug.Set (D, Debug.Position_Est, 3, R1 (T.Flow_East));
+            Debug.Set (D, Debug.Position_Est, 4, R1 (T.Flow_North));
+         end if;
          if T.GPS_XY_Fed then
             Debug.Set (D, Debug.Position_Est, 6, R1 (T.GPS_R_Pos));
             Debug.Set (D, Debug.Position_Est, 7, R1 (T.GPS_R_Vel));
@@ -28,6 +32,10 @@ package body Adaflight.Position_Debug with SPARK_Mode is
          if T.GPS_XY_Fed then
             Debug.Set (D, Debug.Velocity_Est, 0, T.GPS_Vel_East);
             Debug.Set (D, Debug.Velocity_Est, 1, T.GPS_Vel_North);
+         end if;
+         if T.Flow_Fed then
+            Debug.Set (D, Debug.Velocity_Est, 2, R1 (T.Flow_East));
+            Debug.Set (D, Debug.Velocity_Est, 3, R1 (T.Flow_North));
          end if;
          if T.Updated then
             Debug.Set (D, Debug.Velocity_Est, 6, R1 (T.Accel_East));

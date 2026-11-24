@@ -28,6 +28,9 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    Ground_Latch_Fade_Us    : constant := 1_000_000;
    On_Ground_Tolerance_Cm  : constant := 50.0;
    Min_Ground_Trust        : constant Float := Float'Machine (1.0 / Ground_Effect_Scale);
+   Flow_Velocity_Noise     : constant := 200.0;
+   Flow_Timeout_Us         : constant := 100_000;
+   Radians_Per_Decidegree  : constant := 0.0174532925;
    Gravity_Cmss            : constant Float := 980.665;
    Measurement_Timeout_Us  : constant := 2_000_000;
    Max_Vertical_Speed_Cms  : constant := 4_000.0;
@@ -613,6 +616,123 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       end if;
    end Feed_GPS;
 
+   --  The optical flow noise falls with the quality above its minimum, a
+   --  negative value refusing the sample at or below it.
+   function Flow_Noise (Quality : Integer_16; Minimum : Natural) return Float
+     with Post => Flow_Noise'Result = -1.0 or else Flow_Noise'Result in 199.0 .. 20_001.0
+   is
+      Span : constant Integer := 100 - Minimum;
+      Norm : Float range 0.01 .. 1.0;
+   begin
+      if Integer (Quality) <= Minimum then
+         return -1.0;
+      end if;
+      if Span = 0 then
+         Norm := 1.0;
+      else
+         Norm := Constrain_F (Float (Integer (Quality) - Minimum) / Float (Span), 0.01, 1.0);
+      end if;
+      return Flow_Velocity_Noise / Norm;
+   end Flow_Noise;
+
+   subtype Small_Angle is Float range -7.0 .. 7.0;
+
+   function Decidegrees_To_Radians (D : Integer) return Small_Angle is (Float (D) / 10.0 * Radians_Per_Decidegree)
+     with Pre => D in -3_600 .. 3_600;
+
+   --  The optical flow sample is ready while new or within the interval the
+   --  driver measured between its samples, its delay before a second one.
+   procedure Flow_Ready (S : in out State; Inp : Inputs; Ready : out Boolean) is
+      Has_New : constant Boolean := not S.Flow_Data_Available or else Inp.Flow_Time_Stamp_Us /= S.Flow_Timestamp_Us;
+   begin
+      if Has_New then
+         declare
+            Source : Integer_32 := Integer_32 (Inp.Flow_Delay_Ms) * 1_000;
+         begin
+            if S.Flow_Data_Available then
+               declare
+                  Measured : constant Integer_32 := Clock.Elapsed (Inp.Flow_Time_Stamp_Us, S.Flow_Timestamp_Us);
+               begin
+                  if Measured > 0 and then Measured <= Flow_Timeout_Us then
+                     Source := Measured;
+                  end if;
+               end;
+            end if;
+            S.Flow_Data_Available := True;
+            S.Flow_Timestamp_Us := Inp.Flow_Time_Stamp_Us;
+            S.Flow_Hold_Us := Source;
+         end;
+      end if;
+      declare
+         Age : constant Integer_32 := Clock.Elapsed (Inp.Now_Us, S.Flow_Timestamp_Us);
+      begin
+         Ready := Has_New
+           or else (S.Flow_Data_Available and then S.Flow_Hold_Us > 0 and then Age >= 0 and then Age < S.Flow_Hold_Us);
+      end;
+   end Flow_Ready;
+
+   --  The optical flow rates over the rangefinder height, levelled by the
+   --  tilt and turned east and north by the heading, advanced over the
+   --  sensor's gyro delay with the filters' acceleration, into the
+   --  horizontal velocities, while the horizontal axes run and both axes of
+   --  the sample are usable.
+   procedure Feed_Optical_Flow (S : in out State; C : Settings; Inp : Inputs)
+     with Global => null
+   is
+      Ready : Boolean;
+      Noise : Float;
+   begin
+      if not S.XY_Enabled then
+         return;
+      end if;
+      if not Inp.Flow_Present or else not Inp.Flow_Healthy then
+         S.Flow_Data_Available := False;
+         return;
+      end if;
+      if C.Horizontal = GPS_Alone then
+         return;
+      end if;
+      if not RF_Sample_Valid
+          (Inp, Float'Min (Float (C.Max_Range_Cm), Float (C.Flow_Max_Range_Cm)), Rangefinder_Min_Alt_Cm)
+      then
+         return;
+      end if;
+      Noise := Flow_Noise (Inp.Flow_Quality, C.Flow_Quality_Min);
+      if Noise < 0.0 then
+         return;
+      end if;
+      Flow_Ready (S, Inp, Ready);
+      if not Ready or else not Inp.Flow_Valid_X or else not Inp.Flow_Valid_Y then
+         return;
+      end if;
+      declare
+         Altitude  : constant Float range 0.0 .. 65_535.0 := Float (Inp.RF_Altitude_Cm);
+         subtype Speed is Float range -2.7e11 .. 2.7e11;
+         subtype Turned is Float range -5.5e11 .. 5.5e11;
+         Right     : constant Speed := Inp.Flow_Rate_X * Altitude;
+         Forward   : constant Speed := Inp.Flow_Rate_Y * Altitude;
+         Cos_Pitch : constant Cosine := Cos_Approx (Decidegrees_To_Radians (Inp.Pitch_Decidegrees));
+         Cos_Roll  : constant Cosine := Cos_Approx (Decidegrees_To_Radians (Inp.Roll_Decidegrees));
+         Vel_Right : constant Speed := Right * Cos_Roll;
+         Vel_Fwd   : constant Speed := Forward * Cos_Pitch;
+         Yaw       : constant Small_Angle := Decidegrees_To_Radians (Inp.Yaw_Decidegrees);
+         Cos_Yaw   : constant Cosine := Cos_Approx (Yaw);
+         Sin_Yaw   : constant Cosine := Sin_Approx (Yaw);
+         East      : constant Turned := Vel_Fwd * Sin_Yaw - Vel_Right * Cos_Yaw;
+         North     : constant Turned := Vel_Fwd * Cos_Yaw + Vel_Right * Sin_Yaw;
+         Delay_S   : constant Float range 0.0 .. 2_200.0 := Float (Inp.Flow_Gyro_Delay_Us) * 1.0e-6;
+         East_Now  : constant Float := East + S.East.X (Acceleration) * Delay_S;
+         North_Now : constant Float := North + S.North.X (Acceleration) * Delay_S;
+      begin
+         Update_Velocity_To_Position (S.East, Held (East_Now), Noise);
+         Update_Velocity_To_Position (S.North, Held (North_Now), Noise);
+         S.Taps.Flow_Fed := True;
+         S.Taps.Flow_East := Held (East_Now);
+         S.Taps.Flow_North := Held (North_Now);
+         S.Last_XY_Measurement_Us := Inp.Now_Us;
+      end;
+   end Feed_Optical_Flow;
+
    --  The barometer offset drawn toward the offset the vertical estimate
    --  implies, at the rate of the faster anchor fed this task, the
    --  rangefinder before the GPS, while armed and the barometer fed; the
@@ -656,7 +776,9 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    procedure Update (S : in out State; C : Settings; Inp : Inputs) is
       Want_XY : constant Boolean :=
         Inp.Armed and then (Inp.Position_Hold_Mode or else Inp.Rescue_Mode
-                            or else (Inp.GPS_Present and then Inp.GPS_Fix and then C.Horizontal /= Optical_Flow_Alone));
+                            or else (Inp.GPS_Present and then Inp.GPS_Fix and then C.Horizontal /= Optical_Flow_Alone)
+                            or else (Inp.Flow_Present and then Inp.RF_Present and then Inp.Flow_Healthy
+                                     and then Inp.RF_Healthy and then C.Horizontal /= GPS_Alone));
       A : Linear;
    begin
       if Inp.Armed /= S.Was_Armed then
@@ -689,6 +811,7 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       Feed_GPS (S, C, Inp);
       Feed_Barometer (S, C, Inp);
       Feed_Rangefinder (S, C, Inp);
+      Feed_Optical_Flow (S, C, Inp);
       Cross_Calibrate (S, Inp.Armed);
       S.Position_East := S.East.X (Position);
       S.Position_North := S.North.X (Position);

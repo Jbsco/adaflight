@@ -13,10 +13,10 @@ Silver with no assume, and pass the gates on `main`.
   gates, CI, design ledger.
 - Phase 1, complete 2026-11-23. Control core. PID controller, rate profiles and stick curves, RC
   smoothing, mixer and motor output limits, arming logic, failsafe, runtime modes.
-- Phase 2, in progress. Sensor pipeline. Gyro filtering chain, dynamic notch, RPM filter,
+- Phase 2, complete 2026-11-24. Sensor pipeline. Gyro filtering chain, dynamic notch, RPM filter,
   accelerometer calibration, attitude estimation, board alignment, barometer, compass, rangefinders,
   optical flow, pitot, battery and current sensing, each with its task. Position estimate fuses
-  barometer, rangefinder, accelerometer and GPS. Left: optical flow velocity in that estimate.
+  barometer, rangefinder, optical flow, accelerometer and GPS.
 - Phase 3, complete 2026-11-19. Scheduler and task set. Cooperative scheduler, Betaflight's task table
   numbered by what a build contains, main loop, initialization order.
 - Phase 4, complete 2026-11-18. Receivers. Serial and SPI receivers, channel mapping, link statistics,
@@ -24,10 +24,9 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 5, complete 2026-11-23. Configuration and ground link. Parameter groups, settings table,
   command line, MSP with the messages Betaflight Configurator reads and writes. A build without a feature
   lists the settings, commands, pins and MSP replies of Betaflight's build without it.
-- Phase 6, in progress. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
+- Phase 6, complete 2026-11-24. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
   strip, beeper, VTX control, GPS with rescue and position modes, flight plans, servos and wing support.
-  `docs/building.md` lists what each board size leaves out. Left: position hold on optical flow, which
-  needs Phase 2's optical flow velocity.
+  `docs/building.md` lists what each board size leaves out.
 - Phase 7, in progress. Targets. `targets/stm32f4` builds STM32F405 and STM32F411 images,
   `targets/stm32f7` STM32F7 images, and `targets/host` runs flight software on host with its UARTs and
   USB port on TCP ports and a physics simulator link. Drivers cover SPI, I2C, DMA, timers, USB, flash, SD
@@ -55,7 +54,7 @@ with more room on F7 and H7. The measurement decides.
 Each Betaflight source area at commit af0638839, the commit the vectors were recorded from. Ported means proved and checked against the recorded vectors.
 
 - **common** (maths, filters, vectors, DFT, tables, encodings, buffers, codecs): ported
-- **flight** (pid, mixer, imu, failsafe, rescue, nav): ported, apart from optical flow velocity in the position estimate
+- **flight** (pid, mixer, imu, failsafe, rescue, nav): ported
 - **fc** (core loop, rc, modes, adjustments, tasks): ported
 - **sensors**: ported
 - **scheduler**: ported

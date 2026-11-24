@@ -4079,6 +4079,7 @@ package body Adaflight.STM32.Flight is
    --  hold an altitude target.
    function Position_Inputs (Now_Us : Unsigned_32) return Adaflight.Position_Estimator.Inputs is
       G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      F     : constant Adaflight.STM32.Optical_Flow.Latest_Sample := Adaflight.STM32.Optical_Flow.Latest;
       M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
       Bound : constant := Adaflight.Position_Estimator.Acc_Bound;
       function Held (V : Float) return Float is (Float'Max (-Bound, Float'Min (Bound, V)));
@@ -4110,6 +4111,19 @@ package body Adaflight.STM32.Flight is
          RF_Altitude_Cm     => Adaflight.STM32.Rangefinder.Altitude_Cm,
          RF_Sample_Time_Us  => Adaflight.STM32.Rangefinder.Sample_Time_Us,
          RF_Interval_Us     => Adaflight.STM32.Rangefinder.Sample_Interval_Us,
+         Flow_Present       => Adaflight.STM32.Optical_Flow.Detected,
+         Flow_Healthy       => Adaflight.STM32.Optical_Flow.Healthy,
+         Flow_Quality       => F.Quality,
+         Flow_Time_Stamp_Us => F.Time_Stamp_Us,
+         Flow_Delay_Ms      => Natural'Min (65_535, Adaflight.STM32.Optical_Flow.Delay_Ms),
+         Flow_Gyro_Delay_Us => Unsigned_32'Min (2 ** 31 - 1, F.Gyro_Delay_Us),
+         Flow_Rate_X        => Float'Max (-4.0e6, Float'Min (4.0e6, F.Rate_X)),
+         Flow_Rate_Y        => Float'Max (-4.0e6, Float'Min (4.0e6, F.Rate_Y)),
+         Flow_Valid_X       => F.Valid_X,
+         Flow_Valid_Y       => F.Valid_Y,
+         Roll_Decidegrees   => Att_State.Euler.Roll,
+         Pitch_Decidegrees  => Att_State.Euler.Pitch,
+         Yaw_Decidegrees    => Att_State.Euler.Yaw,
          Baro_Present       => Adaflight.STM32.Baro.Detected,
          Baro_Altitude_Cm   => Adaflight.STM32.Baro.Altitude_Cm,
          Baro_Sample_Time_Us => Adaflight.STM32.Baro.Sample_Time_Us,
@@ -4187,7 +4201,8 @@ package body Adaflight.STM32.Flight is
          Velocity_Up      => Pos_State.Velocity_Up,
          Valid_XY         => Pos_State.Valid_XY,
          Heading_Required =>
-           Adaflight.Position_Estimator.Heading_Required (Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros)),
+           Adaflight.Position_Estimator.Heading_Required
+             (Pos_State, Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros)),
          Yaw              => Att_State.Euler.Yaw,
          Heading_Valid    => Heading_Valid,
          Setpoint_Pitch   => Rate (Adaflight.Axes.Pitch),
@@ -4304,7 +4319,7 @@ package body Adaflight.STM32.Flight is
    function Pos_Hold_Ready return Boolean is
      (Adaflight.Build_Features.GPS and then Pos_State.Valid_XY
       and then (not Adaflight.Position_Estimator.Heading_Required
-                      (Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros))
+                      (Pos_State, Pos_Settings, Position_Inputs (Adaflight.STM32.Time.Micros))
                 or else Heading_Valid));
 
    --  The executor's settings from the configuration as it stands.
@@ -4341,7 +4356,7 @@ package body Adaflight.STM32.Flight is
          Cos_Lat           => G.Cos_Lat,
          Heading_Valid     => Heading_Valid,
          Heading_Required  =>
-           Adaflight.Position_Estimator.Heading_Required (Pos_Settings, Position_Inputs (Now_Us)),
+           Adaflight.Position_Estimator.Heading_Required (Pos_State, Pos_Settings, Position_Inputs (Now_Us)),
          Below_Landing     =>
            Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M),
          Listener          => Mission_Listening,
