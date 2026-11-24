@@ -105,6 +105,7 @@ with Adaflight.SPI_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.FrSky_SPI_Debug;
 with Adaflight.SFHSS;
+with Adaflight.SFHSS_Debug;
 with Adaflight.Redpine;
 with Adaflight.FlySky;
 with Adaflight.Spektrum_SPI;
@@ -17053,6 +17054,7 @@ procedure Vector_Check is
    SF_State  : SFH.State;
    SF_Config : SFH.Settings;
    SF_Rc     : SFH.Channel_Values := (others => 1_500);
+   SF_Debug  : Adaflight.Debug.State;
 
    procedure SF_Calibrate (O : SFH.Output) is
       Table : SFH.Calibration_Table := (others => (others => 0));
@@ -17178,6 +17180,14 @@ procedure Vector_Check is
             Record_Int (Name & ".bind_requested", Int (21), Boolean'Pos (SF_State.Radio.Bind_Requested));
             Record_Text (Name & ".ops", Str (22), FD_Ops (O));
          end;
+      elsif Name = "sfdebug" then
+         SF_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (SF_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "sfdbg" then
+         Adaflight.SFHSS_Debug.Record_Update (SF_Debug, SF_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("sfstep.debug", Int (4 + J), Integer_64 (SF_Debug.Data (J)));
+         end loop;
       end if;
    end Check_SFHSS_Line;
 

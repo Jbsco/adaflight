@@ -7,6 +7,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Redpine;
 with Adaflight.SFHSS;
+with Adaflight.SFHSS_Debug;
 with Adaflight.SPI_Radio;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.GPIO;
@@ -513,6 +514,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          SF.Start (SF_State, SF_Settings, Inp, Ops, Ok, Claim_RSSI);
          Run (Ops, Split + 1, Ops.Count);
       end if;
+      Adaflight.SFHSS_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, SF_State);
       Claim_RSSI := Claim_RSSI and then Exti_Ok;
       Channels := SF.Channel_Count;
    end SFHSS_Init;
@@ -551,6 +553,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          SF.Data_Received (SF_State, SF_Settings, Inp, Ops, Result);
          Run (Ops, Split + 1, Ops.Count);
       end if;
+      Adaflight.SFHSS_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, SF_State);
       R := (Bind => Result = SF.Bind_Done, Data => Result = SF.Data_Ready, Processing_Required => False);
    end SFHSS_Data_Received;
 
