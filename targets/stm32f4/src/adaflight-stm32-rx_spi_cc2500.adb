@@ -6,6 +6,7 @@ with Adaflight.FrSky_SPI_Debug;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Redpine;
+with Adaflight.Redpine_Debug;
 with Adaflight.SFHSS;
 with Adaflight.SFHSS_Debug;
 with Adaflight.SPI_Radio;
@@ -643,6 +644,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
          RP.Data_Received (RP_State, RP_Settings, Inp, Ops, Result);
          Run (Ops, Split + 1, Ops.Count);
       end if;
+      Adaflight.Redpine_Debug.Record_Update (Adaflight.STM32.Debug_Values.State, RP_State);
       R := (Bind => Result = RP.Bind_Done, Data => Result = RP.Data_Ready, Processing_Required => False);
    end Redpine_Data_Received;
 

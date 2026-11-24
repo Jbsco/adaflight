@@ -224,10 +224,15 @@ package body Adaflight.Redpine with SPARK_Mode is
             Read_Packet (S.Packet, Inp, O);
             if S.Packet (1) = C.Bind_Tx_Id (0) and then S.Packet (2) = C.Bind_Tx_Id (1) then
                S.Loop_Time_Us := Integer_32 (S.Packet (10)) * (if S.Fast then 100 else 1_000);
+               S.Taps.Loop_Time_Us := S.Loop_Time_Us;
+               S.Taps.RSSI_Byte := S.Packet (11);
+               S.Taps.Packet_Set := True;
                S.Packet_Timer_Us := Inp.Now_Us + Unsigned_32 (S.Loop_Time_Us / 8);
                S.Total_Timer_Us := Inp.Now_Us;
                S.Protocol_Timer_Us := Inp.Now_Us;
                S.Missing_Packets := 0;
+               S.Taps.Missing := 0;
+               S.Taps.Missing_Set := True;
                LED_On (O, C.Pins);
                Set_RSSI_Dbm (S.Radio, O, S.Packet (11));
                Result := Data_Ready;
@@ -249,6 +254,8 @@ package body Adaflight.Redpine with SPARK_Mode is
          Next_Channel (S, C, O);
          Strobe (O, SRX);
          S.Missing_Packets := S.Missing_Packets + 1;
+         S.Taps.Missing := S.Missing_Packets;
+         S.Taps.Missing_Set := True;
          if S.Missing_Packets >= 2 then
             Switch_Antennae (S.Radio, O);
          end if;

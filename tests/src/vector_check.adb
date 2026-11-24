@@ -107,6 +107,7 @@ with Adaflight.FrSky_SPI_Debug;
 with Adaflight.SFHSS;
 with Adaflight.SFHSS_Debug;
 with Adaflight.Redpine;
+with Adaflight.Redpine_Debug;
 with Adaflight.FlySky;
 with Adaflight.Spektrum_SPI;
 with Adaflight.RC_Stats;
@@ -17197,6 +17198,7 @@ procedure Vector_Check is
    RP_State   : RPN.State;
    RP_Config  : RPN.Settings;
    RP_Rc      : RPN.Channel_Values := (others => 1_500);
+   RP_Debug   : Adaflight.Debug.State;
    RP_Band    : Integer_64 := 1;
    RP_Channel : Integer_64 := 1;
    RP_Power   : Integer_64 := 0;
@@ -17346,6 +17348,14 @@ procedure Vector_Check is
             Record_Int (Name & ".saves", Int (26), RP_Saves);
             Record_Text (Name & ".ops", Str (27), FD_Ops (O));
          end;
+      elsif Name = "rpdebug" then
+         RP_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (RP_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "rpdbg" then
+         Adaflight.Redpine_Debug.Record_Update (RP_Debug, RP_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("rpstep.debug", Int (4 + J), Integer_64 (RP_Debug.Data (J)));
+         end loop;
       end if;
    end Check_Redpine_Line;
 
