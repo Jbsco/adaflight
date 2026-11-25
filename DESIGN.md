@@ -16993,3 +16993,13 @@ boards with an SD card alone paid about 19 KB.
 
 The user ruled that such a board drops its flight log. A 512 KB board now keeps it only when its configuration
 names a flash chip. `FEATURES=+blackbox,+sd_card` builds both where flash allows.
+
+## D913. FlySky by default on a board with an A7105 (2026-11-25)
+
+CRAZYBEEF4FS's configuration names the CC2500 define, as every SPI receiver board of that family does, and a FlySky
+protocol as its default receiver: its radio is an A7105. Its default build had CC2500 families it cannot use and
+no FlySky receiver (D906). The user ruled that it builds FlySky by default.
+
+A board whose default receiver protocol is a FlySky one now builds the FlySky receivers and leaves the CC2500
+families out where flash is short. A build of 1024 KB or more keeps both. The target job builds CRAZYBEEF4FS with
+no feature changes.
