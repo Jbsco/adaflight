@@ -2,6 +2,7 @@
 --  source's counts and the filtered rates on every axis, the debug axis's
 --  rates through the stages and around the dynamic notches, the loop's load,
 --  and a calibration cycle's deviations and cycles left.
+with Interfaces;
 with Adaflight.Axes;
 with Adaflight.Debug;
 with Adaflight.Gyro_Filters;
@@ -23,5 +24,9 @@ package Adaflight.Gyro_Debug with SPARK_Mode is
    --  their scaled aligned rates and those rates against the filtered rate,
    --  two slots per sensor for the first four enabled.
    procedure Record_Multi (D : in out Debug.State; S : Gyro_Filters.State; C : Gyro_Filters.Settings);
+
+   --  After a filter loop in which the dynamic notch ran a step of its peak
+   --  search: the step and the time it took in microseconds.
+   procedure Record_Notch_Step (D : in out Debug.State; S : Gyro_Filters.State; Duration_Us : Interfaces.Unsigned_32);
 
 end Adaflight.Gyro_Debug;

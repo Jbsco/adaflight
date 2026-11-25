@@ -16872,3 +16872,14 @@ mode was offered and named, but no unit wrote it.
 Boards write a buffered block per flush, so free transmit bytes are read once per block and each written byte takes
 one. Vectors write drawn blocks at drawn times on a serial port and on a flash chip. Host smoke reads a peak rate and
 free bytes from a serial log.
+
+## D903. Dynamic notch step time debug values (2026-11-24)
+
+Dynamic notch now records its step time debug mode: which step of its peak search a filter loop ran, and how long that
+step took in microseconds. While this mode is selected, a filter loop leaves that step out, and a board runs it right
+after, between two clock readings. Checks and lowpass that follow a notch update read nothing that step writes, so
+results stay as before. With another mode selected, a filter loop runs its step in place.
+
+New gyro vectors run under this mode with a scripted clock, through re-initialisations that turn notches on and off.
+Host image runs its gyro at 1 kHz, which keeps this notch off, so host smoke has no check of it. Flash test and stack
+debug modes stay unwritten: standard builds compile neither writer.

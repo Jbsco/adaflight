@@ -277,10 +277,23 @@ package body Adaflight.Dyn_Notch with SPARK_Mode is
    -- Update --
    ------------
 
-   procedure Update (S : in out State; Throttle_Percent : Natural) is
+   --  One step of the peak search with its record for the debug values.
+   procedure Take_Step (S : in out State; Throttle_Percent : Natural)
+     with Pre => S.Tick > 0
+   is
+   begin
+      S.Ran_Step := S.Current_Step;
+      S.Step_Ran := True;
+      Process (S, Throttle_Percent);
+      S.Tick := S.Tick - 1;
+   end Take_Step;
+
+   procedure Update (S : in out State; Throttle_Percent : Natural; Defer_Step : Boolean := False) is
    begin
       S.Average_Fresh := False;
       S.Freq_Step := False;
+      S.Step_Due := False;
+      S.Step_Ran := False;
       if S.Sample_Index = S.Sample_Count then
          S.Sample_Index := 0;
          S.Average_Fresh := True;
@@ -299,10 +312,25 @@ package body Adaflight.Dyn_Notch with SPARK_Mode is
          S.Sample_Index := S.Sample_Index + 1;
       end if;
       if S.Tick > 0 then
-         Process (S, Throttle_Percent);
-         S.Tick := S.Tick - 1;
+         if Defer_Step then
+            S.Step_Due := True;
+         else
+            Take_Step (S, Throttle_Percent);
+         end if;
       end if;
    end Update;
+
+   --------------
+   -- Run_Step --
+   --------------
+
+   procedure Run_Step (S : in out State; Throttle_Percent : Natural) is
+   begin
+      if S.Step_Due and then S.Tick > 0 then
+         Take_Step (S, Throttle_Percent);
+      end if;
+      S.Step_Due := False;
+   end Run_Step;
 
    ------------
    -- Filter --

@@ -2732,10 +2732,24 @@ package body Adaflight.STM32.Flight is
       return Integer_16 (Float'Max (-32_768.0, Float'Min (32_767.0, Scaled)));
    end Counts;
 
+   --  The dynamic notch's deferred step between two readings of the clock,
+   --  with its debug values.
+   procedure Time_Notch_Step with No_Inline is
+      Start : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+   begin
+      Adaflight.Gyro_Filters.Run_Notch_Step (Gyro_State, Throttle_Percent => 0);
+      Adaflight.Gyro_Debug.Record_Notch_Step
+        (Adaflight.STM32.Debug_Values.State, Gyro_State, Adaflight.STM32.Time.Micros - Start);
+   end Time_Notch_Step;
+
    --  The filter task: the DShot telemetry's replies decoded, then the
    --  loop's filtering with the motors' frequencies and without the
    --  throttle yet, then the filtered rates into the raw readings reply.
+   --  While the notch's step time debug mode is selected, the notch's step
+   --  runs after the filtering, timed.
    procedure Run_Filter (Now_Us : Scheduler.Time_Us) is
+      Time_Step  : constant Boolean :=
+        Adaflight.Debug.Selected (Adaflight.STM32.Debug_Values.State, Adaflight.Debug.FFT_Time);
       Multiplier : constant Float := Scheduler.Cycle_Time_Multiplier (Sched, Sched_Settings);
       Scale      : constant Adaflight.RPM_Filter.Cycle_Multiplier := Float'Max (0.25, Float'Min (4.0, Multiplier));
       Motor_Hz   : Adaflight.RPM_Filter.Motor_Frequencies;
@@ -2749,7 +2763,10 @@ package body Adaflight.STM32.Flight is
          end loop;
       end;
       Adaflight.Gyro_Filters.Filter (Gyro_State, Gyro_Settings, Now_Us, Throttle_Percent => 0,
-                                     Motor_Hz => Motor_Hz, Dt_Scale => Scale);
+                                     Motor_Hz => Motor_Hz, Dt_Scale => Scale, Defer_Notch_Step => Time_Step);
+      if Time_Step then
+         Time_Notch_Step;
+      end if;
       Adaflight.Gyro_Debug.Record_Filter
         (Adaflight.STM32.Debug_Values.State, Gyro_State, Gyro_Settings.Debug_Axis, Natural'Min (100, Sched.Average_Load_Percent));
       Adaflight.Gyro_Debug.Record_Multi (Adaflight.STM32.Debug_Values.State, Gyro_State, Gyro_Settings);
