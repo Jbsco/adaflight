@@ -37,6 +37,8 @@ No board builds mass storage mode unless `FEATURES` names `Mass_Storage`. That m
     FEATURES="+Menus" FLASH_KB=512 bash target.do   # a 512 KB board with its menu system
     FLASH_KB=512 bash host.do                 # the host smoke on those features
 
+`tools/boardsurvey.py` builds one board from each set of boards that share an MCU and features, with a second from a set of ten or more. It prints each build's code size, its overflow or its failure, and `--list` prints those sets.
+
 `target.do` also checks each image's deepest call paths against its main stack. `tools/stackdepth.py` adds up function frames along each path from start-up and fails a build whose path leaves less than 1,024 bytes of stack. In a packed image, unpacking must fit above its model and elaboration above boot code. Run it by hand with `--paths N` to list further paths from start-up, each the deepest one that avoids the largest frame of those listed before it.
 
 It also checks interrupt handlers against the run-time library's interrupt stack, which nested handlers share: a context switch, one handler of each priority and an alarm, each with its exception frame, must leave 256 bytes.
