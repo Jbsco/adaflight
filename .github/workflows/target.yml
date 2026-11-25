@@ -66,6 +66,9 @@ jobs:
       - name: Build the STM32F411 image
         run: BOARD=GEPRCF411 bash target.do
 
+      - name: Build the STM32F411 image with a CC2500 receiver
+        run: BOARD=MATEKF411RX bash target.do
+
       - name: Build the wing image
         run: FEATURES=+wing bash target.do
 

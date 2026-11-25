@@ -13,6 +13,7 @@ with Adaflight.SPI_Radio;
 with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.Receiver_Storage;
 with Adaflight.STM32.RX_SPI_Device;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.RX_SPI_CC2500 is
@@ -21,6 +22,7 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    package FS renames Adaflight.FrSky_SPI;
    package SF renames Adaflight.SFHSS;
    package RP renames Adaflight.Redpine;
+   package Store renames Adaflight.STM32.Receiver_Storage;
    use type SR.Op_Kind;
    use type FS.Received;
    use type FS.SPI_Protocol;
@@ -99,27 +101,33 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
    type Active_Family is (FrSky_Family, SFHSS_Family, Redpine_Family);
    Active : Active_Family := FrSky_Family;
 
-   Settings    : FS.Settings;
-   State       : FS.State;
-   Trial_State : FS.State;
-   SF_Settings : SF.Settings;
-   SF_State    : SF.State;
-   SF_Trial    : SF.State;
-   RP_Settings : RP.Settings;
-   RP_State    : RP.State;
-   RP_Trial    : RP.State;
-   Craft_Armed : Boolean := False;
-   VTX_Wanted  : RP.VTX_Request;
-   Ops         : SR.Output;
-   Cal         : FS.Calibration_Table := (others => (others => 0));
-   Save_Wanted : Boolean := False;
-   Readings    : Adaflight.STM32.RX_SPI.Telemetry_Readings;
-   --  The X telemetry's SmartPort stream, its values, the MSP tunnel over the
-   --  link and the processor's reply to its request.
-   Smart        : Adaflight.SmartPort_Telemetry.Stream;
-   Smart_Values : Adaflight.SmartPort_Telemetry.Inputs;
-   Tunnel       : Adaflight.MSP_Telemetry.Tunnel;
-   Reply        : Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) := (others => 0);
+   --  The families' settings, states and trial copies, the calibration
+   --  table, and the X telemetry's SmartPort stream, its values, the MSP
+   --  tunnel over the link and the processor's reply to its request: in the
+   --  storage the receivers share, where the started family's start sets
+   --  them.
+   Settings     : FS.Settings with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Settings'Address;
+   State        : FS.State with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.State'Address;
+   Trial_State  : FS.State with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Trial'Address;
+   Smart        : Adaflight.SmartPort_Telemetry.Stream
+     with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Smart'Address;
+   Smart_Values : Adaflight.SmartPort_Telemetry.Inputs
+     with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Smart_Values'Address;
+   Tunnel       : Adaflight.MSP_Telemetry.Tunnel
+     with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Tunnel'Address;
+   Reply        : Store.Answer_Bytes with Import, Address => Store.Shared.Radio_State.Family.FrSky_State.Reply'Address;
+   SF_Settings  : SF.Settings with Import, Address => Store.Shared.Radio_State.Family.SFHSS_State.Settings'Address;
+   SF_State     : SF.State with Import, Address => Store.Shared.Radio_State.Family.SFHSS_State.State'Address;
+   SF_Trial     : SF.State with Import, Address => Store.Shared.Radio_State.Family.SFHSS_State.Trial'Address;
+   RP_Settings  : RP.Settings with Import, Address => Store.Shared.Radio_State.Family.Redpine_State.Settings'Address;
+   RP_State     : RP.State with Import, Address => Store.Shared.Radio_State.Family.Redpine_State.State'Address;
+   RP_Trial     : RP.State with Import, Address => Store.Shared.Radio_State.Family.Redpine_State.Trial'Address;
+   Cal          : FS.Calibration_Table with Import, Address => Store.Shared.Radio_State.Calibration'Address;
+   Craft_Armed  : Boolean := False;
+   VTX_Wanted   : RP.VTX_Request;
+   Ops          : SR.Output;
+   Save_Wanted  : Boolean := False;
+   Readings     : Adaflight.STM32.RX_SPI.Telemetry_Readings;
    MSP_Wanted   : Boolean := False;
    MSP_Ack      : constant := 1;
 
@@ -381,6 +389,12 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Channels := 0;
       Claim_RSSI := False;
       Active := FrSky_Family;
+      Cal := (others => (others => 0));
+      State := (others => <>);
+      Smart := (others => <>);
+      Smart_Values := (others => <>);
+      Tunnel := (others => <>);
+      Reply := (others => 0);
       Settings := Settings_Of (Spi, CC2500);
       Settings.Telemetry := Telemetry;
       Pins_Init (Spi, CC2500, Exti_Ok);
@@ -499,6 +513,8 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Exti_Ok : Boolean;
    begin
       Active := SFHSS_Family;
+      Cal := (others => (others => 0));
+      SF_State := (others => <>);
       SF_Settings := SFHSS_Settings_Of (Spi, CC2500);
       Pins_Init (Spi, CC2500, Exti_Ok);
       Inp.Now_Us := Time.Micros;
@@ -588,6 +604,8 @@ package body Adaflight.STM32.RX_SPI_CC2500 is
       Channels := 0;
       Claim_RSSI := False;
       Active := Redpine_Family;
+      Cal := (others => (others => 0));
+      RP_State := (others => <>);
       RP_Settings := Redpine_Settings_Of (Spi, CC2500);
       Pins_Init (Spi, CC2500, Exti_Ok);
       if not Exti_Ok then

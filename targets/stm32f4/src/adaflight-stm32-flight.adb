@@ -5558,8 +5558,6 @@ package body Adaflight.STM32.Flight is
             Tasks.Battery_Alerts (Inputs, Before);
          when Scheduler.Beeper =>
             Run_Beeper (Before);
-         when Scheduler.OSD =>
-            Run_OSD (Before);
          when Scheduler.CMS =>
             if Adaflight.Build_Features.Menus then
                Run_Menu (Before);
@@ -5689,6 +5687,23 @@ package body Adaflight.STM32.Flight is
       Scheduler.Execute_Begin (Sched, Id, Now_Us);
       Run_Body (Id);
    end Run_Task;
+
+   --  The task a pass selected. The display task runs outside the other
+   --  tasks' body: its path is the deepest on the main stack, and that body's
+   --  frame would lie under it.
+   procedure Run_Selected (Id : Scheduler.Task_Id) is
+   begin
+      if Id = Scheduler.OSD then
+         declare
+            Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+         begin
+            Run_OSD (Before);
+            Scheduler.Execute_End (Sched, Sched_Settings, Before, Adaflight.STM32.Time.Micros);
+         end;
+      else
+         Run_Body (Id);
+      end if;
+   end Run_Selected;
 
    --  The boot signal after the sensors: the second LED on and the others
    --  off, then ten toggles of the first two, each with a 25 millisecond
@@ -6195,6 +6210,24 @@ package body Adaflight.STM32.Flight is
    --  One pass of the scheduler in its phases: the realtime tasks at the
    --  gyro's target, the gyro lock, the selection over the queue with the
    --  checks, the held task's run, and the LED's blink.
+   --  The SPI receiver's view of arming and, for a family with telemetry,
+   --  its readings: kept out of the pass's frame, which every task's deepest
+   --  path shares.
+   procedure Feed_SPI_Receiver with No_Inline is
+   begin
+      Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
+      if Adaflight.STM32.RX_SPI.Takes_Readings then
+         Adaflight.STM32.RX_SPI.Set_Readings
+           ((Hub          =>
+               (if Adaflight.STM32.RX_SPI.Hub_Taken then FrSky_Hub_Inputs
+                else (others => <>)),
+             ADC_External => Unsigned_16 (Natural'Min (65_535, Analog (External_Input))),
+             ADC_RSSI     => Unsigned_16 (Natural'Min (65_535, Analog (RSSI_Input))),
+             Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
+             Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
+      end if;
+   end Feed_SPI_Receiver;
+
    procedure Pass is
       G        : Scheduler.Gyro_Status;
       Poll     : Boolean;
@@ -6229,17 +6262,7 @@ package body Adaflight.STM32.Flight is
             Notify         : Boolean;
          begin
             if Adaflight.Build_Features.SPI_Receiver then
-               Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
-            end if;
-            if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.Takes_Readings then
-               Adaflight.STM32.RX_SPI.Set_Readings
-                 ((Hub          =>
-                     (if Adaflight.STM32.RX_SPI.Hub_Taken then FrSky_Hub_Inputs
-                      else (others => <>)),
-                   ADC_External => Unsigned_16 (Natural'Min (65_535, Analog (External_Input))),
-                   ADC_RSSI     => Unsigned_16 (Natural'Min (65_535, Analog (RSSI_Input))),
-                   Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
-                   Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
+               Feed_SPI_Receiver;
             end if;
             Adaflight.STM32.Radio.Set_MSP_Override (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.MSP_Override));
             Adaflight.STM32.Radio.Set_Boxes
@@ -6283,7 +6306,7 @@ package body Adaflight.STM32.Flight is
             Scheduler.Confirm (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Run_It);
             if Run_It then
                Scheduler.Run_Selected_Begin (Sched);
-               Run_Body (Sched.Current);
+               Run_Selected (Sched.Current);
                Scheduler.After_Run (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count);
             end if;
          end if;

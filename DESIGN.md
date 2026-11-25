@@ -16893,3 +16893,15 @@ interrupt line stays with the receiver, whose operation list already orders thos
 
 No board drives this radio yet: boards with a CC2500 build start FrSky, S-FHSS and Redpine alone, so a FlySky protocol
 setting does nothing there. Vectors compare every bus call of drawn operations.
+
+## D905. STM32F411 boards with a CC2500 receiver (2026-11-25)
+
+No STM32F411 board with a CC2500 receiver linked: main RAM was about 3 KB short, and its main stack 100 bytes short on
+its deepest path. CC2500 families' settings, states, trial copies, calibration table and X telemetry buffers now lie
+in storage a serial receiver's state shares, since a boot starts one receiver. Each family's start sets its part. A
+CC2500 build's RAM drops by about 6.8 KB.
+
+The display task now runs outside the other tasks' body, whose frame lay under the main stack's deepest path.
+STM32F411 boards had 4 bytes of that stack to spare and now have 1848. An SPI receiver's readings are gathered outside
+the main pass's frame. Five of six STM32F411 board configurations with a CC2500 build now, with 1 to 4 KB of flash to
+spare, and the target job builds MATEKF411RX. BETAFPVF411RX also has a flash chip and stays short of flash.
