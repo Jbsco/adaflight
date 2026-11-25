@@ -2,7 +2,9 @@
 
 The STM32F4 crate builds STM32F405 and STM32F411 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers. It also leaves out the board crate's run-time checks.
 
-A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. GEPRCF411SX1280 leaves its flight log and its flash chip out all the same, since its flash is short. An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board also leaves out debug values. A 512 KB board with a CC2500 leaves out FlySky receivers, which `FEATURES=-cc2500_receiver,+flysky_receiver` builds without the CC2500 families.
+A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one. A 512 KB board keeps its flight log only when its configuration names a flash chip or an SD card. An STM32F411 image with a flight log does not fit its flash yet. GEPRCF411SX1280 leaves its flight log and its flash chip out all the same, since its flash is short.
+
+An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board also leaves out debug values. A 512 KB board with a CC2500 leaves out FlySky receivers, which `FEATURES=-cc2500_receiver,+flysky_receiver` builds without the CC2500 families.
 
 A build without a feature leaves it out of command line, settings and MSP:
 

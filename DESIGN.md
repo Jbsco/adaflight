@@ -16918,3 +16918,17 @@ FlySky is a build feature of its own. A CC2500 build of 1024 KB or more has it. 
 families has its 4.5 KB to spare, so those builds leave it out, and `FEATURES=-cc2500_receiver,+flysky_receiver`
 builds it without those families. CRAZYBEEF4FS, whose radio is an A7105, builds that way in the target job with 14 KB
 of flash left. Whether that becomes its default is open. No board with this radio has run it.
+
+## D907. Board build survey (2026-11-25)
+
+Gates and the target job build a handful of boards, and a board class none of them covers can stop building unseen:
+STM32F411 boards with a CC2500 did (D905). STM32F4 and STM32F7 board configurations fall into sets by MCU and chosen
+features. We built a first and a middle board from each set on D906's tree.
+
+Every STM32F405 and STM32F745 set builds. So does every STM32F722 set but one, and so do STM32F411 boards without a
+flight log. STM32F722 boards with a barometer and a flash chip fit with about 1 KB to spare.
+
+Every STM32F411 set with a flight log overflows flash. The log takes about 22 KB there, and a plain STM32F411 image
+has 21 KB left. FLOWBOXV2, with a log and nothing else, is 1.5 KB over, and DARWINF411, with a barometer too, 6.5 KB.
+ALIENFLIGHTNGF7, the one STM32F722 board with a compass, a barometer and a flash chip, is 7.7 KB over. STM32F446 has
+no run-time parameters. ROADMAP and the building guide name the STM32F411 gap.
