@@ -6,10 +6,11 @@
 # image's section sizes and features are shown. Its deepest call paths must fit its main stack. A packed build
 # then packs its data and elaboration code, an STM32F7's tables with them. Every build writes its flash files,
 # sector0.bin and code.bin, and an Intel HEX image of both that leaves the configuration sector out, and reports
-# the code file's size against its flash region.
+# the code file's size against its flash region. A failed build leaves no flash files.
 set -e
 CRATE="${CRATE:-stm32f4}"
 cd "$(dirname "$0")/targets/$CRATE"
+rm -f bin/sector0.bin bin/code.bin "bin/adaflight_$CRATE.hex"
 if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; then
     echo "target: the board configuration submodule is not checked out (git submodule update --init)"
     exit 1
