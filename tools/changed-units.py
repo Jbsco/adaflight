@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Print the core units a pull request has to prove: every unit whose specification or
-body changed against the base, a generic unit through its instantiations, since GNATprove
+body changed against the base, and every unit that depends on a changed specification by a
+with clause or as its child, since a changed declaration can undo a proof in a unit the
+pull request leaves alone. A generic unit goes through its instantiations, since GNATprove
 analyzes a generic only there. With --all, every unit of the core the same way, for the
 nightly run; with --shard k/n, the k-th of n groups of about equal source, counting a
-generic's source for its instantiation. A naming variant (a stem with a double underscore),
-which the core project takes in place of its default by a scenario variable, is left out.
-Usage: changed-units.py <base-ref> | --all [--shard k/n]."""
+generic's source for its instantiation; with --shards, the number of groups the selection
+needs for a group to cover no more source than one of the nightly run's six, each with a
+unit. A naming variant (a stem with a double underscore), which the core project takes in
+place of its default by a scenario variable, is left out.
+Usage: changed-units.py <base-ref> | --all [--shard k/n | --shards]."""
 import pathlib
 import re
 import subprocess
@@ -13,6 +17,8 @@ import sys
 
 base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
 shard = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == "--shard" else None
+count_shards = len(sys.argv) > 2 and sys.argv[2] == "--shards"
+NIGHTLY_SHARDS = 6
 src = pathlib.Path("core/src")
 
 
@@ -49,6 +55,29 @@ else:
                              check=True, capture_output=True, text=True).stdout.split()
 selected = {pathlib.Path(c).stem for c in changed
             if c.startswith("core/src/") and c.endswith((".ads", ".adb")) and "__" not in pathlib.Path(c).stem}
+
+
+def dependents(name):
+    """The units that name a unit, or a child of it, in a with clause, and the unit's children."""
+    ada = name.replace("-", ".").lower()
+    clause = re.compile(r"^\s*(?:(?:private|limited)\s+)*with\s+([^;]+);", re.IGNORECASE | re.MULTILINE)
+    found = set()
+    for file in src.glob("*.ad[sb]"):
+        if "__" in file.stem or file.stem == name:
+            continue
+        if file.stem.startswith(name + "-"):
+            found.add(file.stem)
+            continue
+        withed = {unit.strip().lower() for names in clause.findall(code(file)) for unit in names.split(",")}
+        if any(unit == ada or unit.startswith(ada + ".") for unit in withed):
+            found.add(file.stem)
+    return found
+
+
+if base != "--all":
+    for spec in sorted(pathlib.Path(c).stem for c in changed
+                       if c.startswith("core/src/") and c.endswith(".ads") and "__" not in pathlib.Path(c).stem):
+        selected |= dependents(spec)
 pending = sorted(name for name in selected if is_generic(name))
 expanded = set()
 while pending:
@@ -86,6 +115,12 @@ def weight(name):
     name = generic_of(name)
     return sum(f.stat().st_size for f in (src / (name + ".ads"), src / (name + ".adb")) if f.exists())
 
+
+if count_shards:
+    everything = sum(f.stat().st_size for f in src.glob("*.ad[sb]") if "__" not in f.stem)
+    load = sum(weight(name) for name in selected)
+    print(max(1, min(NIGHTLY_SHARDS, len(selected), -(-load * NIGHTLY_SHARDS // everything))))
+    sys.exit(0)
 
 if shard:
     k, n = (int(v) for v in shard.split("/"))
