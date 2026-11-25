@@ -2387,12 +2387,31 @@ procedure Vector_Check is
    Gyro_Now_Us      : Interfaces.Unsigned_32 := 0;
    Gyro_Motor_Hz    : Adaflight.RPM_Filter.Motor_Frequencies := (others => 0.0);
    Gyro_Dt_Scale    : Adaflight.RPM_Filter.Cycle_Multiplier := 1.0;
+   --  The time the oracle's clock gives a dynamic notch step.
+   Gyro_Step_Us     : Interfaces.Unsigned_32 := 0;
+
+   --  One filter loop with its debug values, as a board runs it: under the
+   --  notch's step time mode the step is deferred and run after the loop.
+   procedure Gyro_Filter_Loop (Now_Us : Interfaces.Unsigned_32; Throttle_Percent : Natural) is
+      Timed : constant Boolean := Adaflight.Debug.Selected (Gyro_Debug, Adaflight.Debug.FFT_Time);
+   begin
+      Adaflight.Gyro_Filters.Filter
+        (Gyro_State, Gyro_Settings, Now_Us, Throttle_Percent, Gyro_Motor_Hz, Gyro_Dt_Scale,
+         Defer_Notch_Step => Timed);
+      if Timed then
+         Adaflight.Gyro_Filters.Run_Notch_Step (Gyro_State, Throttle_Percent);
+         Adaflight.Gyro_Debug.Record_Notch_Step (Gyro_Debug, Gyro_State, Gyro_Step_Us);
+      end if;
+      Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
+      Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
+   end Gyro_Filter_Loop;
 
    procedure Check_Gyro_Line is
       use Adaflight.Gyro_Filters;
       Name : constant String := Str (1);
    begin
       if Name = "gyroinit" then
+         Gyro_Step_Us := 0;
          declare
             C : Settings;
             K : Positive := 26;
@@ -2757,11 +2776,8 @@ procedure Vector_Check is
                Adaflight.Gyro_Debug.Record_Calibration (Gyro_Debug, Gyro_State);
                Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
                if Gyro_Cal_Samples mod Gyro_Denom = 0 then
-                  Filter (Gyro_State, Gyro_Settings,
-                          Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
-                          Gyro_Motor_Hz, Gyro_Dt_Scale);
-                  Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
-                  Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
+                  Gyro_Filter_Loop
+                    (Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
                end if;
                K := K + 3;
             end loop;
@@ -2774,12 +2790,10 @@ procedure Vector_Check is
          for J in Adaflight.Debug.Index loop
             Record_Int ("gyromstep.debug", Int (4 + J), Integer_64 (Gyro_Debug.Data (J)));
          end loop;
+      elsif Name = "gyrotime" then
+         Gyro_Step_Us := Interfaces.Unsigned_32 (Int (4));
       elsif Name = "gyrocaldone" then
-         Filter (Gyro_State, Gyro_Settings,
-                 Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
-                 Gyro_Motor_Hz, Gyro_Dt_Scale);
-         Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
-         Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
+         Gyro_Filter_Loop (Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)),
@@ -2825,9 +2839,7 @@ procedure Vector_Check is
                K := K + 3;
             end loop;
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
-            Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)), Gyro_Motor_Hz, Gyro_Dt_Scale);
-            Adaflight.Gyro_Debug.Record_Filter (Gyro_Debug, Gyro_State, Gyro_Settings.Debug_Axis, 0);
-            Adaflight.Gyro_Debug.Record_Multi (Gyro_Debug, Gyro_State, Gyro_Settings);
+            Gyro_Filter_Loop (Gyro_Now_Us, Natural (Int (6)));
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("rate", Gyro_State.Rate (A));
             end loop;

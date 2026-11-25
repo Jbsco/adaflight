@@ -323,7 +323,8 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
 
    procedure Filter
      (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural;
-      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier)
+      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier;
+      Defer_Notch_Step : Boolean := False)
    is
       Values : Axis_Signals := (others => 0.0);
    begin
@@ -378,7 +379,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       end loop;
       S.Samples := 0;
       if S.Dyn.Active then
-         Dyn_Notch.Update (S.Dyn, Throttle_Percent);
+         Dyn_Notch.Update (S.Dyn, Throttle_Percent, Defer_Notch_Step);
       end if;
       if C.Check_Overflow /= No_Check and then not C.Overflow_Protected then
          Check_Overflow (S, C, Now_Us);
@@ -438,6 +439,13 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
    ----------------------------
    -- Update_Dynamic_Lowpass --
    ----------------------------
+
+   procedure Run_Notch_Step (S : in out State; Throttle_Percent : Natural) is
+   begin
+      if S.Dyn.Active then
+         Dyn_Notch.Run_Step (S.Dyn, Throttle_Percent);
+      end if;
+   end Run_Notch_Step;
 
    procedure Update_Dynamic_Lowpass (S : in out State; C : Settings; Throttle : Unit_Interval) is
       Dt     : constant Seconds := Float (C.Loop_Time_Us) * 1.0e-6;

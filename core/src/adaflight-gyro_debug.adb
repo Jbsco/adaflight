@@ -1,4 +1,3 @@
-with Interfaces;
 with Adaflight.Dyn_Notch;
 
 package body Adaflight.Gyro_Debug with SPARK_Mode is
@@ -114,5 +113,15 @@ package body Adaflight.Gyro_Debug with SPARK_Mode is
          end if;
       end loop;
    end Record_Multi;
+
+   procedure Record_Notch_Step (D : in out Debug.State; S : Gyro_Filters.State; Duration_Us : Interfaces.Unsigned_32)
+   is
+      use type Interfaces.Unsigned_32;
+   begin
+      if S.Dyn.Step_Ran then
+         Debug.Set (D, Debug.FFT_Time, 0, Dyn_Notch.Step'Pos (S.Dyn.Ran_Step));
+         Debug.Set (D, Debug.FFT_Time, 1, Debug.Wrapped (Interfaces.Integer_32 (Duration_Us mod 65_536)));
+      end if;
+   end Record_Notch_Step;
 
 end Adaflight.Gyro_Debug;

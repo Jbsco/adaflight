@@ -233,10 +233,17 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    --  spin checks, and the attitude lowpass while no overflow is detected.
    --  The throttle percent gates the dynamic notch's record of its highest
    --  center; the cycle multiplier corrects the RPM notch period to the
-   --  loop's measured period.
+   --  loop's measured period. With the notch step deferred, the dynamic
+   --  notch update leaves its peak search step for Run_Notch_Step, which a
+   --  caller that times the step calls next; the checks and the lowpass
+   --  after the update read nothing the step writes.
    procedure Filter
      (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural;
-      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier);
+      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier;
+      Defer_Notch_Step : Boolean := False);
+
+   --  The dynamic notch step a filter loop deferred, if any.
+   procedure Run_Notch_Step (S : in out State; Throttle_Percent : Natural);
 
    --  The first lowpass follows the throttle, as the mixer requests.
    procedure Update_Dynamic_Lowpass (S : in out State; C : Settings; Throttle : Unit_Interval);

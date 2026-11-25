@@ -73,6 +73,11 @@ package Adaflight.Dyn_Notch with SPARK_Mode, Pure is
       Average_Fresh    : Boolean := False;
       Freq_Step        : Boolean := False;
       Freq_Axis        : Axis := Roll;
+      --  A step the update left for its caller to run, and whether a step ran
+      --  since the update began, with the step it was.
+      Step_Due         : Boolean := False;
+      Step_Ran         : Boolean := False;
+      Ran_Step         : Step := Window;
       Tick             : Natural range 0 .. Calc_Ticks := 0;
       Current_Step     : Step := Window;
       Current_Axis     : Axis := Roll;
@@ -95,8 +100,13 @@ package Adaflight.Dyn_Notch with SPARK_Mode, Pure is
 
    --  One loop: the averaged samples into the transforms, and one step of
    --  the peak search and notch update. The throttle percent gates the
-   --  record of the highest center.
-   procedure Update (S : in out State; Throttle_Percent : Natural);
+   --  record of the highest center. With the step deferred, the update
+   --  leaves it due, for the caller to time: Run_Step follows before the
+   --  next update.
+   procedure Update (S : in out State; Throttle_Percent : Natural; Defer_Step : Boolean := False);
+
+   --  The step an update left due, if any.
+   procedure Run_Step (S : in out State; Throttle_Percent : Natural);
 
    --  The rate through the axis's notches.
    procedure Filter (S : in out State; A : Axis; Value : in out Signal);
