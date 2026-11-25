@@ -1,4 +1,5 @@
 with Adaflight.Axes;
+with Adaflight.Blackbox_Output_Debug;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Build_Features;
 with Adaflight.Config_Fix;
@@ -9,6 +10,7 @@ with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Stream_Buffers;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.Debug_Values;
 with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash_Chip;
@@ -41,6 +43,7 @@ package body Adaflight.STM32.Blackbox is
    Buffer    : Byte_Array (0 .. Buffer_Size - 1) := (others => 0);
    Stream    : Adaflight.Stream_Buffers.Stream;
    Open_Port : Boolean := False;
+   Output    : Adaflight.Blackbox_Output_Debug.State;
    Which     : USART.Number := USART.UART1;
    Shared    : Boolean := False;
    Held      : Boolean := False;
@@ -143,7 +146,9 @@ package body Adaflight.STM32.Blackbox is
    --  chip's write buffer, or onto the port, which takes what its ring has
    --  room for; the writer counted the rest against the device's room.
    procedure Flush is
-      Taken : Natural;
+      Taken  : Natural;
+      Serial : constant Boolean := C.Device not in Header.SD_Card | Header.Flash;
+      Free   : Interfaces.Unsigned_32 := 0;
    begin
       if Stream.Next > 0 then
          if C.Device = Header.SD_Card then
@@ -151,7 +156,12 @@ package body Adaflight.STM32.Blackbox is
          elsif C.Device = Header.Flash then
             Adaflight.STM32.Flash_Chip.Write (Buffer (0 .. Stream.Next - 1));
          elsif Open_Port then
+            Free := Interfaces.Unsigned_32 (USART.Free (Which));
             USART.Queue (Which, Buffer (0 .. Stream.Next - 1), Taken);
+         end if;
+         if not Serial or else Open_Port then
+            Adaflight.Blackbox_Output_Debug.Record_Write
+              (Adaflight.STM32.Debug_Values.State, Output, Serial, Stream.Next, Free, Adaflight.STM32.Time.Millis);
          end if;
       end if;
       Adaflight.Stream_Buffers.Init (Stream, 0, Buffer'Length);

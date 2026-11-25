@@ -16861,3 +16861,14 @@ Boards now number MSP links for that descriptor. Each opening of an MSP line tak
 after a telemetry stream gets a new one. The telemetry link takes its number after those lines at start-up, while the
 telemetry feature is on. Vectors run each sequence under this mode or another unit's mode. Host smoke reads these
 values on a goggle's port and on a CRSF port.
+
+## D902. Flight log output debug values (2026-11-24)
+
+Flight log output now records its debug mode. Each block written to a log device counts eight bits per byte, ten on a
+serial port. A window longer than 100 ms gives output rate in kilobits per second, and a new peak rate replaces an old
+one. On a serial port, each byte gives free transmit bytes before it, and a byte with no room counts as dropped. This
+mode was offered and named, but no unit wrote it.
+
+Boards write a buffered block per flush, so free transmit bytes are read once per block and each written byte takes
+one. Vectors write drawn blocks at drawn times on a serial port and on a flash chip. Host smoke reads a peak rate and
+free bytes from a serial log.
