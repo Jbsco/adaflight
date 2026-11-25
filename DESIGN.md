@@ -16963,3 +16963,13 @@ The check tests battery continue's warnings and not cell detection, so it now se
 detection, battery state then returns to OK once voltage passes its warning level. Its waits for drawn charge and
 for its row are longer too: detection took 16 to 19 s on that paused image, and both waits end when their
 condition is met.
+
+## D910. Board survey tool (2026-11-25)
+
+D907's survey was a hand run. `tools/boardsurvey.py` repeats it. It groups STM32F4 and STM32F7 board
+configurations into sets by MCU and chosen features, and builds a first board of each set through `target.do`,
+with a middle one from a set of ten or more. Each build prints its code size, its overflow in bytes (D908) or its
+failure, and an MCU without a memory layout is named.
+
+Its exit status is nonzero while any set fails, which STM32F411 sets with a flight log do today. It is a tool to
+run after a change to features or size, and no gate.
