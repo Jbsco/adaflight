@@ -29,7 +29,7 @@ No board builds the flight plan unless `FEATURES` names `Flight_Plan`: its execu
 
 No board builds mass storage mode unless `FEATURES` names `Mass_Storage`. That mode shows a flash chip's flight logs to a USB host as a read-only disk after `msc` or an MSP reboot asks for it. Its USB disk exists on the host image only so far, so a board build with it still reports no storage.
 
-`FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region. `tools/featuresize.py BOARD` measures each feature's flash cost on a board, a build per feature, for a configurator's fit bar:
+`FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features. `featuregen.py --json` prints a board's features with their defaults for a configurator, and `target.do` reports the code file's size against its flash region. A build past that region fails and names the overflow in bytes. `tools/featuresize.py BOARD` measures each feature's flash cost on a board, a build per feature, for a configurator's fit bar:
 
     FEATURES="-Menus" bash target.do          # every default feature but the menu system
     FEATURES="+Flight_Plan" bash target.do    # with the flight plan
