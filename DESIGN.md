@@ -16950,3 +16950,16 @@ place, and those could belong to another board.
 STM32F411 images with a flight log, measured this way on D907's tree: 15 KB over with a flash chip, 18 KB with a
 barometer too, 29 KB with an SX1280 and 33 KB with a CC2500. FLOWBOXV2 and DARWINF411 log to an SD card, which a
 512 KB build leaves out, and are 1.5 and 6.5 KB over.
+
+## D909. Battery warning smoke check on a paused host (2026-11-25)
+
+A target job failed one host smoke check on a documentation change: a warnings row stayed blank where BATT < FULL
+belongs, with charge drawn. In that check battery voltage comes from ESC telemetry and rises from zero through its
+display filter. A host image that is off its CPU in bursts can find that voltage stable near 3 V and count one
+cell. At 16.1 V one cell is above full, so no warning shows for that start. Pausing the image for 400 ms in every
+500 reproduced it in one start of six.
+
+The check tests battery continue's warnings and not cell detection, so it now sets four cells. After an early
+detection, battery state then returns to OK once voltage passes its warning level. Its waits for drawn charge and
+for its row are longer too: detection took 16 to 19 s on that paused image, and both waits end when their
+condition is met.
