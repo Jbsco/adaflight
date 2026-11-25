@@ -110,6 +110,7 @@ with Adaflight.Redpine;
 with Adaflight.Redpine_Debug;
 with Adaflight.FlySky;
 with Adaflight.Spektrum_SPI;
+with Adaflight.Spektrum_SPI_Debug;
 with Adaflight.RC_Stats;
 with Adaflight.RX_Task;
 with Adaflight.GHST;
@@ -17499,6 +17500,8 @@ procedure Vector_Check is
    SK_State  : SPK.State;
    SK_Config : SPK.Settings;
    SK_Rc     : SPK.Channel_Values := (others => 1_500);
+   SK_Debug  : Adaflight.Debug.State;
+   SK_Tx_IRQ : Interfaces.Unsigned_8 := 0;
 
    function SK_Mfg_Text (M : SPK.Manufacturer_Id) return String is
      (FD_Hex (Natural (M (0)), 2) & FD_Hex (Natural (M (1)), 2) & FD_Hex (Natural (M (2)), 2)
@@ -17593,6 +17596,8 @@ procedure Vector_Check is
             Inp.Bind_Pin_Level := Int (10) /= 0;
             Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (12));
             Inp.RSSI_Percent := Interfaces.Unsigned_8 (Int (13));
+            Inp.Debug_Selected := Adaflight.Spektrum_SPI_Debug.Selected (SK_Debug);
+            Inp.Tx_IRQ_Status := SK_Tx_IRQ;
             for K in Fifo'Range loop
                Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
             end loop;
@@ -17630,6 +17635,16 @@ procedure Vector_Check is
             Record_Int (Name & ".bind_requested", Int (38), Boolean'Pos (SK_State.Radio.Bind_Requested));
             Record_Text (Name & ".ops", Str (39), FD_Ops (O));
          end;
+      elsif Name = "spdebug" then
+         SK_Debug := (others => <>);
+         Adaflight.Debug.Select_Mode (SK_Debug, Interfaces.Unsigned_8 (Int (3)));
+      elsif Name = "sptx" then
+         SK_Tx_IRQ := Byte_At (4);
+      elsif Name = "spdbg" then
+         Adaflight.Spektrum_SPI_Debug.Record_Update (SK_Debug, SK_State);
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("spstep.debug", Int (4 + J), Integer_64 (SK_Debug.Data (J)));
+         end loop;
       end if;
    end Check_Spektrum_Line;
 

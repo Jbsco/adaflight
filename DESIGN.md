@@ -16842,3 +16842,11 @@ packet count, and each missed packet writes that count. Every data call writes p
 its lower and upper offsets. A bind request and a start clear missed packet count without a write, so its debug value
 is captured where it is written. This mode was offered and named, but no unit wrote it. Vectors run each sequence
 under this mode or another unit's mode.
+
+## D900. Spektrum SPI debug values (2026-11-24)
+
+Spektrum SPI receivers now record their debug mode. A receive timeout and a packet taken write missed packet count,
+and each packet check writes its receive error flag. A telemetry timeout reads transmit interrupt status and writes
+whether the telemetry packet was still unsent. That register read happens only while this mode is selected, so a
+call's inputs now say whether it is, and give that register's value. This mode was offered and named, but no unit
+wrote it. Vectors run each sequence under this mode or another unit's mode, with the register read in operation order.
