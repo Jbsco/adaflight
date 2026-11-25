@@ -4,7 +4,9 @@
 usage: memorygen.py <configs dir> <board name> <output .ld>
 
 The layout keeps flash sector 0 as its own region for the vector table and the code beside it, sector 1 for the
-configuration store, and the rest of the code from sector 2; the main RAM and the core coupled memory follow the
+configuration store, and the rest of the code from sector 2. That code region is declared longer than its flash
+by a measuring allowance, so an image past its flash still links and its build names its size; __flash_size is
+the flash the code has, and target.do checks an image against it. The main RAM and the core coupled memory follow the
 MCU, and an STM32F7 adds its instruction tightly coupled memory. The crate's linker script includes the output,
 and the Ada package adaflight-stm32-memory.ads beside it gives the code the configuration sector, the bootloader
 and the unique identifier's addresses.
@@ -39,6 +41,10 @@ CLOCKS = {"STM32F405": (168_000_000, 42_000_000, 84_000_000), "STM32F411": (96_0
           "STM32F746": (216_000_000, 54_000_000, 108_000_000)}
 
 
+# The length a code region is declared with past its flash, so an image past its flash links and is measured.
+ALLOWANCE = "512K"
+
+
 def main() -> None:
     if len(sys.argv) != 4:
         raise SystemExit(__doc__)
@@ -60,11 +66,12 @@ MEMORY
 {{
   flash0  (rx) : ORIGIN = 0x08000000, LENGTH = {s0}
   config   (r) : ORIGIN = {cfg}, LENGTH = {s1}
-  flash   (rx) : ORIGIN = {code}, LENGTH = {code_len}
+  flash   (rx) : ORIGIN = {code}, LENGTH = {code_len} + {ALLOWANCE}
   staging  (r) : ORIGIN = 0xC0000000, LENGTH = 1M
   sram12 (rwx) : ORIGIN = {ram}, LENGTH = {ram_len}
 {ccm_line}{itcm}}}
 {aliases}__stack_size = {stack};
+__flash_size = {code_len};
 """
     output.parent.mkdir(parents=True, exist_ok=True)
     if not output.exists() or output.read_text() != out:

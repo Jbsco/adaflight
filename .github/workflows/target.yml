@@ -72,6 +72,14 @@ jobs:
       - name: Build the STM32F411 image with the FlySky receiver alone
         run: BOARD=CRAZYBEEF4FS FEATURES=-cc2500_receiver,+flysky_receiver bash target.do
 
+      - name: Name the overflow of an image past its flash
+        run: |
+          if BOARD=GEPRCF411 FEATURES=+blackbox,+flash_chip,+barometer bash target.do > overflow.log 2>&1; then
+            echo "an image past its flash built"
+            exit 1
+          fi
+          grep "overflow the flash region by [0-9]* bytes" overflow.log
+
       - name: Build the wing image
         run: FEATURES=+wing bash target.do
 

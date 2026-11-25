@@ -55,7 +55,7 @@ REGION_ALIAS("sram_bs", sram12)
 REGION_ALIAS("sram_da", sram12)
 INCLUDE itcm_load.ld
 
-__flash_end = ORIGIN (flash) + LENGTH (flash);
+__flash_end = ORIGIN (flash) + __flash_size;
 
 _DEFAULT_STACK_SIZE = 4*1024;
 

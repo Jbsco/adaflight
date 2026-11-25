@@ -16932,3 +16932,21 @@ Every STM32F411 set with a flight log overflows flash. The log takes about 22 KB
 has 21 KB left. FLOWBOXV2, with a log and nothing else, is 1.5 KB over, and DARWINF411, with a barometer too, 6.5 KB.
 ALIENFLIGHTNGF7, the one STM32F722 board with a compass, a barometer and a flash chip, is 7.7 KB over. STM32F446 has
 no run-time parameters. ROADMAP and the building guide name the STM32F411 gap.
+
+## D908. Flash overflow in bytes (2026-11-25)
+
+A link of an image far past its flash failed without a size. Code spills from sector 0 into the code region (D538,
+D707), and the linker then reports only that a section would overflow. `tools/featuresize.py` had no cost for such
+a build, and a fit bar exists for those builds.
+
+`tools/memorygen.py` now declares the code region 512 KB longer than its flash, and `__flash_size` gives the flash
+the code has. An image past its flash links. `target.do` compares the code file with that size, and a build past it
+fails with the overflow in bytes. A packed build's packing step named its overflow already. `tools/featuresize.py`
+reads both texts. Built with one build stamp, flash files of images that fit are the same byte for byte.
+
+`target.do` also removes a board's flash files before it builds. A failed build left the previous build's files in
+place, and those could belong to another board.
+
+STM32F411 images with a flight log, measured this way on D907's tree: 15 KB over with a flash chip, 18 KB with a
+barometer too, 29 KB with an SX1280 and 33 KB with a CC2500. FLOWBOXV2 and DARWINF411 log to an SD card, which a
+512 KB build leaves out, and are 1.5 and 6.5 KB over.
