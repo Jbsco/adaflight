@@ -16883,3 +16883,13 @@ results stay as before. With another mode selected, a filter loop runs its step 
 New gyro vectors run under this mode with a scripted clock, through re-initialisations that turn notches on and off.
 Host image runs its gyro at 1 kHz, which keeps this notch off, so host smoke has no check of it. Flash test and stack
 debug modes stay unwritten: standard builds compile neither writer.
+
+## D904. A7105 radio register access (2026-11-24)
+
+FlySky SPI receivers run on an A7105 radio. Its register access is now a proved unit of its own: register reads and
+writes, strobes, radio id, and FIFO reads and writes behind a reset of their pointer, 64 bytes at most. It is generic
+over a receiver bus, like the CC2500 unit, and proved over a bus that does nothing. Which strobes use the radio's
+interrupt line stays with the receiver, whose operation list already orders those resets.
+
+No board drives this radio yet: boards with a CC2500 build start FrSky, S-FHSS and Redpine alone, so a FlySky protocol
+setting does nothing there. Vectors compare every bus call of drawn operations.
