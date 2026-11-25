@@ -269,6 +269,7 @@ with Adaflight.Flash_Device.W25Q128FV;
 with Adaflight.OLED_Display;
 with Adaflight.SX1280;
 with Adaflight.SX127x;
+with Adaflight.A7105;
 with Adaflight.CC2500;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
@@ -28050,6 +28051,119 @@ procedure Vector_Check is
       end if;
    end Check_SX127x_Line;
 
+   --  The A7105 oracle's chip: the register seed and the step's salt.
+   type A7_Link is record
+      Reg_Seed : Interfaces.Unsigned_32 := 0;
+      Salt     : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   A7_Device : A7_Link;
+
+   function A7_Reg_Byte (D : A7_Link; Command : Byte; Index : Natural) return Byte is
+     (Byte (((Interfaces.Unsigned_32 (Command) + Interfaces.Unsigned_32 (Index)) * 2_654_435_761
+             + D.Reg_Seed * 40_503 + D.Salt * 2_246_822_519) / 2 ** 24));
+
+   procedure A7_Write_Command (D : in out A7_Link; Command : Byte; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wreg," & MX_Hex (Byte_Array'(0 => Command)) & "," & MX_Hex (Byte_Array'(0 => Value)));
+   end A7_Write_Command;
+
+   procedure A7_Write_Command_Multi (D : in out A7_Link; Command : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wmulti," & MX_Hex (Byte_Array'(0 => Command)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end A7_Write_Command_Multi;
+
+   procedure A7_Read_Command (D : in out A7_Link; Command : Byte; Value : out Byte) is
+   begin
+      Value := A7_Reg_Byte (D, Command, 0);
+      MX_Op ("rreg," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & MX_Hex (Byte_Array'(0 => Value)));
+   end A7_Read_Command;
+
+   procedure A7_Read_Command_Multi (D : in out A7_Link; Command : Byte; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := A7_Reg_Byte (D, Command, I - Data'First);
+      end loop;
+      MX_Op ("rmulti," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end A7_Read_Command_Multi;
+
+   procedure A7_Write_Byte (D : in out A7_Link; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wbyte," & MX_Hex (Byte_Array'(0 => Value)));
+   end A7_Write_Byte;
+
+   package A7_Driver is new Adaflight.A7105
+     (Radio_Device            => A7_Link,
+      Bus_Write_Command       => A7_Write_Command,
+      Bus_Write_Command_Multi => A7_Write_Command_Multi,
+      Bus_Read_Command        => A7_Read_Command,
+      Bus_Read_Command_Multi  => A7_Read_Command_Multi,
+      Bus_Write_Byte          => A7_Write_Byte);
+
+   A7_Result : Integer_64 := 0;
+
+   procedure Check_A7105_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "a7init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         A7_Device := (Reg_Seed => Interfaces.Unsigned_32 (Int (3)), Salt => 0);
+      elsif Name = "a7step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         A7_Result := 0;
+         A7_Device.Salt := Interfaces.Unsigned_32 (Int (5));
+         case Int (4) is
+            when 0 =>
+               declare
+                  Value : Byte;
+               begin
+                  A7_Driver.Read_Register (A7_Device, Byte (Int (6)), Value);
+                  A7_Result := Integer_64 (Value);
+               end;
+            when 1 =>
+               A7_Driver.Write_Register (A7_Device, Byte (Int (6)), Byte (Int (7)));
+            when 2 =>
+               A7_Driver.Strobe (A7_Device, Byte (Int (6)));
+            when 3 =>
+               A7_Driver.Write_ID (A7_Device, Interfaces.Unsigned_32 (Int (6)));
+            when 4 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+               begin
+                  A7_Driver.Read_FIFO (A7_Device, Data);
+                  A7_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when others =>
+               A7_Driver.Write_FIFO (A7_Device, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))));
+         end case;
+      elsif Name = "a7op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("a7105.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("a7105.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "a7res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("a7105.result", Int (4), A7_Result);
+      end if;
+   end Check_A7105_Line;
+
    --  The CC2500 oracle's chip: the register seed, the step's salt and
    --  whether the first frequency register answers its reset value.
    type C5_Link is record
@@ -44412,6 +44526,8 @@ procedure Vector_Check is
                   Check_SX1280_Line;
                elsif Kind = "sx127x" then
                   Check_SX127x_Line;
+               elsif Kind = "a7105" then
+                  Check_A7105_Line;
                elsif Kind = "cc2500" then
                   Check_CC2500_Line;
                elsif Kind = "w25n" then
@@ -44881,6 +44997,7 @@ begin
    Run (Dir & "/sx1280.csv", "sx1280");
    Run (Dir & "/sx127x.csv", "sx127x");
    Run (Dir & "/cc2500.csv", "cc2500");
+   Run (Dir & "/a7105.csv", "a7105");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");
