@@ -65,6 +65,7 @@ FEATURES = [
     ("Optical_Flow", 1024, "The optical flow sensors."),
     ("SPI_Receiver", None, "The SPI receiver, when the board's configuration names its radio chip."),
     ("CC2500_Receiver", None, "The CC2500 SPI receiver families, when the board's configuration names the chip."),
+    ("FlySky_Receiver", None, "The FlySky SPI receivers on an A7105, in a CC2500 build of 1024 KB or more."),
     ("SX1280_Receiver", None, "The ExpressLRS SPI receiver, when the board's configuration names the SX1280."),
     ("Debug_Values", 0, "The debug values the debug mode selects."),
     ("Stack_Check", None, "The main stack's use measured from a pattern filled at start, shown in status."),
@@ -100,6 +101,9 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     if mcu == "STM32F411":
         chosen["Servos"] = False
         chosen["GPS"] = False
+    # The FlySky receivers come with a CC2500 build where flash allows: beside the CC2500 families they take about
+    # 4.5 KB, which no 512 KB board with those families has.
+    chosen["FlySky_Receiver"] = chosen["CC2500_Receiver"] and flash_kb >= 1024
     for name in BOARD_OMITS.get(board, ()):
         chosen[name] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
@@ -383,6 +387,7 @@ STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("Optical_Flow", "Adaflight.STM32.Optical_Flow", "adaflight-stm32-optical_flow"),
          ("SPI_Receiver", "Adaflight.STM32.RX_SPI", "adaflight-stm32-rx_spi"),
          ("CC2500_Receiver", "Adaflight.STM32.RX_SPI_CC2500", "adaflight-stm32-rx_spi_cc2500"),
+         ("FlySky_Receiver", "Adaflight.STM32.RX_SPI_A7105", "adaflight-stm32-rx_spi_a7105"),
          ("SX1280_Receiver", "Adaflight.STM32.RX_SPI_SX1280", "adaflight-stm32-rx_spi_sx1280")]
 
 

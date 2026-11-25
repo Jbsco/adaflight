@@ -1,5 +1,6 @@
 with Adaflight.RX_SPI;
 with Adaflight.RX_SPI_Provider;
+with Adaflight.STM32.RX_SPI_A7105;
 with Adaflight.STM32.RX_SPI_CC2500;
 with Adaflight.STM32.RX_SPI_Device;
 with Adaflight.STM32.RX_SPI_SX1280;
@@ -9,6 +10,7 @@ package body Adaflight.STM32.RX_SPI is
 
    Spi_Config     : Adaflight.Config_Groups.Rx_Spi_Config_Record;
    CC2500_Config  : Adaflight.Config_Groups.Rx_Cc2500_Spi_Config_Record;
+   FlySky_Config  : Adaflight.Config_Groups.Fly_Sky_Config_Record;
    ELRS_Config    : Adaflight.Config_Groups.Rx_Express_Lrs_Spi_Config_Record;
    Exti_Pull_Down : Boolean := False;
    Channels       : Natural := 0;
@@ -23,9 +25,9 @@ package body Adaflight.STM32.RX_SPI is
       RX_SPI_Device.Init (Spi_Config, Ok);
    end Device_Init;
 
-   --  The FrSky, SFHSS, Redpine and ExpressLRS families run on the board;
-   --  every other protocol's start fails. ExpressLRS takes its interrupt line
-   --  pulled down.
+   --  The FrSky, SFHSS, Redpine, FlySky and ExpressLRS families run on the
+   --  board; every other protocol's start fails. FlySky and ExpressLRS take
+   --  their interrupt line pulled down.
    procedure Family_Init (F : Layer.Family; Ok : out Boolean) is
    begin
       case F is
@@ -35,6 +37,9 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Init (Spi_Config, CC2500_Config, Ok, Channels, RSSI_Claimed);
+         when Layer.FlySky =>
+            Exti_Pull_Down := True;
+            RX_SPI_A7105.FlySky_Init (Spi_Config, CC2500_Config, FlySky_Config, Ok, Channels, RSSI_Claimed);
          when Layer.ExpressLRS =>
             Exti_Pull_Down := True;
             RX_SPI_SX1280.ExpressLRS_Init (Spi_Config, ELRS_Config, Ok, Channels, RSSI_Claimed);
@@ -59,6 +64,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Data_Received (R);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Data_Received (R);
+         when Layer.FlySky =>
+            RX_SPI_A7105.FlySky_Data_Received (R);
          when Layer.ExpressLRS =>
             RX_SPI_SX1280.ExpressLRS_Data_Received (R);
          when others =>
@@ -85,6 +92,8 @@ package body Adaflight.STM32.RX_SPI is
             RX_SPI_CC2500.SFHSS_Set_Channels (Data);
          when Layer.Redpine =>
             RX_SPI_CC2500.Redpine_Set_Channels (Data);
+         when Layer.FlySky =>
+            RX_SPI_A7105.FlySky_Set_Channels (Data);
          when Layer.ExpressLRS =>
             RX_SPI_SX1280.ExpressLRS_Set_Channels (Data);
          when others =>
@@ -122,6 +131,7 @@ package body Adaflight.STM32.RX_SPI is
       Telemetry_On := Telemetry;
       Spi_Config := C.Rx_Spi_Config;
       CC2500_Config := C.Rx_Cc2500_Spi_Config;
+      FlySky_Config := C.Fly_Sky_Config;
       ELRS_Config := C.Rx_Express_Lrs_Spi_Config;
       Provider.Init (State, C.Rx_Spi_Config.Rx_Spi_Protocol, Ok, Providing);
       Started := Ok and then Providing;
@@ -172,6 +182,8 @@ package body Adaflight.STM32.RX_SPI is
          RX_SPI_CC2500.SFHSS_Request_Bind;
       elsif Started and then State.Selected = Layer.Redpine then
          RX_SPI_CC2500.Redpine_Request_Bind;
+      elsif Started and then State.Selected = Layer.FlySky then
+         RX_SPI_A7105.FlySky_Request_Bind;
       elsif Started and then State.Selected = Layer.ExpressLRS then
          RX_SPI_SX1280.ExpressLRS_Request_Bind;
       end if;
@@ -183,15 +195,18 @@ package body Adaflight.STM32.RX_SPI is
 
    function Claims_Link_Quality return Boolean is (Started and then State.Selected = Layer.ExpressLRS);
 
-   function Takes_Readings return Boolean is (Started and then State.Selected = Layer.FrSky);
+   function FrSky_Running return Boolean is (Started and then State.Selected = Layer.FrSky);
 
-   function Hub_Taken return Boolean is (Takes_Readings and then RX_SPI_CC2500.FrSky_Hub_Taken);
+   function Takes_Readings return Boolean is (Started and then State.Selected in Layer.FrSky | Layer.FlySky);
 
-   function SmartPort_Taken return Boolean is (Takes_Readings and then RX_SPI_CC2500.FrSky_SmartPort_Taken);
+   function Hub_Taken return Boolean is (FrSky_Running and then RX_SPI_CC2500.FrSky_Hub_Taken);
+
+   function SmartPort_Taken return Boolean is (FrSky_Running and then RX_SPI_CC2500.FrSky_SmartPort_Taken);
 
    procedure Set_Readings (R : Telemetry_Readings) is
    begin
       RX_SPI_CC2500.Set_Readings (R);
+      RX_SPI_A7105.Set_Battery_Voltage (R.Centivolts);
    end Set_Readings;
 
    procedure Set_Hub_Settings (S : Adaflight.FrSky_Hub_Telemetry.Settings) is
@@ -237,6 +252,9 @@ package body Adaflight.STM32.RX_SPI is
    begin
       if Started and then State.Selected in Layer.FrSky | Layer.SFHSS | Layer.Redpine then
          RX_SPI_CC2500.Take_Save (C, Requested, Notify);
+      elsif Started and then State.Selected = Layer.FlySky then
+         RX_SPI_A7105.Take_Save (C, Requested);
+         Notify := False;
       elsif Started and then State.Selected = Layer.ExpressLRS then
          RX_SPI_SX1280.Take_Save (C, Requested);
          Notify := False;

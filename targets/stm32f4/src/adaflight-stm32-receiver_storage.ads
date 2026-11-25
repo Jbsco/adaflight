@@ -2,12 +2,14 @@
 --  SX1280 receiver's state and of the CC2500 families' state, which a boot
 --  never uses together: a serial receiver's port opens only with the serial
 --  receiver feature, and an SPI receiver starts only with the SPI one, one
---  family of one radio. A build without a radio keeps no room for it.
+--  family of one radio, FlySky's among them. A build without a radio keeps
+--  no room for it.
 with Adaflight.Build_Features;
 with Adaflight.Bytes;
 with Adaflight.CRSF;
 with Adaflight.CRSF_Display_Port;
 with Adaflight.ExpressLRS_Receiver;
+with Adaflight.FlySky;
 with Adaflight.FrSky_SPI;
 with Adaflight.MSP_Telemetry;
 with Adaflight.Redpine;
@@ -103,7 +105,21 @@ package Adaflight.STM32.Receiver_Storage is
    end record;
    subtype Built_Radio_Side is Radio_Side (Adaflight.Build_Features.CC2500_Receiver);
 
-   type Side is (Serial, SPI, Radio);
+   --  The FlySky receiver's settings, its state and the trial copy a call
+   --  runs first.
+   type FlySky_Side (Built : Boolean := False) is record
+      case Built is
+         when True =>
+            Settings : Adaflight.FlySky.Settings;
+            State    : Adaflight.FlySky.State;
+            Trial    : Adaflight.FlySky.State;
+         when False =>
+            null;
+      end case;
+   end record;
+   subtype Built_FlySky_Side is FlySky_Side (Adaflight.Build_Features.FlySky_Receiver);
+
+   type Side is (Serial, SPI, Radio, FlySky);
    type Sides (Which : Side := Serial) is record
       case Which is
          when Serial =>
@@ -112,6 +128,8 @@ package Adaflight.STM32.Receiver_Storage is
             SPI_State : Built_SPI_Side;
          when Radio =>
             Radio_State : Built_Radio_Side;
+         when FlySky =>
+            FlySky_State : Built_FlySky_Side;
       end case;
    end record with Unchecked_Union;
 
