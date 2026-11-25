@@ -482,13 +482,14 @@ package body Adaflight.Mixer with SPARK_Mode is
      (S : in out State; C : in out Config; R : Runtime; P : Profile; DShot_Telemetry : Boolean;
       Motor_Idle : Natural)
    is
+      Idle : constant Float range 0.0 .. 2_000.0 := Float (Motor_Idle);
    begin
       S.Dyn_Idle_Min_Rps := (if DShot_Telemetry then Float (P.Dyn_Idle_Min_RPM) * 100.0 / 60.0 else 0.0);
       S.Dyn_Idle_P_Gain := Float (P.Dyn_Idle_P_Gain) * 0.000_15;
       S.Dyn_Idle_I_Gain := Float (P.Dyn_Idle_I_Gain) * 0.01 * R.Dt;
       S.Dyn_Idle_D_Gain := Float (P.Dyn_Idle_D_Gain) * 0.000_000_3 * R.PID_Frequency;
       S.Dyn_Idle_Max_Increase := Float (P.Dyn_Idle_Max_Increase) * 0.001;
-      S.Dyn_Idle_Start_Increase := Float (Motor_Idle) * 0.000_1;
+      S.Dyn_Idle_Start_Increase := Idle * 0.000_1;
       S.Dyn_Idle_Delay_K := 800.0 * R.Dt / 20.0;
       if not C.Feature_3D and then S.Dyn_Idle_Min_Rps /= 0.0 and then C.Output_High > DShot_Min_Throttle then
          C.Output_Low := DShot_Min_Throttle;
