@@ -635,6 +635,7 @@ package body Adaflight.VTX with SPARK_Mode is
                                  Was_Ever_Armed => Inp.Was_Ever_Armed,
                                  Failsafe       => Inp.Failsafe),
                                 E.MSP_Frame, E.MSP_Send);
+               E.MSP_Processed := True;
                E.Status_Due := E.MSP_Send or else not VTX_MSP.Is_Ready (V.MD);
             when RTC6705_Device =>
                VTX_RTC6705.Process (V.RT, T);

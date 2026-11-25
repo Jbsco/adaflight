@@ -410,6 +410,12 @@ package body Adaflight.STM32.Flight is
    Line_Serial : array (MSP_Line) of Adaflight.STM32.Serial.Line := (others => Adaflight.STM32.Serial.VCP);
    Line_Rate   : array (MSP_Line) of Positive := (others => Baud);
    Line_Half   : array (MSP_Line) of Boolean := (others => False);
+   --  The numbers the reference gives its MSP links: one more at each opening
+   --  of a line, and the telemetry link's after the lines at start-up while
+   --  the telemetry feature is on.
+   Line_Descriptor      : array (MSP_Line) of Interfaces.Integer_8 := (others => -1);
+   Next_Descriptor      : Interfaces.Integer_8 := 0;
+   Telemetry_Descriptor : Interfaces.Integer_8 := -1;
    type Line_State is record
       Port    : Adaflight.MSP_Port.Port;
       Pending : Adaflight.Bytes.Byte_Array (0 .. 255) := (others => 0);
@@ -1842,7 +1848,28 @@ package body Adaflight.STM32.Flight is
       end if;
       Adaflight.MSP_Port.Init (Lines (L).Port);
       Replies (L).Which := Line_Serial (L);
+      Line_Descriptor (L) := Next_Descriptor;
+      if Next_Descriptor < Interfaces.Integer_8'Last then
+         Next_Descriptor := Next_Descriptor + 1;
+      end if;
    end Open_Line;
+
+   --  The descriptor of the MSP line on the transmitter's UART, negative
+   --  when none serves it or a telemetry stream holds it.
+   function VTX_Line_Descriptor return Interfaces.Integer_16 is
+   begin
+      if Adaflight.STM32.VTX.MSP_Running then
+         for L in 1 .. Line_Count loop
+            if Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+              and then Adaflight.STM32.USART."=" (UART_Of (Line_Serial (L)), Adaflight.STM32.VTX.MSP_Port)
+              and then not Telemetry_Holds (UART_Of (Line_Serial (L)))
+            then
+               return Interfaces.Integer_16 (Line_Descriptor (L));
+            end if;
+         end loop;
+      end if;
+      return -1;
+   end VTX_Line_Descriptor;
 
    --  A port's bytes received since the last take, after the bytes waiting.
    procedure Take_Line (L : MSP_Line) is
@@ -5438,6 +5465,22 @@ package body Adaflight.STM32.Flight is
       end if;
    end Run_LED_Strip;
 
+   --  The VTX task with its MSP frame and the save it asks for, kept out of
+   --  the task body's frame, which the display task's deep path shares.
+   procedure Run_VTX_Control (Now_Us : Unsigned_32) with No_Inline is
+      Save : Boolean;
+   begin
+      Adaflight.STM32.VTX.Run
+        (Config, Adaflight.STM32.Time.Millis, Now_Us, Session.Open,
+         Serial_Descriptor    => VTX_Line_Descriptor,
+         Telemetry_Descriptor => Interfaces.Integer_16 (Telemetry_Descriptor),
+         Save                 => Save);
+      Push_VTX_MSP;
+      if Save then
+         Save_And_Notify;
+      end if;
+   end Run_VTX_Control;
+
    procedure Run_Body (Id : Scheduler.Task_Id) is
       Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
       Inputs : constant Tasks.Inputs :=
@@ -5613,15 +5656,7 @@ package body Adaflight.STM32.Flight is
          when Scheduler.Dispatch =>
             Run_Delayed;
          when Scheduler.VTX_Control =>
-            declare
-               Save : Boolean;
-            begin
-               Adaflight.STM32.VTX.Run (Config, Adaflight.STM32.Time.Millis, Before, Session.Open, Save);
-               Push_VTX_MSP;
-               if Save then
-                  Save_And_Notify;
-               end if;
-            end;
+            Run_VTX_Control (Before);
          when Scheduler.Stack_Check =>
             Env.Status.Stack_Used := Adaflight.STM32.Stack_Check.Used;
          when Scheduler.Dashboard =>
@@ -5922,6 +5957,10 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
       Adaflight.STM32.Baro.Start_Calibration;
       Open_MSP_Lines;
+      if (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+         Telemetry_Descriptor := Next_Descriptor;
+         Next_Descriptor := Next_Descriptor + 1;
+      end if;
       --  The display port writes through an MSP line on its UART, as upstream
       --  pushes display frames through its MSP ports.
       declare

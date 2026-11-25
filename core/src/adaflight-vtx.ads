@@ -83,17 +83,19 @@ package Adaflight.VTX with SPARK_Mode is
 
    --  The device events of the kind in use; Consumed counts the received
    --  bytes taken, the rest to be offered again. MSP_Send reports the MSP
-   --  driver's configuration frame to push, Status_Due the device menu's
-   --  status line due an update, and RTC_Ops the RTC6705's operations.
+   --  driver's configuration frame to push, MSP_Processed that its cycle
+   --  ran, Status_Due the device menu's status line due an update, and
+   --  RTC_Ops the RTC6705's operations.
    type Events is record
-      Device     : SmartAudio.Events;
-      Tramp_Tx   : Tramp.Events;
-      MSP_Frame  : VTX_MSP.Config_Frame := (others => 0);
-      MSP_Send   : Boolean := False;
-      Status_Due : Boolean := False;
-      Consumed   : Natural := 0;
-      Save       : Boolean := False;
-      RTC_Ops    : VTX_RTC6705.Operations := VTX_RTC6705.No_Operations;
+      Device        : SmartAudio.Events;
+      Tramp_Tx      : Tramp.Events;
+      MSP_Frame     : VTX_MSP.Config_Frame := (others => 0);
+      MSP_Send      : Boolean := False;
+      MSP_Processed : Boolean := False;
+      Status_Due    : Boolean := False;
+      Consumed      : Natural := 0;
+      Save          : Boolean := False;
+      RTC_Ops       : VTX_RTC6705.Operations := VTX_RTC6705.No_Operations;
    end record;
 
    --  The driver starts with the port, and the settings are made whole: the

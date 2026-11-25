@@ -7177,7 +7177,7 @@ def main():
             time.sleep(2.5)
             sock.sendall(b"#")
             read_all(sock, 0.8)
-            for line in ("vtx_type = MSP", "osd_displayport_device = MSP", "osd_uart = UART3"):
+            for line in ("vtx_type = MSP", "osd_displayport_device = MSP", "osd_uart = UART3", "debug_mode = VTX_MSP"):
                 text = cli(sock, f"set {line}")
                 check(f"MSP transmitter setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
             for line in ("vtxtable bands 1", "vtxtable channels 8",
@@ -7211,6 +7211,9 @@ def main():
             status = msp2(sock, 0x3004)
             check("MSP device status names an MSP transmitter", status is not None and len(status) >= 16
                   and status[0] == 5, repr(status))
+            values = debug_values(sock)
+            check("MSP transmitter's debug values count its frame on the goggle's MSP port",
+                  len(values) == 8 and values[0] >= 1 and values[1] == 0 and values[3] == 2, repr(values))
         finally:
             stop(proc)
             sock.close()
@@ -7220,7 +7223,8 @@ def main():
             time.sleep(2.5)
             sock.sendall(b"#")
             read_all(sock, 0.8)
-            for line in ("vtx_type = MSP", "vtx_uart = UART3", "rx_uart = UART3", "osd_uart = UART1"):
+            for line in ("vtx_type = MSP", "vtx_uart = UART3", "rx_uart = UART3", "osd_uart = UART1",
+                         "debug_mode = VTX_MSP"):
                 text = cli(sock, f"set {line}")
                 check(f"CRSF port MSP transmitter setting {line}", line.replace(" = ", " set to ") in text,
                       text[-120:])
@@ -7244,6 +7248,11 @@ def main():
                       if f[3:5] == bytes([0xEC, 0xC8]) and f[5:11] == bytes([0x50, 0, 0x58, 0, 0x0F, 0])]
             check("MSP transmitter on the CRSF port pushes its configuration over the CRSF link",
                   len(pushes) >= 1 and pushes[0][11:15] == bytes([5, 1, 4, 2]), repr(receiver.msp_replies[:3]))
+            sock.sendall(msp_frame(254))
+            found = msp_pushes(read_all(sock, 0.6), 254)
+            values = list(struct.unpack("<8h", found[-1][:16])) if found and len(found[-1]) >= 16 else []
+            check("MSP transmitter's debug values name the CRSF port and the telemetry link",
+                  len(values) == 8 and values[0] >= 1 and values[1] == 1 and values[3] == 2, repr(values))
         finally:
             receiver.stop.set()
             stop(proc)
