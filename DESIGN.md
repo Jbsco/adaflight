@@ -16905,3 +16905,16 @@ The display task now runs outside the other tasks' body, whose frame lay under t
 STM32F411 boards had 4 bytes of that stack to spare and now have 1848. An SPI receiver's readings are gathered outside
 the main pass's frame. Five of six STM32F411 board configurations with a CC2500 build now, with 1 to 4 KB of flash to
 spare, and the target job builds MATEKF411RX. BETAFPVF411RX also has a flash chip and stays short of flash.
+
+## D906. FlySky receivers on boards (2026-11-25)
+
+Board builds can now run FlySky AFHDS and AFHDS 2A on an A7105 radio. A board unit runs the receiver's operations on
+the radio in order. It reads the mode register after resetting a consumed interrupt flag, and FIFO then RSSI register
+where the receiver asks for a packet. A calibration gets 1001 reads to clear its register. An AFHDS 2A receiver's id
+is the exclusive or of the microcontroller's three identifier words. A completed bind stores transmitter id and
+channel map, and battery voltage reaches AFHDS 2A telemetry.
+
+FlySky is a build feature of its own. A CC2500 build of 1024 KB or more has it. No 512 KB board with the CC2500
+families has its 4.5 KB to spare, so those builds leave it out, and `FEATURES=-cc2500_receiver,+flysky_receiver`
+builds it without those families. CRAZYBEEF4FS, whose radio is an A7105, builds that way in the target job with 14 KB
+of flash left. Whether that becomes its default is open. No board with this radio has run it.
