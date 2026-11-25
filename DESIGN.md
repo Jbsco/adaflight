@@ -16984,3 +16984,12 @@ per feature set is estimated at 5 to 6 KB.
 The user ruled that STM32F411 builds leave the flight log out by default. Flash chip code goes with it, since only
 the log uses that code. `FEATURES=+blackbox` selects both again for a build that makes room another way, and a fit
 bar shows what that takes. D828's exception for GEPRCF411SX1280 is now this rule.
+
+## D912. Flight log only with log storage (2026-11-25)
+
+A 512 KB build leaves SD card logging out, yet a board whose configuration names an SD card kept its flight log,
+with no storage for it but a serial port. FLOWBOXV2 and DARWINF411 overflowed their flash for that, and STM32F722
+boards with an SD card alone paid about 19 KB.
+
+The user ruled that such a board drops its flight log. A 512 KB board now keeps it only when its configuration
+names a flash chip. `FEATURES=+blackbox,+sd_card` builds both where flash allows.

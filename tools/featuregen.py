@@ -43,8 +43,8 @@ FEATURES = [
     ("Soft_Serial", 1024, "The two software serial ports on timers."),
     ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
-    ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "
-                       "an SD card. An STM32F411 build leaves it out."),
+    ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip. An "
+                       "STM32F411 build leaves it out."),
     ("Mass_Storage", None, "The USB mass storage mode, which shows the flash chip's flight logs as a disk."),
     ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
     ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build leaves "
@@ -82,7 +82,7 @@ FEATURES = [
 
 # Features a board's configuration turns on at any flash size by naming one of the defines.
 BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",), "Flash_Chip": ("USE_FLASH",),
-                 "Blackbox": ("USE_FLASH", "USE_SDCARD"),
+                 "Blackbox": ("USE_FLASH",),
                  "SPI_Receiver": ("USE_RX_SPI", "USE_RX_CC2500", "USE_RX_SX1280", "USE_RX_SX127X"),
                  "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
