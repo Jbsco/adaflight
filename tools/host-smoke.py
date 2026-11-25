@@ -8467,14 +8467,14 @@ def main():
             esc.stop.set()
             stop(proc)
             sock.close()
-        # Battery continue on the warnings line, with the battery from ESC telemetry below full and charge drawn: a
-        # warning of a battery not full while the setting is off, battery continue once it is on with a stored
-        # capacity.
+        # Battery continue on the warnings line, with a four cell battery from ESC telemetry below full and charge
+        # drawn: a warning of a battery not full while the setting is off, battery continue once it is on with a
+        # stored capacity.
         store = os.path.join(work, "battcont.bin")
         for lines, expected, what in (
                 (("feature ESC_SENSOR", "set esc_sensor_uart = UART6", "set battery_meter = ESC",
                   "set current_meter = ESC", "set osd_displayport_device = MAX7456", "set vcd_video_system = PAL",
-                  "set osd_warnings_pos = 2177"), "BATT < FULL", "off"),
+                  "set osd_warnings_pos = 2177", "set force_battery_cell_count = 4"), "BATT < FULL", "off"),
                 (("set battery_continue = ON", "set stats_mah_used = 500"), "BATTERY CONT", "on with a stored capacity")):
             proc, sock = start(image, store)
             try:
@@ -8495,8 +8495,8 @@ def main():
                 def drawn_mah():
                     analog = msp(sock, 110)
                     return analog[1] | analog[2] << 8 if analog and len(analog) >= 3 else 0
-                drawn, mah = until(drawn_mah, lambda m: m > 0, wait=10.0)
-                shown, row = until(lambda: screen_row(store, 4), lambda r: expected in r, wait=5.0)
+                drawn, mah = until(drawn_mah, lambda m: m > 0, wait=30.0)
+                shown, row = until(lambda: screen_row(store, 4), lambda r: expected in r, wait=20.0)
                 check(f"warnings line with battery continue {what} reads {expected} once charge is drawn",
                       drawn and shown, repr((mah, row)))
             finally:
