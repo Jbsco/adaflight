@@ -6210,6 +6210,24 @@ package body Adaflight.STM32.Flight is
    --  One pass of the scheduler in its phases: the realtime tasks at the
    --  gyro's target, the gyro lock, the selection over the queue with the
    --  checks, the held task's run, and the LED's blink.
+   --  The SPI receiver's view of arming and, for a family with telemetry,
+   --  its readings: kept out of the pass's frame, which every task's deepest
+   --  path shares.
+   procedure Feed_SPI_Receiver with No_Inline is
+   begin
+      Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
+      if Adaflight.STM32.RX_SPI.Takes_Readings then
+         Adaflight.STM32.RX_SPI.Set_Readings
+           ((Hub          =>
+               (if Adaflight.STM32.RX_SPI.Hub_Taken then FrSky_Hub_Inputs
+                else (others => <>)),
+             ADC_External => Unsigned_16 (Natural'Min (65_535, Analog (External_Input))),
+             ADC_RSSI     => Unsigned_16 (Natural'Min (65_535, Analog (RSSI_Input))),
+             Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
+             Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
+      end if;
+   end Feed_SPI_Receiver;
+
    procedure Pass is
       G        : Scheduler.Gyro_Status;
       Poll     : Boolean;
@@ -6244,17 +6262,7 @@ package body Adaflight.STM32.Flight is
             Notify         : Boolean;
          begin
             if Adaflight.Build_Features.SPI_Receiver then
-               Adaflight.STM32.RX_SPI.Set_Armed (Adaflight.STM32.Pilot.Armed);
-            end if;
-            if Adaflight.Build_Features.SPI_Receiver and then Adaflight.STM32.RX_SPI.Takes_Readings then
-               Adaflight.STM32.RX_SPI.Set_Readings
-                 ((Hub          =>
-                     (if Adaflight.STM32.RX_SPI.Hub_Taken then FrSky_Hub_Inputs
-                      else (others => <>)),
-                   ADC_External => Unsigned_16 (Natural'Min (65_535, Analog (External_Input))),
-                   ADC_RSSI     => Unsigned_16 (Natural'Min (65_535, Analog (RSSI_Input))),
-                   Centivolts   => Unsigned_16 (Bat.Voltage.Display_Filtered),
-                   Decivolts    => Unsigned_16 ((Bat.Voltage.Display_Filtered + 5) / 10)));
+               Feed_SPI_Receiver;
             end if;
             Adaflight.STM32.Radio.Set_MSP_Override (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.MSP_Override));
             Adaflight.STM32.Radio.Set_Boxes
