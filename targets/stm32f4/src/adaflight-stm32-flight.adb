@@ -5558,8 +5558,6 @@ package body Adaflight.STM32.Flight is
             Tasks.Battery_Alerts (Inputs, Before);
          when Scheduler.Beeper =>
             Run_Beeper (Before);
-         when Scheduler.OSD =>
-            Run_OSD (Before);
          when Scheduler.CMS =>
             if Adaflight.Build_Features.Menus then
                Run_Menu (Before);
@@ -5689,6 +5687,23 @@ package body Adaflight.STM32.Flight is
       Scheduler.Execute_Begin (Sched, Id, Now_Us);
       Run_Body (Id);
    end Run_Task;
+
+   --  The task a pass selected. The display task runs outside the other
+   --  tasks' body: its path is the deepest on the main stack, and that body's
+   --  frame would lie under it.
+   procedure Run_Selected (Id : Scheduler.Task_Id) is
+   begin
+      if Id = Scheduler.OSD then
+         declare
+            Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+         begin
+            Run_OSD (Before);
+            Scheduler.Execute_End (Sched, Sched_Settings, Before, Adaflight.STM32.Time.Micros);
+         end;
+      else
+         Run_Body (Id);
+      end if;
+   end Run_Selected;
 
    --  The boot signal after the sensors: the second LED on and the others
    --  off, then ten toggles of the first two, each with a 25 millisecond
@@ -6283,7 +6298,7 @@ package body Adaflight.STM32.Flight is
             Scheduler.Confirm (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Run_It);
             if Run_It then
                Scheduler.Run_Selected_Begin (Sched);
-               Run_Body (Sched.Current);
+               Run_Selected (Sched.Current);
                Scheduler.After_Run (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count);
             end if;
          end if;
