@@ -16973,3 +16973,14 @@ failure, and an MCU without a memory layout is named.
 
 Its exit status is nonzero while any set fails, which STM32F411 sets with a flight log do today. It is a tool to
 run after a change to features or size, and no gate.
+
+## D911. STM32F411 builds without flight log (2026-11-25)
+
+No STM32F411 image with a flight log fits its flash: such images are 15 to 33 KB over (D907, D908), and on NOX no
+other feature is on that could pay for it. Shrinking found no lever near that size. A link without a section per
+data object and constrained results from the log's array helpers both grew an image, and a settings table built
+per feature set is estimated at 5 to 6 KB.
+
+The user ruled that STM32F411 builds leave the flight log out by default. Flash chip code goes with it, since only
+the log uses that code. `FEATURES=+blackbox` selects both again for a build that makes room another way, and a fit
+bar shows what that takes. D828's exception for GEPRCF411SX1280 is now this rule.

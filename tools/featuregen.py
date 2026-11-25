@@ -16,7 +16,7 @@ checks off when Board_Checks is off, itcm_load.ld, which names where an STM32F7 
 and the linker scripts' RAM sections, where an STM32F4 build packs its
 initialized data and elaboration code only and keeps its tables in flash. A feature
 with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less, for the
-room its drivers take. An STM32F411 build leaves the servos and the GPS out. The output is deterministic for the same inputs, so a build regenerates it
+room its drivers take. An STM32F411 build leaves the servos, the GPS and the flight log out. The output is deterministic for the same inputs, so a build regenerates it
 without a diff. The --feature form prints on or off for one feature, which a build passes to the core project.
 The --json form prints the board's MCU, flash size and crate, and each feature with its description, its default
 and its state after the changes, for a configurator's feature selection.
@@ -44,7 +44,7 @@ FEATURES = [
     ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip or "
-                       "an SD card."),
+                       "an SD card. An STM32F411 build leaves it out."),
     ("Mass_Storage", None, "The USB mass storage mode, which shows the flash chip's flight logs as a disk."),
     ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
     ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build leaves "
@@ -87,25 +87,20 @@ BOARD_DEFINES = {"Compass": ("USE_MAG",), "Barometer": ("USE_BARO",), "Flash_Chi
                  "CC2500_Receiver": ("USE_RX_CC2500",), "SX1280_Receiver": ("USE_RX_SX1280",)}
 
 
-# Features a board leaves out although its configuration turns them on, as the user ruled for a board short of
-# flash: GEPRCF411SX1280 leaves its flight log out, and its flash chip code, which only the log used (2026-11-19).
-BOARD_OMITS = {"GEPRCF411SX1280": ("Blackbox", "Flash_Chip")}
-
-
-def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu: str = "", board: str = "") -> dict:
+def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu: str = "") -> dict:
     chosen = {name: (False if size is None else flash_kb >= size if size >= 0 else flash_kb < -size)
               or any(define in defines for define in BOARD_DEFINES.get(name, ()))
               for name, size, _ in FEATURES}
     if flash_kb <= 512:
         chosen["Debug_Values"] = False
+    # No STM32F411 image fits its flash with the flight log, whose flash chip code goes with it below.
     if mcu == "STM32F411":
         chosen["Servos"] = False
         chosen["GPS"] = False
+        chosen["Blackbox"] = False
     # The FlySky receivers come with a CC2500 build where flash allows: beside the CC2500 families they take about
     # 4.5 KB, which no 512 KB board with those families has.
     chosen["FlySky_Receiver"] = chosen["CC2500_Receiver"] and flash_kb >= 1024
-    for name in BOARD_OMITS.get(board, ()):
-        chosen[name] = False
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
         if not token:
@@ -424,7 +419,7 @@ def board_selection(configs: Path, board: str, changes: str) -> tuple:
     else:
         raise SystemExit(f"featuregen: no flash size for the MCU {mcu or 'of ' + board}; set FLASH_KB")
     defines = frozenset(re.findall(r"^#define\s+(\w+)", text, re.M))
-    return mcu, flash_kb, selection(flash_kb, changes, defines, mcu, board)
+    return mcu, flash_kb, selection(flash_kb, changes, defines, mcu)
 
 
 def describe(board: str, mcu: str, flash_kb: int, default: dict, chosen: dict) -> str:
