@@ -40,6 +40,7 @@ with Adaflight.Barometer_Task;
 with Adaflight.Battery;
 with Adaflight.FAT;
 with Adaflight.FAT_FS;
+with Adaflight.Blackbox_Output_Debug;
 with Adaflight.Blackbox_SD;
 with Adaflight.Dashboard;
 with Adaflight.Flash_FS;
@@ -35857,6 +35858,33 @@ procedure Vector_Check is
       end if;
    end Check_RX_SPI_Line;
 
+   --  The flight log output's debug values: blocks of bytes at drawn times
+   --  with the port's free transmit bytes, each followed by its debug values.
+   BR_State  : Adaflight.Blackbox_Output_Debug.State;
+   BR_Debug  : Adaflight.Debug.State;
+   BR_Serial : Boolean := True;
+
+   procedure Check_Blackbox_Rate_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "bbrinit" then
+         BR_State := (others => <>);
+         BR_Debug := (others => <>);
+         BR_Serial := Int (3) = 1;
+         Adaflight.Debug.Select_Mode (BR_Debug, Interfaces.Unsigned_8 (Int (4)));
+      elsif Name = "bbrstep" then
+         Adaflight.Blackbox_Output_Debug.Record_Write
+           (BR_Debug, BR_State, BR_Serial, Natural (Int (4)), Interfaces.Unsigned_32 (Int (5)),
+            Interfaces.Unsigned_32 (Int (6)));
+         for J in Adaflight.Debug.Index loop
+            Record_Int ("bbrstep.debug", Int (7 + J), Integer_64 (BR_Debug.Data (J)));
+         end loop;
+      else
+         Put_Line ("unknown flight log output case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Blackbox_Rate_Line;
+
    procedure Check_FAT_Line is
       use Adaflight.FAT;
       Name : constant String := Str (1);
@@ -44503,6 +44531,8 @@ procedure Vector_Check is
                   Check_Flash_FS_Line;
                elsif Kind = "dashboard" then
                   Check_Dashboard_Line;
+               elsif Kind = "bbrate" then
+                  Check_Blackbox_Rate_Line;
                elsif Kind = "fatcache" then
                   Check_FAT_Line;
                elsif Kind = "fatfile" then
@@ -45353,6 +45383,7 @@ begin
    Run (Dir & "/fatdir.csv", "fatdir");
    Run (Dir & "/fatinit.csv", "fatinit");
    Run (Dir & "/bbsd.csv", "bbsd");
+   Run (Dir & "/bbrate.csv", "bbrate");
    Run (Dir & "/dashboard.csv", "dashboard");
    Run (Dir & "/rxspi.csv", "rxspi");
    Run (Dir & "/fpcapture.csv", "fpcapture");

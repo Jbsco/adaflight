@@ -7979,7 +7979,8 @@ def main():
                 check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
                 text = cli(sock, "feature RANGEFINDER")
                 check("rangefinder feature on", "Enabled" in text, text[-120:])
-                for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
+                for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS",
+                             "debug_mode = BLACKBOX_OUTPUT"):
                     text = cli(sock, "set " + line)
                     check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
                 for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_lidar_dist_pos = 2177"):
@@ -8006,6 +8007,9 @@ def main():
                 fields = next((line for line in data.split(b"\n") if line.startswith(b"H Field I name:")), b"")
                 check("flight log lists the rangefinder's surfaceRaw field", b",surfaceRaw," in fields + b",",
                       repr(fields[-80:]))
+                values = debug_values(sock)
+                check("flight log output's debug values give its peak rate and the port's free bytes",
+                      len(values) == 8 and values[1] > 0 and values[3] > 0, repr(values))
                 status = msp(sock, 101)
                 check("MSP status names the rangefinder", status is not None and len(status) > 5
                       and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
