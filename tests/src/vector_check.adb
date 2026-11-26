@@ -13657,6 +13657,13 @@ procedure Vector_Check is
    package BH renames Adaflight.Blackbox_Header;
    BH_Seq   : Integer_64 := -1;
    BH_Wing  : Boolean := False;
+   --  The build a sequence's lines are of: a view line before its start names the features, and a sequence
+   --  without one is of a build with all of them.
+   BH_Viewed : Boolean := False;
+   BH_Baro   : Boolean := True;
+   BH_Mag    : Boolean := True;
+   BH_Range  : Boolean := True;
+   BH_GPS    : Boolean := True;
    BH_W     : BH.Writer;
    BH_H     : BH.Header_State;
    BH_In    : BH.Condition_Inputs;
@@ -13667,7 +13674,20 @@ procedure Vector_Check is
    procedure Check_Blackbox_Header_Line is
       Name : constant String := Str (1);
    begin
-      if Name = "hdrinit" then
+      if Name = "hdrview" then
+         BH_Viewed := True;
+         BH_Baro := Int (3) = 1;
+         BH_Mag := Int (4) = 1;
+         BH_Range := Int (5) = 1;
+         BH_GPS := Int (6) = 1;
+      elsif Name = "hdrinit" then
+         if not BH_Viewed then
+            BH_Baro := True;
+            BH_Mag := True;
+            BH_Range := True;
+            BH_GPS := True;
+         end if;
+         BH_Viewed := False;
          BH_Seq := Int (2);
          BH_Wing := Int (3) = 1;
          BH_W := (Kind => BH.Device_Kind'Val (Int (4)), Max_Per_Iteration => Natural (Int (5)),
@@ -13740,7 +13760,8 @@ procedure Vector_Check is
                         BH.Send_Field_Definition (BH_H, BH_W, BH_Buf, Strm, BH.Slow_Fields, BH_Wing, BH_Cache, Result);
                      when others =>
                         BH.Send_Sysinfo (BH_H, BH_W, BH_Buf, Strm, BH_Wing, BH_Info, BH_Cache, BH_In.Current_Meter,
-                                         Result);
+                                         Result, Barometer => BH_Baro, Compass => BH_Mag, Rangefinder => BH_Range,
+                                         GPS => BH_GPS);
                   end case;
                when others =>
                   null;
@@ -44917,6 +44938,7 @@ begin
    Run (Dir & "/dispatch.csv", "dispatch");
    Run (Dir & "/elrsrx.csv", "elrsrx");
    Run (Dir & "/bbhdr.csv", "bbhdr");
+   Run (Dir & "/bbhdrview.csv", "bbhdr");
    Run (Dir & "/bbinfo.csv", "bbinfo");
    Run (Dir & "/usbvcp.csv", "usbvcp");
    Run (Dir & "/usbcomp.csv", "usbvcp");

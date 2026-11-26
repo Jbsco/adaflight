@@ -17042,3 +17042,19 @@ A 512 KB board whose configuration names a compass, a barometer and a flash chip
 with its rescue, altitude hold and position hold. That is also the baseline Betaflight builds for such a board. ALIENFLIGHTNGF7's default
 then has 32 KB of flash left. `FEATURES=+gps,-compass` fits with 2 KB to spare, and `+gps,-servos` is 463 bytes
 over. Every other buildable board keeps its default.
+
+## D917. Flight log header lines by build (2026-11-25)
+
+A flight log header's system information lines depended on the craft alone, so every build wrote all of them.
+Betaflight's build without a feature leaves that feature's lines out: two for the barometer, one for the compass,
+three for the optical flow, and for the GPS three with a multirotor's rescue and hold lines after them. A board
+without a barometer or a compass, which most are, wrote lines its Betaflight image does not.
+
+`Line_Count_Of`, `Line_Of` and `Send_Sysinfo` now take the barometer, compass, rangefinder and GPS switches, which
+default to the build's. Each feature's lines are a segment of the craft's list, and `Line_Of` maps a build's
+position past the segments it is without, so a header still sends one line per call with no call spent on a line
+left out. The optical flow's lines go with the rangefinders, as its settings do.
+
+The header oracle builds without each feature and without all four, for both crafts, and vector family
+`bbhdrview` replays those builds' lines. A line labelled by a setting's name is now read only in a build that has
+the setting.

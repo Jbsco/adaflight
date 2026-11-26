@@ -653,8 +653,13 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       (One_Decimal, DShot_Bidir), (One_Decimal, Motor_Poles), (One_Decimal, RPM_Filter_Harmonics),
       (Three_Decimal, RPM_Filter_Weight_1), (One_Decimal, RPM_Filter_Q), (One_Decimal, RPM_Filter_Min_Hz),
       (One_Decimal, RPM_Filter_Fade_Range_Hz), (One_Decimal, RPM_Filter_LPF_Hz), (One_Decimal, Acc_LPF_Hz_Hundredths),
-      (One_Decimal, Acc_Hardware), (One_Decimal, Baro_Hardware), (One_Decimal, Baro_Drift),
-      (One_Decimal, Altitude_Source), (One_Decimal, Altitude_Prefer_Baro), (One_Decimal, Altitude_LPF),
+      (One_Decimal, Acc_Hardware));
+
+   --  The barometer's lines, which a build with it has.
+   Baro_Lines : constant Line_List := ((One_Decimal, Baro_Hardware), (One_Decimal, Baro_Drift));
+
+   Altitude_Lines : constant Line_List :=
+     ((One_Decimal, Altitude_Source), (One_Decimal, Altitude_Prefer_Baro), (One_Decimal, Altitude_LPF),
       (One_Decimal, Altitude_D_LPF));
 
    Autopilot_Lines : constant Line_List :=
@@ -666,9 +671,14 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       (One_Decimal, AP_Stop_Threshold), (One_Decimal, AP_Max_Angle), (One_Decimal, AP_Max_Yaw_Rate),
       (One_Decimal, AP_Yaw_P));
 
+   --  The compass's line and the optical flow's lines, which a build with the compass or the rangefinders has.
+   Mag_Lines : constant Line_List := (0 => (One_Decimal, Mag_Hardware));
+
+   Flow_Lines : constant Line_List :=
+     ((One_Decimal, Opticalflow_Hardware), (One_Decimal, Opticalflow_Rotation), (One_Decimal, Opticalflow_Flip_X));
+
    System_Lines : constant Line_List :=
-     ((One_Decimal, Mag_Hardware), (One_Decimal, Opticalflow_Hardware), (One_Decimal, Opticalflow_Rotation),
-      (One_Decimal, Opticalflow_Flip_X), (One_Decimal, Gyro_Cal_On_First_Arm),
+     ((One_Decimal, Gyro_Cal_On_First_Arm),
       (One_Decimal, Airmode_Activate_Throttle), (One_Decimal, Serial_RX_Provider), (One_Decimal, Use_Unsynced_PWM),
       (One_Decimal, Motor_PWM_Protocol), (One_Decimal, Motor_PWM_Rate), (One_Decimal, Motor_Idle),
       (One_Decimal, Debug_Mode), (Debug_Mode_Name_Line, I_Interval), (One_Decimal, Features),
@@ -686,8 +696,11 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       (One_Decimal, Simplified_DTerm_Filter), (One_Decimal, Simplified_DTerm_Filter_Multiplier),
       (One_Decimal, Simplified_Gyro_Filter), (One_Decimal, Simplified_Gyro_Filter_Multiplier),
       (One_Decimal, Motor_Output_Limit), (One_Decimal, Throttle_Limit_Type), (One_Decimal, Throttle_Limit_Percent),
-      (One_Decimal, Throttle_Boost), (One_Decimal, Throttle_Boost_Cutoff), (One_Decimal, Thrust_Linearization),
-      (One_Decimal, GPS_Provider), (One_Decimal, GPS_Set_Home_Point_Once), (One_Decimal, GPS_Use_3D_Speed));
+      (One_Decimal, Throttle_Boost), (One_Decimal, Throttle_Boost_Cutoff), (One_Decimal, Thrust_Linearization));
+
+   --  The GPS's lines, which a build with it has, a multirotor's with the rescue's and the holds' after them.
+   GPS_Lines : constant Line_List :=
+     ((One_Decimal, GPS_Provider), (One_Decimal, GPS_Set_Home_Point_Once), (One_Decimal, GPS_Use_3D_Speed));
 
    Rescue_Lines : constant Line_List :=
      ((One_Decimal, GPS_Rescue_Min_Start_Dist), (One_Decimal, GPS_Rescue_Alt_Mode),
@@ -705,16 +718,62 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       (One_Decimal, TPA_Speed_Pitch_Offset), (One_Decimal, Yaw_Type), (One_Decimal, Angle_Pitch_Offset));
 
    Multirotor_Lines : constant Line_List :=
-     Common_Lines & Tuning_Lines & Sensor_Lines & Autopilot_Lines & System_Lines & Rescue_Lines;
+     Common_Lines & Tuning_Lines & Sensor_Lines & Baro_Lines & Altitude_Lines & Autopilot_Lines & Mag_Lines
+     & Flow_Lines & System_Lines & GPS_Lines & Rescue_Lines;
 
    Wing_Lines : constant Line_List :=
-     Common_Lines & Wing_SPA_Lines & Tuning_Lines & Wing_S_Lines & Sensor_Lines & System_Lines & Wing_Speed_Lines;
+     Common_Lines & Wing_SPA_Lines & Tuning_Lines & Wing_S_Lines & Sensor_Lines & Baro_Lines & Altitude_Lines
+     & Mag_Lines & Flow_Lines & System_Lines & GPS_Lines & Wing_Speed_Lines;
 
-   function Line_Count_Of (Wing : Boolean) return Line_Count is
-     (if Wing then Wing_Lines'Length else Multirotor_Lines'Length);
+   --  Where each feature's lines start in a craft's whole list, and how many GPS lines each craft has.
+   Multirotor_Baro : constant Natural := Common_Lines'Length + Tuning_Lines'Length + Sensor_Lines'Length;
+   Multirotor_Mag  : constant Natural :=
+     Multirotor_Baro + Baro_Lines'Length + Altitude_Lines'Length + Autopilot_Lines'Length;
+   Multirotor_Flow : constant Natural := Multirotor_Mag + Mag_Lines'Length;
+   Multirotor_GPS  : constant Natural := Multirotor_Flow + Flow_Lines'Length + System_Lines'Length;
+   Wing_Baro       : constant Natural :=
+     Common_Lines'Length + Wing_SPA_Lines'Length + Tuning_Lines'Length + Wing_S_Lines'Length + Sensor_Lines'Length;
+   Wing_Mag        : constant Natural := Wing_Baro + Baro_Lines'Length + Altitude_Lines'Length;
+   Wing_Flow       : constant Natural := Wing_Mag + Mag_Lines'Length;
+   Wing_GPS        : constant Natural := Wing_Flow + Flow_Lines'Length + System_Lines'Length;
 
-   function Line_Of (Wing : Boolean; I : Line_Position) return Line is
-     (if Wing then Wing_Lines (I) else Multirotor_Lines (I));
+   function GPS_Line_Count (Wing : Boolean) return Natural is
+     (if Wing then GPS_Lines'Length else GPS_Lines'Length + Rescue_Lines'Length);
+
+   function Line_Count_Of
+     (Wing        : Boolean;
+      Barometer   : Boolean := Adaflight.Baro_Build.Enabled;
+      Compass     : Boolean := Adaflight.Compass_Build.Enabled;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      GPS         : Boolean := Adaflight.GPS_Build.Enabled) return Line_Count is
+     ((if Wing then Wing_Lines'Length else Multirotor_Lines'Length)
+      - (if Barometer then 0 else Baro_Lines'Length) - (if Compass then 0 else Mag_Lines'Length)
+      - (if Rangefinder then 0 else Flow_Lines'Length) - (if GPS then 0 else GPS_Line_Count (Wing)));
+
+   function Line_Of
+     (Wing        : Boolean; I : Line_Position;
+      Barometer   : Boolean := Adaflight.Baro_Build.Enabled;
+      Compass     : Boolean := Adaflight.Compass_Build.Enabled;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      GPS         : Boolean := Adaflight.GPS_Build.Enabled) return Line
+   is
+      --  The position in the craft's whole list: past each feature's lines the build is without.
+      J : Natural := I;
+   begin
+      if not Barometer and then J >= (if Wing then Wing_Baro else Multirotor_Baro) then
+         J := J + Baro_Lines'Length;
+      end if;
+      if not Compass and then J >= (if Wing then Wing_Mag else Multirotor_Mag) then
+         J := J + Mag_Lines'Length;
+      end if;
+      if not Rangefinder and then J >= (if Wing then Wing_Flow else Multirotor_Flow) then
+         J := J + Flow_Lines'Length;
+      end if;
+      if not GPS and then J >= (if Wing then Wing_GPS else Multirotor_GPS) then
+         J := J + GPS_Line_Count (Wing);
+      end if;
+      return (if Wing then Wing_Lines (J) else Multirotor_Lines (J));
+   end Line_Of;
 
    -------------------------
    -- The chunked writers --
@@ -927,7 +986,12 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
 
    procedure Send_Sysinfo (H : in out Header_State; W : in out Writer; B : in out Byte_Array;
                            S : in out Stream; Wing : Boolean; Info : Sysinfo; Cache : Condition_Set;
-                           Current_Meter : Adaflight.Battery.Current_Source; Done : out Boolean) is
+                           Current_Meter : Adaflight.Battery.Current_Source; Done : out Boolean;
+                           Barometer     : Boolean := Adaflight.Baro_Build.Enabled;
+                           Compass       : Boolean := Adaflight.Compass_Build.Enabled;
+                           Rangefinder   : Boolean := Adaflight.Rangefinder_Build.Enabled;
+                           GPS           : Boolean := Adaflight.GPS_Build.Enabled)
+   is
       Status : Reserve_Status;
    begin
       Done := False;
@@ -935,12 +999,12 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       if Status /= Reserved then
          return;
       end if;
-      if H.Index >= Line_Count_Of (Wing) then
+      if H.Index >= Line_Count_Of (Wing, Barometer, Compass, Rangefinder, GPS) then
          Done := True;
          return;
       end if;
       declare
-         Item  : constant Line := Line_Of (Wing, H.Index);
+         Item  : constant Line := Line_Of (Wing, H.Index, Barometer, Compass, Rangefinder, GPS);
          Name  : constant String := Label (Item.First);
          Texts : Text_Table renames Info.Texts;
       begin
