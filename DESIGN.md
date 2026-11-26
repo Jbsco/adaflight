@@ -17108,8 +17108,8 @@ voltage scale 0, and revision Y parts at 400 MHz. We chose 400 MHz on every part
 check: on revision V this is a divergence of about 17% fewer core cycles.
 
 Flash sector 0, 128 KB, keeps vectors and code beside them, sector 1 keeps configuration, and code starts at
-0x08040000. Main RAM is 512 KB of AXI SRAM and core coupled memory 128 KB of DTCM. DMA data goes to D2 SRAM, since
-H7 DMA does not reach DTCM. This crate links with the F7 crate's linker script.
+0x08040000. Main RAM is 512 KB of AXI SRAM and core coupled memory 128 KB of DTCM. D2 SRAM is a region of its own,
+for DMA buffers (D922). This crate links with the F7 crate's linker script.
 
 Under Renode's STM32H743 platform, this image starts, PLL1 drives its system clock, and its LED pin toggles every
 500 ms.
