@@ -17156,3 +17156,14 @@ serial ports out, since they run on F4 and F7's timer table, which an H7 does no
 
 Its image sends a banner on UART1 at 115200 baud and echoes what it receives. Under Renode, UART1 sends that
 banner, and three bytes written to it come back.
+
+## D924. H7 external interrupts (2026-11-26)
+
+H7's EXTI controller has its edge selection registers at the start of its block, and its CPU interrupt mask and
+pending registers at offsets 0x80 and 0x88. `tools/memorygen.py` now adds each EXTI register's offset to D921's map,
+and the EXTI body places its registers at those offsets. F4 and F7 offsets keep their values. Line sources stay in
+SYSCFG's EXTICR registers at F4's offset, and lines 0 to 15 use F4's interrupt vectors.
+
+H7's image now counts rising edges on the first gyro's interrupt pin and prints a line on UART1 for each. Under
+Renode, three rising edges on MATEKH743's PB2 printed three lines, EXTICR1 read port B for line 2, and RTSR1 and
+CPU IMR1 had line 2 set.
