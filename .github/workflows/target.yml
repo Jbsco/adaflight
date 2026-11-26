@@ -34,17 +34,6 @@ jobs:
       - name: Build the STM32F4 image
         run: bash target.do
 
-      - name: Select the native GNAT toolchain
-        run: |
-          cd targets/host
-          alr -n toolchain --select gnat_native
-
-      - name: Build and check the host image
-        run: bash host.do
-
-      - name: Build and check the wing host image
-        run: bash hostwing.do
-
       - name: Keep the image
         uses: actions/upload-artifact@v4
         with:
@@ -94,3 +83,70 @@ jobs:
 
       - name: Build the STM32F7 image with an SPI receiver and no CC2500
         run: CRATE=stm32f7 BOARD=ALIENFLIGHTNGF7_ELRS bash target.do
+
+  # The host smoke's four parts, each on a runner of its own.
+  host:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Alire
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/alire
+            ~/.cache/alire
+            ~/.local/share/alire
+          key: alire-target-${{ runner.os }}-${{ hashFiles('targets/stm32f4/alire.toml', 'targets/host/alire.toml', 'core/alire.toml') }}
+          restore-keys: alire-target-${{ runner.os }}-
+
+      - name: Install Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: 2.1.1
+
+      - name: Select the native GNAT toolchain
+        run: |
+          cd targets/host
+          alr -n toolchain --select gnat_native
+
+      - name: Build and check the host image
+        run: HOST_SMOKE_PART=${{ matrix.part }} bash host.do
+
+  hostwing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Alire
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/alire
+            ~/.cache/alire
+            ~/.local/share/alire
+          key: alire-target-${{ runner.os }}-${{ hashFiles('targets/stm32f4/alire.toml', 'targets/host/alire.toml', 'core/alire.toml') }}
+          restore-keys: alire-target-${{ runner.os }}-
+
+      - name: Install Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: 2.1.1
+
+      - name: Select the native GNAT toolchain
+        run: |
+          cd targets/host
+          alr -n toolchain --select gnat_native
+
+      - name: Build and check the wing host image
+        run: bash hostwing.do
