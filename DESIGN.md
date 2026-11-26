@@ -17128,3 +17128,17 @@ Each value is static, so code stays as it was. In CLRACINGF4 and KAKUTEF7 images
 build stamp, every symbol keeps its size. Their instructions differ only in elaboration order within `adainit` and
 in source line numbers that CLRACINGF4's run-time checks pass to their handler. KAKUTEF7 at 512 KB has those
 checks off.
+
+## D922. H7 platform units (2026-11-26)
+
+An H7 image now has its platform constants, caches and DMA memory. Its platform spec gives a 400 MHz core,
+peripheral buses at 100 MHz and timers at 200 MHz, and names `.bss.dma` as its DMA buffers' section.
+`tools/featuregen.py` places that section in D2 SRAM, since H7 DMA does not reach DTCM. H7's cache unit enables
+both caches as F7's does, after an MPU region makes D2 SRAM normal memory that is neither cached nor executable,
+so DMA and core see each buffer alike. Its core coupled memory clear zeroes those buffers too.
+
+Slice 1's layout put initialized core coupled data in D2 SRAM, and D920 called that region DMA data. Core
+coupled data goes to DTCM now, as on F7.
+
+This image blinks through the shared GPIO unit, which reads GPIO addresses from D921's map. Under Renode its MPU
+region reads back as set, and its LED pin toggles every 500 ms.

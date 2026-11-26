@@ -272,8 +272,22 @@ def ccm_objects(chosen: dict, mcu: str) -> list:
     return CCM_OBJECTS if chosen["Packed_Data"] else []
 
 
+# An STM32H7's DMA buffers by their section name, in its D2 RAM: its DMA does not reach the data tightly coupled
+# memory, and its cache unit keeps the D2 RAM uncached.
+DMA_ZEROED = """
+  .dmabss (NOLOAD) : {
+   . = ALIGN(32);
+   __dmabss_start = .;
+   *(.bss.dma .bss.dma.*)
+   . = ALIGN(32);
+   __dmabss_end = .;
+  } > d2
+"""
+
+
 def zeroed(chosen: dict, mcu: str, heap_end: str, stack: str) -> str:
-    text = ZEROED.replace("{heap_end}", heap_end).replace("{stack}", stack)
+    text = ((DMA_ZEROED if mcu.startswith("STM32H7") else "")
+            + ZEROED.replace("{heap_end}", heap_end).replace("{stack}", stack))
     return text.replace("   *(.bss.ccm .bss.ccm.*)\n",
                         "   *(.bss.ccm .bss.ccm.*)\n" + "".join(f"   *(.bss.{name})\n" for name in ccm_objects(chosen, mcu)))
 
