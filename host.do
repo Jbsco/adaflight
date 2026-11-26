@@ -1,7 +1,7 @@
 #!/bin/bash
 # Gate: the host image builds and answers on its UART1 TCP port: MSP, the command line, and the
 # configuration store across a restart. The host image keeps a flash chip, which the board it stands in
-# for lacks, for the checks of the flight log on one.
+# for lacks, for the checks of the flight log on one. HOST_SMOKE_PART runs one of the smoke's four parts.
 set -e
 cd "$(dirname "$0")/targets/host"
 if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; then
@@ -10,5 +10,5 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
 fi
 FEATURES=+flash_chip,+mass_storage alr -n build
 (cd ../../tools/msp && alr -n build)
-python3 -u ../../tools/host-smoke.py bin/adaflight_host
+python3 -u ../../tools/host-smoke.py bin/adaflight_host ${HOST_SMOKE_PART:-}
 echo "host: ok"

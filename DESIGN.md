@@ -17017,3 +17017,17 @@ pull request's selection grows from 6 units to 15, the mixer among them.
 A widely used specification brings much of the core, so its proof runs in shards. `--shards` gives how many a
 selection needs for a shard to cover no more source than a nightly one. Job `select` computes it, `prove-units`
 proves a shard per runner, and `prove`, the check a pull request needs, passes when every shard did.
+
+## D915. Host smoke in parts (2026-11-25)
+
+A pull request's target job took about 88 minutes, 68 of them in the host smoke. Its time is spread evenly over
+its checks, so no one block was worth speeding up. The image binds fixed ports, so one host runs one smoke at a
+time, and a second host is how it gets faster.
+
+`tools/host-smoke.py` now runs its checks in four parts and takes a part's number. The checks stay where they were,
+under five functions of a class: two share the first configuration store and form part 1 in their order, and each
+of the others starts from stores of its own. Without a number every part runs in turn, each in a work directory of
+its own, as `host.do` does locally. `HOST_SMOKE_PART` passes a number through `host.do`.
+
+The target workflow runs those parts on four runners, the wing host checks on a fifth, and board builds in job
+`target`. The longest part decides how long a pull request waits.

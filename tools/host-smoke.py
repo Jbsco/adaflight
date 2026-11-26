@@ -8,7 +8,10 @@ finds the channels in the RC reply, the fix in the raw GPS reply, the link and t
 finds the craft name on the OSD's screen, then opens the menu with the stick gesture and finds it on
 the screen with its arming hold.
 
-Usage: host-smoke.py <host image>
+The checks run in four parts, each on stores of its own, so four hosts can run a part each.
+
+Usage: host-smoke.py <host image> [part]
+       part  1 to 4, every part in turn when left out
 """
 import calendar
 import math
@@ -4420,13 +4423,13 @@ def cli(sock, line, wait=0.8):
     return read_all(sock, wait).decode(errors="replace")
 
 
-def main():
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
-    image = os.path.abspath(sys.argv[1])
-    global features
-    features = build_features(image)
-    with tempfile.TemporaryDirectory() as work:
+class Checks:
+    """The smoke's checks in runs that each take the image and a work directory for their files. The runs on the
+    first store share its configuration from one to the next, so they go in one part and in their order; every
+    other run starts from stores of its own."""
+
+    @staticmethod
+    def first_store(image, work):
         store = os.path.join(work, "eeprom.bin")
         proc, sock = start(image, store)
         try:
@@ -4782,6 +4785,8 @@ def main():
                 vcp.close()
             if log is not None:
                 log.close()
+    @staticmethod
+    def sensors_and_plans(image, work):
         # Barometer and compass in the arming logic: the calibrating reason lasts through the barometer's
         # calibration after a start, the gyro calibration sticks level its altitude again, and a compass
         # calibration raises that reason.
@@ -6893,6 +6898,10 @@ def main():
             session("escmsp", (), by_msp)
             session("escmspall", (), every_motor_by_msp)
         esc_serial_checks()
+
+    @staticmethod
+    def first_store_storage(image, work):
+        store = os.path.join(work, "eeprom.bin")
         if built("SD_Card"):
             card = os.path.join(work, "sdcard.img")
             fat16_image(card, 40960)
@@ -7328,6 +7337,9 @@ def main():
                 info.stop.set()
             stop(proc)
             sock.close()
+
+    @staticmethod
+    def telemetry(image, work):
         if built("LTM_Telemetry"):
             store = os.path.join(work, "ltm.bin")
             proc, sock = start(image, store)
@@ -8226,6 +8238,8 @@ def main():
             stop(proc)
             sock.close()
 
+    @staticmethod
+    def displays(image, work):
         def screen_row(store, row):
             try:
                 with open(store + ".osd.txt") as f:
@@ -10140,6 +10154,23 @@ def main():
                   and "set craft_name = -" not in first.splitlines(), repr((status, len(lines), errors)))
         else:
             print("SKIP the checks of the MSP client: tools/msp is not built")
+
+
+# The parts, of about equal length, and the runs of each in their order.
+PARTS = {"1": (Checks.first_store, Checks.first_store_storage), "2": (Checks.sensors_and_plans,),
+         "3": (Checks.telemetry,), "4": (Checks.displays,)}
+
+
+def main():
+    if len(sys.argv) not in (2, 3) or len(sys.argv) == 3 and sys.argv[2] not in PARTS:
+        raise SystemExit(__doc__)
+    image = os.path.abspath(sys.argv[1])
+    global features
+    features = build_features(image)
+    for part in [sys.argv[2]] if len(sys.argv) == 3 else sorted(PARTS):
+        with tempfile.TemporaryDirectory() as work:
+            for run in PARTS[part]:
+                run(image, work)
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
