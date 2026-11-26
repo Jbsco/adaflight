@@ -17058,3 +17058,18 @@ left out. The optical flow's lines go with the rangefinders, as its settings do.
 The header oracle builds without each feature and without all four, for both crafts, and vector family
 `bbhdrview` replays those builds' lines. A line labelled by a setting's name is now read only in a build that has
 the setting.
+
+## D918. Setting names by feature (2026-11-25)
+
+A build without a feature hides that feature's settings, yet every build kept all their names in flash. Names lie
+in one code array of about 8 KB, and a plain STM32F411 image hides 258 settings whose names are 2.5 KB of it.
+
+Settings table generator now lays the name codes in parts: names every build has, then for each feature the names
+of the settings that exist only with it. Each feature's part is read only under that feature's build switch, so a
+build without the feature links none of its names. A read in such a part gives zero. Every reader of a name
+checks the setting is in the build first, and flight log header labels of a feature's settings are read only with
+that feature (D917).
+
+Flash left grows from 20954 to 23003 bytes on MAMBAF411, 1649 to 3673 on BETAFPVF411RX and 774 to 1157 on AIKONF7,
+whose packed tables compress the names. Names of wing settings stay in every build, since a build chooses its craft
+at run time.
