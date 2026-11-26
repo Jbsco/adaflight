@@ -142,8 +142,6 @@ package body Adaflight.STM32.MAVLink is
       Send_Streams (Now_Us, Now_Ms, Inp);
    end Run;
 
-   function On_Queue return Boolean is (Adaflight.STM32.MAVLink_Link.Present and then Shared_On);
-
    procedure Begin_Drain is
       Count : Natural;
    begin
@@ -152,7 +150,7 @@ package body Adaflight.STM32.MAVLink is
       if not Running then
          return;
       end if;
-      if On_Queue then
+      if Adaflight.STM32.MAVLink_Link.Present and then Shared_On then
          Budget := Commands.Queue_Budget;
       else
          Adaflight.STM32.USART.Take (Port_Of.Line, Input, Count);
@@ -180,7 +178,7 @@ package body Adaflight.STM32.MAVLink is
       if not Running then
          return;
       end if;
-      if On_Queue then
+      if Adaflight.STM32.MAVLink_Link.Present and then Shared_On then
          Commands.Process_Queue_Step
            (Station, Tlm, Tlm_Set, Station_Set, Cmd, Adaflight.STM32.MAVLink_Link.Slot (1), Budget, Replies, R,
             Other, Msg);
