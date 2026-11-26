@@ -7,8 +7,8 @@ The layout keeps flash sector 0 as its own region for the vector table and the c
 configuration store, and the rest of the code from sector 2. That code region is declared longer than its flash
 by a measuring allowance, so an image past its flash still links and its build names its size; __flash_size is
 the flash the code has, and target.do checks an image against it. The main RAM and the core coupled memory follow the
-MCU, and an STM32F7 or STM32H7 adds its instruction tightly coupled memory. An STM32H7 also adds its D2 RAM,
-where DMA data goes, since its DMA does not reach the data tightly coupled memory. The crate's linker script
+MCU, and an STM32F7 or STM32H7 adds its instruction tightly coupled memory. An STM32H7 also adds its D2 RAM for
+DMA buffers, since its DMA does not reach the data tightly coupled memory. The crate's linker script
 includes the output, and the Ada package adaflight-stm32-memory.ads beside it gives the code the configuration
 sector, the bootloader and the unique identifier's addresses.
 """
@@ -90,7 +90,6 @@ def main() -> None:
             "  d2      (rw) : ORIGIN = 0x30000000, LENGTH = 256K\n" if mcu.startswith("STM32H7") else "")
     ccm_line = f"  ccm     (rw) : ORIGIN = {ccm}, LENGTH = {ccm_len}\n" if ccm_len != "0K" else ""
     aliases = ('REGION_ALIAS("ccm", sram12)\nREGION_ALIAS("ccm_da", sram12)\n' if ccm_len == "0K"
-               else 'REGION_ALIAS("ccm_da", d2)\n' if mcu.startswith("STM32H7")
                else 'REGION_ALIAS("ccm_da", ccm)\n')
     stack = "32K" if mcu in ("STM32F411", "STM32F446") else "40K"
     core_hz, apb1_hz, apb2_hz = CLOCKS[mcu]
