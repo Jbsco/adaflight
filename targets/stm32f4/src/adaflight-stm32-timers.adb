@@ -44,7 +44,7 @@ package body Adaflight.STM32.Timers is
       for S in Adaflight.Timer_Allocation.Slot loop
          if Table.Owners (S).Held and then Table.Owners (S).Owner = Who then
             K := Adaflight.Timer_Allocation.Channel_Of (Table, S);
-            if K /= 0 and then Name_Of (Adaflight.Timer_Tables.Channels (K).Timer) = T then
+            if K /= 0 and then Name_Of (Adaflight.Timer_Tables.Channel (K).Timer) = T then
                return True;
             end if;
          end if;
@@ -65,7 +65,7 @@ package body Adaflight.STM32.Timers is
       Found := K /= 0 and then Tagged_Pin (Tag);
       if Found then
          declare
-            C : Adaflight.Timer_Tables.Timer_Channel renames Adaflight.Timer_Tables.Channels (K);
+            C : Adaflight.Timer_Tables.Timer_Channel renames Adaflight.Timer_Tables.Channel (K);
          begin
             E := (Timer => Name_Of (C.Timer), Channel => C.Channel, N => C.N, Where => Pin_Of (Tag));
          end;
@@ -73,9 +73,9 @@ package body Adaflight.STM32.Timers is
    end Allocate;
 
    function Entry_Of (K : Positive; Tag : Unsigned_8) return Timer_Entry is
-     (Timer   => Name_Of (Adaflight.Timer_Tables.Channels (K).Timer),
-      Channel => Adaflight.Timer_Tables.Channels (K).Channel,
-      N       => Adaflight.Timer_Tables.Channels (K).N,
+     (Timer   => Name_Of (Adaflight.Timer_Tables.Channel (K).Timer),
+      Channel => Adaflight.Timer_Tables.Channel (K).Channel,
+      N       => Adaflight.Timer_Tables.Channel (K).N,
       Where   => Pin_Of (Tag));
 
    --  The pin's configured channel when the owner holds it, zero otherwise.

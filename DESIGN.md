@@ -17167,3 +17167,21 @@ SYSCFG's EXTICR registers at F4's offset, and lines 0 to 15 use F4's interrupt v
 H7's image now counts rising edges on the first gyro's interrupt pin and prints a line on UART1 for each. Under
 Renode, three rising edges on MATEKH743's PB2 printed three lines, EXTICR1 read port B for line 2, and RTSR1 and
 CPU IMR1 had line 2 set.
+
+## D925. Timer tables behind functions (2026-11-26)
+
+`Adaflight.Timer_Tables` declared STM32F405's timer channels and DMA options in its spec, so command line proofs
+read F405's values. An H7 has another timer table, and its DMA multiplexer gives every device any stream. The spec
+now has types, bounds and functions with their contracts only: `Channel` and `Channel_Count` for the timer table,
+`Timer_At` and `Timer_Count` for the timer listing's order, and option lookups as before. Its body contains F405's
+tables, written by D521's generator.
+
+Command line, timer allocation, bit-banged DShot, the STM32 timer driver and the vector checker read the tables
+through those functions. F7's timer table lists F405's channels in F405's order, so F7 images keep this body.
+
+Proofs of the SPARK callers, command line, timer allocation and bit-banged DShot, now rest on the spec's contracts,
+which bound indices and counts. They show those callers free of run-time errors for any body within the spec's
+bounds: timer numbers 1 to 14, DMA channels 0 to 7, three options for a timer channel and two for a peripheral.
+Vectors check the tables' content. H7's table and its DMA options need wider bounds, which come with its body.
+
+Command line vectors pass unchanged. GEPRCF411's image keeps its code, data and RAM sizes.

@@ -42554,8 +42554,8 @@ procedure Vector_Check is
                declare
                   C : constant Natural := TA.Channel_Of (T, E);
                begin
-                  if T.Owners (E).Held and then C > 0 and then TT.Channels (C).Timer = Timer
-                    and then TT.Channels (C).Channel = Channel
+                  if T.Owners (E).Held and then C > 0 and then TT.Channel (C).Timer = Timer
+                    and then TT.Channel (C).Channel = Channel
                   then
                      Map_Held := True;
                      exit;

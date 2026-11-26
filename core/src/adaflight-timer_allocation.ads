@@ -17,7 +17,7 @@ package Adaflight.Timer_Allocation with SPARK_Mode is
    use type Config_Groups.Timer_Io_Config_Record_List_21;
 
    subtype Slot is Natural range 0 .. 20;
-   subtype Channel_Index is Natural range 0 .. Timer_Tables.Channels'Last;
+   subtype Channel_Index is Natural range 0 .. Timer_Tables.Max_Channels;
    subtype Ordinal_Number is Natural range 0 .. 16;
 
    type Table is record
@@ -35,19 +35,19 @@ package Adaflight.Timer_Allocation with SPARK_Mode is
 
    --  The channel of a pin's first entry, zero without one.
    function Configured_Channel (T : Table; Tag : Unsigned_8) return Channel_Index
-     with Global => null;
+     with Global => null, Post => Configured_Channel'Result <= Timer_Tables.Channel_Count;
 
    --  A channel's owner through the first entry whose channel it is, free
    --  when no entry has it.
    function Channel_Owner (T : Table; K : Positive) return CLI_Resources.Timer_Owner
-     with Global => null, Pre => K <= Timer_Tables.Channels'Last;
+     with Global => null, Pre => K <= Timer_Tables.Channel_Count;
 
    --  An allocation: the channel the owner got, zero for none, and the entry
    --  that took the owner, one past the last for none.
    procedure Allocate
      (T : in out Table; Tag : Unsigned_8; Who : CLI_Resources.Owner; Ordinal : Ordinal_Number;
       K : out Channel_Index; S : out Natural)
-     with Global => null, Post => S <= Slot'Last + 1;
+     with Global => null, Post => S <= Slot'Last + 1 and then K <= Timer_Tables.Channel_Count;
 
    --  An entry's DMA option, minus one for none.
    function Option_Of (T : Table; S : Slot) return Integer_8 is (T.Map (S).Dmaopt);
