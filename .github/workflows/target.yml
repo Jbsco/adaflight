@@ -61,6 +61,9 @@ jobs:
       - name: Build the STM32F411 image with the FlySky receiver alone
         run: BOARD=CRAZYBEEF4FS bash target.do
 
+      - name: Build the STM32F446 image
+        run: BOARD=NUCLEOF446 bash target.do
+
       - name: Name the overflow of an image past its flash
         run: |
           if BOARD=GEPRCF411 FEATURES=+blackbox,+flash_chip,+barometer bash target.do > overflow.log 2>&1; then

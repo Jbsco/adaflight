@@ -16,8 +16,8 @@ checks off when Board_Checks is off, itcm_load.ld, which names where an STM32F7 
 and the linker scripts' RAM sections, where an STM32F4 build packs its
 initialized data and elaboration code only and keeps its tables in flash. A feature
 with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less, for the
-room its drivers take. An STM32F411 build leaves the servos, the GPS and the flight log out. A board whose
-default receiver is a FlySky one builds the FlySky receivers in place of the CC2500 families where flash is
+room its drivers take. An STM32F411 or STM32F446 build leaves the servos, the GPS and the flight log out. A
+board whose default receiver is a FlySky one builds the FlySky receivers in place of the CC2500 families where flash is
 short. A 512 KB board whose configuration names a compass, a barometer and a flash chip leaves the GPS out, since
 a board's own hardware comes before a peripheral its owner may not have. The output is deterministic for the same inputs, so a build regenerates it without a diff. The --feature
 form prints on or off for one feature, which a build passes to the core project.
@@ -47,11 +47,11 @@ FEATURES = [
     ("SD_Card", 1024, "The SD card as a flight log device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip. An "
-                       "STM32F411 build leaves it out."),
+                       "STM32F411 or STM32F446 build leaves it out."),
     ("Mass_Storage", None, "The USB mass storage mode, which shows the flash chip's flight logs as a disk."),
-    ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
-    ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build and a "
-               "512 KB board with a compass, a barometer and a flash chip of its own leave "
+    ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 or STM32F446 build leaves out."),
+    ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 or STM32F446 build "
+               "and a 512 KB board with a compass, a barometer and a flash chip of its own leave "
                "out."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
@@ -99,8 +99,9 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
               for name, size, _ in FEATURES}
     if flash_kb <= 512:
         chosen["Debug_Values"] = False
-    # No STM32F411 image fits its flash with the flight log, whose flash chip code goes with it below.
-    if mcu == "STM32F411":
+    # No STM32F411 image fits its flash with the flight log, whose flash chip code goes with it below. The
+    # STM32F446 has the same flash and main RAM, and the same cuts.
+    if mcu in SMALL_F4:
         chosen["Servos"] = False
         chosen["GPS"] = False
         chosen["Blackbox"] = False
@@ -208,10 +209,12 @@ STACK = """   __stack_start = .;
 HEAP_RESERVE = 4096
 
 # The main stack a packed build keeps above the elaboration's code for the elaboration itself, and above the
-# unpacking's model for the unpacking's frames; less on an STM32F411, whose main RAM is short, whose elaboration's
-# deepest path is about 6 KB and whose unpacking's is under 1 KB.
+# unpacking's model for the unpacking's frames; less on an STM32F411 or STM32F446, whose main RAM is short, whose
+# elaboration's deepest path is about 6 KB and whose unpacking's is under 1 KB.
 BOOT_STACK = 16384
 BOOT_STACK_F411 = 8192
+# The STM32F4 parts with 512 KB of flash and 128 KB of main RAM, which take the STM32F411's cuts and reserves.
+SMALL_F4 = ("STM32F411", "STM32F446")
 UNPACK_FRAMES = 8192
 UNPACK_FRAMES_F411 = 2048
 
@@ -334,8 +337,8 @@ def ram_early(chosen: dict, mcu: str = "") -> str:
   __unpack_scratch = __stack_end - UNPACK_FRAMES - UNPACK_SCRATCH;
   ASSERT (__unpack_scratch >= __boot_end, "no room for the unpack model")
 """.replace("UNPACK_SCRATCH", str(UNPACK_SCRATCH))
-       .replace("BOOT_STACK", str(BOOT_STACK_F411 if mcu == "STM32F411" else BOOT_STACK))
-       .replace("UNPACK_FRAMES", str(UNPACK_FRAMES_F411 if mcu == "STM32F411" else UNPACK_FRAMES)))
+       .replace("BOOT_STACK", str(BOOT_STACK_F411 if mcu in SMALL_F4 else BOOT_STACK))
+       .replace("UNPACK_FRAMES", str(UNPACK_FRAMES_F411 if mcu in SMALL_F4 else UNPACK_FRAMES)))
 
 
 def ram_late(chosen: dict, mcu: str = "") -> str:
