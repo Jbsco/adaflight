@@ -88,7 +88,7 @@ package body Adaflight.DShot_Bitbang with SPARK_Mode is
    begin
       for E in Adaflight.Timer_Allocation.Slot loop
          K := Adaflight.Timer_Allocation.Channel_Of (T, E);
-         if T.Owners (E).Held and then K > 0 and then Adaflight.Timer_Tables.Channels (K).Timer = Timer then
+         if T.Owners (E).Held and then K > 0 and then Adaflight.Timer_Tables.Channel (K).Timer = Timer then
             return True;
          end if;
       end loop;
@@ -137,7 +137,7 @@ package body Adaflight.DShot_Bitbang with SPARK_Mode is
             S.Status := Motor_Pin_Conflict;
             return;
          end if;
-         Flags := (if Adaflight.Timer_Tables.Channels (K).N then 2 else 0);
+         Flags := (if Adaflight.Timer_Tables.Channel (K).N then 2 else 0);
          if Inversion then
             Flags := Flags xor 1;
          end if;

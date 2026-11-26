@@ -7119,14 +7119,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A timer channel as TIM4 CH1 or TIM1 CH2N.
    procedure Put_Timer_Channel (Into : in out Output; K : Positive)
-     with Global => null, Pre => K <= Timer_Tables.Channels'Last
+     with Global => null, Pre => K <= Timer_Tables.Channel_Count
    is
    begin
       Put (Into, "TIM");
-      Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).Timer));
+      Put_Decimal (Into, Integer_64 (Timer_Tables.Channel (K).Timer));
       Put (Into, " CH");
-      Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).Channel));
-      if Timer_Tables.Channels (K).N then
+      Put_Decimal (Into, Integer_64 (Timer_Tables.Channel (K).Channel));
+      if Timer_Tables.Channel (K).N then
          Put (Into, "N");
       end if;
    end Put_Timer_Channel;
@@ -7169,7 +7169,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, Pin_Text (Tag));
       if K > 0 then
          Put (Into, " AF");
-         Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+         Put_Decimal (Into, Integer_64 (Timer_Tables.Channel (K).AF));
          Put (Into, CRLF);
          if As_Default then
             Put (Into, "#");
@@ -7179,7 +7179,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, ": ");
          Put_Timer_Channel (Into, K);
          Put (Into, " (AF");
-         Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+         Put_Decimal (Into, Integer_64 (Timer_Tables.Channel (K).AF));
          Put (Into, ")" & CRLF);
       else
          Put (Into, " NONE" & CRLF);
@@ -7344,7 +7344,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Put_Pin_Option_Line
      (Into : in out Output; Tag : Unsigned_8; K : Natural; Option : Integer_8; Mode : Dump_Mode; Equal : Boolean;
       As_Default : Boolean; Hide_Unused : Boolean)
-     with Global => null, Pre => K <= Timer_Tables.Channels'Last
+     with Global => null, Pre => K <= Timer_Tables.Channel_Count
    is
       Found  : Boolean;
       Stream : Timer_Tables.DMA_Stream;
@@ -7362,7 +7362,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, CRLF);
       if Option /= -1 and then K > 0 then
          Timer_Tables.Timer_Option
-           (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Integer (Option), Found, Stream);
+           (Timer_Tables.Channel (K).Timer, Timer_Tables.Channel (K).Channel, Integer (Option), Found, Stream);
          if Found then
             if As_Default then
                Put (Into, "#");
@@ -7467,9 +7467,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
       package R renames CLI_Resources;
    begin
       Put (Into, CRLF & "Currently active Timers:" & CRLF & "-----------------------" & CRLF);
-      for T of Timer_Tables.Timers loop
+      for Place in 1 .. Timer_Tables.Timer_Count loop
          pragma Loop_Invariant (True);
          declare
+            T    : constant Timer_Tables.Timer_Number := Timer_Tables.Timer_At (Place);
             Used : Boolean := False;
             Held : Boolean;
          begin
@@ -7486,8 +7487,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                        Timer_Tables.By_Tag_And_Index
                          (C.Timer_Io_Config (I).Io_Tag, Natural (C.Timer_Io_Config (I).Index));
                   begin
-                     if K > 0 and then Timer_Tables.Channels (K).Timer = T
-                       and then Timer_Tables.Channels (K).Channel = Ch and then Env.Timer_Owners (I).Held
+                     if K > 0 and then Timer_Tables.Channel (K).Timer = T
+                       and then Timer_Tables.Channel (K).Channel = Ch and then Env.Timer_Owners (I).Held
                      then
                         if not Used then
                            Used := True;
@@ -7495,7 +7496,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                         end if;
                         Put (Into, "    CH");
                         Put_Decimal (Into, Integer_64 (Ch));
-                        Put (Into, (if Timer_Tables.Channels (K).N then "N: " else " : "));
+                        Put (Into, (if Timer_Tables.Channel (K).N then "N: " else " : "));
                         Put (Into, R.Name (Env.Timer_Owners (I).Owner));
                         if Env.Timer_Owners (I).Ordinal > 0 then
                            Put (Into, " ");
@@ -7536,7 +7537,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  NONE for none.
    function AF_Text (Tag : Unsigned_8; Index : Natural) return String is
      (if Timer_Tables.By_Tag_And_Index (Tag, Index) > 0
-      then "AF" & Decimal (Integer_64 (Timer_Tables.Channels (Timer_Tables.By_Tag_And_Index (Tag, Index)).AF))
+      then "AF" & Decimal (Integer_64 (Timer_Tables.Channel (Timer_Tables.By_Tag_And_Index (Tag, Index)).AF))
       else "NONE");
 
    --  timer: the map's entries without arguments; a word starting list is
@@ -7627,7 +7628,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                begin
                   if K > 0 then
                      Put (Into, "# AF");
-                     Put_Decimal (Into, Integer_64 (Timer_Tables.Channels (K).AF));
+                     Put_Decimal (Into, Integer_64 (Timer_Tables.Channel (K).AF));
                      Put (Into, ": ");
                      Put_Timer_Channel (Into, K);
                      Put (Into, CRLF);
@@ -7644,7 +7645,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   declare
                      K : constant Natural := Timer_Tables.By_Tag_And_Index (Tag, N);
                   begin
-                     if K > 0 and then Integer_32 (Timer_Tables.Channels (K).AF) = Wanted then
+                     if K > 0 and then Integer_32 (Timer_Tables.Channel (K).AF) = Wanted then
                         Timer_Index := N - 1;
                         exit;
                      end if;
@@ -7826,7 +7827,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             pragma Loop_Invariant (True);
             if Is_Pin then
                Timer_Tables.Timer_Option
-                 (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Option, Found, Stream);
+                 (Timer_Tables.Channel (K).Timer, Timer_Tables.Channel (K).Channel, Option, Found, Stream);
             else
                Timer_Tables.Peripheral_Option (Device_Peripheral (Device), Index, Option, Found, Stream);
             end if;
@@ -7851,7 +7852,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             elsif Is_Pin then
                Found := K > 0
                  and then Timer_Tables.Has_Timer_Option
-                            (Timer_Tables.Channels (K).Timer, Timer_Tables.Channels (K).Channel, Integer (Number));
+                            (Timer_Tables.Channel (K).Timer, Timer_Tables.Channel (K).Channel, Integer (Number));
             else
                Found := Timer_Tables.Has_Peripheral_Option (Device_Peripheral (Device), Index, Integer (Number));
             end if;
