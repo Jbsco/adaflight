@@ -1,6 +1,6 @@
 #!/bin/bash
 # Gate: the STM32F4 image builds, or the STM32F7 one with CRATE=stm32f7, or with CRATE=stm32h7 the STM32H7 one,
-# which so far only blinks the board's LED and is sized, nothing more. The board package is
+# which so far blinks the board's LED, echoes UART1 and is sized, nothing more. The board package is
 # generated from the pinned board configuration repository (BOARD, CLRACINGF4, KAKUTEF7 or MATEKH743 when
 # unset), the build's features from the board's flash size, FLASH_KB and FEATURES, the crate builds
 # in its release profile with the Alire ARM toolchain and the runtime it names or generates, and the

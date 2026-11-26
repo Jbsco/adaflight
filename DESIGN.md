@@ -17142,3 +17142,17 @@ coupled data goes to DTCM now, as on F7.
 
 This image blinks through the shared GPIO unit, which reads GPIO addresses from D921's map. Under Renode its MPU
 region reads back as set, and its LED pin toggles every 500 ms.
+
+## D923. H7 UARTs (2026-11-26)
+
+H7 USARTs have F7's register layout up to their transmit data register, and their kernel clocks default to
+peripheral buses, 100 MHz in H7 images. H7 images now take F7's UART body, which reads clock enables from D921's
+map and bus clocks from H7's platform spec. Bringing it up showed that body enabling a UART with F4's bit, so no
+F7 UART started. That fix lands first.
+
+H7's project now takes units as F7's does: F4 and F7 sources with H7 variants in their place, built as its image
+needs them. SPI and flash have no H7 body yet, so a unit needing them does not build. An H7 build leaves software
+serial ports out, since they run on F4 and F7's timer table, which an H7 does not have.
+
+Its image sends a banner on UART1 at 115200 baud and echoes what it receives. Under Renode, UART1 sends that
+banner, and three bytes written to it come back.
