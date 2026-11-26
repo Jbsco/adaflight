@@ -11,12 +11,12 @@ package body Adaflight.STM32.EXTI is
       PR    : Unsigned_32;
    end record with Volatile;
    for Registers use record
-      IMR   at 16#00# range 0 .. 31;
-      EMR   at 16#04# range 0 .. 31;
-      RTSR  at 16#08# range 0 .. 31;
-      FTSR  at 16#0C# range 0 .. 31;
-      SWIER at 16#10# range 0 .. 31;
-      PR    at 16#14# range 0 .. 31;
+      IMR   at Adaflight.STM32.Memory.EXTI_IMR range 0 .. 31;
+      EMR   at Adaflight.STM32.Memory.EXTI_EMR range 0 .. 31;
+      RTSR  at Adaflight.STM32.Memory.EXTI_RTSR range 0 .. 31;
+      FTSR  at Adaflight.STM32.Memory.EXTI_FTSR range 0 .. 31;
+      SWIER at Adaflight.STM32.Memory.EXTI_SWIER range 0 .. 31;
+      PR    at Adaflight.STM32.Memory.EXTI_PR range 0 .. 31;
    end record;
    Regs : Registers with Import, Address => System'To_Address (Adaflight.STM32.Memory.EXTI_Base);
 
