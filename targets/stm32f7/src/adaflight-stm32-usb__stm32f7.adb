@@ -7,6 +7,7 @@ with Adaflight.STM32.Time;
 with Adaflight.USB_VCP;
 --  The STM32F7's USB device: the F4's core with the VBUS detection left
 --  off and the B session forced valid, since the board does not sense VBUS.
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.USB is
    package U renames Adaflight.USB_VCP;
    use type Interfaces.Unsigned_8;
@@ -15,7 +16,7 @@ package body Adaflight.STM32.USB is
    function Shift_Right (Value : Unsigned_32; Amount : Natural) return Unsigned_32 renames Interfaces.Shift_Right;
    package GPIO renames Adaflight.STM32.GPIO;
 
-   Base : constant := 16#5000_0000#;
+   Base : constant := Adaflight.STM32.Memory.OTG_FS_Base;
 
    GOTGINT    : Unsigned_32 with Volatile, Import, Address => System'To_Address (Base + 16#004#);
    GAHBCFG    : Unsigned_32 with Volatile, Import, Address => System'To_Address (Base + 16#008#);
@@ -39,8 +40,10 @@ package body Adaflight.STM32.USB is
    DAINTMSK   : Unsigned_32 with Volatile, Import, Address => System'To_Address (Base + 16#81C#);
    DIEPEMPMSK : Unsigned_32 with Volatile, Import, Address => System'To_Address (Base + 16#834#);
    PCGCCTL    : Unsigned_32 with Volatile, Import, Address => System'To_Address (Base + 16#E00#);
-   RCC_AHB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3834#);
-   RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+   RCC_USB_ENR    : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_USB_Enable);
+   RCC_SYSCFG_ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_SYSCFG_Enable);
 
    subtype Number is U.Endpoint_Number;
 
@@ -551,8 +554,8 @@ package body Adaflight.STM32.USB is
       Disconnect;
       GPIO.Set_Alternate (DM, 10, Rate => GPIO.Very_High);
       GPIO.Set_Alternate (DP, 10, Rate => GPIO.Very_High);
-      RCC_APB2ENR := RCC_APB2ENR or 2 ** 14;
-      RCC_AHB2ENR := RCC_AHB2ENR or 2 ** 7;
+      RCC_SYSCFG_ENR := RCC_SYSCFG_ENR or 2 ** Adaflight.STM32.Memory.SYSCFG_Enable_Bit;
+      RCC_USB_ENR := RCC_USB_ENR or 2 ** Adaflight.STM32.Memory.USB_Enable_Bit;
       GAHBCFG := GAHBCFG and not GINTMSK_GLOBAL;
       GUSBCFG := GUSBCFG or PHYSEL;
       Core_Reset;

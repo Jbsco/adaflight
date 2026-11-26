@@ -9,6 +9,7 @@ with Adaflight.Config_Groups;
 with Adaflight.Timer_Allocation;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Memory;
 package Adaflight.STM32.Timers is
    use Interfaces;
 
@@ -132,7 +133,8 @@ package Adaflight.STM32.Timers is
                when 4 => (0 => (2, 7, 7))),
          when others => (1 .. 0 => (1, 0, 0)));
 
-   DMA_Base : constant array (1 .. 2) of Unsigned_32 := (16#4002_6000#, 16#4002_6400#);
+   DMA_Base : constant array (1 .. 2) of Unsigned_32 :=
+     (Adaflight.STM32.Memory.DMA1_Base, Adaflight.STM32.Memory.DMA2_Base);
 
    type Stream_Registers is record
       CR, NDTR, PAR, M0AR, M1AR, FCR : Unsigned_32;

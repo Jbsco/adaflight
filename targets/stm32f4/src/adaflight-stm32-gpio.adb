@@ -1,11 +1,12 @@
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.GPIO is
 
-   RCC_AHB1ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3830#);
+   RCC_GPIO_ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_GPIO_Enable);
 
    procedure Enable_Port (Port : Port_Name) is
    begin
-      RCC_AHB1ENR := RCC_AHB1ENR or Shift_Left (1, Port_Name'Pos (Port));
+      RCC_GPIO_ENR := RCC_GPIO_ENR or Shift_Left (1, Port_Name'Pos (Port));
    end Enable_Port;
 
    procedure Set_Output (P : Pin) is

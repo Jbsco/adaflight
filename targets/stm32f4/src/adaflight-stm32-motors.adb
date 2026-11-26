@@ -13,12 +13,15 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.Motors is
    use Interfaces;
    package GPIO renames Adaflight.STM32.GPIO;
 
-   RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
-   RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+   RCC_APB1ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
+   RCC_APB2ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Enable);
 
    --  The DShot timings: the bit's twenty counts, and the counts a zero
    --  and a one stay high.

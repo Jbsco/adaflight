@@ -1,5 +1,6 @@
 with Interfaces; use Interfaces;
 with System;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.EXTI is
    type Registers is record
       IMR   : Unsigned_32;
@@ -17,15 +18,15 @@ package body Adaflight.STM32.EXTI is
       SWIER at 16#10# range 0 .. 31;
       PR    at 16#14# range 0 .. 31;
    end record;
-   Regs : Registers with Import, Address => System'To_Address (16#4001_3C00#);
+   Regs : Registers with Import, Address => System'To_Address (Adaflight.STM32.Memory.EXTI_Base);
 
    --  The system configuration controller's four external interrupt
    --  configuration registers, four lines each, a port index per nibble.
    type Line_Sources is array (0 .. 3) of Unsigned_32 with Volatile_Components;
-   EXTICR : Line_Sources with Import, Address => System'To_Address (16#4001_3808#);
-   RCC_APB2ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3844#);
-   SYSCFG_Bit : constant Unsigned_32 := 2 ** 14;
+   EXTICR : Line_Sources with Import, Address => System'To_Address (Adaflight.STM32.Memory.SYSCFG_Base + 16#08#);
+   RCC_SYSCFG_ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_SYSCFG_Enable);
+   SYSCFG_Bit : constant Unsigned_32 := 2 ** Adaflight.STM32.Memory.SYSCFG_Enable_Bit;
 
    --  The pin's port as its line's source.
    procedure Route (P : Pin) is
@@ -33,7 +34,7 @@ package body Adaflight.STM32.EXTI is
       Nibble : constant Natural := 4 * (Line mod 4);
       Source : constant Unsigned_32 := Unsigned_32 (Port_Name'Pos (P.Port));
    begin
-      RCC_APB2ENR := RCC_APB2ENR or SYSCFG_Bit;
+      RCC_SYSCFG_ENR := RCC_SYSCFG_ENR or SYSCFG_Bit;
       EXTICR (Line / 4) := (EXTICR (Line / 4) and not Shift_Left (15, Nibble)) or Shift_Left (Source, Nibble);
    end Route;
 
