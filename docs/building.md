@@ -6,6 +6,8 @@ A board builds its compass and barometer only when its configuration names them,
 
 A 512 KB board keeps its flight log only when its configuration names a flash chip. SD card logging is left out at that size, so a board with an SD card alone would have no log storage. `FEATURES=+blackbox,+sd_card` builds both where flash allows. An STM32F411 board leaves its flight log and its flash chip code out, since no such image fits its flash with them. `FEATURES=+blackbox` selects them again for a build that makes room another way.
 
+A 512 KB board with a compass, a barometer and a flash chip of its own leaves the GPS out, since a board's own hardware comes before a peripheral its owner may not have. `FEATURES=+gps,-compass` is one selection that fits.
+
 An STM32F411 board leaves the servos and the GPS, with its rescue, altitude hold and position hold, out. A 512 KB board also leaves out debug values. A 512 KB board with a CC2500 leaves out FlySky receivers. A board whose default receiver is a FlySky one has an A7105, so its 512 KB build has those receivers and leaves the CC2500 families out, as `FEATURES=-cc2500_receiver,+flysky_receiver` does on another board.
 
 A build without a feature leaves it out of command line, settings and MSP:

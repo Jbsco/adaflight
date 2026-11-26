@@ -18,7 +18,8 @@ initialized data and elaboration code only and keeps its tables in flash. A feat
 with a negative size is on below that size instead. Debug values are off in a build of 512 KB or less, for the
 room its drivers take. An STM32F411 build leaves the servos, the GPS and the flight log out. A board whose
 default receiver is a FlySky one builds the FlySky receivers in place of the CC2500 families where flash is
-short. The output is deterministic for the same inputs, so a build regenerates it without a diff. The --feature
+short. A 512 KB board whose configuration names a compass, a barometer and a flash chip leaves the GPS out, since
+a board's own hardware comes before a peripheral its owner may not have. The output is deterministic for the same inputs, so a build regenerates it without a diff. The --feature
 form prints on or off for one feature, which a build passes to the core project.
 The --json form prints the board's MCU, flash size and crate, and each feature with its description, its default
 and its state after the changes, for a configurator's feature selection.
@@ -49,7 +50,8 @@ FEATURES = [
                        "STM32F411 build leaves it out."),
     ("Mass_Storage", None, "The USB mass storage mode, which shows the flash chip's flight logs as a disk."),
     ("Servos", 0, "The servo outputs and the servo mixer, which an STM32F411 build leaves out."),
-    ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build leaves "
+    ("GPS", 0, "The GPS with its rescue, its holds and the position estimate, which an STM32F411 build and a "
+               "512 KB board with a compass, a barometer and a flash chip of its own leave "
                "out."),
     ("Rangefinder", 1024, "The TF lidar and TOFSense rangefinders."),
     ("IBus_Telemetry", 1024, "The iBus telemetry."),
@@ -102,6 +104,10 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
         chosen["Servos"] = False
         chosen["GPS"] = False
         chosen["Blackbox"] = False
+    # A board's own hardware comes before an external peripheral: 512 KB have no room for the GPS beside a
+    # compass, a barometer and a flash chip with its flight log.
+    if flash_kb <= 512 and all(chosen[name] for name in ("Compass", "Barometer", "Flash_Chip")):
+        chosen["GPS"] = False
     # The FlySky receivers come with a CC2500 build where flash allows: beside the CC2500 families they take about
     # 4.5 KB, which no 512 KB board with those families has.
     chosen["FlySky_Receiver"] = chosen["CC2500_Receiver"] and flash_kb >= 1024

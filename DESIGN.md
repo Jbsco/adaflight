@@ -17031,3 +17031,14 @@ its own, as `host.do` does locally. `HOST_SMOKE_PART` passes a number through `h
 
 The target workflow runs those parts on four runners, the wing host checks on a fifth, and board builds in job
 `target`. The longest part decides how long a pull request waits.
+
+## D916. Board hardware before external peripherals (2026-11-25)
+
+ALIENFLIGHTNGF7 has a compass, a barometer and a flash chip of its own, and its default image was 7.7 KB past its
+flash with the GPS beside them. The user ruled that every board's default builds, and that a board's own hardware
+comes first: everyone with that board has it, and not everyone has a GPS.
+
+A 512 KB board whose configuration names a compass, a barometer and a flash chip now leaves the GPS out by default,
+with its rescue, altitude hold and position hold. That is also the baseline Betaflight builds for such a board. ALIENFLIGHTNGF7's default
+then has 32 KB of flash left. `FEATURES=+gps,-compass` fits with 2 KB to spare, and `+gps,-servos` is 463 bytes
+over. Every other buildable board keeps its default.
