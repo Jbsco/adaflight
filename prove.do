@@ -19,7 +19,8 @@ echo "Running SPARK proofs..."
 # PROVE_SWITCHES adds switches after the project file's, so a host can trade time for
 # the memory and speed it lacks.
 # PROVE_UNITS names the source files to analyze, one -u each; unset, the whole core is
-# analyzed. A pull request run passes the units it changed and their dependents.
+# analyzed. A pull request run passes the units it changed and the units that depend on a
+# specification it changed.
 UNIT_ARGS=""
 for unit in ${PROVE_UNITS:-}; do UNIT_ARGS="$UNIT_ARGS -u $unit"; done
 [ -n "$UNIT_ARGS" ] && echo "Units:${PROVE_UNITS// / }" | tr ' ' '\n' | sed '1!s/^/  /'

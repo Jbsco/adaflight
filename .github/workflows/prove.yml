@@ -14,16 +14,47 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # A pull request proves the units whose sources it changed.
-  prove:
+  # A pull request proves the units whose sources it changed and the units that
+  # depend on a specification it changed, in as many shards as their source
+  # needs for a shard to stay within one of the nightly run's.
+  select:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    outputs:
+      count: ${{ steps.units.outputs.count }}
+      shards: ${{ steps.units.outputs.shards }}
+      list: ${{ steps.units.outputs.list }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           # The unit selection diffs against main, which needs the history.
+          fetch-depth: 0
+
+      - name: Select the units to prove
+        id: units
+        run: |
+          git fetch -q origin main
+          python3 tools/changed-units.py origin/main > units.txt
+          shards="$(python3 tools/changed-units.py origin/main --shards)"
+          echo "count=$(wc -l < units.txt)" >> "$GITHUB_OUTPUT"
+          echo "shards=$shards" >> "$GITHUB_OUTPUT"
+          echo "list=[$(seq -s, 0 $((shards - 1)))]" >> "$GITHUB_OUTPUT"
+          cat units.txt
+
+  prove-units:
+    needs: select
+    if: needs.select.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select.outputs.list) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
           fetch-depth: 0
 
       - name: Cache Alire
@@ -53,30 +84,76 @@ jobs:
           alr -n build --stop-after=post-fetch || true
           alr -n exec -- gnatprove --version
 
-      - name: Select the units to prove
-        id: units
+      - name: Select the shard's units
         run: |
           git fetch -q origin main
-          python3 tools/changed-units.py origin/main > units.txt
-          echo "count=$(wc -l < units.txt)" >> "$GITHUB_OUTPUT"
+          python3 tools/changed-units.py origin/main --shard ${{ matrix.shard }}/${{ needs.select.outputs.shards }} > units.txt
           cat units.txt
 
       # Every run proves from a fresh session. A kept session replays the
       # stored verdicts of an earlier run against the changed units.
       - name: Run SPARK proofs
-        if: steps.units.outputs.count != '0'
         env:
           PROVE_JOBS: 4
           PROVE_SWITCHES: --timeout=900
         run: |
           set -o pipefail
+          # An empty unit list would prove the whole core.
+          [ -s units.txt ]
           PROVE_UNITS="$(tr '\n' ' ' < units.txt)" bash prove.do 2>&1 | tee prove-output.log
           grep -q "core 100% proved" prove-output.log
           grep -q "(0 pragma Assume, 0 justified" prove-output.log
 
-      - name: No unit changed
-        if: steps.units.outputs.count == '0'
-        run: echo "no core unit changed; the proof of main stands"
+  # The check a pull request needs: every shard proved, or no core unit to
+  # prove, and the tools' own proofs.
+  prove:
+    needs: [select, prove-units]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check the unit proofs
+        run: |
+          echo "select: ${{ needs.select.result }}, prove-units: ${{ needs.prove-units.result }}"
+          [ "${{ needs.select.result }}" = success ]
+          case "${{ needs.prove-units.result }}" in
+            success) ;;
+            skipped)
+              [ "${{ needs.select.outputs.count }}" = 0 ] || exit 1
+              echo "no core unit changed; the proof of main stands"
+              ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Alire
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/alire
+            ~/.cache/alire
+            ~/.local/share/alire
+          key: alire-prove-${{ runner.os }}-${{ hashFiles('core/alire.toml') }}
+          restore-keys: alire-prove-${{ runner.os }}-
+
+      - name: Install Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: 2.1.1
+
+      - name: Select GNAT toolchain
+        run: |
+          cd core
+          alr -n toolchain --select gnat_native
+
+      - name: Fetch dependencies
+        run: |
+          cd core
+          alr -n update
+          alr -n build --stop-after=post-fetch || true
+          alr -n exec -- gnatprove --version
 
       - name: Prove the DFU flasher
         run: |

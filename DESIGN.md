@@ -17003,3 +17003,17 @@ no FlySky receiver (D906). The user ruled that it builds FlySky by default.
 A board whose default receiver protocol is a FlySky one now builds the FlySky receivers and leaves the CC2500
 families out where flash is short. A build of 1024 KB or more keeps both. The target job builds CRAZYBEEF4FS with
 no feature changes.
+
+## D914. Pull request proofs of dependent units (2026-11-25)
+
+A pull request proved only the units it changed. One that grew PID profile and runtime records left a mixer range
+check past its provers' limits, in a unit it did not touch. A nightly run found it a day later, and main had an
+unproved check for that day.
+
+`tools/changed-units.py` now adds every unit that names a changed specification in a with clause, and that
+specification's children. It adds direct dependents only: a dependent's own specification did not change. That
+pull request's selection grows from 6 units to 15, the mixer among them.
+
+A widely used specification brings much of the core, so its proof runs in shards. `--shards` gives how many a
+selection needs for a shard to cover no more source than a nightly one. Job `select` computes it, `prove-units`
+proves a shard per runner, and `prove`, the check a pull request needs, passes when every shard did.

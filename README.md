@@ -64,7 +64,7 @@ Host image simulator link (flight dynamics in, sticks in, motors out, clock rate
 
 - Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except the bodies outside SPARK that `DESIGN.md` names. Those are the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` counts both on every run.
-- Pull requests prove the units whose sources they changed (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
+- Pull requests prove the units whose sources they changed and the units that depend on a changed specification (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
 - Ported functions keep the operation order of their Betaflight originals, so the host build reproduces their results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
 - Vectors under `tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a tool outside this repository.
 
