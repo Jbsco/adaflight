@@ -1,21 +1,44 @@
 with "config/adaflight_stm32h7_config.gpr";
+with "gen/adaflight_feature_units.gpr";
 project Adaflight_Stm32h7 is
 
    for Target use "arm-eabi";
    for Runtime ("Ada") use Project'Project_Dir & "runtime";
 
-   --  The units the image has so far, from the F4 and F7 crates' sources and the H7 variants that replace them.
    for Source_Dirs use ("src/", "../stm32f7/src/", "../stm32f4/src/", "gen/", "config/");
-   for Source_Files use
-     ("adaflight_stm32h7.adb", "adaflight-pins.ads", "adaflight-board.ads", "adaflight-stm32.ads",
-      "adaflight-stm32-memory.ads", "adaflight-stm32-gpio.ads", "adaflight-stm32-gpio.adb",
-      "adaflight-stm32-platform__stm32h7.ads", "adaflight-stm32-cache.ads", "adaflight-stm32-cache__stm32h7.adb",
-      "adaflight-stm32-ccm_clear.ads", "adaflight-stm32-ccm_clear__stm32h7.adb");
+   --  The F4 and F7 crates' mains and the units the H7 replaces: the F4 drivers whose register sets differ, as
+   --  in the F7 crate, the F7 platform and cache, and the core coupled memory clear.
+   for Excluded_Source_Files use
+     ("adaflight_stm32f4.adb", "adaflight_stm32f7.adb", "adaflight-stm32-platform.ads",
+      "adaflight-stm32-platform__stm32f7.ads", "adaflight-stm32-cache.adb", "adaflight-stm32-ccm_clear.adb",
+      "adaflight-stm32-usart.adb", "adaflight-stm32-spi.adb", "adaflight-stm32-flash.adb", "adaflight-stm32-usb.adb",
+      "adaflight-stm32-i2c.adb", "adaflight-stm32-data_pack.adb") & Adaflight_Feature_Units.Excluded;
 
    package Naming is
       for Spec ("Adaflight.STM32.Platform") use "adaflight-stm32-platform__stm32h7.ads";
       for Body ("Adaflight.STM32.Cache") use "adaflight-stm32-cache__stm32h7.adb";
       for Body ("Adaflight.STM32.CCM_Clear") use "adaflight-stm32-ccm_clear__stm32h7.adb";
+      for Body ("Adaflight.STM32.USART") use "adaflight-stm32-usart__stm32f7.adb";
+      for Body ("Adaflight.STM32.USB") use "adaflight-stm32-usb__stm32f7.adb";
+      for Body ("Adaflight.STM32.I2C") use "adaflight-stm32-i2c__stm32f7.adb";
+      for Body ("Adaflight.STM32.Data_Pack") use "adaflight-stm32-data_pack__stm32f7.adb";
+      for Body ("Adaflight.STM32.Menu") use Adaflight_Feature_Units.Menu_Body;
+      for Body ("Adaflight.STM32.SD") use Adaflight_Feature_Units.SD_Body;
+      for Body ("Adaflight.STM32.Flash_Chip") use Adaflight_Feature_Units.Flash_Chip_Body;
+      for Body ("Adaflight.STM32.Blackbox") use Adaflight_Feature_Units.Blackbox_Body;
+      for Body ("Adaflight.STM32.Mass_Storage_Mode") use Adaflight_Feature_Units.Mass_Storage_Mode_Body;
+      for Body ("Adaflight.STM32.Servos") use Adaflight_Feature_Units.Servos_Body;
+      for Body ("Adaflight.STM32.GPS") use Adaflight_Feature_Units.GPS_Body;
+      for Body ("Adaflight.STM32.Compass") use Adaflight_Feature_Units.Compass_Body;
+      for Body ("Adaflight.STM32.Baro") use Adaflight_Feature_Units.Baro_Body;
+      for Body ("Adaflight.STM32.Pitot") use Adaflight_Feature_Units.Pitot_Body;
+      for Body ("Adaflight.STM32.Dashboard") use Adaflight_Feature_Units.Dashboard_Body;
+      for Body ("Adaflight.STM32.Soft_Serial") use Adaflight_Feature_Units.Soft_Serial_Body;
+      for Body ("Adaflight.STM32.Optical_Flow") use Adaflight_Feature_Units.Optical_Flow_Body;
+      for Body ("Adaflight.STM32.RX_SPI") use Adaflight_Feature_Units.RX_SPI_Body;
+      for Body ("Adaflight.STM32.RX_SPI_CC2500") use Adaflight_Feature_Units.RX_SPI_CC2500_Body;
+      for Body ("Adaflight.STM32.RX_SPI_A7105") use Adaflight_Feature_Units.RX_SPI_A7105_Body;
+      for Body ("Adaflight.STM32.RX_SPI_SX1280") use Adaflight_Feature_Units.RX_SPI_SX1280_Body;
    end Naming;
    for Object_Dir use "obj/" & Adaflight_Stm32h7_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
