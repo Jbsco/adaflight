@@ -7,7 +7,7 @@ with Interfaces; use Interfaces;
 
 package Adaflight.Timer_Tables with SPARK_Mode is
 
-   subtype Timer_Number is Positive range 1 .. 14;
+   subtype Timer_Number is Positive range 1 .. 17;
    subtype Channel_Number is Positive range 1 .. 4;
 
    --  A timer channel on a pin: the pin's tag, the timer, the channel, whether
@@ -29,15 +29,21 @@ package Adaflight.Timer_Tables with SPARK_Mode is
    function Channel (K : Positive) return Timer_Channel
      with Global => null, Pre => K <= Channel_Count;
 
-   --  A DMA stream option: the controller, the stream and the channel.
+   --  A DMA stream option: the controller, the stream and the channel, or the
+   --  DMA multiplexer's request on a family that has one.
    type DMA_Stream is record
       Controller : Positive range 1 .. 2;
       Stream     : Natural range 0 .. 7;
-      Channel    : Natural range 0 .. 7;
+      Channel    : Natural range 0 .. 127;
    end record;
 
-   Max_Timer_Options      : constant := 3;
-   Max_Peripheral_Options : constant := 2;
+   --  The most DMA options a timer channel or a peripheral has on any family.
+   Max_Timer_Options      : constant := 16;
+   Max_Peripheral_Options : constant := 16;
+
+   --  Whether a stream option's channel is a DMA multiplexer request.
+   function Request_Multiplexed return Boolean
+     with Global => null;
 
    --  The peripherals with DMA options, by the reference's device names.
    type Peripheral is (SPI_SDO, SPI_SDI, ADC, UART_TX, UART_RX);

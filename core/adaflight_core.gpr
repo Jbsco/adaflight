@@ -39,6 +39,9 @@ project Adaflight_Core is
    Soft_Serial  : Switch := external ("ADAFLIGHT_SOFT_SERIAL", "on");
    IBus_Telemetry : Switch := external ("ADAFLIGHT_IBUS_TELEMETRY", "on");
    MAVLink_Telemetry : Switch := external ("ADAFLIGHT_MAVLINK_TELEMETRY", "on");
+   --  The MCU family's timer and DMA tables: STM32F405's, which F4, F7 and host builds take, or STM32H743's.
+   type Family_Type is ("stm32f4", "stm32h7");
+   MCU_Family : Family_Type := external ("ADAFLIGHT_MCU_FAMILY", "stm32f4");
    Excluded := ();
    case Debug_Values is
       when "on" =>
@@ -147,6 +150,12 @@ project Adaflight_Core is
          Excluded := Excluded & ("adaflight-mavlink_telemetry_build__off.ads");
       when "off" =>
          Excluded := Excluded & ("adaflight-mavlink_telemetry_build.ads");
+   end case;
+   case MCU_Family is
+      when "stm32f4" =>
+         Excluded := Excluded & ("adaflight-timer_tables__stm32h7.adb");
+      when "stm32h7" =>
+         Excluded := Excluded & ("adaflight-timer_tables.adb");
    end case;
    for Excluded_Source_Files use Excluded;
 
@@ -258,6 +267,12 @@ project Adaflight_Core is
             null;
          when "off" =>
             for Spec ("Adaflight.MAVLink_Telemetry_Build") use "adaflight-mavlink_telemetry_build__off.ads";
+      end case;
+      case MCU_Family is
+         when "stm32f4" =>
+            null;
+         when "stm32h7" =>
+            for Body ("Adaflight.Timer_Tables") use "adaflight-timer_tables__stm32h7.adb";
       end case;
    end Naming;
 

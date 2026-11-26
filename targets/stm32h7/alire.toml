@@ -29,9 +29,10 @@ adaflight_core = "release"
 release.contracts = "no"
 
 # The runtime leaves the linker script to the crate, whose flash layout keeps sector 1 for the
-# configuration store.
+# configuration store. The core takes the STM32H743's timer and DMA tables.
 [gpr-set-externals]
 LOADER = "USER"
+ADAFLIGHT_MCU_FAMILY = "stm32h7"
 
 # The run-time library is generated beside the crate from the toolchain's STM32F746 Discovery
 # runtime, with the H7's clock setup, interrupts and vector table in place of the F7's, the board's

@@ -156,3 +156,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Feedforward averaging is off after every power-up](feedforward-averaging-boot.md)
 - [A rescue's maximum altitude can take the altitude from before arming](rescue-max-altitude-arming.md)
 - [Chirp shaping filter with a zero lag or lead](chirp-shaping-zero-cutoff.md)
+- [LPUART1 DMA options on STM32H7 select another peripheral's request](h7-lpuart1-dma-request.md)
