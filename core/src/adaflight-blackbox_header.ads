@@ -8,7 +8,11 @@
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Stream_Buffers; use Adaflight.Stream_Buffers;
+with Adaflight.Baro_Build;
 with Adaflight.Battery;
+with Adaflight.Compass_Build;
+with Adaflight.GPS_Build;
+with Adaflight.Rangefinder_Build;
 
 package Adaflight.Blackbox_Header with SPARK_Mode is
    use type Interfaces.Unsigned_32;
@@ -294,9 +298,30 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
    subtype Line_Count is Natural range 0 .. Max_Lines;
    subtype Line_Position is Natural range 0 .. Max_Lines - 1;
 
-   function Line_Count_Of (Wing : Boolean) return Line_Count;
-   function Line_Of (Wing : Boolean; I : Line_Position) return Line
-     with Pre => I < Line_Count_Of (Wing);
+   --  Whether a line's values lie within the value names: two or three of them from its first for the formats
+   --  that write two or three.
+   function Values_Fit (L : Line) return Boolean is
+     (case L.Format is
+         when Two_Decimal => Value_Name'Pos (L.First) + 1 <= Value_Name'Pos (Value_Name'Last),
+         when Three_Decimal | Three_Unsigned => Value_Name'Pos (L.First) + 2 <= Value_Name'Pos (Value_Name'Last),
+         when others => True);
+
+   --  The system information lines of a craft's build: a build without the barometer, the compass, the
+   --  rangefinders or the GPS leaves out the lines of that feature's settings.
+   function Line_Count_Of
+     (Wing        : Boolean;
+      Barometer   : Boolean := Adaflight.Baro_Build.Enabled;
+      Compass     : Boolean := Adaflight.Compass_Build.Enabled;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      GPS         : Boolean := Adaflight.GPS_Build.Enabled) return Line_Count;
+   function Line_Of
+     (Wing        : Boolean; I : Line_Position;
+      Barometer   : Boolean := Adaflight.Baro_Build.Enabled;
+      Compass     : Boolean := Adaflight.Compass_Build.Enabled;
+      Rangefinder : Boolean := Adaflight.Rangefinder_Build.Enabled;
+      GPS         : Boolean := Adaflight.GPS_Build.Enabled) return Line
+     with Pre  => I < Line_Count_Of (Wing, Barometer, Compass, Rangefinder, GPS),
+          Post => Values_Fit (Line_Of'Result);
 
    --  The setting name a line is labelled with, keyed by its first value.
    function Label (V : Value_Name) return String;
@@ -341,7 +366,11 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
    --  sent.
    procedure Send_Sysinfo (H : in out Header_State; W : in out Writer; B : in out Byte_Array;
                            S : in out Stream; Wing : Boolean; Info : Sysinfo; Cache : Condition_Set;
-                           Current_Meter : Adaflight.Battery.Current_Source; Done : out Boolean)
+                           Current_Meter : Adaflight.Battery.Current_Source; Done : out Boolean;
+                           Barometer     : Boolean := Adaflight.Baro_Build.Enabled;
+                           Compass       : Boolean := Adaflight.Compass_Build.Enabled;
+                           Rangefinder   : Boolean := Adaflight.Rangefinder_Build.Enabled;
+                           GPS           : Boolean := Adaflight.GPS_Build.Enabled)
      with Pre  => Fits (S, B),
           Post => Fits (S, B) and then S.Last = S.Last'Old;
 
