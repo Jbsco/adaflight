@@ -76,7 +76,7 @@ package body Adaflight.STM32.USART is
    Transmitter       : constant Unsigned_32 := 2 ** 3;
    Receive_Interrupt : constant Unsigned_32 := 2 ** 5;
    Transmit_Interrupt : constant Unsigned_32 := 2 ** 7;
-   Enable            : constant Unsigned_32 := 2 ** 13;
+   Enable            : constant Unsigned_32 := 2 ** 0;
    Stop_Bits_2       : constant Unsigned_32 := 2 ** 13;
    Parity_Control    : constant Unsigned_32 := 2 ** 10;
    Word_9_Bits       : constant Unsigned_32 := 2 ** 12;
