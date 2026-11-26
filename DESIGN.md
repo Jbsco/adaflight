@@ -16973,3 +16973,33 @@ failure, and an MCU without a memory layout is named.
 
 Its exit status is nonzero while any set fails, which STM32F411 sets with a flight log do today. It is a tool to
 run after a change to features or size, and no gate.
+
+## D911. STM32F411 builds without flight log (2026-11-25)
+
+No STM32F411 image with a flight log fits its flash: such images are 15 to 33 KB over (D907, D908), and on NOX no
+other feature is on that could pay for it. Shrinking found no lever near that size. A link without a section per
+data object and constrained results from the log's array helpers both grew an image, and a settings table built
+per feature set is estimated at 5 to 6 KB.
+
+The user ruled that STM32F411 builds leave the flight log out by default. Flash chip code goes with it, since only
+the log uses that code. `FEATURES=+blackbox` selects both again for a build that makes room another way, and a fit
+bar shows what that takes. D828's exception for GEPRCF411SX1280 is now this rule.
+
+## D912. Flight log only with log storage (2026-11-25)
+
+A 512 KB build leaves SD card logging out, yet a board whose configuration names an SD card kept its flight log,
+with no storage for it but a serial port. FLOWBOXV2 and DARWINF411 overflowed their flash for that, and STM32F722
+boards with an SD card alone paid about 19 KB.
+
+The user ruled that such a board drops its flight log. A 512 KB board now keeps it only when its configuration
+names a flash chip. `FEATURES=+blackbox,+sd_card` builds both where flash allows.
+
+## D913. FlySky by default on a board with an A7105 (2026-11-25)
+
+CRAZYBEEF4FS's configuration names the CC2500 define, as every SPI receiver board of that family does, and a FlySky
+protocol as its default receiver: its radio is an A7105. Its default build had CC2500 families it cannot use and
+no FlySky receiver (D906). The user ruled that it builds FlySky by default.
+
+A board whose default receiver protocol is a FlySky one now builds the FlySky receivers and leaves the CC2500
+families out where flash is short. A build of 1024 KB or more keeps both. The target job builds CRAZYBEEF4FS with
+no feature changes.
