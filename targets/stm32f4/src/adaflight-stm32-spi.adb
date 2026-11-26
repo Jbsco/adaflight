@@ -1,6 +1,7 @@
 with System;
 with System.Address_To_Access_Conversions;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.SPI is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -39,13 +40,13 @@ package body Adaflight.STM32.SPI is
    function Regs (B : Bus) return Conversions.Object_Pointer is (Conversions.To_Pointer (Base (B)));
 
    RCC_APB1RSTR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3820#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Reset);
    RCC_APB2RSTR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3824#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Reset);
    RCC_APB1ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3840#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
    RCC_APB2ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Enable);
    Clock_Bit : constant array (Bus) of Unsigned_32 :=
      (SPI1 => 2 ** 12, SPI2 => 2 ** 14, SPI3 => 2 ** 15, SPI4 => 2 ** 13, SPI5 => 2 ** 20, SPI6 => 2 ** 21);
 

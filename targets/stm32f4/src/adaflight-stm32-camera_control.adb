@@ -6,6 +6,7 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.Camera_Control is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
@@ -21,7 +22,8 @@ package body Adaflight.STM32.Camera_Control is
 
    --  The basic timers of the software PWM: TIM6 counts the hi time and
    --  TIM7 the period, each update toggling the pin.
-   RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
+   RCC_APB1ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
    TIM6_CR1    : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4000_1000#);
    TIM6_DIER   : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4000_100C#);
    TIM6_SR     : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4000_1010#);

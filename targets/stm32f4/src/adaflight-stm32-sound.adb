@@ -1,6 +1,7 @@
 with System;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.Sound is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -29,7 +30,8 @@ package body Adaflight.STM32.Sound is
    --  TIM3 on the 84 MHz timer clock of the APB1 bus, whose channel 1 is
    --  PB4's alternate function 2.
    TIM3 : Timer_Registers with Import, Address => System'To_Address (16#4000_0400#);
-   RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
+   RCC_APB1ENR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
    TIM3_Bit : constant Unsigned_32 := 2 ** 1;
    Timer_Clock_Hz : constant := Adaflight.STM32.Platform.APB1_Timer_Hz;
    Tick_Hz        : constant := 1_000_000;

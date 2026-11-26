@@ -17113,3 +17113,18 @@ H7 DMA does not reach DTCM. This crate links with the F7 crate's linker script.
 
 Under Renode's STM32H743 platform, this image starts, PLL1 drives its system clock, and its LED pin toggles every
 500 ms.
+
+## D921. Peripheral map by MCU family (2026-11-26)
+
+Board drivers wrote F4 reset and clock control register addresses and peripheral bases as literals. An H7 keeps
+each timer, UART, SPI, I2C and GPIO port's clock enable bit where an F4 has it. Its RCC registers, GPIO ports, EXTI,
+SYSCFG, DMA controllers and USB OTG FS core sit at other addresses, and its DMA, USB and SYSCFG enable bits move.
+
+`tools/memorygen.py` now adds those registers, bits and bases to `Adaflight.STM32.Memory`, one set for STM32F4 and
+F7 and one for STM32H7, and drivers read them from there. MCU control and ADC units keep their own addresses, since
+H7 boards need other bodies for both.
+
+Each value is static, so code stays as it was. In CLRACINGF4 and KAKUTEF7 images at 512 KB, built with a fixed
+build stamp, every symbol keeps its size. Their instructions differ only in elaboration order within `adainit` and
+in source line numbers that CLRACINGF4's run-time checks pass to their handler. KAKUTEF7 at 512 KB has those
+checks off.

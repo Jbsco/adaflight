@@ -1,12 +1,18 @@
 with Adaflight.PWM_Output;
 with Adaflight.Timer_Tables;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.Timers is
 
-   RCC_APB1RSTR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3820#);
-   RCC_APB2RSTR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3824#);
-   RCC_AHB1ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
-   RCC_APB1ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
-   RCC_APB2ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+   RCC_APB1RSTR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Reset);
+   RCC_APB2RSTR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Reset);
+   RCC_DMA_ENR  : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_DMA_Enable);
+   RCC_APB1ENR  : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
+   RCC_APB2ENR  : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Enable);
 
    Table : Adaflight.Timer_Allocation.Table;
 
@@ -132,7 +138,7 @@ package body Adaflight.STM32.Timers is
 
    procedure Enable_DMA (S : DMA_Stream) is
    begin
-      RCC_AHB1ENR := RCC_AHB1ENR or Shift_Left (1, 20 + S.Controller);
+      RCC_DMA_ENR := RCC_DMA_ENR or Shift_Left (1, Adaflight.STM32.Memory.DMA1_Enable_Bit - 1 + S.Controller);
    end Enable_DMA;
 
    procedure Enable_Clock (T : Timer_Name) is

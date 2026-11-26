@@ -11,6 +11,7 @@ with Adaflight.I2C_Timing;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
 with Adaflight.STM32.Time;
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.I2C is
    package GPIO renames Adaflight.STM32.GPIO;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
@@ -47,8 +48,10 @@ package body Adaflight.STM32.I2C is
      (I2C1 => System'To_Address (16#4000_5400#), I2C2 => System'To_Address (16#4000_5800#),
       I2C3 => System'To_Address (16#4000_5C00#), I2C4 => System'To_Address (16#4000_6000#));
    Clock_Bit : constant array (Bus) of Unsigned_32 := (I2C1 => 2 ** 21, I2C2 => 2 ** 22, I2C3 => 2 ** 23, I2C4 => 2 ** 24);
-   RCC_APB1ENR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
-   RCC_APB1RSTR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3820#);
+   RCC_APB1ENR  : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
+   RCC_APB1RSTR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Reset);
    Alternate_Function : constant GPIO.Alternate_Function := 4;
 
    Enable       : constant Unsigned_32 := 2 ** 0;

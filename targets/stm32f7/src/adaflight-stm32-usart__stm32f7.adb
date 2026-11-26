@@ -8,6 +8,7 @@ with Adaflight.STM32.Platform;
 --  The STM32F7's UART register set: the control registers first, the
 --  status in ISR with its clear register, and the data split into RDR and
 --  TDR. The overrun flag is cleared through ICR before the bytes are read.
+with Adaflight.STM32.Memory;
 package body Adaflight.STM32.USART is
    use type Interfaces.Unsigned_32;
    type Registers is record
@@ -64,9 +65,9 @@ package body Adaflight.STM32.USART is
    function RX_Pin (N : Number) return Pin is
      (if N in Software then Soft_Pin (Soft_Serial.RX_Tag (Soft_Port (N))) else RX (N));
    RCC_APB1ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3840#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
    RCC_APB2ENR : Unsigned_32
-     with Volatile, Import, Address => System'To_Address (16#4002_3844#);
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB2_Enable);
 
    Receive_Not_Empty : constant Unsigned_32 := 2 ** 5;
    Overrun           : constant Unsigned_32 := 2 ** 3;

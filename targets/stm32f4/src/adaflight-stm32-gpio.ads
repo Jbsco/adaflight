@@ -4,6 +4,7 @@ with Interfaces; use Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
 
+with Adaflight.STM32.Memory;
 package Adaflight.STM32.GPIO is
 
    type Alternate_Function is range 0 .. 15;
@@ -39,19 +40,19 @@ package Adaflight.STM32.GPIO is
       AFRH    at 16#24# range 0 .. 31;
    end record;
 
-   --  A port's registers, the ports 16#400# apart from GPIOA on the AHB1 bus.
+   --  A port's registers, the ports 16#400# apart from GPIOA.
    Port_Base : constant array (Port_Name) of System.Address :=
-     (Port_A => System'To_Address (16#4002_0000#),
-      Port_B => System'To_Address (16#4002_0400#),
-      Port_C => System'To_Address (16#4002_0800#),
-      Port_D => System'To_Address (16#4002_0C00#),
-      Port_E => System'To_Address (16#4002_1000#),
-      Port_F => System'To_Address (16#4002_1400#),
-      Port_G => System'To_Address (16#4002_1800#),
-      Port_H => System'To_Address (16#4002_1C00#),
-      Port_I => System'To_Address (16#4002_2000#),
-      Port_J => System'To_Address (16#4002_2400#),
-      Port_K => System'To_Address (16#4002_2800#));
+     (Port_A => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#0000#),
+      Port_B => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#0400#),
+      Port_C => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#0800#),
+      Port_D => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#0C00#),
+      Port_E => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#1000#),
+      Port_F => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#1400#),
+      Port_G => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#1800#),
+      Port_H => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#1C00#),
+      Port_I => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#2000#),
+      Port_J => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#2400#),
+      Port_K => System'To_Address (Adaflight.STM32.Memory.GPIO_Base + 16#2800#));
 
    procedure Enable_Port (Port : Port_Name);
 
