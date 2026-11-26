@@ -28,11 +28,12 @@ Silver with no assume, and pass the gates on `main`.
   strip, beeper, VTX control, GPS with rescue and position modes, flight plans, servos and wing support.
   `docs/building.md` lists what each board size leaves out.
 - Phase 7, in progress. Targets. `targets/stm32f4` builds STM32F405, STM32F411 and STM32F446 images,
-  `targets/stm32f7` STM32F7 images, and `targets/host` runs flight software on host with its UARTs and
+  `targets/stm32f7` STM32F7 images, `targets/stm32h7` a first STM32H743 image that blinks an LED, and
+  `targets/host` runs flight software on host with its UARTs and
   USB port on TCP ports and a physics simulator link. Drivers cover SPI, I2C, DMA, timers, USB, flash, SD
   card, ADC on DMA, and DShot on timers and bit-banged on GPIO ports. 512 KB boards pack initialized data
-  and start-up code, and STM32F411 and STM32F446 boards leave their flight log out. Left: H7 and other
-  families Betaflight runs on, and USB mass storage, whose polled controller no board has run yet.
+  and start-up code. Left: H7 flight software, other families Betaflight runs on, and USB mass storage,
+  which no board has run yet.
 - Phase 8, in progress. Tooling. adaflight-configurator, the upstream configurator with adaflight's
   changes, builds and flashes from an adaflight checkout and shows a fit view for boards short of flash.
   `tools/dfu` flashes over DFU on Linux, and `tools/msp` sends MSP requests and backs up a configuration.
@@ -62,4 +63,4 @@ Each Betaflight source area at commit af0638839, the commit the vectors were rec
 - **pg, config, cli, msp**: ported
 - **blackbox, osd, cms, telemetry, io**: ported
 - **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers, the DShot protocol and its command queue, and USB mass storage ported. Bus, timer, DMA, UART and USB drivers are written for STM32F4 and F7 in Phase 7
-- **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): STM32F4, STM32F7 and the host target in Phase 7. STM32H7, AT32, APM32, PICO and ESP32 not started
+- **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): STM32F4, STM32F7 and the host target in Phase 7, STM32H7 started. AT32, APM32, PICO and ESP32 not started

@@ -7,9 +7,10 @@ The layout keeps flash sector 0 as its own region for the vector table and the c
 configuration store, and the rest of the code from sector 2. That code region is declared longer than its flash
 by a measuring allowance, so an image past its flash still links and its build names its size; __flash_size is
 the flash the code has, and target.do checks an image against it. The main RAM and the core coupled memory follow the
-MCU, and an STM32F7 adds its instruction tightly coupled memory. The crate's linker script includes the output,
-and the Ada package adaflight-stm32-memory.ads beside it gives the code the configuration sector, the bootloader
-and the unique identifier's addresses.
+MCU, and an STM32F7 or STM32H7 adds its instruction tightly coupled memory. An STM32H7 also adds its D2 RAM,
+where DMA data goes, since its DMA does not reach the data tightly coupled memory. The crate's linker script
+includes the output, and the Ada package adaflight-stm32-memory.ads beside it gives the code the configuration
+sector, the bootloader and the unique identifier's addresses.
 """
 import re
 import sys
@@ -34,6 +35,8 @@ LAYOUTS = {
                   "16#1FF0_0000#", "16#1FF0_F420#", "16#1FF0_F44A#"),
     "STM32F746": ("32K", "0x08008000", "32K", "0x08010000", "960K", "0x20010000", "256K", "0x20000000", "64K",
                   "16#1FF0_0000#", "16#1FF0_F420#", "16#1FF0_F44A#"),
+    "STM32H743": ("128K", "0x08020000", "128K", "0x08040000", "1792K", "0x24000000", "512K", "0x20000000", "128K",
+                  "16#1FF0_9800#", "16#1FF1_E800#", "16#1FF1_E860#"),
 }
 
 
@@ -41,7 +44,7 @@ LAYOUTS = {
 CLOCKS = {"STM32F405": (168_000_000, 42_000_000, 84_000_000), "STM32F411": (96_000_000, 24_000_000, 48_000_000),
           "STM32F446": (168_000_000, 42_000_000, 84_000_000),
           "STM32F722": (216_000_000, 54_000_000, 108_000_000), "STM32F745": (216_000_000, 54_000_000, 108_000_000),
-          "STM32F746": (216_000_000, 54_000_000, 108_000_000)}
+          "STM32F746": (216_000_000, 54_000_000, 108_000_000), "STM32H743": (400_000_000, 100_000_000, 100_000_000)}
 
 
 # The length a code region is declared with past its flash, so an image past its flash links and is measured.
@@ -58,9 +61,12 @@ def main() -> None:
     if mcu not in LAYOUTS:
         raise SystemExit(f"memorygen: no memory layout for the MCU {mcu or 'of ' + board}")
     s0, cfg, s1, code, code_len, ram, ram_len, ccm, ccm_len, boot, uid, cal = LAYOUTS[mcu]
-    itcm = "  itcm   (rwx) : ORIGIN = 0x00000000, LENGTH = 16K\n" if mcu.startswith("STM32F7") else ""
+    itcm = ("  itcm   (rwx) : ORIGIN = 0x00000000, LENGTH = 16K\n" if mcu.startswith("STM32F7")
+            else "  itcm   (rwx) : ORIGIN = 0x00000000, LENGTH = 64K\n"
+            "  d2      (rw) : ORIGIN = 0x30000000, LENGTH = 256K\n" if mcu.startswith("STM32H7") else "")
     ccm_line = f"  ccm     (rw) : ORIGIN = {ccm}, LENGTH = {ccm_len}\n" if ccm_len != "0K" else ""
     aliases = ('REGION_ALIAS("ccm", sram12)\nREGION_ALIAS("ccm_da", sram12)\n' if ccm_len == "0K"
+               else 'REGION_ALIAS("ccm_da", d2)\n' if mcu.startswith("STM32H7")
                else 'REGION_ALIAS("ccm_da", ccm)\n')
     stack = "32K" if mcu in ("STM32F411", "STM32F446") else "40K"
     core_hz, apb1_hz, apb2_hz = CLOCKS[mcu]
