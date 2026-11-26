@@ -21,6 +21,7 @@ from boardgen import find_config  # noqa: E402
 # By MCU: the toolchain runtime, the system clock, the flash latency, and the PLL's P and Q divisors.
 PARAMETERS = {"STM32F405": ("light-tasking-stm32f4", 168_000_000, 5, 2, 7),
               "STM32F411": ("light-tasking-stm32f4", 96_000_000, 3, 4, 8),
+              "STM32F446": ("light-tasking-stm32f4", 168_000_000, 5, 2, 7),
               "STM32F722": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9),
               "STM32F745": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9),
               "STM32F746": ("light-tasking-stm32f746disco", 216_000_000, 7, 2, 9)}

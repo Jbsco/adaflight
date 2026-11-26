@@ -17073,3 +17073,18 @@ that feature (D917).
 Flash left grows from 20954 to 23003 bytes on MAMBAF411, 1649 to 3673 on BETAFPVF411RX and 774 to 1157 on AIKONF7,
 whose packed tables compress the names. Names of wing settings stay in every build, since a build chooses its craft
 at run time.
+
+## D919. STM32F446 target (2026-11-25)
+
+Only NUCLEOF446's configuration names an STM32F446, and no memory layout existed for that MCU. An STM32F446 has
+STM32F411's flash sectors and 128 KB of main RAM, with no core coupled memory. Its bootloader, unique identifier
+and ADC calibration words sit at STM32F405's addresses.
+
+The user ruled that it takes STM32F411's cuts (D911). Its builds leave servos, GPS and flight log out, and keep
+STM32F411's boot stack and unpacking reserves. NUCLEOF446's default image has 12057 bytes of flash left.
+
+Its core runs at 168 MHz from the board's crystal, with STM32F405's PLL dividers, flash wait states and bus clocks.
+Betaflight runs it at 180 MHz, which needs over-drive mode of its regulator and a USB clock from a second PLL,
+since no PLL Q divider gives 48 MHz from 360 MHz. Run-time library's clock setup does neither, so we chose
+168 MHz, the fastest speed without them. This is a divergence of about 7% fewer core cycles per second. No board
+has run an STM32F446 image yet.
