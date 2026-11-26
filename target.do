@@ -1,6 +1,7 @@
 #!/bin/bash
-# Gate: the STM32F4 image builds, or the STM32F7 one with CRATE=stm32f7. The board package is
-# generated from the pinned board configuration repository (BOARD, CLRACINGF4 or KAKUTEF7 when
+# Gate: the STM32F4 image builds, or the STM32F7 one with CRATE=stm32f7, or with CRATE=stm32h7 the STM32H7 one,
+# which so far only blinks the board's LED and is sized, nothing more. The board package is
+# generated from the pinned board configuration repository (BOARD, CLRACINGF4, KAKUTEF7 or MATEKH743 when
 # unset), the build's features from the board's flash size, FLASH_KB and FEATURES, the crate builds
 # in its release profile with the Alire ARM toolchain and the runtime it names or generates, and the
 # image's section sizes and features are shown. Its deepest call paths must fit its main stack. A packed build
@@ -16,7 +17,12 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
     echo "target: the board configuration submodule is not checked out (git submodule update --init)"
     exit 1
 fi
-BOARD_NAME="${BOARD:-$([ "$CRATE" = stm32f7 ] && echo KAKUTEF7 || echo CLRACINGF4)}"
+case "$CRATE" in
+    stm32f7) DEFAULT_BOARD=KAKUTEF7 ;;
+    stm32h7) DEFAULT_BOARD=MATEKH743 ;;
+    *) DEFAULT_BOARD=CLRACINGF4 ;;
+esac
+BOARD_NAME="${BOARD:-$DEFAULT_BOARD}"
 ADAFLIGHT_DEBUG_VALUES="$(python3 ../../tools/featuregen.py --feature Debug_Values ../../third_party/board-configs/configs \
     "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_DEBUG_VALUES
@@ -72,6 +78,10 @@ ADAFLIGHT_MAVLINK_TELEMETRY="$(python3 ../../tools/featuregen.py --feature MAVLi
     ../../third_party/board-configs/configs "$BOARD_NAME" "${FEATURES:-}")"
 export ADAFLIGHT_MAVLINK_TELEMETRY
 alr -n build --release
+if [ "$CRATE" = stm32h7 ]; then
+    alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
+    exit 0
+fi
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"
 if [ "$ADAFLIGHT_FLIGHT_PLAN" = off ] \
