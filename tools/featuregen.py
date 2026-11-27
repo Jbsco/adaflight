@@ -127,9 +127,6 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
             raise SystemExit(f"featuregen: unknown feature {token}; the features are "
                              + ", ".join(name for name, _, _ in FEATURES))
         chosen[by_key[key]] = on
-    # The software serial ports run on the F4 and F7 timer table, which an STM32H7 does not have.
-    if mcu.startswith("STM32H7"):
-        chosen["Soft_Serial"] = False
     # A build without the flight log has no log storage and no mass storage mode over it.
     if not chosen["Blackbox"]:
         for name in ("SD_Card", "Flash_Chip", "Mass_Storage"):
