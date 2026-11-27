@@ -87,7 +87,7 @@ jobs:
       - name: Build the STM32F7 image with an SPI receiver and no CC2500
         run: CRATE=stm32f7 BOARD=ALIENFLIGHTNGF7_ELRS bash target.do
 
-      - name: Build the first STM32H7 image
+      - name: Build the STM32H7 images
         run: CRATE=stm32h7 BOARD=MATEKH743 bash target.do
 
   # The host smoke's four parts, each on a runner of its own.

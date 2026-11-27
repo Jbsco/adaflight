@@ -17347,3 +17347,18 @@ PC1, ADC1 and ADC2 on the rest.
 H7's image scans PC0 on ADC1 into DMA1 stream 1 through DMAMUX1's request 9 and prints its reading each second.
 Under Renode, with 1.65 V fed on that channel, the reading was 2048. Renode's ADC3 ran no injected conversion, so
 both internal readings stay unchecked until an H7 board runs them.
+
+## D936. H7 flight image (2026-11-27)
+
+H7 builds now link the flight software as F7 builds do, on the drivers D921 to D935 gave H743: its main starts the
+flight unit and runs it pass by pass. The bring-up checks stay as a second image in the H7 crate. target.do gives
+H7's flight image the checks F4 and F7 images get: stack depth, feature contents, flash files and the fit in its
+flash region. MATEKH743's image has 626636 bytes of code in its 1835008-byte region, with 9944 bytes of main stack
+to spare.
+
+The stack check read every F4 and F7 source for each image, so it found F4's timer vectors, which H7 replaces. It
+now reads an image's own crate first and skips a package that crate already gives. F4 and F7 checks print as before.
+
+Renode's H743 has SPI4 alone, and the flight image waits on SPI1, its first gyro's bus. With SPI1 to SPI3 added to
+the Renode platform and a generic SPI sensor on SPI1, it booted into its main loop. No H7 board has run it yet.
+MATEKH743's SD card sits on SDIO, which no family has ported, so its card stays unused.

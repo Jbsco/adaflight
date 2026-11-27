@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-Flight software is ported and runs on host, where each ported function replays inputs recorded from Betaflight's host build and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` is in progress: `targets/stm32f4` and `targets/stm32f7` build STM32F4 and STM32F7 images, and `targets/stm32h7` a first STM32H743 image.
+Flight software is ported and runs on host, where each ported function replays inputs recorded from Betaflight's host build and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` is in progress: `targets/stm32f4` and `targets/stm32f7` build STM32F4 and STM32F7 images, and `targets/stm32h7` STM32H743 images, which no board has run yet.
 
 ## Features
 
@@ -50,7 +50,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     cd tests && alr build && ./bin/vector_check vectors
     bash target.do                            # STM32F4 image, BOARD names the board (CLRACINGF4 when unset)
     CRATE=stm32f7 bash target.do              # STM32F7 image, KAKUTEF7 when BOARD is unset
-    CRATE=stm32h7 bash target.do              # first STM32H7 image (LED, UART1 and USB echo, gyro interrupt, timers, DMA, SPI, I2C, ADC, config store, reset words), MATEKH743 when BOARD is unset
+    CRATE=stm32h7 bash target.do              # STM32H743 flight image and bring-up image, MATEKH743 when BOARD is unset
     bash host.do                              # host image, checked over its UART1 TCP port
     bash hostwing.do                          # host images without flight plan: multirotor, then wing
     bash prove.do                             # SPARK proof of the core
