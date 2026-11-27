@@ -50,7 +50,8 @@ CLOCKS = {"STM32F405": (168_000_000, 42_000_000, 84_000_000), "STM32F411": (96_0
 # Peripheral addresses and clock enables that move between MCU families, for adaflight-stm32-memory.ads: the reset and
 # clock control registers the drivers write (peripheral bus resets and enables, the GPIO ports' clock enables, and
 # the registers and bits that enable the DMA controllers, the USB OTG FS core and SYSCFG), peripheral bases, then the
-# EXTI registers' offsets. DMAMUX1_Base is 0 on families that select a stream's request in its control register.
+# EXTI registers' offsets, then I2C4's base, clock enable and reset registers, enable bit and its port B pins'
+# alternate function. DMAMUX1_Base is 0 on families that select a stream's request in its control register.
 MAP_F4_F7 = (("RCC_APB1_Reset", 0x4002_3820), ("RCC_APB2_Reset", 0x4002_3824), ("RCC_APB1_Enable", 0x4002_3840),
              ("RCC_APB2_Enable", 0x4002_3844), ("RCC_GPIO_Enable", 0x4002_3830), ("RCC_DMA_Enable", 0x4002_3830),
              ("DMA1_Enable_Bit", 21), ("RCC_USB_Enable", 0x4002_3834), ("USB_Enable_Bit", 7),
@@ -58,7 +59,8 @@ MAP_F4_F7 = (("RCC_APB1_Reset", 0x4002_3820), ("RCC_APB2_Reset", 0x4002_3824), (
              ("GPIO_Base", 0x4002_0000), ("EXTI_Base", 0x4001_3C00), ("SYSCFG_Base", 0x4001_3800),
              ("DMA1_Base", 0x4002_6000), ("DMA2_Base", 0x4002_6400), ("DMAMUX1_Base", 0), ("OTG_FS_Base", 0x5000_0000),
              ("EXTI_IMR", 0x00), ("EXTI_EMR", 0x04), ("EXTI_RTSR", 0x08), ("EXTI_FTSR", 0x0C), ("EXTI_SWIER", 0x10),
-             ("EXTI_PR", 0x14))
+             ("EXTI_PR", 0x14), ("I2C4_Base", 0x4000_6000), ("RCC_I2C4_Enable", 0x4002_3840),
+             ("RCC_I2C4_Reset", 0x4002_3820), ("I2C4_Enable_Bit", 24), ("I2C4_Port_B_Function", 4))
 MAP_H7 = (("RCC_APB1_Reset", 0x5802_4490), ("RCC_APB2_Reset", 0x5802_4498), ("RCC_APB1_Enable", 0x5802_44E8),
           ("RCC_APB2_Enable", 0x5802_44F0), ("RCC_GPIO_Enable", 0x5802_44E0), ("RCC_DMA_Enable", 0x5802_44D8),
           ("DMA1_Enable_Bit", 0), ("RCC_USB_Enable", 0x5802_44D8), ("USB_Enable_Bit", 27),
@@ -67,7 +69,8 @@ MAP_H7 = (("RCC_APB1_Reset", 0x5802_4490), ("RCC_APB2_Reset", 0x5802_4498), ("RC
           ("DMA1_Base", 0x4002_0000), ("DMA2_Base", 0x4002_0400), ("DMAMUX1_Base", 0x4002_0800),
           ("OTG_FS_Base", 0x4008_0000),
           ("EXTI_IMR", 0x80), ("EXTI_EMR", 0x84), ("EXTI_RTSR", 0x00), ("EXTI_FTSR", 0x04), ("EXTI_SWIER", 0x08),
-          ("EXTI_PR", 0x88))
+          ("EXTI_PR", 0x88), ("I2C4_Base", 0x5800_1C00), ("RCC_I2C4_Enable", 0x5802_44F4),
+          ("RCC_I2C4_Reset", 0x5802_449C), ("I2C4_Enable_Bit", 7), ("I2C4_Port_B_Function", 6))
 
 
 def ada_number(value: int) -> str:

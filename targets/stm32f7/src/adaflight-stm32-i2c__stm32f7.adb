@@ -14,6 +14,7 @@ with Adaflight.STM32.Time;
 with Adaflight.STM32.Memory;
 package body Adaflight.STM32.I2C is
    package GPIO renames Adaflight.STM32.GPIO;
+   use type Adaflight.Pins.Port_Name;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_32;
    function Shift_Left (Value : Unsigned_32; Amount : Natural) return Unsigned_32 renames Interfaces.Shift_Left;
@@ -46,13 +47,22 @@ package body Adaflight.STM32.I2C is
    end record;
    Base : constant array (Bus) of System.Address :=
      (I2C1 => System'To_Address (16#4000_5400#), I2C2 => System'To_Address (16#4000_5800#),
-      I2C3 => System'To_Address (16#4000_5C00#), I2C4 => System'To_Address (16#4000_6000#));
-   Clock_Bit : constant array (Bus) of Unsigned_32 := (I2C1 => 2 ** 21, I2C2 => 2 ** 22, I2C3 => 2 ** 23, I2C4 => 2 ** 24);
+      I2C3 => System'To_Address (16#4000_5C00#), I2C4 => System'To_Address (Adaflight.STM32.Memory.I2C4_Base));
+   Clock_Bit : constant array (Bus) of Unsigned_32 :=
+     (I2C1 => 2 ** 21, I2C2 => 2 ** 22, I2C3 => 2 ** 23, I2C4 => 2 ** Adaflight.STM32.Memory.I2C4_Enable_Bit);
    RCC_APB1ENR  : Unsigned_32
      with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Enable);
    RCC_APB1RSTR : Unsigned_32
      with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_APB1_Reset);
-   Alternate_Function : constant GPIO.Alternate_Function := 4;
+   RCC_I2C4_ENR  : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_I2C4_Enable);
+   RCC_I2C4_RSTR : Unsigned_32
+     with Volatile, Import, Address => System'To_Address (Adaflight.STM32.Memory.RCC_I2C4_Reset);
+   --  A bus pin's alternate function: AF4, and the family's own for I2C4 on
+   --  port B.
+   function Alternate_Function (B : Bus; P : Adaflight.Pins.Pin) return GPIO.Alternate_Function is
+     (if B = I2C4 and then P.Port = Adaflight.Pins.Port_B then Adaflight.STM32.Memory.I2C4_Port_B_Function
+      else 4);
 
    Enable       : constant Unsigned_32 := 2 ** 0;
    Read_Request : constant Unsigned_32 := 2 ** 10;
@@ -71,14 +81,20 @@ package body Adaflight.STM32.I2C is
    procedure Init (B : Bus; SCL, SDA : Adaflight.Pins.Pin) is
       Regs : Registers with Import, Address => Base (B);
    begin
-      RCC_APB1ENR := RCC_APB1ENR or Clock_Bit (B);
-      RCC_APB1RSTR := RCC_APB1RSTR or Clock_Bit (B);
-      RCC_APB1RSTR := RCC_APB1RSTR and not Clock_Bit (B);
+      if B = I2C4 then
+         RCC_I2C4_ENR := RCC_I2C4_ENR or Clock_Bit (B);
+         RCC_I2C4_RSTR := RCC_I2C4_RSTR or Clock_Bit (B);
+         RCC_I2C4_RSTR := RCC_I2C4_RSTR and not Clock_Bit (B);
+      else
+         RCC_APB1ENR := RCC_APB1ENR or Clock_Bit (B);
+         RCC_APB1RSTR := RCC_APB1RSTR or Clock_Bit (B);
+         RCC_APB1RSTR := RCC_APB1RSTR and not Clock_Bit (B);
+      end if;
       GPIO.Enable_Port (SCL.Port);
       GPIO.Enable_Port (SDA.Port);
-      GPIO.Set_Alternate (SCL, Alternate_Function, GPIO.Up);
+      GPIO.Set_Alternate (SCL, Alternate_Function (B, SCL), GPIO.Up);
       GPIO.Set_Open_Drain (SCL);
-      GPIO.Set_Alternate (SDA, Alternate_Function, GPIO.Up);
+      GPIO.Set_Alternate (SDA, Alternate_Function (B, SDA), GPIO.Up);
       GPIO.Set_Open_Drain (SDA);
       Regs.CR1 := 0;
       Regs.TIMINGR := Adaflight.I2C_Timing.Timing (Adaflight.STM32.Platform.APB1_Hz, Speed_KHz, 0);
