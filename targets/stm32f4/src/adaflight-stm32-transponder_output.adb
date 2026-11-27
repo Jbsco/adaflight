@@ -43,16 +43,11 @@ package body Adaflight.STM32.Transponder_Output is
       if not Found then
          return;
       end if;
+      Option_Stream (E, Option_Of (Index), Found, S);
+      if not Found then
+         return;
+      end if;
       Found := False;
-      declare
-         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Option_Of (Index);
-      begin
-         if Option not in 0 .. O'Length - 1 then
-            return;
-         end if;
-         S := O (O'First + Option);
-      end;
       for M in 0 .. Adaflight.STM32.Motors.Count - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) = Number (S) then
             return;

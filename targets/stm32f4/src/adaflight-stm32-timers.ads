@@ -89,54 +89,17 @@ package Adaflight.STM32.Timers is
    function CCR_Value (T : Timer_Name; C : Channel_Number) return Unsigned_32 is
      (Timer_Base_Value (T) + 16#34# + 4 * Unsigned_32 (C - 1));
 
-   --  A DMA stream: its controller, its number and its channel.
+   --  A DMA stream: its controller, its number and its channel, or the DMA
+   --  multiplexer's request on a family that has one.
    type DMA_Stream is record
       Controller : Positive range 1 .. 2 := 1;
       Stream     : Natural range 0 .. 7 := 0;
-      Channel    : Natural range 0 .. 7 := 0;
+      Channel    : Natural range 0 .. 127 := 0;
    end record;
-   type DMA_Options is array (Natural range <>) of DMA_Stream;
 
-   --  The streams a timer channel's request reaches, by option.
-   function Options_Of (T : Timer_Name; C : Channel_Number) return DMA_Options is
-     (case T is
-         when TIM1 =>
-           (case C is
-               when 1 => ((2, 6, 0), (2, 1, 6), (2, 3, 6)),
-               when 2 => ((2, 6, 0), (2, 2, 6)),
-               when 3 => ((2, 6, 0), (2, 6, 6)),
-               when 4 => (0 => (2, 4, 6))),
-         when TIM2 =>
-           (case C is
-               when 1 => (0 => (1, 5, 3)),
-               when 2 => (0 => (1, 6, 3)),
-               when 3 => (0 => (1, 1, 3)),
-               when 4 => ((1, 7, 3), (1, 6, 3))),
-         when TIM3 =>
-           (case C is
-               when 1 => (0 => (1, 4, 5)),
-               when 2 => (0 => (1, 5, 5)),
-               when 3 => (0 => (1, 7, 5)),
-               when 4 => (0 => (1, 2, 5))),
-         when TIM4 =>
-           (case C is
-               when 1 => (0 => (1, 0, 2)),
-               when 2 => (0 => (1, 3, 2)),
-               when 3 => (0 => (1, 7, 2)),
-               when 4 => (1 .. 0 => (1, 0, 0))),
-         when TIM5 =>
-           (case C is
-               when 1 => (0 => (1, 2, 6)),
-               when 2 => (0 => (1, 4, 6)),
-               when 3 => (0 => (1, 0, 6)),
-               when 4 => ((1, 1, 6), (1, 3, 6))),
-         when TIM8 =>
-           (case C is
-               when 1 => ((2, 2, 0), (2, 2, 7)),
-               when 2 => ((2, 2, 0), (2, 3, 7)),
-               when 3 => ((2, 2, 0), (2, 4, 7)),
-               when 4 => (0 => (2, 7, 7))),
-         when others => (1 .. 0 => (1, 0, 0)));
+   --  Whether a timer channel has a DMA option of a number, and the stream its
+   --  request reaches there, from the MCU family's timer table.
+   procedure Option_Stream (E : Timer_Entry; Option : Integer; Found : out Boolean; S : out DMA_Stream);
 
    DMA_Base : constant array (1 .. 2) of Unsigned_32 :=
      (Adaflight.STM32.Memory.DMA1_Base, Adaflight.STM32.Memory.DMA2_Base);

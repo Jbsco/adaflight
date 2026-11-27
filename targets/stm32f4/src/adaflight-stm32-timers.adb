@@ -29,6 +29,17 @@ package body Adaflight.STM32.Timers is
          when 9 => TIM9, when 10 => TIM10, when 11 => TIM11, when 12 => TIM12, when 13 => TIM13,
          when 14 => TIM14, when 15 => TIM15, when 16 => TIM16, when 17 => TIM17, when others => TIM1);
 
+   Number_Of : constant array (Timer_Name) of Adaflight.Timer_Tables.Timer_Number :=
+     (TIM1 => 1, TIM2 => 2, TIM3 => 3, TIM4 => 4, TIM5 => 5, TIM8 => 8, TIM9 => 9, TIM10 => 10, TIM11 => 11,
+      TIM12 => 12, TIM13 => 13, TIM14 => 14, TIM15 => 15, TIM16 => 16, TIM17 => 17);
+
+   procedure Option_Stream (E : Timer_Entry; Option : Integer; Found : out Boolean; S : out DMA_Stream) is
+      T : Adaflight.Timer_Tables.DMA_Stream;
+   begin
+      Adaflight.Timer_Tables.Timer_Option (Number_Of (E.Timer), E.Channel, Option, Found, T);
+      S := (T.Controller, T.Stream, T.Channel);
+   end Option_Stream;
+
    procedure Load (Map : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21) is
    begin
       Adaflight.Timer_Allocation.Load (Table, Map);

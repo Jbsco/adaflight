@@ -95,15 +95,10 @@ package body Adaflight.STM32.LED_Strip is
       if not Found then
          return;
       end if;
-      declare
-         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Option_Of (Index);
-      begin
-         if Option not in 0 .. O'Length - 1 then
-            return;
-         end if;
-         S := O (O'First + Option);
-      end;
+      Option_Stream (E, Option_Of (Index), Found, S);
+      if not Found then
+         return;
+      end if;
       for M in 0 .. Adaflight.STM32.Motors.Count - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) = (S.Controller - 1) * 8 + S.Stream + 1 then
             return;

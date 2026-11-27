@@ -58,17 +58,11 @@ package body Adaflight.STM32.Transponder_Output is
       if not Found then
          return;
       end if;
-      declare
-         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Option_Of (Index);
-      begin
-         Found := Option in 0 .. O'Length - 1;
-         if Found then
-            Channel := E;
-            Stream := O (O'First + Option);
-            Taken := True;
-         end if;
-      end;
+      Option_Stream (E, Option_Of (Index), Found, Stream);
+      if Found then
+         Channel := E;
+         Taken := True;
+      end if;
    end Take;
 
    procedure Configure (P : Core.Provider) is

@@ -41,13 +41,17 @@ package body Adaflight.STM32.LED_Strip is
       E     : Timer_Entry;
       Index : Natural;
       Found : Boolean;
+      S     : DMA_Stream;
    begin
       Configured := False;
       if Tag = 0 then
          return;
       end if;
       Allocate (Tag, Adaflight.CLI_Resources.LED_Strip, E, Index, Found);
-      if Found and then Option_Of (Index) in 0 .. Options_Of (E.Timer, E.Channel)'Length - 1 then
+      if Found then
+         Option_Stream (E, Option_Of (Index), Found, S);
+      end if;
+      if Found then
          Configured := True;
          Last := (others => (0, 0, 0));
       end if;

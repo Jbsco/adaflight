@@ -828,15 +828,7 @@ package body Adaflight.STM32.Motors is
          begin
             Allocate (Tag, Adaflight.CLI_Resources.Motor, E, Index, Found, Ordinal => Order + 1);
             if Found then
-               declare
-                  O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-                  Option : constant Integer := Option_Of (Index);
-               begin
-                  Found := Option in 0 .. O'Length - 1;
-                  if Found then
-                     S := O (O'First + Option);
-                  end if;
-               end;
+               Option_Stream (E, Option_Of (Index), Found, S);
             end if;
             if not Found then
                Driven := 0;
