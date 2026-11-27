@@ -17240,3 +17240,12 @@ smaller. The routing leaves F4 and F7 code unchanged.
 H7's image copies a block of words from memory to memory on DMA1 and on DMA2. It also routes ADC1's request 9
 through DMAMUX1 to DMA1 stream 1 and prints the transfers left each second. Under Renode both copies matched and the
 stream took all 16 conversions. With request 10 routed in place of 9, the stream took none.
+
+## D929. F7 SPI3 data out pins (2026-11-27)
+
+An STM32F7's SPI3 data out takes AF7 on PB2 and AF5 on PD6, where its other pins take AF6. F7's SPI driver gave
+each bus one alternate function, so on those two pins SPI3 sent nothing. Among F7 board configurations, twelve put
+SPI3's data out there, each with its flash chip or its MAX7456 on SPI3, TAKERF722SE and NBD_INFINITYAIOV2 among them.
+
+F7's driver now takes each pin's function from its bus and the pin. Under Renode a TAKERF722SE image, built without
+packed data, put PB2 in AF7 and PC10 and PC11 in AF6 by the time it reached flight start.

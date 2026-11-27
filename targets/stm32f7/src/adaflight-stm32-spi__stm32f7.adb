@@ -65,8 +65,13 @@ package body Adaflight.STM32.SPI is
    Transmit_Empty     : constant Unsigned_32 := 2 ** 1;
    Busy               : constant Unsigned_32 := 2 ** 7;
 
-   Function_Of : constant array (Bus) of GPIO.Alternate_Function :=
-     (SPI1 | SPI2 | SPI4 | SPI5 | SPI6 => 5, SPI3 => 6);
+   --  A bus pin's alternate function: SPI3's data out takes AF7 on PB2 and
+   --  AF5 on PD6.
+   function Function_Of (B : Bus; P : Pin) return GPIO.Alternate_Function is
+     (case B is
+         when SPI3 =>
+           (if P = (Port_B, 2) then 7 elsif P = (Port_D, 6) then 5 else 6),
+         when SPI1 | SPI2 | SPI4 | SPI5 | SPI6 => 5);
    --  Eight-bit frames with the receive flag at one byte, and the data
    --  register accessed as one byte, since a word write would send two.
    Data_Size_8         : constant Unsigned_32 := 7 * 2 ** 8;
@@ -100,9 +105,9 @@ package body Adaflight.STM32.SPI is
       GPIO.Enable_Port (SCK.Port);
       GPIO.Enable_Port (SDI.Port);
       GPIO.Enable_Port (SDO.Port);
-      GPIO.Set_Alternate (SCK, Function_Of (B), GPIO.Down);
-      GPIO.Set_Alternate (SDI, Function_Of (B), GPIO.Up);
-      GPIO.Set_Alternate (SDO, Function_Of (B));
+      GPIO.Set_Alternate (SCK, Function_Of (B, SCK), GPIO.Down);
+      GPIO.Set_Alternate (SDI, Function_Of (B, SDI), GPIO.Up);
+      GPIO.Set_Alternate (SDO, Function_Of (B, SDO));
       Regs (B).CR2 := Data_Size_8 or Receive_Threshold_8;
       Regs (B).CR1 := Master or Clock_Idle_High or Clock_Phase_Second or Software_Select or Internal_Select
         or Shift_Left (2, Rate_Shift);
