@@ -3,8 +3,9 @@
 --  gyro's interrupt pin, a line each second with the update counts of TIM1
 --  and TIM15 to TIM17 at 1 kHz, whether DMA1 and DMA2 each copied a block
 --  of memory, a line each second with the transfers left to ADC1's DMA
---  stream, the second gyro's identity read over SPI4, and the board's first
---  LED blinking at 1 Hz, with the caches on and the D2 RAM uncached.
+--  stream, the second gyro's identity read over SPI4, whether the
+--  configuration sector's marker block was written or kept, and the board's
+--  first LED blinking at 1 Hz, with the caches on and the D2 RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -38,6 +39,10 @@ begin
    end loop;
    Adaflight.STM32.Bring_Up.Start_ADC_DMA;
    Adaflight.STM32.Bring_Up.Read_Gyro_2_Identity;
+   Adaflight.STM32.Bring_Up.Keep_Config_Marker;
+   Put (Line, "config marker" & (if Adaflight.STM32.Bring_Up.Config_Marker_Written then " written"
+                                 elsif Adaflight.STM32.Bring_Up.Config_Marker_Held then " kept" else " missing")
+        & ASCII.CR & ASCII.LF);
    Put (Line, "spi4 gyro 2 identity" & Natural'Image (Adaflight.STM32.Bring_Up.Gyro_2_Identity) & ASCII.CR & ASCII.LF);
    loop
       Take (UART1, Data, Count);
