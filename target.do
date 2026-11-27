@@ -79,8 +79,7 @@ ADAFLIGHT_MAVLINK_TELEMETRY="$(python3 ../../tools/featuregen.py --feature MAVLi
 export ADAFLIGHT_MAVLINK_TELEMETRY
 alr -n build --release
 if [ "$CRATE" = stm32h7 ]; then
-    alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
-    exit 0
+    alr -n exec -- arm-eabi-size "bin/adaflight_${CRATE}_bring_up"
 fi
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

@@ -1,112 +1,14 @@
---  The STM32H7 image so far: a banner on UART1 at 115200 baud, the reset's
---  kind and a request kept in the backup registers over the software reset
---  that an R on UART1 makes, every byte received there sent back, a line
---  on each rising edge counted at the first gyro's interrupt pin, a line
---  each second with the update counts of TIM1 and TIM15 to TIM17 at 1 kHz,
---  whether DMA1 and DMA2 each copied a block of memory, a line each second
---  with ADC1's PC0 reading and ADC3's reference and temperature readings,
---  the second gyro's identity read over SPI4, whether the configuration
---  sector's marker block was written or kept, a barometer's chip identifier
---  read over I2C4, every byte the USB serial port receives sent back on it,
---  and the board's first LED blinking at 1 Hz, with the caches on and the D2
---  RAM uncached.
-with Ada.Real_Time; use Ada.Real_Time;
-with Interfaces;
-with Adaflight.Board;
-with Adaflight.Bytes; use Adaflight.Bytes;
-with Adaflight.STM32.Bring_Up;
+--  The STM32H7 image: the flight software of the F4 crate on an H7 board,
+--  started and run pass by pass.
 with Adaflight.STM32.CCM_Clear; pragma Unreferenced (Adaflight.STM32.CCM_Clear);
 with Adaflight.STM32.Cache; pragma Unreferenced (Adaflight.STM32.Cache);
-with Adaflight.STM32.GPIO;
-with Adaflight.STM32.MCU;
-with Adaflight.STM32.Platform;
-with Adaflight.STM32.Time;
-with Adaflight.STM32.USART; use Adaflight.STM32.USART;
-with Adaflight.STM32.USB;
+with Adaflight.STM32.Data_Pack; pragma Unreferenced (Adaflight.STM32.Data_Pack);
+with Adaflight.STM32.Flight;
 
 procedure Adaflight_Stm32h7 is
-   pragma Compile_Time_Error (Adaflight.STM32.Platform.F4, "an STM32H7 image with the F4 platform");
-   Line  : Port := (Which => UART1);
-   Data  : Byte_Array (1 .. 64);
-   Count : Natural;
-   Sent  : Natural;
-   Ticks : Natural := 0;
-   Seen  : Natural := 0;
-   Halves : Natural := 0;
-   Next  : Time := Clock;
 begin
-   Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
-   Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
-   Init (UART1, 115_200);
-   Put (Line, "adaflight STM32H7" & ASCII.CR & ASCII.LF);
-   Adaflight.STM32.MCU.Init_Persistent;
-   Adaflight.STM32.MCU.Check_Bootloader_Request;
-   Adaflight.STM32.MCU.Check_Bootloader_Exit;
-   declare
-      Asked   : Boolean;
-      Time_Ms : Interfaces.Unsigned_64;
-   begin
-      Adaflight.STM32.MCU.Take_Mass_Storage_Request (Asked, Time_Ms);
-      Put (Line, (if Adaflight.STM32.MCU.Software_Reset then "software reset" else "other reset")
-           & (if Asked then ", request kept with" & Interfaces.Unsigned_64'Image (Time_Ms) else ", no request")
-           & ASCII.CR & ASCII.LF);
-   end;
-   Adaflight.STM32.Bring_Up.Watch_Gyro_Interrupt;
-   Adaflight.STM32.Bring_Up.Start_Timers;
-   Adaflight.STM32.Bring_Up.Copy_By_DMA;
-   for C in 1 .. 2 loop
-      Put (Line, "dma" & Natural'Image (C) & (if Adaflight.STM32.Bring_Up.Copied (C) then " copied" else " not copied")
-           & ASCII.CR & ASCII.LF);
-   end loop;
-   Adaflight.STM32.Bring_Up.Start_ADC;
-   Adaflight.STM32.Bring_Up.Read_Gyro_2_Identity;
-   Put (Line, "spi4 gyro 2 identity" & Natural'Image (Adaflight.STM32.Bring_Up.Gyro_2_Identity) & ASCII.CR & ASCII.LF);
-   Adaflight.STM32.Bring_Up.Keep_Config_Marker;
-   Put (Line, "config marker" & (if Adaflight.STM32.Bring_Up.Config_Marker_Written then " written"
-                                 elsif Adaflight.STM32.Bring_Up.Config_Marker_Held then " kept" else " missing")
-        & ASCII.CR & ASCII.LF);
-   Adaflight.STM32.Time.Init;
-   Adaflight.STM32.Bring_Up.Read_Barometer_Identity;
-   Put (Line, "i2c4 barometer identity" & Natural'Image (Adaflight.STM32.Bring_Up.Barometer_Identity)
-        & ASCII.CR & ASCII.LF);
-   Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
-   Put (Line, "usb started" & ASCII.CR & ASCII.LF);
+   Adaflight.STM32.Flight.Init;
    loop
-      Take (UART1, Data, Count);
-      if Count > 0 then
-         Put (Line, Data (Data'First .. Data'First + Count - 1));
-         if Character'Val (Data (Data'First)) = 'R' then
-            Adaflight.STM32.MCU.Reset_To_Mass_Storage (16#0123_4567_89AB#);
-         end if;
-      end if;
-      Adaflight.STM32.USB.Take (Data, Count);
-      if Count > 0 then
-         Adaflight.STM32.USB.Send (Data (Data'First .. Data'First + Count - 1), Sent);
-      end if;
-      if Adaflight.STM32.Bring_Up.Edges /= Seen then
-         Seen := Adaflight.STM32.Bring_Up.Edges;
-         Put (Line, "exti" & Natural'Image (Seen) & ASCII.CR & ASCII.LF);
-      end if;
-      Ticks := (Ticks + 1) mod 50;
-      if Ticks = 0 then
-         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
-         Halves := (Halves + 1) mod 2;
-         if Halves = 0 then
-            Put (Line, "tim");
-            for T in Adaflight.STM32.Bring_Up.Counted_Timer loop
-               Put (Line, Natural'Image (Adaflight.STM32.Bring_Up.Updates (T)));
-            end loop;
-            Put (Line, "" & ASCII.CR & ASCII.LF);
-            declare
-               Reference, Temperature : Natural;
-            begin
-               Adaflight.STM32.Bring_Up.Read_Internal (Reference, Temperature);
-               Put (Line, "adc pc0" & Natural'Image (Adaflight.STM32.Bring_Up.ADC_Reading) & " reference"
-                    & Natural'Image (Reference) & " temperature" & Natural'Image (Temperature) & ASCII.CR & ASCII.LF);
-            end;
-         end if;
-      end if;
-      Next := Next + Milliseconds (10);
-      delay until Next;
+      Adaflight.STM32.Flight.Pass;
    end loop;
 end Adaflight_Stm32h7;
