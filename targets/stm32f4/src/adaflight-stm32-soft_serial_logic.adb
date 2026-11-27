@@ -40,7 +40,7 @@ package body Adaflight.STM32.Soft_Serial_Logic is
       RX_Tag : constant Interfaces.Unsigned_8 := RX_Tags (N);
       Same   : constant Boolean := TX_Tag = RX_Tag;
       Slot : Natural;
-      None : constant Timer_Entry := (TIM1, 1, False, (Adaflight.Pins.Port_A, 0));
+      None : constant Timer_Entry := (TIM1, 1, False, (Adaflight.Pins.Port_A, 0), 1);
    begin
       C := (TX => None, RX => None, TX_Found => False, RX_Found => False);
       Plan := (others => <>);

@@ -1,7 +1,8 @@
 --  The STM32H7 image so far: a banner on UART1 at 115200 baud, every byte
 --  received there sent back, a line on each rising edge counted at the first
---  gyro's interrupt pin, and the board's first LED blinking at 1 Hz, with the
---  caches on and the D2 RAM uncached.
+--  gyro's interrupt pin, a line each second with the update counts of TIM1
+--  and TIM15 to TIM17 at 1 kHz, and the board's first LED blinking at 1 Hz,
+--  with the caches on and the D2 RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -19,6 +20,7 @@ procedure Adaflight_Stm32h7 is
    Count : Natural;
    Ticks : Natural := 0;
    Seen  : Natural := 0;
+   Halves : Natural := 0;
    Next  : Time := Clock;
 begin
    Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
@@ -26,6 +28,7 @@ begin
    Init (UART1, 115_200);
    Put (Line, "adaflight STM32H7" & ASCII.CR & ASCII.LF);
    Adaflight.STM32.Bring_Up.Watch_Gyro_Interrupt;
+   Adaflight.STM32.Bring_Up.Start_Timers;
    loop
       Take (UART1, Data, Count);
       if Count > 0 then
@@ -38,6 +41,14 @@ begin
       Ticks := (Ticks + 1) mod 50;
       if Ticks = 0 then
          Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Halves := (Halves + 1) mod 2;
+         if Halves = 0 then
+            Put (Line, "tim");
+            for T in Adaflight.STM32.Bring_Up.Counted_Timer loop
+               Put (Line, Natural'Image (Adaflight.STM32.Bring_Up.Updates (T)));
+            end loop;
+            Put (Line, "" & ASCII.CR & ASCII.LF);
+         end if;
       end if;
       Next := Next + Milliseconds (10);
       delay until Next;

@@ -1,6 +1,7 @@
---  The STM32F405's timers: the timer table, each timer's registers, clock,
---  alternate function and enable bit, the owners of the configured timer
---  pin map's entries, and a channel's setup as a PWM output.
+--  The STM32 timers: the timer table, each timer's registers, clock and
+--  enable bit, the owners of the configured timer pin map's entries, and a
+--  channel's setup as a PWM output. TIM15 to TIM17 are STM32H7 timers, at
+--  the addresses and with the enable bits of an F4's TIM9 to TIM11.
 with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -13,41 +14,45 @@ with Adaflight.STM32.Memory;
 package Adaflight.STM32.Timers is
    use Interfaces;
 
-   type Timer_Name is (TIM1, TIM2, TIM3, TIM4, TIM5, TIM8, TIM9, TIM10, TIM11, TIM12, TIM13, TIM14);
+   type Timer_Name is
+     (TIM1, TIM2, TIM3, TIM4, TIM5, TIM8, TIM9, TIM10, TIM11, TIM12, TIM13, TIM14, TIM15, TIM16, TIM17);
    subtype Channel_Number is Positive range 1 .. 4;
 
    --  An entry of the processor's timer table: the timer, the channel,
-   --  whether the pin is the complementary output, and the pin.
+   --  whether the pin is the complementary output, the pin, and the pin's
+   --  alternate function for that timer.
    type Timer_Entry is record
       Timer   : Timer_Name;
       Channel : Channel_Number;
       N       : Boolean;
       Where   : Pin;
+      AF      : Adaflight.STM32.GPIO.Alternate_Function;
    end record;
 
    Timer_Base_Value : constant array (Timer_Name) of Unsigned_32 :=
      (TIM1  => 16#4001_0000#, TIM2  => 16#4000_0000#, TIM3  => 16#4000_0400#, TIM4  => 16#4000_0800#,
       TIM5  => 16#4000_0C00#, TIM8  => 16#4001_0400#, TIM9  => 16#4001_4000#, TIM10 => 16#4001_4400#,
-      TIM11 => 16#4001_4800#, TIM12 => 16#4000_1800#, TIM13 => 16#4000_1C00#, TIM14 => 16#4000_2000#);
+      TIM11 => 16#4001_4800#, TIM12 => 16#4000_1800#, TIM13 => 16#4000_1C00#, TIM14 => 16#4000_2000#,
+      TIM15 => 16#4001_4000#, TIM16 => 16#4001_4400#, TIM17 => 16#4001_4800#);
 
    function Timer_Base (T : Timer_Name) return System.Address is (System'To_Address (Timer_Base_Value (T)));
 
-   --  The timers on the APB2 bus count at 168 MHz, the others at 84 MHz.
+   --  The timers on the APB2 bus count at its timer clock, the others at APB1's.
    Timer_Clock_Hz : constant array (Timer_Name) of Unsigned_32 :=
-     (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 => Adaflight.STM32.Platform.APB2_Timer_Hz,
+     (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 | TIM15 | TIM16 | TIM17 => Adaflight.STM32.Platform.APB2_Timer_Hz,
       others => Adaflight.STM32.Platform.APB1_Timer_Hz);
 
-   Alternate : constant array (Timer_Name) of Adaflight.STM32.GPIO.Alternate_Function :=
-     (TIM1 | TIM2 => 1, TIM3 | TIM4 | TIM5 => 2, TIM8 | TIM9 | TIM10 | TIM11 => 3, TIM12 | TIM13 | TIM14 => 9);
-
-   Advanced : constant array (Timer_Name) of Boolean := (TIM1 | TIM8 => True, others => False);
+   --  The timers with a repetition counter, complementary outputs and a main
+   --  output enable.
+   Advanced : constant array (Timer_Name) of Boolean := (TIM1 | TIM8 | TIM15 | TIM16 | TIM17 => True, others => False);
 
    --  The enable bit of each timer in RCC_APB1ENR, or in RCC_APB2ENR for
    --  the APB2 timers.
-   On_APB2    : constant array (Timer_Name) of Boolean := (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 => True, others => False);
+   On_APB2    : constant array (Timer_Name) of Boolean :=
+     (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 | TIM15 | TIM16 | TIM17 => True, others => False);
    Enable_Bit : constant array (Timer_Name) of Natural :=
      (TIM2 => 0, TIM3 => 1, TIM4 => 2, TIM5 => 3, TIM12 => 6, TIM13 => 7, TIM14 => 8,
-      TIM1 => 0, TIM8 => 1, TIM9 => 16, TIM10 => 17, TIM11 => 18);
+      TIM1 => 0, TIM8 => 1, TIM9 => 16, TIM10 => 17, TIM11 => 18, TIM15 => 16, TIM16 => 17, TIM17 => 18);
 
    type Timer_Registers is record
       CR1, CR2, SMCR, DIER, SR, EGR, CCMR1, CCMR2, CCER, CNT, PSC, ARR, RCR : Unsigned_32;

@@ -17205,3 +17205,20 @@ The unit selector leaves naming variants out, so a PR proof and the nightly's fi
 body under its family. Both bodies and every unit depending on the spec prove locally with no unproved check and
 no assume. Command line vectors pass unchanged. GEPRCF411's code grows by 48 bytes for the Request wording, and its
 data and RAM keep their sizes.
+
+## D927. H7 timers (2026-11-26)
+
+An STM32H743 has TIM15 to TIM17 where an F4 has TIM9 to TIM11, at the same addresses and with the same clock
+enable bits. They are advanced timers, with a repetition counter, complementary outputs and a main output enable,
+and their pins use other alternate functions. H7's TIM12 pins use another alternate function than F4's too.
+
+The timers unit now names TIM15 to TIM17 as advanced timers on APB2. Each timer pin takes its alternate function
+from D925's table, which F4 and F7 tables give per timer as before, and the per-timer alternate function list went
+away. An H7 build takes its own timer vector body, since its run time names TIM1's four vectors apart and gives
+each of TIM15 to TIM17 its own. TIM15 to TIM17 have no DMA options yet. H7 builds keep software serial ports, which
+D923 left out until H7 had a timer table.
+
+H7's image starts TIM1 and TIM15 to TIM17 at 1 kHz and prints their update counts each second. Under Renode, each
+count grew by 1251 or 1252 per second, as Renode clocks these timers at 250 MHz where the image sets a 200 MHz
+prescale. Arrays by timer gain three entries: GEPRCF411's code grows by 40 bytes and its RAM by 16, and KAKUTEF7's
+by 56 and 24.

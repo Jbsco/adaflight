@@ -117,7 +117,7 @@ package body Adaflight.STM32.Camera_Control is
             when Core.Hardware_PWM =>
                Allocate (Tag, Adaflight.CLI_Resources.Camera_Control, E, Slot, Found);
                if Found then
-                  GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+                  GPIO.Set_Alternate (E.Where, E.AF, GPIO.No_Pull, Rate => GPIO.Low);
                   Configure_PWM
                     (E, Timer_Clock_Hz (E.Timer), Core.PWM_Resolution, Core.PWM_Resolution, Settings.Inverted);
                   CCR_Address := CCR_Value (E.Timer, E.Channel);
