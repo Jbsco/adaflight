@@ -17222,3 +17222,21 @@ H7's image starts TIM1 and TIM15 to TIM17 at 1 kHz and prints their update count
 count grew by 1251 or 1252 per second, as Renode clocks these timers at 250 MHz where the image sets a 200 MHz
 prescale. Arrays by timer gain three entries: GEPRCF411's code grows by 40 bytes and its RAM by 16, and KAKUTEF7's
 by 56 and 24.
+
+## D928. H7 DMA (2026-11-26)
+
+An STM32H743's DMA1 and DMA2 streams have F4's registers, at the addresses D921's map gives. Their control registers
+lack F4's channel selection bits. DMAMUX1 routes each request to a stream instead: its channel register n takes the
+request number for DMA1 stream n, and register n + 8 for DMA2 stream n.
+
+Drivers now take a timer channel's DMA options from D925's table. On F4 and F7 builds that table has F405's options,
+equal to the drivers' own list, which went away. On an H7 build each option's channel is a DMAMUX1 request (D926).
+`Enable_DMA` writes a stream's request to DMAMUX1 on a family that has one, and the stream's control register then
+leaves its channel bits clear. The memory map gives DMAMUX1's address on H7 and zero on F4 and F7.
+
+Without the list, GEPRCF411's code is 1236 bytes smaller and its RAM 8 bytes, and KAKUTEF7's code 1436 bytes
+smaller. The routing leaves F4 and F7 code unchanged.
+
+H7's image copies a block of words from memory to memory on DMA1 and on DMA2. It also routes ADC1's request 9
+through DMAMUX1 to DMA1 stream 1 and prints the transfers left each second. Under Renode both copies matched and the
+stream took all 16 conversions. With request 10 routed in place of 9, the stream took none.
