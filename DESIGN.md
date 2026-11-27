@@ -17297,3 +17297,20 @@ KAKUTEF7's code grows by 8 bytes.
 H7's image starts the cycle counter and USB, then sends back every byte its USB serial port receives. Its checks now
 print each line after its own step. Renode's H743 has no USB controller: under Renode the oscillator read on and
 ready, the USB supply ready, and the image went on past USB's start.
+
+## D933. H7 reset and bootloader (2026-11-27)
+
+An STM32H743 keeps its reset flags in RCC_RSR and its backup words in the RTC's backup registers at 0x5800_4050,
+written once PWR_CR1's DBP bit allows backup domain writes. Its ROM bootloader's vector table sits at 0x1FF0_9800,
+and it has no MEMRMP bit to show that system memory is mapped at address zero.
+
+H7 builds take their own MCU body. Reset flags, backup words and the system reset follow F4's, at H7's addresses. A
+bootloader request jumps into system memory as F4's does: interrupts off, SysTick and NVIC cleared, vector table and
+stack from the bootloader's table. Its clocks stay as they are. Before the jump
+it marks the reset reason as a bootloader start. A start with no reset flag comes from the bootloader's jump back
+and keeps the backup words. That mark then restarts it once through a system reset, as F4's MEMRMP check does.
+
+H7's image makes a mass storage request with a time value at its first start, which resets it. Under Renode, the
+backup registers held the magic word, the request and both halves of the time, with DBP set. Renode's H743 left
+RCC_RSR at its reset value and did not reset on the request, so the second start's read stays unchecked until an H7
+board runs it.
