@@ -17249,3 +17249,21 @@ SPI3's data out there, each with its flash chip or its MAX7456 on SPI3, TAKERF72
 
 F7's driver now takes each pin's function from its bus and the pin. Under Renode a TAKERF722SE image, built without
 packed data, put PB2 in AF7 and PC10 and PC11 in AF6 by the time it reached flight start.
+
+## D930. H7 SPI (2026-11-27)
+
+An STM32H743's SPI has another register set than F4's and F7's. Frame size, FIFO threshold and clock divisor sit
+in one configuration register, and master mode, clock phase and polarity in a second. Both take writes only while
+the bus is off. A transfer starts with its length and ends with an end-of-transfer flag. SPI6 sits in the D3 domain,
+on its own clock enable.
+
+H7 builds take their own SPI body. It keeps each bus off between transfers and has the pins hold their alternate
+function meanwhile, so clock idle level stays as its mode sets it. Each transfer sets its length, turns the bus on
+and starts it, moves each byte through one-byte data register accesses, waits for its end and turns the bus off.
+
+Every H7 bus runs from a 100 MHz kernel clock, so no bus halves its divisor. As on F7 (D929), each pin takes its
+alternate function from its bus and its place: SPI3's data out takes AF7 on PB2 and PB5 and AF5 on PD6, and SPI6
+takes AF5 on port G and AF8 elsewhere.
+
+H7's image reads the second gyro's identity register over SPI4 at 1 MHz. Under Renode, with a generic SPI sensor on
+SPI4 fed 0x11 and 0x47, the read gave 0x47, and SPI4's pins were in AF5 with the select released.
