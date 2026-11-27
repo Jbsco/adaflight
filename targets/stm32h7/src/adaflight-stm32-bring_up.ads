@@ -1,7 +1,8 @@
 --  Bring-up checks of the STM32H7 image: rising edges on the first gyro's
 --  interrupt pin, counted from its external interrupt line, update
 --  interrupts of TIM1 and TIM15 to TIM17, each counting at 1 kHz, memory
---  copies by DMA1 and DMA2, and ADC1 conversions to DMA1 through DMAMUX1.
+--  copies by DMA1 and DMA2, ADC1 conversions to DMA1 through DMAMUX1, and
+--  the second gyro's identity read over SPI4.
 with Adaflight.STM32.Timers;
 package Adaflight.STM32.Bring_Up is
    procedure Watch_Gyro_Interrupt;
@@ -23,4 +24,8 @@ package Adaflight.STM32.Bring_Up is
    --  to DMA1 stream 1, and the transfers that stream has left.
    procedure Start_ADC_DMA;
    function ADC_Transfers_Left return Natural;
+
+   --  The second gyro's identity register read over SPI4 at 1 MHz.
+   procedure Read_Gyro_2_Identity;
+   function Gyro_2_Identity return Natural;
 end Adaflight.STM32.Bring_Up;

@@ -3,11 +3,13 @@ with Interfaces; use Interfaces;
 with System;
 with System.Storage_Elements;
 with Adaflight.Board;
+with Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.SPI;
 with Adaflight.STM32.Timer_Dispatch;
 package body Adaflight.STM32.Bring_Up is
    use Adaflight.STM32.Timers;
@@ -162,4 +164,24 @@ package body Adaflight.STM32.Bring_Up is
    end Start_ADC_DMA;
 
    function ADC_Transfers_Left return Natural is (Natural (ADC_DMA.NDTR and 16#FFFF#));
+
+   Identity : Natural := 0;
+
+   procedure Read_Gyro_2_Identity is
+      Select_Pin : constant Pin := Adaflight.Board.Gyro_2_CS_Pin;
+      Read_Who_Am_I : constant Adaflight.Bytes.Byte_Array (1 .. 2) := (16#75# + 16#80#, 0);
+      Reply : Adaflight.Bytes.Byte_Array (1 .. 2);
+   begin
+      SPI.Init (SPI.SPI4, Adaflight.Board.SPI4_SCK_Pin, Adaflight.Board.SPI4_SDI_Pin, Adaflight.Board.SPI4_SDO_Pin);
+      SPI.Set_Divisor (SPI.SPI4, SPI.Divider (1_000_000));
+      GPIO.Enable_Port (Select_Pin.Port);
+      GPIO.Set_High (Select_Pin);
+      GPIO.Set_Output (Select_Pin);
+      GPIO.Set_Low (Select_Pin);
+      SPI.Transfer (SPI.SPI4, Read_Who_Am_I, Reply);
+      GPIO.Set_High (Select_Pin);
+      Identity := Natural (Reply (2));
+   end Read_Gyro_2_Identity;
+
+   function Gyro_2_Identity return Natural is (Identity);
 end Adaflight.STM32.Bring_Up;
