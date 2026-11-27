@@ -27,7 +27,7 @@ package body Adaflight.STM32.Timers is
      (case N is
          when 1 => TIM1, when 2 => TIM2, when 3 => TIM3, when 4 => TIM4, when 5 => TIM5, when 8 => TIM8,
          when 9 => TIM9, when 10 => TIM10, when 11 => TIM11, when 12 => TIM12, when 13 => TIM13,
-         when 14 => TIM14, when others => TIM1);
+         when 14 => TIM14, when 15 => TIM15, when 16 => TIM16, when 17 => TIM17, when others => TIM1);
 
    procedure Load (Map : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21) is
    begin
