@@ -1,19 +1,23 @@
---  The STM32H7 image so far: a banner on UART1 at 115200 baud, every byte
---  received there sent back, a line on each rising edge counted at the first
---  gyro's interrupt pin, a line each second with the update counts of TIM1
---  and TIM15 to TIM17 at 1 kHz, whether DMA1 and DMA2 each copied a block
---  of memory, a line each second with the transfers left to ADC1's DMA
---  stream, the second gyro's identity read over SPI4, whether the
---  configuration sector's marker block was written or kept, every byte the
---  USB serial port receives sent back on it, and the board's first LED
---  blinking at 1 Hz, with the caches on and the D2 RAM uncached.
+--  The STM32H7 image so far: a banner on UART1 at 115200 baud, the reset's
+--  kind and a request kept in the backup registers over a software reset
+--  that the first start makes, every byte received there sent back, a line
+--  on each rising edge counted at the first gyro's interrupt pin, a line
+--  each second with the update counts of TIM1 and TIM15 to TIM17 at 1 kHz,
+--  whether DMA1 and DMA2 each copied a block of memory, a line each second
+--  with the transfers left to ADC1's DMA stream, the second gyro's identity
+--  read over SPI4, whether the configuration sector's marker block was
+--  written or kept, every byte the USB serial port receives sent back on it,
+--  and the board's first LED blinking at 1 Hz, with the caches on and the D2
+--  RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
+with Interfaces;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.STM32.Bring_Up;
 with Adaflight.STM32.CCM_Clear; pragma Unreferenced (Adaflight.STM32.CCM_Clear);
 with Adaflight.STM32.Cache; pragma Unreferenced (Adaflight.STM32.Cache);
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.Platform;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART; use Adaflight.STM32.USART;
@@ -34,6 +38,21 @@ begin
    Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
    Init (UART1, 115_200);
    Put (Line, "adaflight STM32H7" & ASCII.CR & ASCII.LF);
+   Adaflight.STM32.MCU.Init_Persistent;
+   Adaflight.STM32.MCU.Check_Bootloader_Request;
+   Adaflight.STM32.MCU.Check_Bootloader_Exit;
+   declare
+      Asked   : Boolean;
+      Time_Ms : Interfaces.Unsigned_64;
+   begin
+      Adaflight.STM32.MCU.Take_Mass_Storage_Request (Asked, Time_Ms);
+      Put (Line, (if Adaflight.STM32.MCU.Software_Reset then "software reset" else "other reset")
+           & (if Asked then ", request kept with" & Interfaces.Unsigned_64'Image (Time_Ms) else ", no request")
+           & ASCII.CR & ASCII.LF);
+      if not Adaflight.STM32.MCU.Software_Reset then
+         Adaflight.STM32.MCU.Reset_To_Mass_Storage (16#0123_4567_89AB#);
+      end if;
+   end;
    Adaflight.STM32.Bring_Up.Watch_Gyro_Interrupt;
    Adaflight.STM32.Bring_Up.Start_Timers;
    Adaflight.STM32.Bring_Up.Copy_By_DMA;

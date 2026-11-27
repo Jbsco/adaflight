@@ -2,7 +2,7 @@
 
 The STM32F4 crate builds STM32F405, STM32F411 and STM32F446 boards, the STM32F7 crate STM32F722 and STM32F745 boards. The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature but the flight plan. A 512 KB board leaves out menu system, gimbal control, rangefinders, optical flow, pitot, OLED dashboard, LED strip, race transponder, software serial ports, SD card logging, iBus, LTM and MAVLink telemetry, Jeti EX Bus, SUMD, SUMH and MAVLink receivers. It also leaves out the board crate's run-time checks.
 
-The STM32H7 crate builds a first image for STM32H743 boards: `CRATE=stm32h7 bash target.do`, MATEKH743 by default. The image blinks an LED, echoes UART1 at 115200 baud, reports rising edges on the first gyro's interrupt pin, counts timer updates and runs DMA transfers through DMAMUX1. It also reads the second gyro's identity over SPI4, keeps a marker block in its configuration sector and echoes its USB serial port.
+The STM32H7 crate builds a first image for STM32H743 boards: `CRATE=stm32h7 bash target.do`, MATEKH743 by default. The image blinks an LED, echoes UART1 at 115200 baud, reports rising edges on the first gyro's interrupt pin, counts timer updates and runs DMA transfers through DMAMUX1. It also reads the second gyro's identity over SPI4, keeps a marker block in its configuration sector and echoes its USB serial port. Its first start makes a request in the backup registers and resets, to check that the next start finds it.
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one.
 
