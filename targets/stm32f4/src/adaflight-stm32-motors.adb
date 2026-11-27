@@ -48,6 +48,7 @@ package body Adaflight.STM32.Motors is
       Stream     : DMA_Stream;
       N          : Boolean := False;
       Low        : Boolean := False;
+      AF         : GPIO.Alternate_Function := 1;
    end record;
    Outputs : array (Motor_Slot) of Output;
 
@@ -406,7 +407,7 @@ package body Adaflight.STM32.Motors is
                return;
             end if;
             GPIO.Enable_Port (E.Where.Port);
-            GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+            GPIO.Set_Alternate (E.Where, E.AF, GPIO.No_Pull, Rate => GPIO.Low);
             Timings (M) := Adaflight.PWM_Output.Motor_Timing_Of
               (Dev.Motor_Protocol, Dev.Motor_Pwm_Rate, Dev.Use_Continuous_Update /= 0, Timer_Clock_Hz (E.Timer), Idle);
             Continuous := Timings (M).Continuous;
@@ -414,7 +415,8 @@ package body Adaflight.STM32.Motors is
                            Inverted => Dev.Motor_Inversion /= 0);
             CCR_Of (M) := CCR_Value (E.Timer, E.Channel);
             Forced (M) := (for all K in 0 .. M - 1 => Outputs (K).Timer /= E.Timer);
-            Outputs (M) := (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel, others => <>);
+            Outputs (M) :=
+              (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel, AF => E.AF, others => <>);
             Driven := M + 1;
          end;
       end loop;
@@ -513,7 +515,7 @@ package body Adaflight.STM32.Motors is
       Stream : Stream_Registers with Import, Address => Stream_Address (S);
    begin
       GPIO.Enable_Port (E.Where.Port);
-      GPIO.Set_Alternate (E.Where, Alternate (E.Timer), (if Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
+      GPIO.Set_Alternate (E.Where, E.AF, (if Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
       if New_Timer then
          if On_APB2 (E.Timer) then
             RCC_APB2ENR := RCC_APB2ENR or Shift_Left (1, Enable_Bit (E.Timer));
@@ -531,7 +533,7 @@ package body Adaflight.STM32.Motors is
       end if;
       Outputs (Slot) :=
         (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel,
-         Source => Shift_Left (1, 8 + E.Channel), Stream => S, N => E.N, Low => Inverted /= Bidir);
+         Source => Shift_Left (1, 8 + E.Channel), Stream => S, N => E.N, Low => Inverted /= Bidir, AF => E.AF);
       Output_Compare (Outputs (Slot));
       Sources (E.Timer) := Sources (E.Timer) and not Outputs (Slot).Source;
       Stream.CR := Stream.CR and not EN;
@@ -938,10 +940,10 @@ package body Adaflight.STM32.Motors is
          if BB_On then
             Set_Bitbang_Pin (O.Where, Pin_Inverted, Low => BB_Idle_Low (Index));
          elsif Adaflight.MSP_Motor_In."=" (Kind, Adaflight.MSP_Motor_In.PWM) then
-            GPIO.Set_Alternate (O.Where, Alternate (O.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+            GPIO.Set_Alternate (O.Where, O.AF, GPIO.No_Pull, Rate => GPIO.Low);
          else
             GPIO.Set_Alternate
-              (O.Where, Alternate (O.Timer), (if Pin_Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
+              (O.Where, O.AF, (if Pin_Inverted then GPIO.Down else GPIO.Up), Rate => GPIO.High);
          end if;
       end;
    end Reinstate_Pin;

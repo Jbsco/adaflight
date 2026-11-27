@@ -44,7 +44,7 @@ package body Adaflight.STM32.LED_Strip is
       Period   : constant Unsigned_16 := W.Period (Clock, Prescale);
    begin
       GPIO.Enable_Port (E.Where.Port);
-      GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.Up, Rate => GPIO.High);
+      GPIO.Set_Alternate (E.Where, E.AF, GPIO.Up, Rate => GPIO.High);
       Enable_Clock (E.Timer);
       Regs.CR1 := Regs.CR1 and not CEN;
       One := Unsigned_32 (W.Bit_1 (Period));

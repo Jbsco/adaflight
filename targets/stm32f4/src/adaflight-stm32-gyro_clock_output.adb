@@ -11,7 +11,7 @@ package body Adaflight.STM32.Gyro_Clock_Output is
         with Volatile, Import, Address => System'To_Address (CCR_Value (E.Timer, E.Channel));
    begin
       GPIO.Enable_Port (E.Where.Port);
-      GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+      GPIO.Set_Alternate (E.Where, E.AF, GPIO.No_Pull, Rate => GPIO.Low);
       Configure_PWM (E, Timer_Hz, Period, Pulse, Inverted => False);
       CCR := Interfaces.Unsigned_32 (Pulse);
    end Start;

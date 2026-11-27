@@ -91,7 +91,7 @@ package body Adaflight.STM32.Transponder_Output is
       Coding := P;
       Toggle := Core.Toggle_Of (Period);
       GPIO.Enable_Port (Channel.Where.Port);
-      GPIO.Set_Alternate (Channel.Where, Alternate (Channel.Timer), GPIO.Down, Rate => GPIO.High);
+      GPIO.Set_Alternate (Channel.Where, Channel.AF, GPIO.Down, Rate => GPIO.High);
       Enable_Clock (Channel.Timer);
       Enable_DMA (Stream);
       DMA.CR := DMA.CR and not EN;

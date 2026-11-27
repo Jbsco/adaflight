@@ -17,12 +17,14 @@ package Adaflight.STM32.Timers is
    subtype Channel_Number is Positive range 1 .. 4;
 
    --  An entry of the processor's timer table: the timer, the channel,
-   --  whether the pin is the complementary output, and the pin.
+   --  whether the pin is the complementary output, the pin, and the pin's
+   --  alternate function for that timer.
    type Timer_Entry is record
       Timer   : Timer_Name;
       Channel : Channel_Number;
       N       : Boolean;
       Where   : Pin;
+      AF      : Adaflight.STM32.GPIO.Alternate_Function;
    end record;
 
    Timer_Base_Value : constant array (Timer_Name) of Unsigned_32 :=
@@ -36,9 +38,6 @@ package Adaflight.STM32.Timers is
    Timer_Clock_Hz : constant array (Timer_Name) of Unsigned_32 :=
      (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 => Adaflight.STM32.Platform.APB2_Timer_Hz,
       others => Adaflight.STM32.Platform.APB1_Timer_Hz);
-
-   Alternate : constant array (Timer_Name) of Adaflight.STM32.GPIO.Alternate_Function :=
-     (TIM1 | TIM2 => 1, TIM3 | TIM4 | TIM5 => 2, TIM8 | TIM9 | TIM10 | TIM11 => 3, TIM12 | TIM13 | TIM14 => 9);
 
    Advanced : constant array (Timer_Name) of Boolean := (TIM1 | TIM8 => True, others => False);
 

@@ -15,14 +15,14 @@ package body Adaflight.STM32.ESC_Serial_Port is
 
    --  The timer channels the port took, by the engine's targets.
    Taken   : array (Pin_Target) of Boolean := (others => False);
-   Entries : array (Pin_Target) of Timer_Entry := (others => (TIM1, 1, False, (Port_A, 0)));
+   Entries : array (Pin_Target) of Timer_Entry := (others => (TIM1, 1, False, (Port_A, 0), 1));
 
    --  The timer whose update is the bit tick and the channel whose capture
    --  is an edge, while each has its handler.
    Tick_On    : Boolean := False with Atomic;
    Tick_Timer : Timer_Name := TIM1 with Atomic;
    Edge_On    : Boolean := False with Atomic;
-   Edge_Entry : Timer_Entry := (TIM1, 1, False, (Port_A, 0));
+   Edge_Entry : Timer_Entry := (TIM1, 1, False, (Port_A, 0), 1);
 
    Update_Flag : constant Unsigned_32 := 2 ** 0;
    Flags       : constant Unsigned_32 := 16#FF#;
@@ -74,7 +74,7 @@ package body Adaflight.STM32.ESC_Serial_Port is
             when Engine.Pin_Mode =>
                GPIO.Enable_Port (E.Where.Port);
                if O.A = Engine.Mode_Capture then
-                  GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.Up);
+                  GPIO.Set_Alternate (E.Where, E.AF, GPIO.Up);
                elsif O.A = Engine.Mode_Output then
                   GPIO.Set_Output (E.Where);
                else

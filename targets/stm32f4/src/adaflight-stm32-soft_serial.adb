@@ -16,7 +16,7 @@ package body Adaflight.STM32.Soft_Serial is
    --  the pins and the receive pin's pull.
    type Hardware is record
       Used        : Boolean := False;
-      Main        : Timer_Entry := (TIM1, 1, False, (Port_A, 0));
+      Main        : Timer_Entry := (TIM1, 1, False, (Port_A, 0), 1);
       Dual        : Boolean := False;
       Second      : Timer_Name := TIM1;
       Has_Send    : Boolean := False;
@@ -64,7 +64,7 @@ package body Adaflight.STM32.Soft_Serial is
    procedure Listen (H : Hardware) is
    begin
       if H.Has_Receive then
-         GPIO.Set_Alternate (H.Receive, Alternate (H.Main.Timer), H.Resistor);
+         GPIO.Set_Alternate (H.Receive, H.Main.AF, H.Resistor);
       end if;
       Capture_On (H.Main);
    end Listen;

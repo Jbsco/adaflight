@@ -60,14 +60,15 @@ package body Adaflight.STM32.Timers is
    is
       K : Adaflight.Timer_Allocation.Channel_Index;
    begin
-      E := (TIM1, 1, False, (Port_A, 0));
+      E := (TIM1, 1, False, (Port_A, 0), 1);
       Adaflight.Timer_Allocation.Allocate (Table, Tag, Who, Natural'Min (Ordinal, 16), K, Slot);
       Found := K /= 0 and then Tagged_Pin (Tag);
       if Found then
          declare
             C : Adaflight.Timer_Tables.Timer_Channel renames Adaflight.Timer_Tables.Channel (K);
          begin
-            E := (Timer => Name_Of (C.Timer), Channel => C.Channel, N => C.N, Where => Pin_Of (Tag));
+            E := (Timer => Name_Of (C.Timer), Channel => C.Channel, N => C.N, Where => Pin_Of (Tag),
+                  AF => Adaflight.STM32.GPIO.Alternate_Function (C.AF));
          end;
       end if;
    end Allocate;
@@ -76,7 +77,8 @@ package body Adaflight.STM32.Timers is
      (Timer   => Name_Of (Adaflight.Timer_Tables.Channel (K).Timer),
       Channel => Adaflight.Timer_Tables.Channel (K).Channel,
       N       => Adaflight.Timer_Tables.Channel (K).N,
-      Where   => Pin_Of (Tag));
+      Where   => Pin_Of (Tag),
+      AF      => Adaflight.STM32.GPIO.Alternate_Function (Adaflight.Timer_Tables.Channel (K).AF));
 
    --  The pin's configured channel when the owner holds it, zero otherwise.
    function Held_By
@@ -124,7 +126,7 @@ package body Adaflight.STM32.Timers is
         (if Tagged_Pin (Tag) then Adaflight.Timer_Allocation.Configured_Channel (Table, Tag) else 0);
    begin
       Found := K /= 0;
-      E := (if Found then Entry_Of (K, Tag) else (TIM1, 1, False, (Port_A, 0)));
+      E := (if Found then Entry_Of (K, Tag) else (TIM1, 1, False, (Port_A, 0), 1));
    end Peek;
 
    --  The stream's interrupt flag clear register and its six-bit group in it.

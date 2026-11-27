@@ -183,7 +183,7 @@ package body Adaflight.STM32.RX_Input is
       Regs : Timer_Registers with Import, Address => Timer_Base (E.Timer);
    begin
       GPIO.Enable_Port (E.Where.Port);
-      GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull);
+      GPIO.Set_Alternate (E.Where, E.AF, GPIO.No_Pull);
       Enable_Clock (E.Timer);
       Regs.CR1 := Regs.CR1 and not CEN;
       Set_Time_Base (E.Timer, Reload => 16#FFFF#, Prescale => Timer_Clock_Hz (E.Timer) / 1_000_000 - 1);
