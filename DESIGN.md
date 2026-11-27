@@ -17282,3 +17282,18 @@ region are invalidated after erasing and after programming.
 H7's image writes a marker block to its configuration sector when that sector lacks it. Under Renode a first boot
 wrote it: the sector read back the marker, 0xFF to its end, and no error flags. After a machine reset, a second boot
 found the marker kept.
+
+## D932. H7 USB (2026-11-27)
+
+An STM32H743's full-speed USB controller, USB2 OTG FS, has F7's core at 0x4008_0000 (D921's map), and F7's USB
+body drives it. Its kernel clock has no source until one is selected, and its supply has a voltage detector to turn
+on. F4 and F7 take USB's 48 MHz from the PLL that their run time sets.
+
+A USB clock unit now starts that clock before the controller's clock enable: nothing on F4 and F7. On H7 it turns
+on the 48 MHz internal oscillator and selects it as USB's kernel clock. It enables the clock recovery unit,
+trimming that oscillator from the controller's start of frame, and turns on the USB supply's voltage detector.
+KAKUTEF7's code grows by 8 bytes.
+
+H7's image starts the cycle counter and USB, then sends back every byte its USB serial port receives. Its checks now
+print each line after its own step. Renode's H743 has no USB controller: under Renode the oscillator read on and
+ready, the USB supply ready, and the image went on past USB's start.

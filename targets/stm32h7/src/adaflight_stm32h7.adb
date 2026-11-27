@@ -4,8 +4,9 @@
 --  and TIM15 to TIM17 at 1 kHz, whether DMA1 and DMA2 each copied a block
 --  of memory, a line each second with the transfers left to ADC1's DMA
 --  stream, the second gyro's identity read over SPI4, whether the
---  configuration sector's marker block was written or kept, and the board's
---  first LED blinking at 1 Hz, with the caches on and the D2 RAM uncached.
+--  configuration sector's marker block was written or kept, every byte the
+--  USB serial port receives sent back on it, and the board's first LED
+--  blinking at 1 Hz, with the caches on and the D2 RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
 with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
@@ -14,13 +15,16 @@ with Adaflight.STM32.CCM_Clear; pragma Unreferenced (Adaflight.STM32.CCM_Clear);
 with Adaflight.STM32.Cache; pragma Unreferenced (Adaflight.STM32.Cache);
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
+with Adaflight.STM32.Time;
 with Adaflight.STM32.USART; use Adaflight.STM32.USART;
+with Adaflight.STM32.USB;
 
 procedure Adaflight_Stm32h7 is
    pragma Compile_Time_Error (Adaflight.STM32.Platform.F4, "an STM32H7 image with the F4 platform");
    Line  : Port := (Which => UART1);
    Data  : Byte_Array (1 .. 64);
    Count : Natural;
+   Sent  : Natural;
    Ticks : Natural := 0;
    Seen  : Natural := 0;
    Halves : Natural := 0;
@@ -44,10 +48,17 @@ begin
    Put (Line, "config marker" & (if Adaflight.STM32.Bring_Up.Config_Marker_Written then " written"
                                  elsif Adaflight.STM32.Bring_Up.Config_Marker_Held then " kept" else " missing")
         & ASCII.CR & ASCII.LF);
+   Adaflight.STM32.Time.Init;
+   Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
+   Put (Line, "usb started" & ASCII.CR & ASCII.LF);
    loop
       Take (UART1, Data, Count);
       if Count > 0 then
          Put (Line, Data (Data'First .. Data'First + Count - 1));
+      end if;
+      Adaflight.STM32.USB.Take (Data, Count);
+      if Count > 0 then
+         Adaflight.STM32.USB.Send (Data (Data'First .. Data'First + Count - 1), Sent);
       end if;
       if Adaflight.STM32.Bring_Up.Edges /= Seen then
          Seen := Adaflight.STM32.Bring_Up.Edges;
