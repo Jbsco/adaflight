@@ -4,6 +4,7 @@ with Interfaces;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
+with Adaflight.STM32.USB_Clock;
 with Adaflight.USB_VCP;
 --  The STM32F7's USB device: the F4's core with the VBUS detection left
 --  off and the B session forced valid, since the board does not sense VBUS.
@@ -555,6 +556,7 @@ package body Adaflight.STM32.USB is
       GPIO.Set_Alternate (DM, 10, Rate => GPIO.Very_High);
       GPIO.Set_Alternate (DP, 10, Rate => GPIO.Very_High);
       RCC_SYSCFG_ENR := RCC_SYSCFG_ENR or 2 ** Adaflight.STM32.Memory.SYSCFG_Enable_Bit;
+      Adaflight.STM32.USB_Clock.Start;
       RCC_USB_ENR := RCC_USB_ENR or 2 ** Adaflight.STM32.Memory.USB_Enable_Bit;
       GAHBCFG := GAHBCFG and not GINTMSK_GLOBAL;
       GUSBCFG := GUSBCFG or PHYSEL;
