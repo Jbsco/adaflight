@@ -39,11 +39,11 @@ begin
    end loop;
    Adaflight.STM32.Bring_Up.Start_ADC_DMA;
    Adaflight.STM32.Bring_Up.Read_Gyro_2_Identity;
+   Put (Line, "spi4 gyro 2 identity" & Natural'Image (Adaflight.STM32.Bring_Up.Gyro_2_Identity) & ASCII.CR & ASCII.LF);
    Adaflight.STM32.Bring_Up.Keep_Config_Marker;
    Put (Line, "config marker" & (if Adaflight.STM32.Bring_Up.Config_Marker_Written then " written"
                                  elsif Adaflight.STM32.Bring_Up.Config_Marker_Held then " kept" else " missing")
         & ASCII.CR & ASCII.LF);
-   Put (Line, "spi4 gyro 2 identity" & Natural'Image (Adaflight.STM32.Bring_Up.Gyro_2_Identity) & ASCII.CR & ASCII.LF);
    loop
       Take (UART1, Data, Count);
       if Count > 0 then
