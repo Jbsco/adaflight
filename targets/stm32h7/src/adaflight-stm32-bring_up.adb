@@ -7,6 +7,7 @@ with Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
+with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Platform;
 with Adaflight.STM32.SPI;
@@ -184,4 +185,27 @@ package body Adaflight.STM32.Bring_Up is
    end Read_Gyro_2_Identity;
 
    function Gyro_2_Identity return Natural is (Identity);
+
+   Marker  : constant String := "adaflight STM32H7 configuration store";
+   Written : Boolean := False;
+
+   function Config_Marker_Held return Boolean is
+     (for all I in Marker'Range
+        => Flash.Config (I - Marker'First) = Adaflight.Bytes.Byte (Character'Pos (Marker (I))));
+
+   procedure Keep_Config_Marker is
+      Block : Adaflight.Bytes.Byte_Array (0 .. Marker'Length - 1);
+      OK    : Boolean;
+   begin
+      if Config_Marker_Held then
+         return;
+      end if;
+      for I in Block'Range loop
+         Block (I) := Adaflight.Bytes.Byte (Character'Pos (Marker (Marker'First + I)));
+      end loop;
+      Flash.Write (Block, OK);
+      Written := OK;
+   end Keep_Config_Marker;
+
+   function Config_Marker_Written return Boolean is (Written);
 end Adaflight.STM32.Bring_Up;

@@ -17267,3 +17267,18 @@ takes AF5 on port G and AF8 elsewhere.
 
 H7's image reads the second gyro's identity register over SPI4 at 1 MHz. Under Renode, with a generic SPI sensor on
 SPI4 fed 0x11 and 0x47, the read gave 0x47, and SPI4's pins were in AF5 with the select released.
+
+## D931. H7 configuration store (2026-11-27)
+
+An STM32H743's flash has its own register set at 0x5200_2000, one per bank, and 128 KB sectors. It programs flash
+words of 32 bytes with error correction, so each flash word goes in as eight 32-bit writes in a row. A bank queues
+each word until it has written it. Configuration data stays at the start of sector 1 (D921's map).
+
+H7 builds take their own flash body. It unlocks bank 1 and erases sector 1 with 32-bit parallelism. It then
+programs one flash word at a time, with barriers around each word's writes, and pads its last word with 0xFF. It
+waits for the bank's queue to empty after each word and stops at the first error flag. Data cache lines over the
+region are invalidated after erasing and after programming.
+
+H7's image writes a marker block to its configuration sector when that sector lacks it. Under Renode a first boot
+wrote it: the sector read back the marker, 0xFF to its end, and no error flags. After a machine reset, a second boot
+found the marker kept.

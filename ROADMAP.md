@@ -28,12 +28,11 @@ Silver with no assume, and pass the gates on `main`.
   strip, beeper, VTX control, GPS with rescue and position modes, flight plans, servos and wing support.
   `docs/building.md` lists what each board size leaves out.
 - Phase 7, in progress. Targets. `targets/stm32f4` builds STM32F405, STM32F411 and STM32F446 images, and
-  `targets/stm32f7` STM32F7 images. `targets/stm32h7` builds a first STM32H743 image with its UARTs, external
-  interrupts, timers, DMA and SPI. `targets/host` runs flight software on host, with UARTs and USB on TCP ports and
-  a physics simulator link. Drivers cover SPI, I2C, DMA, timers, USB, flash, SD
-  card, ADC on DMA, and DShot on timers and bit-banged on GPIO ports. 512 KB boards pack initialized data
-  and start-up code. Left: H7 flight software, other families Betaflight runs on, and USB mass storage,
-  which no board has run yet.
+  `targets/stm32f7` STM32F7 images. `targets/stm32h7` builds an STM32H743 image with UARTs, external
+  interrupts, timers, DMA, SPI and a configuration store. `targets/host` runs flight software on host, with UARTs
+  and USB on TCP ports and a simulator link. Drivers cover SPI, I2C, DMA, timers, USB, flash, SD card, ADC
+  on DMA, and DShot on timers and bit-banged on GPIO ports. 512 KB boards pack initialized data and start-up code.
+  Left: H7 flight software, other families Betaflight runs on, and USB mass storage, which no board has run yet.
 - Phase 8, in progress. Tooling. adaflight-configurator, the upstream configurator with adaflight's
   changes, builds and flashes from an adaflight checkout and shows a fit view for boards short of flash.
   `tools/dfu` flashes over DFU on Linux, and `tools/msp` sends MSP requests and backs up a configuration.
