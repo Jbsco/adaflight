@@ -4,11 +4,12 @@
 --  on each rising edge counted at the first gyro's interrupt pin, a line
 --  each second with the update counts of TIM1 and TIM15 to TIM17 at 1 kHz,
 --  whether DMA1 and DMA2 each copied a block of memory, a line each second
---  with the transfers left to ADC1's DMA stream, the second gyro's identity
---  read over SPI4, whether the configuration sector's marker block was
---  written or kept, a barometer's chip identifier read over I2C4, every byte
---  the USB serial port receives sent back on it, and the board's first LED
---  blinking at 1 Hz, with the caches on and the D2 RAM uncached.
+--  with ADC1's PC0 reading and ADC3's reference and temperature readings,
+--  the second gyro's identity read over SPI4, whether the configuration
+--  sector's marker block was written or kept, a barometer's chip identifier
+--  read over I2C4, every byte the USB serial port receives sent back on it,
+--  and the board's first LED blinking at 1 Hz, with the caches on and the D2
+--  RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
 with Interfaces;
 with Adaflight.Board;
@@ -57,7 +58,7 @@ begin
       Put (Line, "dma" & Natural'Image (C) & (if Adaflight.STM32.Bring_Up.Copied (C) then " copied" else " not copied")
            & ASCII.CR & ASCII.LF);
    end loop;
-   Adaflight.STM32.Bring_Up.Start_ADC_DMA;
+   Adaflight.STM32.Bring_Up.Start_ADC;
    Adaflight.STM32.Bring_Up.Read_Gyro_2_Identity;
    Put (Line, "spi4 gyro 2 identity" & Natural'Image (Adaflight.STM32.Bring_Up.Gyro_2_Identity) & ASCII.CR & ASCII.LF);
    Adaflight.STM32.Bring_Up.Keep_Config_Marker;
@@ -96,8 +97,13 @@ begin
                Put (Line, Natural'Image (Adaflight.STM32.Bring_Up.Updates (T)));
             end loop;
             Put (Line, "" & ASCII.CR & ASCII.LF);
-            Put (Line, "adc dma left" & Natural'Image (Adaflight.STM32.Bring_Up.ADC_Transfers_Left)
-                 & ASCII.CR & ASCII.LF);
+            declare
+               Reference, Temperature : Natural;
+            begin
+               Adaflight.STM32.Bring_Up.Read_Internal (Reference, Temperature);
+               Put (Line, "adc pc0" & Natural'Image (Adaflight.STM32.Bring_Up.ADC_Reading) & " reference"
+                    & Natural'Image (Reference) & " temperature" & Natural'Image (Temperature) & ASCII.CR & ASCII.LF);
+            end;
          end if;
       end if;
       Next := Next + Milliseconds (10);

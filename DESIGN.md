@@ -17327,3 +17327,23 @@ by family, F7's values unchanged, and F7's I2C body takes them. KAKUTEF7's image
 H7's image reads a barometer's chip identifier over I2C4 on PB6 and PB7. Under Renode, with a BMP180 model on I2C4,
 the read gave 0x55, PB6 and PB7 were in AF6, and I2C4's clock enable bit was set. Its reset check now runs when
 UART1 receives an R, as Renode does not reset on request and the check stopped every later one under Renode.
+
+## D935. H7 ADC (2026-11-27)
+
+An STM32H743's converters are another design than F4's and F7's. ADC1 and ADC2 share a common block at 0x4002_2300
+and ADC3 has its own at 0x5802_6300. Each converter wakes from deep power down, starts its regulator, calibrates
+its offset and reports ready before use. Inputs need preselection, resolution reaches 16 bits, and boost depends on
+silicon revision. Internal reference and temperature sensor sit on ADC3, channels 19 and 18. Their factory
+calibration words are 16-bit readings.
+
+H7 builds take their own ADC body under F4's interface. Converters run at a quarter of the 200 MHz bus clock with
+boost for 50 MHz: revision Y's single bit above 20 MHz, or revision V's 12.5 to 25 MHz range once halved. A scan
+preselects its channels, samples each for 387.5 cycles at 12 bits, and runs continuously into a circular DMA
+stream. ADC3's injected sequence converts both internal channels, and calibration words are shifted to 12 bits.
+
+Pin channels follow H743's table: ADC1 alone on PA0, PA1 and PF11, ADC3 alone on PC2 and PC3, all three on PC0 and
+PC1, ADC1 and ADC2 on the rest.
+
+H7's image scans PC0 on ADC1 into DMA1 stream 1 through DMAMUX1's request 9 and prints its reading each second.
+Under Renode, with 1.65 V fed on that channel, the reading was 2048. Renode's ADC3 ran no injected conversion, so
+both internal readings stay unchecked until an H7 board runs them.
