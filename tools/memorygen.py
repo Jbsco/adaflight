@@ -50,13 +50,13 @@ CLOCKS = {"STM32F405": (168_000_000, 42_000_000, 84_000_000), "STM32F411": (96_0
 # Peripheral addresses and clock enables that move between MCU families, for adaflight-stm32-memory.ads: the reset and
 # clock control registers the drivers write (peripheral bus resets and enables, the GPIO ports' clock enables, and
 # the registers and bits that enable the DMA controllers, the USB OTG FS core and SYSCFG), peripheral bases, then the
-# EXTI registers' offsets.
+# EXTI registers' offsets. DMAMUX1_Base is 0 on families that select a stream's request in its control register.
 MAP_F4_F7 = (("RCC_APB1_Reset", 0x4002_3820), ("RCC_APB2_Reset", 0x4002_3824), ("RCC_APB1_Enable", 0x4002_3840),
              ("RCC_APB2_Enable", 0x4002_3844), ("RCC_GPIO_Enable", 0x4002_3830), ("RCC_DMA_Enable", 0x4002_3830),
              ("DMA1_Enable_Bit", 21), ("RCC_USB_Enable", 0x4002_3834), ("USB_Enable_Bit", 7),
              ("RCC_SYSCFG_Enable", 0x4002_3844), ("SYSCFG_Enable_Bit", 14),
              ("GPIO_Base", 0x4002_0000), ("EXTI_Base", 0x4001_3C00), ("SYSCFG_Base", 0x4001_3800),
-             ("DMA1_Base", 0x4002_6000), ("DMA2_Base", 0x4002_6400), ("OTG_FS_Base", 0x5000_0000),
+             ("DMA1_Base", 0x4002_6000), ("DMA2_Base", 0x4002_6400), ("DMAMUX1_Base", 0), ("OTG_FS_Base", 0x5000_0000),
              ("EXTI_IMR", 0x00), ("EXTI_EMR", 0x04), ("EXTI_RTSR", 0x08), ("EXTI_FTSR", 0x0C), ("EXTI_SWIER", 0x10),
              ("EXTI_PR", 0x14))
 MAP_H7 = (("RCC_APB1_Reset", 0x5802_4490), ("RCC_APB2_Reset", 0x5802_4498), ("RCC_APB1_Enable", 0x5802_44E8),
@@ -64,7 +64,8 @@ MAP_H7 = (("RCC_APB1_Reset", 0x5802_4490), ("RCC_APB2_Reset", 0x5802_4498), ("RC
           ("DMA1_Enable_Bit", 0), ("RCC_USB_Enable", 0x5802_44D8), ("USB_Enable_Bit", 27),
           ("RCC_SYSCFG_Enable", 0x5802_44F4), ("SYSCFG_Enable_Bit", 1),
           ("GPIO_Base", 0x5802_0000), ("EXTI_Base", 0x5800_0000), ("SYSCFG_Base", 0x5800_0400),
-          ("DMA1_Base", 0x4002_0000), ("DMA2_Base", 0x4002_0400), ("OTG_FS_Base", 0x4008_0000),
+          ("DMA1_Base", 0x4002_0000), ("DMA2_Base", 0x4002_0400), ("DMAMUX1_Base", 0x4002_0800),
+          ("OTG_FS_Base", 0x4008_0000),
           ("EXTI_IMR", 0x80), ("EXTI_EMR", 0x84), ("EXTI_RTSR", 0x00), ("EXTI_FTSR", 0x04), ("EXTI_SWIER", 0x08),
           ("EXTI_PR", 0x88))
 

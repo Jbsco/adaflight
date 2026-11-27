@@ -43,16 +43,11 @@ package body Adaflight.STM32.Transponder_Output is
       if not Found then
          return;
       end if;
+      Option_Stream (E, Option_Of (Index), Found, S);
+      if not Found then
+         return;
+      end if;
       Found := False;
-      declare
-         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Option_Of (Index);
-      begin
-         if Option not in 0 .. O'Length - 1 then
-            return;
-         end if;
-         S := O (O'First + Option);
-      end;
       for M in 0 .. Adaflight.STM32.Motors.Count - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) = Number (S) then
             return;
@@ -113,7 +108,7 @@ package body Adaflight.STM32.Transponder_Output is
       DMA.M1AR := 0;
       DMA.FCR := 16#21#;
       Clear_Flags (Stream);
-      DMA.CR := Shift_Left (Unsigned_32 (Stream.Channel), 25) or PL_High or MSIZE_16 or PSIZE_16 or MINC or DIR_M2P;
+      DMA.CR := Request_Bits (Stream) or PL_High or MSIZE_16 or PSIZE_16 or MINC or DIR_M2P;
       DMA.FCR := DMA.FCR and not (DMDIS or 2#11#);
       DMA.PAR := CCR_Value (Channel.Timer, Channel.Channel);
       DMA.M0AR := Unsigned_32 (System.Storage_Elements.To_Integer (Toggles.Buffer'Address));

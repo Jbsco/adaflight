@@ -69,7 +69,7 @@ package body Adaflight.STM32.LED_Strip is
       DMA.M1AR := 0;
       DMA.FCR := 16#21#;
       Clear_Flags (S);
-      DMA.CR := Shift_Left (Unsigned_32 (S.Channel), 25) or PL_Very_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P;
+      DMA.CR := Request_Bits (S) or PL_Very_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P;
       DMA.FCR := DMA.FCR and not (DMDIS or 2#11#);
       DMA.NDTR := Buffer_Size;
       DMA.PAR := CCR_Value (E.Timer, E.Channel);
@@ -95,15 +95,10 @@ package body Adaflight.STM32.LED_Strip is
       if not Found then
          return;
       end if;
-      declare
-         O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
-         Option : constant Integer := Option_Of (Index);
-      begin
-         if Option not in 0 .. O'Length - 1 then
-            return;
-         end if;
-         S := O (O'First + Option);
-      end;
+      Option_Stream (E, Option_Of (Index), Found, S);
+      if not Found then
+         return;
+      end if;
       for M in 0 .. Adaflight.STM32.Motors.Count - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) = (S.Controller - 1) * 8 + S.Stream + 1 then
             return;
