@@ -150,15 +150,29 @@ def show(f: str, frame: dict, indirect: dict, dynamic: dict) -> None:
     print(f"  {frame.get(f, 0):6d} {f}{notes}")
 
 
+# The crates whose sources make an image, by the crate directory its file sits under: a package that a crate earlier
+# in the list provides is read from that crate alone.
+CRATES = {"stm32f4": ("stm32f4",), "stm32f7": ("stm32f7", "stm32f4"), "stm32h7": ("stm32h7", "stm32f7", "stm32f4")}
+crates = ("stm32f4", "stm32f7")
+
+
 def sources() -> list:
-    """The board crates' sources: package name, text without comments, and file name."""
+    """The image's board crates' sources: package name, text without comments, and file name."""
     out = []
+    taken = set()
     targets = Path(__file__).resolve().parent.parent / "targets"
-    for path in [p for crate in ("stm32f4", "stm32f7") for p in sorted((targets / crate / "src").glob("*.ad[bs]"))]:
-        text = re.sub(r"--[^\n]*", "", path.read_text())
-        package = re.search(r"^package (?:body )?([\w.]+)", text, re.M)
-        if package:
-            out.append((package.group(1).lower().replace(".", "__") + "__", text, path.name))
+    for crate in crates:
+        found = set()
+        for path in sorted((targets / crate / "src").glob("*.ad[bs]")):
+            text = re.sub(r"--[^\n]*", "", path.read_text())
+            package = re.search(r"^package (body )?([\w.]+)", text, re.M)
+            if package:
+                key = (package.group(1) is not None, package.group(2).lower())
+                if key in taken:
+                    continue
+                found.add(key)
+                out.append((package.group(2).lower().replace(".", "__") + "__", text, path.name))
+        taken |= found
     return out
 
 
@@ -261,6 +275,8 @@ def main() -> None:
     if len(sys.argv) not in (2, 4) or len(sys.argv) == 4 and (sys.argv[2] != "--paths" or not sys.argv[3].isdigit()):
         raise SystemExit(__doc__)
     elf = Path(sys.argv[1])
+    global crates
+    crates = CRATES.get(elf.resolve().parent.parent.name, crates)
     more = int(sys.argv[3]) - 1 if len(sys.argv) == 4 else 0
     frame, calls, indirect, dynamic, floating = graph(elf)
     syms = symbols(elf)
