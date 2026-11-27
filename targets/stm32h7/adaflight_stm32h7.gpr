@@ -19,6 +19,7 @@ project Adaflight_Stm32h7 is
       for Spec ("Adaflight.STM32.Platform") use "adaflight-stm32-platform__stm32h7.ads";
       for Body ("Adaflight.STM32.Cache") use "adaflight-stm32-cache__stm32h7.adb";
       for Body ("Adaflight.STM32.CCM_Clear") use "adaflight-stm32-ccm_clear__stm32h7.adb";
+      for Body ("Adaflight.STM32.SPI") use "adaflight-stm32-spi__stm32h7.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-stm32-usart__stm32f7.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-stm32-usb__stm32f7.adb";
       for Body ("Adaflight.STM32.I2C") use "adaflight-stm32-i2c__stm32f7.adb";
