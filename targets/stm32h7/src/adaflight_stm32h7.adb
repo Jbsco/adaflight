@@ -1,6 +1,6 @@
 --  The STM32H7 image so far: a banner on UART1 at 115200 baud, the reset's
---  kind and a request kept in the backup registers over a software reset
---  that the first start makes, every byte received there sent back, a line
+--  kind and a request kept in the backup registers over the software reset
+--  that an R on UART1 makes, every byte received there sent back, a line
 --  on each rising edge counted at the first gyro's interrupt pin, a line
 --  each second with the update counts of TIM1 and TIM15 to TIM17 at 1 kHz,
 --  whether DMA1 and DMA2 each copied a block of memory, a line each second
@@ -49,9 +49,6 @@ begin
       Put (Line, (if Adaflight.STM32.MCU.Software_Reset then "software reset" else "other reset")
            & (if Asked then ", request kept with" & Interfaces.Unsigned_64'Image (Time_Ms) else ", no request")
            & ASCII.CR & ASCII.LF);
-      if not Adaflight.STM32.MCU.Software_Reset then
-         Adaflight.STM32.MCU.Reset_To_Mass_Storage (16#0123_4567_89AB#);
-      end if;
    end;
    Adaflight.STM32.Bring_Up.Watch_Gyro_Interrupt;
    Adaflight.STM32.Bring_Up.Start_Timers;
@@ -74,6 +71,9 @@ begin
       Take (UART1, Data, Count);
       if Count > 0 then
          Put (Line, Data (Data'First .. Data'First + Count - 1));
+         if Character'Val (Data (Data'First)) = 'R' then
+            Adaflight.STM32.MCU.Reset_To_Mass_Storage (16#0123_4567_89AB#);
+         end if;
       end if;
       Adaflight.STM32.USB.Take (Data, Count);
       if Count > 0 then
