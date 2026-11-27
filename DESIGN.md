@@ -17310,7 +17310,20 @@ stack from the bootloader's table. Its clocks stay as they are. Before the jump
 it marks the reset reason as a bootloader start. A start with no reset flag comes from the bootloader's jump back
 and keeps the backup words. That mark then restarts it once through a system reset, as F4's MEMRMP check does.
 
-H7's image makes a mass storage request with a time value at its first start, which resets it. Under Renode, the
+H7's image made a mass storage request with a time value at its first start, which reset it. Under Renode, the
 backup registers held the magic word, the request and both halves of the time, with DBP set. Renode's H743 left
 RCC_RSR at its reset value and did not reset on the request, so the second start's read stays unchecked until an H7
 board runs it.
+
+## D934. H7 I2C4 (2026-11-27)
+
+An STM32H743's I2C1 to I2C3 sit at F7's addresses with F7's register set, on its 100 MHz APB1 clock. Its I2C4 sits
+in the D3 domain at 0x5800_1C00, with its clock enable and reset in bit 7 of RCC's APB4 registers. On port B its
+pins take AF6, where its other I2C pins take AF4. Three H743 board configurations put I2C4 on PB6 and PB7.
+
+The memory map now gives I2C4's base, clock enable and reset registers, enable bit and port B alternate function
+by family, F7's values unchanged, and F7's I2C body takes them. KAKUTEF7's image keeps its size.
+
+H7's image reads a barometer's chip identifier over I2C4 on PB6 and PB7. Under Renode, with a BMP180 model on I2C4,
+the read gave 0x55, PB6 and PB7 were in AF6, and I2C4's clock enable bit was set. Its reset check now runs when
+UART1 receives an R, as Renode does not reset on request and the check stopped every later one under Renode.

@@ -2,8 +2,8 @@
 --  interrupt pin, counted from its external interrupt line, update
 --  interrupts of TIM1 and TIM15 to TIM17, each counting at 1 kHz, memory
 --  copies by DMA1 and DMA2, ADC1 conversions to DMA1 through DMAMUX1, and
---  the second gyro's identity read over SPI4, and a marker block kept in the
---  configuration sector.
+--  the second gyro's identity read over SPI4, a marker block kept in the
+--  configuration sector, and a barometer's chip identifier read over I2C4.
 with Adaflight.STM32.Timers;
 package Adaflight.STM32.Bring_Up is
    procedure Watch_Gyro_Interrupt;
@@ -35,4 +35,9 @@ package Adaflight.STM32.Bring_Up is
    procedure Keep_Config_Marker;
    function Config_Marker_Written return Boolean;
    function Config_Marker_Held return Boolean;
+
+   --  A BMP180's chip identifier register read over I2C4 on PB6 and PB7,
+   --  zero when the read failed.
+   procedure Read_Barometer_Identity;
+   function Barometer_Identity return Natural;
 end Adaflight.STM32.Bring_Up;

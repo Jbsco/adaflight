@@ -9,6 +9,7 @@ with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.I2C;
 with Adaflight.STM32.Platform;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Timer_Dispatch;
@@ -208,4 +209,19 @@ package body Adaflight.STM32.Bring_Up is
    end Keep_Config_Marker;
 
    function Config_Marker_Written return Boolean is (Written);
+
+   Barometer : Natural := 0;
+
+   procedure Read_Barometer_Identity is
+      BMP180_Address  : constant := 16#77#;
+      Chip_Identifier : constant := 16#D0#;
+      Reply : Adaflight.Bytes.Byte_Array (1 .. 1);
+      OK    : Boolean;
+   begin
+      I2C.Init (I2C.I2C4, (Port_B, 6), (Port_B, 7));
+      I2C.Read (I2C.I2C4, BMP180_Address, Chip_Identifier, Reply, OK);
+      Barometer := (if OK then Natural (Reply (1)) else 0);
+   end Read_Barometer_Identity;
+
+   function Barometer_Identity return Natural is (Barometer);
 end Adaflight.STM32.Bring_Up;

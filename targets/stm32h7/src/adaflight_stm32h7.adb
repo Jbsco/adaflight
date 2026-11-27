@@ -6,9 +6,9 @@
 --  whether DMA1 and DMA2 each copied a block of memory, a line each second
 --  with the transfers left to ADC1's DMA stream, the second gyro's identity
 --  read over SPI4, whether the configuration sector's marker block was
---  written or kept, every byte the USB serial port receives sent back on it,
---  and the board's first LED blinking at 1 Hz, with the caches on and the D2
---  RAM uncached.
+--  written or kept, a barometer's chip identifier read over I2C4, every byte
+--  the USB serial port receives sent back on it, and the board's first LED
+--  blinking at 1 Hz, with the caches on and the D2 RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
 with Interfaces;
 with Adaflight.Board;
@@ -65,6 +65,9 @@ begin
                                  elsif Adaflight.STM32.Bring_Up.Config_Marker_Held then " kept" else " missing")
         & ASCII.CR & ASCII.LF);
    Adaflight.STM32.Time.Init;
+   Adaflight.STM32.Bring_Up.Read_Barometer_Identity;
+   Put (Line, "i2c4 barometer identity" & Natural'Image (Adaflight.STM32.Bring_Up.Barometer_Identity)
+        & ASCII.CR & ASCII.LF);
    Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
    Put (Line, "usb started" & ASCII.CR & ASCII.LF);
    loop
