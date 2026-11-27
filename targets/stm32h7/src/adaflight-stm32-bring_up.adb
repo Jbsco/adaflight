@@ -5,6 +5,7 @@ with System.Storage_Elements;
 with Adaflight.Board;
 with Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.STM32.ADC;
 with Adaflight.STM32.EXTI;
 with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.Flash;
@@ -113,59 +114,33 @@ package body Adaflight.STM32.Bring_Up is
 
    function Copied (Controller : Positive) return Boolean is (Controller in Done'Range and then Done (Controller));
 
-   ADC1_Request : constant := 9;
-   ADC_Stream   : constant DMA_Stream := (Controller => 1, Stream => 1, Channel => ADC1_Request);
-
-   RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#5802_44D8#);
-   ADC_ISR     : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_2000#);
-   ADC_CR      : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_2008#);
-   ADC_CFGR    : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_200C#);
-   ADC_PCSEL   : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_201C#);
-   ADC_SQR1    : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_2030#);
-   ADC_CCR     : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_2308#);
-   ADC_DR      : constant := 16#4002_2040#;
-
-   ADC12EN  : constant Unsigned_32 := 2 ** 5;
-   ADEN     : constant Unsigned_32 := 2 ** 0;
-   ADSTART  : constant Unsigned_32 := 2 ** 2;
-   ADVREGEN : constant Unsigned_32 := 2 ** 28;
-   DEEPPWD  : constant Unsigned_32 := 2 ** 29;
-   ADRDY    : constant Unsigned_32 := 2 ** 0;
-   DMNGT_DMA_One_Shot : constant Unsigned_32 := 2 ** 0;
-   CONT     : constant Unsigned_32 := 2 ** 13;
-   CKMODE_4 : constant Unsigned_32 := 2#11# * 2 ** 16;
-   Input    : constant := 3;
-
-   Samples : array (1 .. 16) of Unsigned_16 := (others => 0)
-     with Volatile, Linker_Section => Adaflight.STM32.Platform.DMA_Section;
-   ADC_DMA : Stream_Registers with Import, Address => Stream_Address (ADC_Stream);
-
-   procedure Start_ADC_DMA is
+   procedure Start_ADC is
+      Inputs : Adaflight.STM32.ADC.Input_Pins := (others => (Port_C, 0));
    begin
-      RCC_AHB1ENR := RCC_AHB1ENR or ADC12EN;
-      ADC_CCR := ADC_CCR or CKMODE_4;
-      ADC_CR := ADC_CR and not DEEPPWD;
-      ADC_CR := ADC_CR or ADVREGEN;
-      delay until Ada.Real_Time."+" (Ada.Real_Time.Clock, Ada.Real_Time.Microseconds (20));
-      ADC_ISR := ADRDY;
-      ADC_CR := ADC_CR or ADEN;
-      for Wait in 1 .. 100_000 loop
-         exit when (ADC_ISR and ADRDY) /= 0;
-      end loop;
-      ADC_PCSEL := 2 ** Input;
-      ADC_SQR1 := Shift_Left (Input, 6);
-      ADC_CFGR := DMNGT_DMA_One_Shot or CONT;
-      Enable_DMA (ADC_Stream);
-      ADC_DMA.CR := 0;
-      Clear_Flags (ADC_Stream);
-      ADC_DMA.PAR := ADC_DR;
-      ADC_DMA.M0AR := Bus_Address (Samples'Address);
-      ADC_DMA.NDTR := Samples'Length;
-      ADC_DMA.CR := Request_Bits (ADC_Stream) or PSIZE_16 or MSIZE_16 or MINC or EN;
-      ADC_CR := ADC_CR or ADSTART;
-   end Start_ADC_DMA;
+      Adaflight.STM32.ADC.Init;
+      Adaflight.STM32.ADC.Start_Scan
+        (Device => 0, Inputs => Inputs, Count => 1, Stream => (Controller => 1, Stream => 1, Channel => 9),
+         Has_Stream => True, Taken => (others => False));
+      Adaflight.STM32.ADC.Init_Internal;
+      Adaflight.STM32.ADC.Start_Internal;
+   end Start_ADC;
 
-   function ADC_Transfers_Left return Natural is (Natural (ADC_DMA.NDTR and 16#FFFF#));
+   function ADC_Reading return Natural is (Natural (Adaflight.STM32.ADC.Scanned (0)));
+
+   Reference_Reading, Temperature_Reading : Natural := 0;
+
+   procedure Read_Internal (Reference, Temperature : out Natural) is
+      Busy : Boolean;
+   begin
+      Adaflight.STM32.ADC.Check_Internal (Busy);
+      if not Busy then
+         Reference_Reading := Natural (Adaflight.STM32.ADC.Reference_Sample);
+         Temperature_Reading := Natural (Adaflight.STM32.ADC.Temperature_Sample);
+         Adaflight.STM32.ADC.Start_Internal;
+      end if;
+      Reference := Reference_Reading;
+      Temperature := Temperature_Reading;
+   end Read_Internal;
 
    Identity : Natural := 0;
 
