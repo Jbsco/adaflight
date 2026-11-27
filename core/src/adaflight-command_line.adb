@@ -7131,7 +7131,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Put_Timer_Channel;
 
-   --  A DMA stream as DMA1 Stream 4 Channel 0.
+   --  A DMA stream as DMA1 Stream 4 Channel 0, or Request in place of Channel
+   --  on a family with a DMA multiplexer.
    procedure Put_Stream (Into : in out Output; S : Timer_Tables.DMA_Stream)
      with Global => null
    is
@@ -7140,7 +7141,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Decimal (Into, Integer_64 (S.Controller));
       Put (Into, " Stream ");
       Put_Decimal (Into, Integer_64 (S.Stream));
-      Put (Into, " Channel ");
+      Put (Into, (if Timer_Tables.Request_Multiplexed then " Request " else " Channel "));
       Put_Decimal (Into, Integer_64 (S.Channel));
    end Put_Stream;
 
@@ -7332,7 +7333,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if Found then
             Put_Stream (Into, Stream);
          else
-            Put (Into, "DMA0 Stream 0 Channel 0");
+            Put (Into, "DMA0 Stream 0");
+            Put (Into, (if Timer_Tables.Request_Multiplexed then " Request 0" else " Channel 0"));
          end if;
          Put (Into, CRLF);
       end if;

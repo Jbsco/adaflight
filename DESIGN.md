@@ -17185,3 +17185,23 @@ bounds: timer numbers 1 to 14, DMA channels 0 to 7, three options for a timer ch
 Vectors check the tables' content. H7's table and its DMA options need wider bounds, which come with its body.
 
 Command line vectors pass unchanged. GEPRCF411's image keeps its code, data and RAM sizes.
+
+## D926. STM32H743 timer and DMA tables (2026-11-26)
+
+H7 boards name timer pins by their occurrence in the H743's timer table, and an H743 DMA option names a stream.
+D925's spec now has bounds for every family: timer numbers 1 to 17, DMA channels 0 to 127, and 16 options for a
+timer channel or a peripheral. `Request_Multiplexed` tells the command line to print Request in place of Channel.
+
+D521's generator now also writes `adaflight-timer_tables__stm32h7.adb`: the H743's timer table, each pin's alternate
+function, the timers in the order of its timer definitions, and each timer channel's and device's DMA multiplexer
+request. Option N of a device or timer channel with a request is stream N mod 8 of DMA1 for N below 8, else of DMA2,
+with that request as its channel. The core project takes this body when `ADAFLIGHT_MCU_FAMILY` is stm32h7, which
+the H7 crate sets. F405's body keeps option counts of three and two, so its tables keep their size.
+
+H7 builds give LPUART1 no DMA options. The reference gives its options DMAMUX2 request numbers on DMA1 and DMA2
+streams, where DMAMUX1 reads them as ADC2's and ADC1's requests (F373).
+
+The unit selector leaves naming variants out, so a PR proof and the nightly's first shard now prove each family
+body under its family. Both bodies and every unit depending on the spec prove locally with no unproved check and
+no assume. Command line vectors pass unchanged. GEPRCF411's code grows by 48 bytes for the Request wording, and its
+data and RAM keep their sizes.

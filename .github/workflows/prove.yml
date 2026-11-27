@@ -105,7 +105,7 @@ jobs:
           grep -q "(0 pragma Assume, 0 justified" prove-output.log
 
   # The check a pull request needs: every shard proved, or no core unit to
-  # prove, and the tools' own proofs.
+  # prove, the tools' own proofs, and each MCU family's body under its family.
   prove:
     needs: [select, prove-units]
     if: always() && github.event_name == 'pull_request'
@@ -173,9 +173,20 @@ jobs:
           grep -q "all checks proved" prove-output.log
           ! grep -rn "pragma Assume" src
 
+      - name: Prove the MCU family bodies
+        env:
+          PROVE_JOBS: 4
+          PROVE_SWITCHES: --timeout=900
+        run: |
+          set -o pipefail
+          ADAFLIGHT_MCU_FAMILY=stm32h7 PROVE_UNITS="$(cd core/src && ls *__stm32h7.adb | tr '\n' ' ')" \
+            bash prove.do 2>&1 | tee prove-family-output.log
+          grep -q "core 100% proved" prove-family-output.log
+          grep -q "(0 pragma Assume, 0 justified" prove-family-output.log
+
   # The nightly run proves every unit of the core, a generic unit through its
-  # instantiations, in six shards of about equal source, each within an
-  # eight hour limit; the shard that held the terminal and the menu contents
+  # instantiations, in six shards of about equal source, the first also each MCU
+  # family's body, each within an eight hour limit; the shard that held the terminal and the menu contents
   # passed the six hour limit of four shards on 2026-10-25.
   prove-core:
     if: github.event_name != 'pull_request'
@@ -230,3 +241,15 @@ jobs:
           PROVE_UNITS="$(tr '\n' ' ' < units.txt)" bash prove.do 2>&1 | tee prove-output.log
           grep -q "core 100% proved" prove-output.log
           grep -q "(0 pragma Assume, 0 justified" prove-output.log
+
+      - name: Prove the MCU family bodies
+        if: matrix.shard == 0
+        env:
+          PROVE_JOBS: 4
+          PROVE_SWITCHES: --timeout=900
+        run: |
+          set -o pipefail
+          ADAFLIGHT_MCU_FAMILY=stm32h7 PROVE_UNITS="$(cd core/src && ls *__stm32h7.adb | tr '\n' ' ')" \
+            bash prove.do 2>&1 | tee prove-family-output.log
+          grep -q "core 100% proved" prove-family-output.log
+          grep -q "(0 pragma Assume, 0 justified" prove-family-output.log

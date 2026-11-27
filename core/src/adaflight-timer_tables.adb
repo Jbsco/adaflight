@@ -20,14 +20,17 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
       (93, 1, 3, False, 1), (94, 1, 4, False, 1), (85, 9, 1, False, 3), (86, 9, 2, False, 3),
       (102, 10, 1, False, 3), (103, 11, 1, False, 3));
 
-   type Timer_Options is array (1 .. Max_Timer_Options) of DMA_Stream;
-   type Peripheral_Options is array (1 .. Max_Peripheral_Options) of DMA_Stream;
+   --  The most DMA options a timer channel and a peripheral have here.
+   Timer_Option_Count      : constant := 3;
+   Peripheral_Option_Count : constant := 2;
+   type Timer_Options is array (1 .. Timer_Option_Count) of DMA_Stream;
+   type Peripheral_Options is array (1 .. Peripheral_Option_Count) of DMA_Stream;
 
    --  A timer channel's DMA stream options, in option number order.
    type Timer_DMA is record
       Timer   : Timer_Number;
       Channel : Channel_Number;
-      Count   : Natural range 0 .. Max_Timer_Options;
+      Count   : Natural range 0 .. Timer_Option_Count;
       Options : Timer_Options;
    end record;
    type Timer_DMA_List is array (Positive range <>) of Timer_DMA;
@@ -50,7 +53,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
    type Peripheral_DMA is record
       Which   : Peripheral;
       Device  : Natural range 0 .. 15;
-      Count   : Natural range 0 .. Max_Peripheral_Options;
+      Count   : Natural range 0 .. Peripheral_Option_Count;
       Options : Peripheral_Options;
    end record;
    type Peripheral_DMA_List is array (Positive range <>) of Peripheral_DMA;
@@ -75,6 +78,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
    function Channel (K : Positive) return Timer_Channel is (Channels (K));
    function Timer_Count return Natural is (Timers'Last);
    function Timer_At (I : Positive) return Timer_Number is (Timers (I));
+   function Request_Multiplexed return Boolean is (False);
 
    function By_Tag_And_Index (Tag : Unsigned_8; Index : Natural) return Natural is
       Seen : Natural := 0;
@@ -112,7 +116,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
    begin
       Found := False;
       Stream := (1, 0, 0);
-      if Option not in 0 .. Max_Timer_Options - 1 then
+      if Option not in 0 .. Timer_Option_Count - 1 then
          return;
       end if;
       for K in Timer_Streams'Range loop
@@ -132,7 +136,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
    begin
       Found := False;
       Stream := (1, 0, 0);
-      if Option not in 0 .. Max_Peripheral_Options - 1 then
+      if Option not in 0 .. Peripheral_Option_Count - 1 then
          return;
       end if;
       for K in Peripheral_Streams'Range loop
@@ -148,7 +152,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
 
    function Has_Timer_Option (Timer : Timer_Number; Channel : Channel_Number; Option : Integer) return Boolean is
    begin
-      if Option not in 0 .. Max_Timer_Options - 1 then
+      if Option not in 0 .. Timer_Option_Count - 1 then
          return False;
       end if;
       for K in Timer_Streams'Range loop
@@ -163,7 +167,7 @@ package body Adaflight.Timer_Tables with SPARK_Mode is
 
    function Has_Peripheral_Option (Which : Peripheral; Device : Natural; Option : Integer) return Boolean is
    begin
-      if Option not in 0 .. Max_Peripheral_Options - 1 then
+      if Option not in 0 .. Peripheral_Option_Count - 1 then
          return False;
       end if;
       for K in Peripheral_Streams'Range loop
