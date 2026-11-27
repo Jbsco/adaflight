@@ -156,7 +156,7 @@ package body Adaflight.STM32.ADC is
          S.PAR := Base (Device) + 16#4C#;
          S.M0AR := Unsigned_32 (System.Storage_Elements.To_Integer (Results'Address));
          S.NDTR := Unsigned_32 (Count);
-         S.CR := Interfaces.Shift_Left (Unsigned_32 (Stream.Channel), 25) or PL_High or Sizes_16
+         S.CR := Request_Bits (Stream) or PL_High or Sizes_16
            or (if Count > 1 then MINC else 0) or Circular;
          S.CR := S.CR or EN;
       end;

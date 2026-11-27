@@ -69,7 +69,7 @@ package body Adaflight.STM32.LED_Strip is
       DMA.M1AR := 0;
       DMA.FCR := 16#21#;
       Clear_Flags (S);
-      DMA.CR := Shift_Left (Unsigned_32 (S.Channel), 25) or PL_Very_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P;
+      DMA.CR := Request_Bits (S) or PL_Very_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P;
       DMA.FCR := DMA.FCR and not (DMDIS or 2#11#);
       DMA.NDTR := Buffer_Size;
       DMA.PAR := CCR_Value (E.Timer, E.Channel);

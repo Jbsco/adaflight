@@ -207,7 +207,7 @@ package body Adaflight.STM32.Motors is
          end if;
          Port.BSRR := H.Idle;
          Port.MODER := (Port.MODER and not H.Mode_Mask) or H.Mode_Output;
-         S.CR := Shift_Left (Unsigned_32 (H.Stream.Channel), 25) or PL_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P
+         S.CR := Request_Bits (H.Stream) or PL_High or MSIZE_32 or PSIZE_32 or MINC or DIR_M2P
            or TCIE;
          S.FCR := DMDIS;
          S.NDTR := BB.Buffer_Length;
@@ -226,7 +226,7 @@ package body Adaflight.STM32.Motors is
          Port : GPIO.Port_Registers with Import, Address => GPIO.Port_Base (H.Port);
       begin
          Port.MODER := Port.MODER and not H.Mode_Mask;
-         S.CR := Shift_Left (Unsigned_32 (H.Stream.Channel), 25) or PL_Very_High or MSIZE_32 or PSIZE_16 or MINC
+         S.CR := Request_Bits (H.Stream) or PL_Very_High or MSIZE_32 or PSIZE_16 or MINC
            or TCIE;
          S.FCR := DMDIS;
          S.NDTR := Adaflight.DShot.Max_Samples;
@@ -495,7 +495,7 @@ package body Adaflight.STM32.Motors is
       Stream.M1AR := 0;
       Stream.FCR := 16#21#;
       Clear_Flags (O.Stream);
-      Stream.CR := Shift_Left (Unsigned_32 (O.Stream.Channel), 25) or PL_High or MSIZE_32 or PSIZE_32 or MINC
+      Stream.CR := Request_Bits (O.Stream) or PL_High or MSIZE_32 or PSIZE_32 or MINC
         or DIR_M2P or (if Bidir then TCIE else 0);
       Stream.FCR := DMDIS;
       Stream.PAR := CCR_Value (O.Timer, O.Channel);

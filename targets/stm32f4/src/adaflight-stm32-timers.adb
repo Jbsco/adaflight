@@ -152,6 +152,15 @@ package body Adaflight.STM32.Timers is
    procedure Enable_DMA (S : DMA_Stream) is
    begin
       RCC_DMA_ENR := RCC_DMA_ENR or Shift_Left (1, Adaflight.STM32.Memory.DMA1_Enable_Bit - 1 + S.Controller);
+      if Request_Mux then
+         declare
+            Route : Unsigned_32 with Volatile, Import,
+              Address => System'To_Address
+                (Adaflight.STM32.Memory.DMAMUX1_Base + 4 * Unsigned_32 (8 * (S.Controller - 1) + S.Stream));
+         begin
+            Route := Unsigned_32 (S.Channel);
+         end;
+      end if;
    end Enable_DMA;
 
    procedure Enable_Clock (T : Timer_Name) is

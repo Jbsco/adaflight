@@ -119,6 +119,14 @@ package Adaflight.STM32.Timers is
    function Stream_Address (S : DMA_Stream) return System.Address is
      (System'To_Address (DMA_Base (S.Controller) + 16#10# + 16#18# * Unsigned_32 (S.Stream)));
 
+   --  Whether the family routes each stream's request through DMAMUX1 in
+   --  place of the stream's channel selection bits.
+   Request_Mux : constant Boolean := Adaflight.STM32.Memory.DMAMUX1_Base /= 0;
+
+   --  The stream control register's channel selection bits.
+   function Request_Bits (S : DMA_Stream) return Unsigned_32 is
+     (if Request_Mux then 0 else Shift_Left (Unsigned_32 (S.Channel), 25));
+
    EN       : constant Unsigned_32 := 2 ** 0;
    DIR_M2P  : constant Unsigned_32 := 2 ** 6;
    MINC     : constant Unsigned_32 := 2 ** 10;
@@ -127,7 +135,8 @@ package Adaflight.STM32.Timers is
    PL_High  : constant Unsigned_32 := 2 ** 17;
    DMDIS    : constant Unsigned_32 := 2 ** 2;
 
-   --  A stream's flags cleared, and its controller's clock on.
+   --  A stream's flags cleared, and its controller's clock on with the
+   --  stream's request routed to it through DMAMUX1 on a family that has one.
    procedure Clear_Flags (S : DMA_Stream);
    procedure Enable_DMA (S : DMA_Stream);
 
