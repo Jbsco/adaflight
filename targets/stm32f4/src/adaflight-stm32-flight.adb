@@ -2530,8 +2530,8 @@ package body Adaflight.STM32.Flight is
    end Run_ADC_Internal;
 
    --  The internal channels with the stored calibration overrides or the
-   --  chip's words, then nine passes of the task to fill the averages. The
-   --  slope takes the processor's zero quotient for equal sensor readings
+   --  chip's words, then nine passes of the task to fill the averages, each
+   --  after at most a millisecond's wait for its conversion. The slope takes the processor's zero quotient for equal sensor readings
    --  and holds to the internal ADC unit's bound.
    procedure Init_Internal_ADC is
       A    : Adaflight.Config_Groups.Adc_Config_Record renames Config.Adc_Config;
@@ -2549,10 +2549,14 @@ package body Adaflight.STM32.Flight is
          Ts_Slope_K  => Integer_32'Max (-10_000, Integer_32'Min (10_000, Slope)));
       Adaflight.Internal_ADC.Init (Internal);
       for Pass in 1 .. 9 loop
-         loop
-            Adaflight.STM32.ADC.Check_Internal (Busy);
-            exit when not Busy;
-         end loop;
+         declare
+            Start : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+         begin
+            loop
+               Adaflight.STM32.ADC.Check_Internal (Busy);
+               exit when not Busy or else Adaflight.STM32.Time.Micros - Start >= 1_000;
+            end loop;
+         end;
          Run_ADC_Internal;
       end loop;
    end Init_Internal_ADC;
