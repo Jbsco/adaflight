@@ -88,6 +88,30 @@ def spi_device(text: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+# The MCU targets whose own headers name both SD card modes, and those naming the SPI mode alone; a board's
+# configuration can name either mode itself, as F405 boards name the SPI mode.
+SDCARD_SDIO_MCUS = {"STM32F411", "STM32F446", "STM32F722", "STM32F745", "STM32H562", "STM32H563", "STM32H723",
+                    "STM32H725", "STM32H735", "STM32H743", "STM32H753", "STM32N657"}
+SDCARD_SPI_MCUS = SDCARD_SDIO_MCUS | {"STM32C562", "STM32C591", "STM32C5A3"}
+
+
+def sdcard_mode(defines: dict) -> int:
+    """The SD card's default mode, 0 off, 1 SPI or 2 SDIO: none without USE_SDCARD, otherwise SDIO where the build
+    has that mode, else SPI, then SPI for a named SPI bus and select pin, and SDIO for a named SDIO device."""
+    if "USE_SDCARD" not in defines:
+        return 0
+    mcu = defines.get("FC_TARGET_MCU", "")
+    sdio = mcu in SDCARD_SDIO_MCUS or "USE_SDCARD_SDIO" in defines
+    spi = mcu in SDCARD_SPI_MCUS or "USE_SDCARD_SPI" in defines
+    mode = 2 if sdio else 1 if spi else 0
+    if spi and spi_device(defines.get("SDCARD_SPI_INSTANCE", "")) > 0 \
+            and re.fullmatch(r"P[A-K]\d{1,2}", defines.get("SDCARD_SPI_CS_PIN", "")):
+        mode = 1
+    if sdio and defines.get("SDIO_DEVICE", "SDIOINVALID") not in ("", "SDIOINVALID"):
+        mode = 2
+    return mode
+
+
 def serial_port(text) -> int:
     """A serial port name's identifier as the reference numbers them, -1 for none."""
     text = re.sub(r"//.*|/\*.*?\*/", "", text or "").strip()
@@ -408,6 +432,7 @@ def generate(config: Path, overrides: dict) -> str:
                 ("VTX_SPI_Device", spi_device(defines.get("RTC6705_SPI_INSTANCE", ""))),
                 ("LED_Inversion", sum(1 << n for n in range(3) if f"LED{n}_INVERTED" in defines)),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
+                ("SDCARD_Mode", sdcard_mode(defines)),
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),
                 ("SDCARD_Detect_Low", "True" if "SDCARD_DETECT_INVERTED" in defines else "False"),
                 ("Default_Blackbox_Device", BLACKBOX_DEVICES[defines.get("DEFAULT_BLACKBOX_DEVICE",

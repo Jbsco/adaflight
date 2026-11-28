@@ -3,7 +3,6 @@ with Adaflight.Sensor_Alignment;
 with Adaflight.Serial_Feature_Map;
 
 package body Adaflight.Board_Info with SPARK_Mode is
-   use type Interfaces.Integer_8;
    use type Interfaces.Unsigned_8;
 
    --  A gyro's custom angles as its alignment gives them: a standard
@@ -152,7 +151,7 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Sdcard_Config.Chip_Select_Tag := H.SD_CS_Tag;
       C.Sdcard_Config.Card_Detect_Tag := H.SD_Detect_Tag;
       C.Sdcard_Config.Card_Detect_Inverted := (if H.SD_Detect_Low then 1 else 0);
-      C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
+      C.Sdcard_Config.Mode := H.SD_Mode;
       C.Flash_Config.Spi_Device := H.Flash_SPI_Device;
       C.Flash_Config.Cs_Tag := H.Flash_CS_Tag;
       for I in 0 .. Natural'Min (Gyros, Gyro_Defaults_List'Length) - 1 loop
