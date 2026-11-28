@@ -45,6 +45,8 @@ FEATURES = [
     ("Transponder", 1024, "The race transponder on a timer."),
     ("Soft_Serial", 1024, "The two software serial ports on timers."),
     ("SD_Card", 1024, "The SD card as a flight log device."),
+    ("SDIO_Card", None, "The SD card on an STM32H7's SDMMC controller, when the board's configuration names an SDIO "
+                        "device."),
     ("Flash_Chip", None, "The flash chip as a flight log device, when the board's configuration names one."),
     ("Blackbox", 1024, "The flight log, or below that size when the board's configuration names a flash chip. An "
                        "STM32F411 or STM32F446 build leaves it out."),
@@ -117,6 +119,8 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
     if flysky_default and flash_kb < 1024:
         chosen["FlySky_Receiver"] = True
         chosen["CC2500_Receiver"] = False
+    # The SDIO card needs an SDMMC controller port, which H7 builds have.
+    chosen["SDIO_Card"] = mcu.startswith("STM32H7") and "SDIO_DEVICE" in defines
     by_key = {name.lower(): name for name, _, _ in FEATURES}
     for token in re.split(r"[\s,]+", changes.strip()):
         if not token:
@@ -127,6 +131,9 @@ def selection(flash_kb: int, changes: str, defines: frozenset = frozenset(), mcu
             raise SystemExit(f"featuregen: unknown feature {token}; the features are "
                              + ", ".join(name for name, _, _ in FEATURES))
         chosen[by_key[key]] = on
+    # The SDIO card is an SD card on another bus.
+    if not chosen["SD_Card"]:
+        chosen["SDIO_Card"] = False
     # A build without the flight log has no log storage and no mass storage mode over it.
     if not chosen["Blackbox"]:
         for name in ("SD_Card", "Flash_Chip", "Mass_Storage"):
@@ -401,6 +408,7 @@ def itcm_load(chosen: dict) -> str:
 # source file stem; the stub body is the stem with "__off".
 STUBS = [("Menus", "Adaflight.STM32.Menu", "adaflight-stm32-menu"),
          ("SD_Card", "Adaflight.STM32.SD", "adaflight-stm32-sd"),
+         ("SDIO_Card", "Adaflight.STM32.SD_SDIO", "adaflight-stm32-sd_sdio"),
          ("Flash_Chip", "Adaflight.STM32.Flash_Chip", "adaflight-stm32-flash_chip"),
          ("Blackbox", "Adaflight.STM32.Blackbox", "adaflight-stm32-blackbox"),
          ("Mass_Storage", "Adaflight.STM32.Mass_Storage_Mode", "adaflight-stm32-mass_storage_mode"),
