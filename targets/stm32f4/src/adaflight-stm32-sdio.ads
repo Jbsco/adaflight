@@ -1,8 +1,8 @@
 --  The SDIO controller of a card on the SDIO bus: its pins and clock, the
 --  card's identification at 400 kHz and its four-bit transfers at its data
 --  clock, block reads and writes, the card's transfer state, and its
---  identification and size. H7 builds drive SDMMC1; F4 and F7 builds have no
---  port yet and report no hardware.
+--  identification and size. H7 builds drive SDMMC1; F4 and F7 builds report
+--  no hardware.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.SD_Card_Bus;

@@ -17428,3 +17428,11 @@ them in ADC3's injected sequence (D935), which Renode's ADC does not run.
 
 On Renode's own H743 platform, MATEKH743's flight image now runs past start-up into its scheduler. Its SDIO card
 read the 64 MB card's identification as it did with D939's stand-in ADC3.
+
+## D941. SDIO on H7 alone (2026-11-28)
+
+No F4 or F7 board configuration names an SDIO device. Every STM32 board configuration that does is an H7. F4 and F7
+builds keep the SDIO controller's stub, which reports no hardware, and the roadmap drops their SDIO port.
+
+STM32H750 and STM32H730 boards come next. All six of their configurations are SP Racing boards, whose boot loader
+starts the flight image from external flash on QUADSPI or OCTOSPI.

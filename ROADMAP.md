@@ -31,8 +31,8 @@ Silver with no assume, and pass the gates on `main`.
   `targets/stm32f7` STM32F7 images. `targets/stm32h7` builds STM32H743 flight images, which no board has run
   yet. `targets/host` runs flight software on host, with UARTs and USB on TCP ports and a simulator link. Drivers
   cover SPI, I2C, DMA, timers, USB, flash, SD card, ADC on DMA, and DShot on timers and bit-banged on GPIO ports.
-  512 KB boards pack initialized data and start-up code. Left: F4 and F7 SDIO cards, an H7 board run, other
-  families Betaflight runs on, and USB mass storage, which no board has run yet.
+  512 KB boards pack initialized data and start-up code. Left: STM32H750 and STM32H730 boards, an H7 board
+  run, other families Betaflight runs on, and USB mass storage, which no board has run yet.
 - Phase 8, in progress. Tooling. adaflight-configurator, the upstream configurator with adaflight's
   changes, builds and flashes from an adaflight checkout and shows a fit view for boards short of flash.
   `tools/dfu` flashes over DFU on Linux, and `tools/msp` sends MSP requests and backs up a configuration.
