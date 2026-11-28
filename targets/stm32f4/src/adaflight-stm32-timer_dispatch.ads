@@ -3,7 +3,8 @@
 --  procedure registered for the timer that interrupts. Its handlers run above
 --  the board's other interrupt handlers, so a UART's or the USB port's work
 --  does not delay a bit clock's tick. TIM5's vector is the ExpressLRS
---  timer's.
+--  timer's, and so is TIM3's on a board whose ExpressLRS timer is TIM3.
+with Adaflight.Board;
 with Adaflight.STM32.Timers;
 package Adaflight.STM32.Timer_Dispatch is
    package Timers renames Adaflight.STM32.Timers;
@@ -12,7 +13,8 @@ package Adaflight.STM32.Timer_Dispatch is
    type Callback is access procedure (T : Timers.Timer_Name);
 
    --  Whether a timer's interrupts can be registered for.
-   function Served (T : Timers.Timer_Name) return Boolean is (T /= Timers.TIM5);
+   function Served (T : Timers.Timer_Name) return Boolean is
+     (T /= Timers.TIM5 and then (T /= Timers.TIM3 or else Adaflight.Board.ELRS_Timer /= 3));
 
    --  A timer's interrupts given to a procedure, which runs in the handler
    --  and clears the flags it serves, or to none. One procedure per timer.

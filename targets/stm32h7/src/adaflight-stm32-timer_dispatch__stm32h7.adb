@@ -20,12 +20,18 @@ package body Adaflight.STM32.Timer_Dispatch is
 
    --  An STM32H7 gives TIM1 four vectors and each of TIM15 to TIM17 one; TIM8
    --  shares its vectors with TIM12 to TIM14 as on an F4.
+   --  TIM3's vector, or TIM5's that the ExpressLRS timer leaves when it runs
+   --  on TIM3.
+   TIM3_Vector : constant Ada.Interrupts.Interrupt_ID :=
+     (if Adaflight.Board.ELRS_Timer = 3 then Ada.Interrupts.Names.TIM5_Interrupt
+      else Ada.Interrupts.Names.TIM3_Interrupt);
+
    protected Handlers with Interrupt_Priority => System.Interrupt_Priority'Last is
    private
       procedure TIM1_Update with Attach_Handler => Ada.Interrupts.Names.TIM1_UP_Interrupt;
       procedure TIM1_Capture with Attach_Handler => Ada.Interrupts.Names.TIM1_CC_Interrupt;
       procedure TIM2_Any with Attach_Handler => Ada.Interrupts.Names.TIM2_Interrupt;
-      procedure TIM3_Any with Attach_Handler => Ada.Interrupts.Names.TIM3_Interrupt;
+      procedure TIM3_Any with Attach_Handler => TIM3_Vector;
       procedure TIM4_Any with Attach_Handler => Ada.Interrupts.Names.TIM4_Interrupt;
       procedure TIM8_Update with Attach_Handler => Ada.Interrupts.Names.TIM8_UP_TIM13_Interrupt;
       procedure TIM8_Capture with Attach_Handler => Ada.Interrupts.Names.TIM8_CC_Interrupt;

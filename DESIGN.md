@@ -17467,3 +17467,22 @@ KAKUTEF7, CLRACINGF4, GEPRCF411 and host images keep their sizes. Under Renode's
 lines. Its timers counted about 1,300 per second, which seems to follow Renode's fixed timer clock against the
 H730's 260 MHz one. H730 timer and DMA tables, ADC3's internal channels, the configuration store and DFU writes
 through the boot loader come next.
+
+## D943. ExpressLRS timers on TIM3 and TIM6 (2026-11-28)
+
+The ExpressLRS timer unit drove TIM5 alone. CRAZYBEEF4SX1280 and HGLRCF411SX1280V2 name TIM3 for their built-in
+receiver, and SPRACINGH7RF names TIM6, so each receiver's set-up ended before it started its radio, and their
+images held no receiver edge handler.
+
+The unit now drives the board's TIM3, TIM5 or TIM6, attaches that timer's vector at the same priority as before,
+and sets the time base on the timer's own registers. TIM6 is a basic timer that no pin uses, so its vector has no
+other owner.
+
+TIM3's vector belongs to `Timer_Dispatch`, whose handlers run above the radio's EXTI handler, while
+the receiver's tick shares the radio's SPI bus and relies on equal priority (D743). On a board whose ExpressLRS
+timer is TIM3, `Timer_Dispatch` attaches its TIM3 handler to TIM5's vector, which the ExpressLRS timer then leaves,
+and `Served` refuses TIM3, as it refuses TIM5.
+
+All three receivers' edge handlers are now in their images. CRAZYBEEF4SX1280's code grows to 483,705 of 491,520
+bytes, and its interrupt stack is 1,396 of 2,048 bytes. GEPRCF411SX1280, on TIM5, grows by 8 bytes. Boards
+without an ExpressLRS receiver keep their sizes. No board has run a receiver on TIM3 or TIM6 yet.
