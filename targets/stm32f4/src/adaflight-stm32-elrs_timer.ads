@@ -1,6 +1,6 @@
---  The ExpressLRS receiver's timer: TIM5 counting up at 1 MHz, its update
---  interrupt calling the handler set, and the time base, period, counter and
---  run state the receiver programs.
+--  The ExpressLRS receiver's timer: the board's TIM3, TIM5 or TIM6 counting
+--  up at 1 MHz, its update interrupt calling the handler set, and the time
+--  base, period, counter and run state the receiver programs.
 with Interfaces;
 package Adaflight.STM32.ELRS_Timer is
    type Handler is access procedure;

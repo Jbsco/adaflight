@@ -23,6 +23,12 @@ package body Adaflight.STM32.Timer_Dispatch is
    TIM1_Update_ID  : constant Ada.Interrupts.Interrupt_ID := 25;
    TIM1_Capture_ID : constant Ada.Interrupts.Interrupt_ID := 27;
 
+   --  TIM3's vector, or TIM5's that the ExpressLRS timer leaves when it runs
+   --  on TIM3.
+   TIM3_Vector : constant Ada.Interrupts.Interrupt_ID :=
+     (if Adaflight.Board.ELRS_Timer = 3 then Ada.Interrupts.Names.TIM5_Interrupt
+      else Ada.Interrupts.Names.TIM3_Interrupt);
+
    protected Handlers with Interrupt_Priority => System.Interrupt_Priority'Last is
    private
       procedure TIM1_Update with Attach_Handler => TIM1_Update_ID;
@@ -30,7 +36,7 @@ package body Adaflight.STM32.Timer_Dispatch is
       procedure TIM9_Any with Attach_Handler => Ada.Interrupts.Names.TIM1_BRK_TIM9_Interrupt;
       procedure TIM11_Any with Attach_Handler => Ada.Interrupts.Names.TIM1_TRG_COM_TIM11_Interrupt;
       procedure TIM2_Any with Attach_Handler => Ada.Interrupts.Names.TIM2_Interrupt;
-      procedure TIM3_Any with Attach_Handler => Ada.Interrupts.Names.TIM3_Interrupt;
+      procedure TIM3_Any with Attach_Handler => TIM3_Vector;
       procedure TIM4_Any with Attach_Handler => Ada.Interrupts.Names.TIM4_Interrupt;
       procedure TIM8_Update with Attach_Handler => Ada.Interrupts.Names.TIM8_UP_TIM13_Interrupt;
       procedure TIM8_Capture with Attach_Handler => Ada.Interrupts.Names.TIM8_CC_Interrupt;
