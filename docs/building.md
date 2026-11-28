@@ -4,7 +4,7 @@ The STM32F4 crate builds STM32F405, STM32F411 and STM32F446 boards, the STM32F7 
 
 The STM32H7 crate builds the flight image for STM32H743 boards and a bring-up image beside it: `CRATE=stm32h7 bash target.do`, MATEKH743 by default. No H7 board has run either yet.
 
-The bring-up image blinks an LED, echoes UART1 at 115200 baud, reports rising edges on the first gyro's interrupt pin, counts timer updates, copies memory by DMA and prints ADC readings each second. It also reads the second gyro's identity over SPI4, keeps a marker block in its configuration sector and echoes its USB serial port. An R on UART1 makes a request in the backup registers and resets, to check that the next start finds it, and a BMP180's identifier is read over I2C4.
+The bring-up image blinks an LED, echoes UART1 at 115200 baud, reports rising edges on the first gyro's interrupt pin, counts timer updates, copies memory by DMA and prints ADC readings each second. It also reads the second gyro's identity over SPI4, keeps a marker block in its configuration sector and echoes its USB serial port. An R on UART1 makes a request in the backup registers and resets, to check that the next start finds it, and a BMP180's identifier is read over I2C4. An SD card on SDMMC1 is identified and its block 0 read.
 
 A board builds its compass and barometer only when its configuration names them, and a board of any size its flash chip only when its configuration names one.
 

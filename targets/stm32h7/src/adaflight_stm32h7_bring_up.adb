@@ -7,7 +7,8 @@
 --  with ADC1's PC0 reading and ADC3's reference and temperature readings,
 --  the second gyro's identity read over SPI4, whether the configuration
 --  sector's marker block was written or kept, a barometer's chip identifier
---  read over I2C4, every byte the USB serial port receives sent back on it,
+--  read over I2C4, an SD card's size and block 0 signature over SDMMC1,
+--  every byte the USB serial port receives sent back on it,
 --  and the board's first LED blinking at 1 Hz, with the caches on and the D2
 --  RAM uncached.
 with Ada.Real_Time; use Ada.Real_Time;
@@ -69,6 +70,13 @@ begin
    Adaflight.STM32.Bring_Up.Read_Barometer_Identity;
    Put (Line, "i2c4 barometer identity" & Natural'Image (Adaflight.STM32.Bring_Up.Barometer_Identity)
         & ASCII.CR & ASCII.LF);
+   declare
+      Stage, Blocks, Signature : Natural;
+   begin
+      Adaflight.STM32.Bring_Up.Read_SD_Block_0 (Stage, Blocks, Signature);
+      Put (Line, "sdio stage" & Natural'Image (Stage) & " blocks" & Natural'Image (Blocks) & " signature"
+           & Natural'Image (Signature) & ASCII.CR & ASCII.LF);
+   end;
    Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
    Put (Line, "usb started" & ASCII.CR & ASCII.LF);
    loop

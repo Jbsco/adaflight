@@ -8,13 +8,14 @@ project Adaflight_Stm32h7 is
    for Source_Dirs use ("src/", "../stm32f7/src/", "../stm32f4/src/", "gen/", "config/");
    --  The F4 and F7 crates' mains and the units the H7 replaces: the F4 drivers whose register sets differ, as
    --  in the F7 crate, the F7 platform and cache, the core coupled memory clear, the timer vectors, the USB clock,
-   --  the MCU and the ADC.
+   --  the MCU, the ADC and the SDIO controller.
    for Excluded_Source_Files use
      ("adaflight_stm32f4.adb", "adaflight_stm32f7.adb", "adaflight-stm32-platform.ads",
       "adaflight-stm32-platform__stm32f7.ads", "adaflight-stm32-cache.adb", "adaflight-stm32-ccm_clear.adb",
       "adaflight-stm32-usart.adb", "adaflight-stm32-spi.adb", "adaflight-stm32-flash.adb", "adaflight-stm32-usb.adb",
       "adaflight-stm32-i2c.adb", "adaflight-stm32-data_pack.adb", "adaflight-stm32-timer_dispatch.adb",
-      "adaflight-stm32-usb_clock.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-adc.adb")
+      "adaflight-stm32-usb_clock.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-adc.adb",
+      "adaflight-stm32-sdio.adb")
      & Adaflight_Feature_Units.Excluded;
 
    package Naming is
@@ -24,6 +25,7 @@ project Adaflight_Stm32h7 is
       for Body ("Adaflight.STM32.ADC") use "adaflight-stm32-adc__stm32h7.adb";
       for Body ("Adaflight.STM32.Flash") use "adaflight-stm32-flash__stm32h7.adb";
       for Body ("Adaflight.STM32.MCU") use "adaflight-stm32-mcu__stm32h7.adb";
+      for Body ("Adaflight.STM32.SDIO") use "adaflight-stm32-sdio__stm32h7.adb";
       for Body ("Adaflight.STM32.SPI") use "adaflight-stm32-spi__stm32h7.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-stm32-usart__stm32f7.adb";
       for Body ("Adaflight.STM32.USB") use "adaflight-stm32-usb__stm32f7.adb";
