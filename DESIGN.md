@@ -17436,3 +17436,34 @@ builds keep the SDIO controller's stub, which reports no hardware, and the roadm
 
 STM32H750 and STM32H730 boards come next. All six of their configurations are SP Racing boards, whose boot loader
 starts the flight image from external flash on QUADSPI or OCTOSPI.
+
+## D942. STM32H730 images (2026-11-28)
+
+The user chose H750 and H730 boards after H743 (desk P9). Three STM32H730 configurations exist, all SP Racing
+boards. Their boot loader runs the image in place from external flash at 0x9010_0000. The image is 1 MB, padded
+with zeros, and its last 16 bytes hold the MD5 hash of the whole image with those bytes zero. `tools/exstgen.py`
+writes that image as `bin/adaflight_stm32h7.bin`.
+
+`tools/memorygen.py` lays an H730 image out in that 1 MB: vectors and the code beside them in its first 64 KB, the
+rest of the code from 0x9011_0000 for 959 KB. RAM is 320 KB of AXI SRAM, 128 KB of DTCM, 64 KB of ITCM and 32 KB of
+D2 SRAM. The configuration region sits past the image at 0x9020_0000 and has no writer yet: each save reports
+failure, so settings changes last until a reset.
+
+`tools/runtimegen.py` writes the H730's interrupt table as RM0468 numbers it, 163 entries. Its clock setup runs
+the core at 520 MHz from PLL1 in voltage scale 0, with buses at 260 and 130 MHz. A PLL1 that already drives the
+system clock stays as it is, since the hardware refuses to stop it, so after the boot loader the image runs at the
+boot loader's clock. The run-time library's clock range now reaches 550 MHz.
+
+H730 USB is the OTG HS core on its full speed PHY, so the USB driver takes its core, clock enable and interrupt
+from the memory map.
+
+The stack check now skips a callback with no function of its name in the image, since nothing registers it there.
+SPRACINGH7RF's ExpressLRS receiver names TIM6, and the ExpressLRS timer unit drives TIM5 alone, so that receiver's
+set-up ends before it registers its edge handlers.
+
+SPRACINGH7RF's code is 700,244 of 982,016 bytes. MATEKH743's code grows by 8 bytes for the clock setup's check, and
+KAKUTEF7, CLRACINGF4, GEPRCF411 and host images keep their sizes. Under Renode's H743 platform with 4 MB mapped at
+0x9000_0000, SPRACINGH7EVO's bring-up image printed its banner, both DMA copies, USB start and its timer and ADC
+lines. Its timers counted about 1,300 per second, which seems to follow Renode's fixed timer clock against the
+H730's 260 MHz one. H730 timer and DMA tables, ADC3's internal channels, the configuration store and DFU writes
+through the boot loader come next.
