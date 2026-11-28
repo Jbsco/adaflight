@@ -17414,3 +17414,17 @@ Under Renode, MATEKH743's flight image waited at start-up for ADC3's internal re
 injected conversion. With a stand-in ADC3 that reports each conversion done and a 64 MB FAT image on SDMMC1, it went
 past start-up and its SDIO card read that card's identification: 131072 blocks and its manufacture year. Block
 reads then failed, since Renode's SDMMC moves data through its FIFO alone, and the card fell back to absent.
+
+## D940. Internal ADC start-up wait (2026-11-28)
+
+Start-up fills the internal reference and core temperature averages with nine passes of the internal ADC task.
+Each pass now waits at most 1 ms for the conversion it follows. A pass during a running conversion leaves both
+averages as they were. Both channels convert in about 94 µs on an F405 (2 × 492 cycles at 10.5 MHz) and 32 µs on an
+H7 of revision V (2 × 400 cycles at 25 MHz). A working converter ends each conversion well inside the bound.
+
+The reference waits for each conversion without a bound on F4 and F7, so a converter that never ends one stops
+start-up there. On H7 it reads both channels from ADC3's regular scan and never waits. adaflight's H7 body converts
+them in ADC3's injected sequence (D935), which Renode's ADC does not run.
+
+On Renode's own H743 platform, MATEKH743's flight image now runs past start-up into its scheduler. Its SDIO card
+read the 64 MB card's identification as it did with D939's stand-in ADC3.
