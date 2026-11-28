@@ -17360,8 +17360,8 @@ The stack check read every F4 and F7 source for each image, so it found F4's tim
 now reads an image's own crate first and skips a package that crate already gives. F4 and F7 checks print as before.
 
 Renode's H743 has SPI4 alone, and the flight image waits on SPI1, its first gyro's bus. With SPI1 to SPI3 added to
-the Renode platform and a generic SPI sensor on SPI1, it booted into its main loop. No H7 board has run it yet.
-MATEKH743's SD card sits on SDIO, which no family has ported, so its card stays unused.
+the Renode platform and a generic SPI sensor on SPI1, it ran its start-up up to ADC3's internal readings, whose
+injected conversion Renode's ADC does not run (D939). No H7 board has run it yet.
 
 ## D937. H7 SDMMC controller (2026-11-27)
 
@@ -17396,3 +17396,21 @@ move from SPI to off. CLRACINGF7 is one: it names an SD card on SPI2 with PB12 a
 without `USE_SDCARD`. Its 512 KB build leaves SD card code out, so only its setting changes.
 
 The SD unit still starts SPI cards alone, so an SDIO board keeps its card unused until SDIO joins that unit.
+
+## D939. SD cards over SDIO (2026-11-27)
+
+D368's SDIO card driver had no target. An SDIO card unit now runs it on D937's controller, with the controller's
+own DMA, no write cache, the detect pin from the configuration, and the
+completion its last poll reported. A new build feature, `SDIO_Card`, brings that unit in for H7 boards whose
+configuration names an SDIO device, and leaves it out with the SD card. Other builds take a stub, so they keep no
+SDIO card state.
+
+The SD unit now runs its card by the configured mode: SPI, or SDIO in a build that has it. Every card operation it
+makes goes through one dispatch, mass storage mode's raw reads and writes included. KAKUTEF7's code is 416 bytes
+smaller and its RAM 8 bytes larger. MATEKH743's code grows by 3172 bytes and its RAM by 17040, mostly the SDIO card's
+cache space and the controller's transfer buffer.
+
+Under Renode, MATEKH743's flight image waited at start-up for ADC3's internal readings, since Renode's ADC runs no
+injected conversion. With a stand-in ADC3 that reports each conversion done and a 64 MB FAT image on SDMMC1, it went
+past start-up and its SDIO card read that card's identification: 131072 blocks and its manufacture year. Block
+reads then failed, since Renode's SDMMC moves data through its FIFO alone, and the card fell back to absent.
