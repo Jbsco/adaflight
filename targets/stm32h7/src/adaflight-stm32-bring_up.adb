@@ -11,6 +11,9 @@ with Adaflight.STM32.EXTI_Dispatch;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.I2C;
+with Adaflight.STM32.SDIO;
+with Adaflight.SD_Card_Bus;
+with Adaflight.SD_Card_Types;
 with Adaflight.STM32.Platform;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Timer_Dispatch;
@@ -199,4 +202,40 @@ package body Adaflight.STM32.Bring_Up is
    end Read_Barometer_Identity;
 
    function Barometer_Identity return Natural is (Barometer);
+
+   procedure Read_SD_Block_0 (Stage : out Natural; Blocks : out Natural; Signature : out Natural) is
+      OK    : Boolean;
+      Info  : Adaflight.SD_Card_Types.Card_Information;
+      Block : Adaflight.SD_Card_Bus.Block;
+   begin
+      Stage := 0;
+      Blocks := 0;
+      Signature := 0;
+      SDIO.Init_Hardware (OK);
+      if not OK then
+         return;
+      end if;
+      Stage := 1;
+      SDIO.Init_Card (OK);
+      if not OK then
+         return;
+      end if;
+      Stage := 2;
+      SDIO.Card_Info (Info, OK);
+      Blocks := Natural (Interfaces.Unsigned_64'Min (Info.Capacity, Interfaces.Unsigned_64 (Natural'Last)));
+      SDIO.Start_Read (0, OK);
+      if not OK then
+         return;
+      end if;
+      Stage := 3;
+      for Spin in 1 .. 1_000_000 loop
+         exit when not SDIO.Read_Pending;
+      end loop;
+      if SDIO.Read_Pending then
+         return;
+      end if;
+      SDIO.Fetch_Block (Block);
+      Signature := Natural (Block (510)) * 256 + Natural (Block (511));
+      Stage := 4;
+   end Read_SD_Block_0;
 end Adaflight.STM32.Bring_Up;

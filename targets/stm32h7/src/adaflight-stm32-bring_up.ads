@@ -3,7 +3,8 @@
 --  interrupts of TIM1 and TIM15 to TIM17, each counting at 1 kHz, memory
 --  copies by DMA1 and DMA2, ADC1 and ADC3 readings through the ADC driver,
 --  the second gyro's identity read over SPI4, a marker block kept in the
---  configuration sector, and a barometer's chip identifier read over I2C4.
+--  configuration sector, a barometer's chip identifier read over I2C4, and
+--  block 0 of an SD card read over SDMMC1.
 with Adaflight.STM32.Timers;
 package Adaflight.STM32.Bring_Up is
    procedure Watch_Gyro_Interrupt;
@@ -42,4 +43,9 @@ package Adaflight.STM32.Bring_Up is
    --  zero when the read failed.
    procedure Read_Barometer_Identity;
    function Barometer_Identity return Natural;
+
+   --  An SD card started over SDMMC1, its size in blocks, and the last two
+   --  bytes of its block 0 as one word, 16#55AA# on a card with a partition
+   --  table; Stage counts the steps that passed, 4 when all did.
+   procedure Read_SD_Block_0 (Stage : out Natural; Blocks : out Natural; Signature : out Natural);
 end Adaflight.STM32.Bring_Up;

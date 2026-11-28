@@ -17362,3 +17362,22 @@ now reads an image's own crate first and skips a package that crate already give
 Renode's H743 has SPI4 alone, and the flight image waits on SPI1, its first gyro's bus. With SPI1 to SPI3 added to
 the Renode platform and a generic SPI sensor on SPI1, it booted into its main loop. No H7 board has run it yet.
 MATEKH743's SD card sits on SDIO, which no family has ported, so its card stays unused.
+
+## D937. H7 SDMMC controller (2026-11-27)
+
+D368's SDIO card driver runs card commands through a controller, and no family had one. An SDIO controller unit
+now gives that controller's operations: start, card identification, transfer state, card information, and block
+reads and writes with their pending checks. F4 and F7 builds report no hardware for now.
+
+H7 builds drive SDMMC1 on PC8 to PC12 and PD2 in AF12. Its 100 MHz kernel clock divides to 400 kHz for card
+identification: CMD0, CMD8, ACMD41 until ready with high capacity asked of a version 2 card, CMD2, CMD3, CMD9, CMD7,
+CMD16 and ACMD6 for four data lines. It then runs at 25 MHz with hardware flow control. Card information comes from
+the CID and from the CSD's size fields of either structure, counted in 512-byte blocks.
+
+A block transfer starts its
+data path from its command, through the controller's internal DMA into a buffer in D2 RAM. A multiple block write
+ends with CMD12, and pending checks cover a card still busy on its data line.
+
+H7's bring-up image identifies a card and reads its block 0. Under Renode, with a 64 MB FAT image on SDMMC1, the
+card was identified with 131072 blocks. Renode's SDMMC serves data through its FIFO register alone, so the block
+read waits for an H7 board, as does internal DMA's reach into D2 RAM.
