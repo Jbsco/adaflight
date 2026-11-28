@@ -266,6 +266,7 @@ package body Adaflight.STM32.Flight is
       OSD_CS_Tag       => Adaflight.Board.MAX7456_CS_Tag,
       OSD_SPI_Device   => Adaflight.Board.MAX7456_SPI_Device,
       SD_SPI_Device    => Adaflight.Board.SDCARD_SPI_Device,
+      SD_Mode          => Adaflight.Board.SDCARD_Mode,
       SD_CS_Tag        => Adaflight.Board.SDCARD_CS_Tag,
       SD_Detect_Tag    => Adaflight.Board.SDCARD_Detect_Tag,
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,

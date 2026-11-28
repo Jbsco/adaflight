@@ -81,6 +81,7 @@ package Adaflight.Board_Info with SPARK_Mode is
       OSD_CS_Tag       : Interfaces.Unsigned_8 := 0;
       OSD_SPI_Device   : Interfaces.Unsigned_8 := 0;
       SD_SPI_Device    : Interfaces.Integer_8 := 0;
+      SD_Mode          : Interfaces.Unsigned_8 := 0;
       SD_CS_Tag        : Interfaces.Unsigned_8 := 0;
       SD_Detect_Tag    : Interfaces.Unsigned_8 := 0;
       SD_Detect_Low    : Boolean := False;

@@ -17381,3 +17381,18 @@ ends with CMD12, and pending checks cover a card still busy on its data line.
 H7's bring-up image identifies a card and reads its block 0. Under Renode, with a 64 MB FAT image on SDMMC1, the
 card was identified with 131072 blocks. Renode's SDMMC serves data through its FIFO register alone, so the block
 read waits for an H7 board, as does internal DMA's reach into D2 RAM.
+
+## D938. SD card mode default (2026-11-27)
+
+The SD card's mode setting took its default from an SPI bus and select pin named in a board's configuration:
+SPI with both, off without. The reference's default goes by its build defines. A board without `USE_SDCARD` has no
+SD card in either mode. A build otherwise starts at SDIO where its MCU target or its configuration names SDIO, else
+at SPI. It then takes SPI for a named SPI bus and select pin, and SDIO for a named SDIO device.
+
+The board generator now gives each board that default as `SDCARD_Mode`, and board defaults take it as it is. The
+MCU targets naming both modes are F411, F446, F722, F745 and the H7 and H5 parts, and F405 boards name SPI in
+their own configurations. Among board configurations, 28 move from off to SDIO, 22 of them on STM32H743, and 7
+move from SPI to off. CLRACINGF7 is one: it names an SD card on SPI2 with PB12 as select, its flash chip's select,
+without `USE_SDCARD`. Its 512 KB build leaves SD card code out, so only its setting changes.
+
+The SD unit still starts SPI cards alone, so an SDIO board keeps its card unused until SDIO joins that unit.
