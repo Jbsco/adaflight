@@ -1,6 +1,6 @@
 #!/bin/bash
-# Gate: the STM32F4 image builds, or the STM32F7 one with CRATE=stm32f7, or with CRATE=stm32h7 the STM32H7 one,
-# which so far blinks the board's LED, echoes UART1 and is sized, nothing more. The board package is
+# Gate: the STM32F4 image builds, or the STM32F7 one with CRATE=stm32f7, or with CRATE=stm32h7 the STM32H7 one
+# with its bring-up image beside it, whose size is shown. The board package is
 # generated from the pinned board configuration repository (BOARD, CLRACINGF4, KAKUTEF7 or MATEKH743 when
 # unset), the build's features from the board's flash size, FLASH_KB and FEATURES, the crate builds
 # in its release profile with the Alire ARM toolchain and the runtime it names or generates, and the
@@ -79,8 +79,7 @@ ADAFLIGHT_MAVLINK_TELEMETRY="$(python3 ../../tools/featuregen.py --feature MAVLi
 export ADAFLIGHT_MAVLINK_TELEMETRY
 alr -n build --release
 if [ "$CRATE" = stm32h7 ]; then
-    alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
-    exit 0
+    alr -n exec -- arm-eabi-size "bin/adaflight_${CRATE}_bring_up"
 fi
 alr -n exec -- arm-eabi-size "bin/adaflight_$CRATE"
 alr -n exec -- python3 -I ../../tools/stackdepth.py "bin/adaflight_$CRATE"

@@ -52,7 +52,7 @@ project Adaflight_Stm32h7 is
    for Object_Dir use "obj/" & Adaflight_Stm32h7_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Exec_Dir use "bin";
-   for Main use ("adaflight_stm32h7.adb");
+   for Main use ("adaflight_stm32h7.adb", "adaflight_stm32h7_bring_up.adb");
 
    package Compiler is
       for Local_Configuration_Pragmas use "gen/adaflight-checks.adc";
