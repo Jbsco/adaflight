@@ -19,6 +19,7 @@ case is a context switch interrupted by a handler of each priority in turn and t
 alarm. Each level costs its entry code and its deepest path, and each level above the first an exception frame,
 extended where the level below uses floating point. That sum must leave INTERRUPT_MARGIN bytes. A handler's call
 through a register must be one the check can follow: a callback registered through a call REGISTRATIONS names.
+A callback with no function of its name in the image is never registered there, so it adds no callee.
 The alarm calls a timing event's handler through a register too, so sources that use timing events fail.
 """
 import re
@@ -216,7 +217,7 @@ def registered(frame: dict, calls: dict, indirect: dict) -> set:
                 base = prefix + m.group(1).lower()
                 names = {f for f in frame
                          if f == base or f.startswith(base + ".") or re.fullmatch(re.escape(base) + r"__\d+", f)}
-                if not names and any(f.startswith(prefix) for f in frame):
+                if not names and any(f.startswith(base) for f in frame):
                     raise SystemExit(f"stackdepth: {name} registers {m.group(1)}, which the image lacks as {base}")
                 callbacks |= names
         for f in frame:
