@@ -1,6 +1,8 @@
---  The STM32H7's clocks at start-up: the LDO supply, voltage scale 1, the
---  crystal, PLL1 from it with the core on its P output, the flash wait
---  states for the bus clock, and the buses at half the core's bus clock.
+--  The STM32H7's clocks at start-up: the LDO supply, the voltage scale its
+--  system clock needs, the crystal, PLL1 from it with the core on its P
+--  output, the flash wait states for the bus clock, and the buses at half
+--  the core's bus clock. A PLL1 that already drives the system clock, as a
+--  boot loader leaves it, stays as it is.
 
 pragma Suppress (All_Checks);
 
@@ -45,7 +47,8 @@ procedure Setup_Pll is
    ACTVOSRDY : constant Unsigned_32 := 2 ** 13;
    VOSRDY    : constant Unsigned_32 := 2 ** 13;
    VOS_Mask  : constant Unsigned_32 := 2#11# * 2 ** 14;
-   VOS_1     : constant Unsigned_32 := 2#11# * 2 ** 14;
+   VOS       : constant Unsigned_32 :=
+     (if Voltage_Scale = 0 then 0 else 2#11# * 2 ** 14);
    Half_AHB  : constant Unsigned_32 := 2#1000#;
    Half_APB  : constant Unsigned_32 := 2#100#;
    Latency   : constant Unsigned_32 := Unsigned_32 (FLASH_Latency);
@@ -58,32 +61,34 @@ begin
       exit when (PWR_CSR1 and ACTVOSRDY) /= 0;
    end loop;
 
-   PWR_D3CR := (PWR_D3CR and not VOS_Mask) or VOS_1;
+   PWR_D3CR := (PWR_D3CR and not VOS_Mask) or VOS;
    loop
       exit when (PWR_D3CR and VOSRDY) /= 0;
    end loop;
 
-   RCC_CR := RCC_CR or HSEON;
-   loop
-      exit when (RCC_CR and HSERDY) /= 0;
-   end loop;
+   if (RCC_CFGR and 2#111_000#) /= 2#011_000# then
+      RCC_CR := RCC_CR or HSEON;
+      loop
+         exit when (RCC_CR and HSERDY) /= 0;
+      end loop;
 
-   RCC_CR := RCC_CR and not PLL1ON;
-   loop
-      exit when (RCC_CR and PLL1RDY) = 0;
-   end loop;
-   RCC_PLLCKSELR := (RCC_PLLCKSELR and not 2#11_1111_0011#)
-     or 2#10# or Unsigned_32 (PLL1_M) * 2 ** 4;
-   RCC_PLLCFGR := (RCC_PLLCFGR and not (2#1111# or 2#111# * 2 ** 16))
-     or Unsigned_32 (PLL1_Range) * 2 ** 2 or 2#111# * 2 ** 16;
-   RCC_PLL1DIVR := Unsigned_32 (PLL1_N - 1)
-     or Unsigned_32 (PLLP_Value - 1) * 2 ** 9
-     or Unsigned_32 (PLLQ_Value - 1) * 2 ** 16
-     or Unsigned_32 (PLL1_R - 1) * 2 ** 24;
-   RCC_CR := RCC_CR or PLL1ON;
-   loop
-      exit when (RCC_CR and PLL1RDY) /= 0;
-   end loop;
+      RCC_CR := RCC_CR and not PLL1ON;
+      loop
+         exit when (RCC_CR and PLL1RDY) = 0;
+      end loop;
+      RCC_PLLCKSELR := (RCC_PLLCKSELR and not 2#11_1111_0011#)
+        or 2#10# or Unsigned_32 (PLL1_M) * 2 ** 4;
+      RCC_PLLCFGR := (RCC_PLLCFGR and not (2#1111# or 2#111# * 2 ** 16))
+        or Unsigned_32 (PLL1_Range) * 2 ** 2 or 2#111# * 2 ** 16;
+      RCC_PLL1DIVR := Unsigned_32 (PLL1_N - 1)
+        or Unsigned_32 (PLLP_Value - 1) * 2 ** 9
+        or Unsigned_32 (PLLQ_Value - 1) * 2 ** 16
+        or Unsigned_32 (PLL1_R - 1) * 2 ** 24;
+      RCC_CR := RCC_CR or PLL1ON;
+      loop
+         exit when (RCC_CR and PLL1RDY) /= 0;
+      end loop;
+   end if;
 
    --  Wait states and write delay for the bus clock, before it rises.
    FLASH_ACR := (FLASH_ACR and not 2#11_1111#) or Latency

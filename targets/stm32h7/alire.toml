@@ -1,5 +1,5 @@
 name = "adaflight_stm32h7"
-description = "STM32H7 target: the core on STM32H743 boards"
+description = "STM32H7 target: the core on STM32H743 and STM32H730 boards"
 version = "0.1.0-dev"
 
 authors = ["Jacob Seman"]

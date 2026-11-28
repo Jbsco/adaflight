@@ -16,14 +16,14 @@ project Adaflight_Stm32h7 is
       "adaflight-stm32-i2c.adb", "adaflight-stm32-data_pack.adb", "adaflight-stm32-timer_dispatch.adb",
       "adaflight-stm32-usb_clock.adb", "adaflight-stm32-mcu.adb", "adaflight-stm32-adc.adb",
       "adaflight-stm32-sdio.adb")
-     & Adaflight_Feature_Units.Excluded;
+     & Adaflight_Feature_Units.Excluded & Adaflight_Feature_Units.Flash_Excluded;
 
    package Naming is
       for Spec ("Adaflight.STM32.Platform") use "adaflight-stm32-platform__stm32h7.ads";
       for Body ("Adaflight.STM32.Cache") use "adaflight-stm32-cache__stm32h7.adb";
       for Body ("Adaflight.STM32.CCM_Clear") use "adaflight-stm32-ccm_clear__stm32h7.adb";
       for Body ("Adaflight.STM32.ADC") use "adaflight-stm32-adc__stm32h7.adb";
-      for Body ("Adaflight.STM32.Flash") use "adaflight-stm32-flash__stm32h7.adb";
+      for Body ("Adaflight.STM32.Flash") use Adaflight_Feature_Units.Flash_Body;
       for Body ("Adaflight.STM32.MCU") use "adaflight-stm32-mcu__stm32h7.adb";
       for Body ("Adaflight.STM32.SDIO") use "adaflight-stm32-sdio__stm32h7.adb";
       for Body ("Adaflight.STM32.SPI") use "adaflight-stm32-spi__stm32h7.adb";

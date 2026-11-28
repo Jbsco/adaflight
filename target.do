@@ -8,7 +8,8 @@
 # then packs its data and elaboration code, an STM32F7's tables with them. Every build writes its flash files,
 # sector0.bin and code.bin, and an Intel HEX image of both that leaves the configuration sector out, and reports
 # the code file's size against its flash region. A build past that region fails with the overflow in bytes. A
-# failed build leaves no flash files.
+# failed build leaves no flash files. An image that its boot loader runs from external flash also gets its
+# hashed .bin from tools/exstgen.py.
 set -e
 CRATE="${CRATE:-stm32f4}"
 cd "$(dirname "$0")/targets/$CRATE"
@@ -123,6 +124,7 @@ else
     alr -n exec -- arm-eabi-objcopy -O binary --remove-section=.vectors --remove-section=.text0 "bin/adaflight_$CRATE" \
         bin/code.bin
 fi
+IMAGE_BASE="$(sed -n 's/^ *flash0 *(rx) : ORIGIN = \(0x[0-9A-Fa-f]*\), LENGTH = .*$/\1/p' gen/memory.ld)"
 CODE_START="$(sed -n 's/^ *flash *(rx) : ORIGIN = \(0x[0-9A-Fa-f]*\), LENGTH = .*$/\1/p' gen/memory.ld)"
 CODE_KB="$(sed -n 's/^__flash_size = \([0-9]*\)K;$/\1/p' gen/memory.ld)"
 CODE_BYTES="$(stat -c %s bin/code.bin)"
@@ -133,5 +135,10 @@ if [ "$CODE_BYTES" -gt $((CODE_KB * 1024)) ]; then
     exit 1
 fi
 python3 -I ../../tools/hexgen.py "bin/adaflight_$CRATE.hex" --end=$((CODE_START + CODE_KB * 1024)) \
-    bin/sector0.bin@0x08000000 "bin/code.bin@$CODE_START"
+    "bin/sector0.bin@$IMAGE_BASE" "bin/code.bin@$CODE_START"
+EXST_KB="$(sed -n 's/^__exst_image_size = \([0-9]*\)K;$/\1/p' gen/memory.ld)"
+if [ -n "$EXST_KB" ]; then
+    python3 -I ../../tools/exstgen.py "bin/adaflight_$CRATE.bin" "$IMAGE_BASE" "$EXST_KB" \
+        "bin/sector0.bin@$IMAGE_BASE" "bin/code.bin@$CODE_START"
+fi
 echo "target: ok"

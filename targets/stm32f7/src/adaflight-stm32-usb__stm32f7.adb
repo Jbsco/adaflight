@@ -1,4 +1,3 @@
-with Ada.Interrupts.Names;
 with System;
 with Interfaces;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -175,7 +174,7 @@ package body Adaflight.STM32.USB is
       function Control_State return Interfaces.Unsigned_16;
       function Control_Count return Interfaces.Unsigned_32;
    private
-      procedure Handler with Attach_Handler => Ada.Interrupts.Names.OTG_FS_Interrupt;
+      procedure Handler with Attach_Handler => Adaflight.STM32.Memory.USB_Interrupt;
       D          : U.Device;
       Setup      : U.Setup_Packet := (others => 0);
       Received   : Packets;
