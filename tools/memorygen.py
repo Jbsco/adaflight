@@ -58,6 +58,7 @@ MAP_F4_F7 = (("RCC_APB1_Reset", 0x4002_3820), ("RCC_APB2_Reset", 0x4002_3824), (
              ("RCC_SYSCFG_Enable", 0x4002_3844), ("SYSCFG_Enable_Bit", 14),
              ("GPIO_Base", 0x4002_0000), ("EXTI_Base", 0x4001_3C00), ("SYSCFG_Base", 0x4001_3800),
              ("DMA1_Base", 0x4002_6000), ("DMA2_Base", 0x4002_6400), ("DMAMUX1_Base", 0), ("OTG_FS_Base", 0x5000_0000),
+             ("USB_Interrupt", 67),
              ("EXTI_IMR", 0x00), ("EXTI_EMR", 0x04), ("EXTI_RTSR", 0x08), ("EXTI_FTSR", 0x0C), ("EXTI_SWIER", 0x10),
              ("EXTI_PR", 0x14), ("I2C4_Base", 0x4000_6000), ("RCC_I2C4_Enable", 0x4002_3840),
              ("RCC_I2C4_Reset", 0x4002_3820), ("I2C4_Enable_Bit", 24), ("I2C4_Port_B_Function", 4))
@@ -67,7 +68,7 @@ MAP_H7 = (("RCC_APB1_Reset", 0x5802_4490), ("RCC_APB2_Reset", 0x5802_4498), ("RC
           ("RCC_SYSCFG_Enable", 0x5802_44F4), ("SYSCFG_Enable_Bit", 1),
           ("GPIO_Base", 0x5802_0000), ("EXTI_Base", 0x5800_0000), ("SYSCFG_Base", 0x5800_0400),
           ("DMA1_Base", 0x4002_0000), ("DMA2_Base", 0x4002_0400), ("DMAMUX1_Base", 0x4002_0800),
-          ("OTG_FS_Base", 0x4008_0000),
+          ("OTG_FS_Base", 0x4008_0000), ("USB_Interrupt", 101),
           ("EXTI_IMR", 0x80), ("EXTI_EMR", 0x84), ("EXTI_RTSR", 0x00), ("EXTI_FTSR", 0x04), ("EXTI_SWIER", 0x08),
           ("EXTI_PR", 0x88), ("I2C4_Base", 0x5800_1C00), ("RCC_I2C4_Enable", 0x5802_44F4),
           ("RCC_I2C4_Reset", 0x5802_449C), ("I2C4_Enable_Bit", 7), ("I2C4_Port_B_Function", 6))
